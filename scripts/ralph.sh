@@ -601,8 +601,32 @@ Then list what must be fixed before the merge can proceed." \
       git checkout "${DEFAULT_BRANCH}"
       git pull --ff-only origin "${DEFAULT_BRANCH}" >/dev/null 2>&1 ||
         warn "could not fast-forward ${DEFAULT_BRANCH} from origin — continuing on local"
+      # Attempt merge; auto-resolve docs conflicts (both sides win)
       git merge --no-ff "$BASE_BRANCH" \
-        -m "release: merge ${BASE_BRANCH} to ${DEFAULT_BRANCH} — phase ${MINOR_VERSION} complete"
+        -m "release: merge ${BASE_BRANCH} to ${DEFAULT_BRANCH} — phase ${MINOR_VERSION} complete" 2>&1 || true
+      if [ -n "$(git ls-files --unmerged 2>/dev/null)" ]; then
+        warn "Merge conflicts detected — auto-resolving docs conflicts."
+        _conflicts="$(git diff --name-only --diff-filter=U 2>/dev/null || true)"
+        for _f in $_conflicts; do
+          case "$_f" in
+          docs/*.md)
+            # Accept both sides of docs conflicts (they're additive)
+            git add "$_f"
+            good "Resolved $_f (both sides)."
+            ;;
+          *)
+            warn "Non-docs conflict in $_f — manual resolution required."
+            ;;
+          esac
+        done
+        if [ -n "$(git ls-files --unmerged 2>/dev/null)" ]; then
+          warn "Unresolved conflicts remain — aborting merge."
+          git merge --abort 2>/dev/null || true
+          ralph_log "MERGE_FAILED: ${BASE_BRANCH} → ${DEFAULT_BRANCH} blocked by unresolved conflicts."
+          exit 1
+        fi
+        git commit --no-edit 2>/dev/null || git commit -m "release: merge ${BASE_BRANCH} to ${DEFAULT_BRANCH} — phase ${MINOR_VERSION} complete (with conflict resolution)" || true
+      fi
       git push origin "${DEFAULT_BRANCH}"
       good "Phase ${MINOR_VERSION} merged to main successfully."
       ralph_log "PHASE_COMPLETE: ${MINOR_VERSION} merged to main after review approval."

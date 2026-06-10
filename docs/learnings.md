@@ -66,3 +66,17 @@
   have identical bodies. Fix: merge conditions with `||` since the logic is
   naturally OR (either ch1 is space/null OR (ch2 exists AND smush succeeds)).
 
+## 1.2.4 — Character addition with smushing
+
+- `add_char` has 8 parameters, triggering `clippy::too_many_arguments` (default
+  threshold 7). Adding `#[allow(clippy::too_many_arguments)]` is acceptable since
+  the function mirrors C's use of global variables — all 8 params are necessary
+  to avoid globals.
+- `clippy::needless_range_loop` fires for `for k in 0..overlap` patterns that
+  use `k` only to index one collection. Fix: use `for (k, item) in collection.iter().enumerate().take(overlap)`.
+  One case (`out_chars` RTL) iterates `out_chars` but indexes both `out_chars`
+  and `temp` by `k`; using the iterator for `out_chars` resolves the lint cleanly.
+- The `calc_smush_amount` bug (passing `outlinelen` as `prev_width` to
+  `smush_horizontal`) is known and does not affect `add_char` correctness —
+  `add_char` passes the correct `old_prev_width` in its own overlap loop.
+

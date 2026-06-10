@@ -120,6 +120,20 @@ fallible paths use `Option<char>`. 34 unit tests covering every rule.
 ### 1.2.3 — Smush amount calculation
 
 Added `calc_smush_amount()` in `render.rs` — port of C `smushamt()`.
+
+### 1.2.4 — Character addition with smushing
+
+Added `add_char()` in `render.rs` — port of C `addchar()`. Function takes
+font, char code, mutable output rows, outlinelen, prev_width, smush mode,
+RTL flag, and outlinelen_limit. Returns `bool` (true if char added, false
+if limit exceeded). Saves and restores `prev_width` on failure. LTR: builds
+char on right side of output with kerning/smushing overlap. RTL: builds char
+on left side with reversed smush dominance. Post-loop updates `outlinelen`
+from `output_rows[0]` character count. Uses `#[allow(clippy::too_many_arguments)]`
+(8 params, mirrors C's global-based approach). Uses iterator-style loops to
+avoid `needless_range_loop` clippy lint. 9 tests: first-char, two-char kerning,
+two-char smush, RTL smush, limit bail, prev_width restore, single-word
+("Hi!"), multi-row, and boundary smush.
 Two private helpers: `last_non_space()` (RTL scan for last non-space) and
 `first_non_space()` (LTR scan for first non-space), each with fallback
 position/char parameters matching C sentinel behavior (null terminator

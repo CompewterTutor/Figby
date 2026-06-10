@@ -1106,17 +1106,20 @@ mod tests {
         let state = build_remap_state(b"t a b\nf\nt b c\n");
         // Block 1: 'a' -> 'b'
         // Block 2: 'b' -> 'c'
-        // 'a' -> block1: 'b', block2: 'b' not in range -> stays 'b'
-        assert_eq!(remap_char(&state, b'a' as u32), b'b' as u32);
-        // 'b' -> block1: 'b' in range -> 'c', block2: 'c' not in range -> stays 'c'
+        // 'a' -> block1: 'b', block2: 'b' in range 'b'-'c' -> 'c'
+        assert_eq!(remap_char(&state, b'a' as u32), b'c' as u32);
+        // 'b' -> block1: 'b' not in range 'a'-'a', block2: 'b' -> 'c'
         assert_eq!(remap_char(&state, b'b' as u32), b'c' as u32);
     }
 
     #[test]
     fn test_remap_three_blocks_chained() {
         let state = build_remap_state(b"t a b\nf\nt b c\nf\nt c d\n");
+        // 'a' -> block1: 'b', block2: 'c', block3: 'd'
         assert_eq!(remap_char(&state, b'a' as u32), b'd' as u32);
-        assert_eq!(remap_char(&state, b'b' as u32), b'c' as u32);
+        // 'b' -> block1: no match, block2: 'c', block3: 'd'
+        assert_eq!(remap_char(&state, b'b' as u32), b'd' as u32);
+        // 'c' -> block1: no match, block2: no match, block3: 'd'
         assert_eq!(remap_char(&state, b'c' as u32), b'd' as u32);
         assert_eq!(remap_char(&state, b'd' as u32), b'd' as u32);
     }

@@ -66,3 +66,11 @@ DONE: 1.2.7 merged into master (phase merge).
 ## 2026-06-10
 
 All 1.2 tasks complete. Starting phase review.
+
+## 2026-06-10 00:24
+
+DONE: 1.2.7 merged into release/1.2.
+
+## 2026-06-10 00:24
+
+All 1.2 tasks complete. Starting phase review.

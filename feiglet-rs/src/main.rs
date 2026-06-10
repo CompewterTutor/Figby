@@ -1,6 +1,6 @@
 use clap::Parser;
 use feiglet::control::{self, CharReader};
-use feiglet::font::{self, FIGfont, DEUTSCH_CHARS};
+use feiglet::font::{self, FIGfont};
 use feiglet::input;
 use feiglet::render::{add_char, lookup_char, render_line, split_line, Justification};
 use feiglet::smush::SmushMode;
@@ -549,16 +549,7 @@ fn run(config: CliConfig, message: Vec<String>) {
             && c != b'\t' as u32
             && c != b' ' as u32;
 
-        // Deutsch re-routing
-        if config.deutschflag {
-            if c >= b'[' as u32 && c <= b']' as u32 {
-                let idx = (c - b'[' as u32) as usize;
-                c = DEUTSCH_CHARS[idx];
-            } else if c >= b'{' as u32 && c <= b'~' as u32 {
-                let idx = (c - b'{' as u32) as usize;
-                c = DEUTSCH_CHARS[3 + idx];
-            }
-        }
+        c = input::deutsch_reroute(c, config.deutschflag);
 
         c = control::remap_char(&control_state, c);
 
@@ -777,6 +768,7 @@ fn main() {
 #[allow(non_snake_case)]
 mod tests {
     use super::*;
+    use feiglet::font::DEUTSCH_CHARS;
 
     #[test]
     fn test_default_values() {

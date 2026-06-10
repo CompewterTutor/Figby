@@ -232,3 +232,11 @@ Three bugs found in phase merge review:
 - DBCS and SJIS byte ranges are identical (0x80-0x9F, 0xE0-0xEF — lead bytes;
   any byte as trail). Combined as `(lead << 8) | trail`.
 
+## 1.5.3 — Deutsch flag character re-routing
+
+- Clippy `manual_range_contains` fires on `c >= x && c <= y` patterns — use
+  `(x..=y).contains(&c)` instead.
+- When a `use` import is used only in `#[cfg(test)]` code within the same file,
+  clippy flags it as unused in the binary target. Move it inside the test module
+  to silence the lint cleanly.
+

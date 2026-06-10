@@ -251,7 +251,7 @@ and multi-byte input.
   - **Tests:** Known-sequence tests per mode.
   - **Difficulty:** Medium
 
-- [ ] `1.5.3` Deutsch flag (`-D`) character re-routing
+- [x] `1.5.3` Deutsch flag (`-D`) character re-routing
   - **Goal:** Port deutsch re-routing: `[\]` → umlauted A/O/U,
     `{|}~` → lowercase umlauts + ess-zed. Applies before mapping.
   - **Touches:** `feiglet-rs/src/input.rs`

@@ -342,3 +342,12 @@ returns lead byte alone. `HZState` struct tracks HZ escape mode (`~{` enter,
 match: modes 1/4 → `read_dbcs_char`, mode 3 → `read_hz_char`. `HZState`
 passed as third parameter to `next_char` closure. 14 unit tests: 5 DBCS,
 9 HZ covering all edge cases. `HZState` derives `Default`.
+
+### 1.5.3 — Deutsch flag character re-routing
+
+Added `deutsch_reroute()` in `input.rs` — port of C's inline deutsch
+re-routing logic. Refactored from `main.rs` into a standalone function
+for testability. Maps `[\]` (0x5B-0x5D) to Ä/Ö/Ü (196/214/220) and
+`{|}~` (0x7B-0x7E) to ä/ö/ü/ß (228/246/252/223). Uses `DEUTSCH_CHARS`
+constant from `font.rs`. Called before `remap_char()` in main event loop.
+9 unit tests covering all 7 mappings, disabled flag, and out-of-range.

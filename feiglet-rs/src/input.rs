@@ -1,4 +1,20 @@
 use crate::control::CharReader;
+use crate::font::DEUTSCH_CHARS;
+
+pub fn deutsch_reroute(c: u32, deutschflag: bool) -> u32 {
+    if !deutschflag {
+        return c;
+    }
+    if (0x5B..=0x5D).contains(&c) {
+        let idx = (c - 0x5B) as usize;
+        DEUTSCH_CHARS[idx]
+    } else if (0x7B..=0x7E).contains(&c) {
+        let idx = (c - 0x7B) as usize;
+        DEUTSCH_CHARS[3 + idx]
+    } else {
+        c
+    }
+}
 
 pub fn read_dbcs_char(input: &mut impl CharReader) -> Option<u32> {
     let b = input.next()?;
@@ -363,5 +379,54 @@ mod tests {
         let mut input = MockReader::new(b"~{");
         let mut state = HZState::default();
         assert_eq!(read_hz_char(&mut input, &mut state), None);
+    }
+
+    // --- Deutsch reroute tests ---
+
+    #[test]
+    fn test_deutsch_upper_a_umlaut() {
+        assert_eq!(deutsch_reroute(0x5B, true), 196);
+    }
+
+    #[test]
+    fn test_deutsch_upper_o_umlaut() {
+        assert_eq!(deutsch_reroute(0x5C, true), 214);
+    }
+
+    #[test]
+    fn test_deutsch_upper_u_umlaut() {
+        assert_eq!(deutsch_reroute(0x5D, true), 220);
+    }
+
+    #[test]
+    fn test_deutsch_lower_a_umlaut() {
+        assert_eq!(deutsch_reroute(0x7B, true), 228);
+    }
+
+    #[test]
+    fn test_deutsch_lower_o_umlaut() {
+        assert_eq!(deutsch_reroute(0x7C, true), 246);
+    }
+
+    #[test]
+    fn test_deutsch_lower_u_umlaut() {
+        assert_eq!(deutsch_reroute(0x7D, true), 252);
+    }
+
+    #[test]
+    fn test_deutsch_eszett() {
+        assert_eq!(deutsch_reroute(0x7E, true), 223);
+    }
+
+    #[test]
+    fn test_deutsch_disabled() {
+        assert_eq!(deutsch_reroute(0x5B, false), 0x5B);
+    }
+
+    #[test]
+    fn test_deutsch_out_of_range() {
+        assert_eq!(deutsch_reroute(b'Z' as u32, true), b'Z' as u32);
+        assert_eq!(deutsch_reroute(b'a' as u32, true), b'a' as u32);
+        assert_eq!(deutsch_reroute(b' ' as u32, true), b' ' as u32);
     }
 }

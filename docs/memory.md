@@ -90,3 +90,11 @@ via existing `parse_tlf_font()`. `FontError` gained `IoError(std::io::Error)`
 and `ZipError(String)` variants. `zip = "2"` and `flate2 = "1"` added to
 Cargo.toml. ZIP is only read from — `ZipWriter` used solely in tests.
 `PartialEq` on `FontError` is now manual (cannot derive with `std::io::Error`).
+
+### 1.1.8 — Phase merge: release/1.1 → master
+
+Merged all Phase 1.1 work into default branch (master). Phase 1.1 complete:
+crate scaffold, core types, FIGfont/TLF header parser, FIGcharacter data
+parser, code-tagged character parser, TLF support, ZIP/deflate compressed
+font loading. All 7 subtasks (1.1.1–1.1.7) implemented, tested, merged.
+Phase 1.2 (render engine) is next.

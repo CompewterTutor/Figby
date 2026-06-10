@@ -178,4 +178,27 @@ Phase 1.5 complete — all 3 subtasks merged from `release/1.5` into `master`.
 - UTF-8 input mode (1.5.1): `read_utf8_char()` with validation per FIGlet spec
 - DBCS/HZ/SJIS modes (1.5.2): multibyte input for legacy encodings
 - Deutsch re-routing (1.5.3): `deutsch_reroute()` for `-D` flag
-- Phase 1.6 (Test Suite & Verification) begins next
+
+## Phase 1.6 Test Suite & Verification
+
+### 1.6.1 — Port C test harness
+
+- `figby-rs/tests/run_tests.rs` created: single integration test file with all
+  27 test cases from C `run-tests.sh`
+- Subprocess-based testing: each test invokes the `figby` binary via
+  `std::process::Command`, matching C's script-based approach
+- Key helpers: `figby_binary()`, `repo_root()`, `expected_output()`,
+  `run_figby()`, `showfigfonts_output()`, `list_control_files_output()`
+- `showfigfonts_output()` replicates C shell script logic: iterates `fonts/*.flf`
+  in sorted order, renders each font name with itself via `-f <name> <name>`,
+  concatenates with separator blank lines
+- `list_control_files_output()` lists `fonts/*.flc` sorted, one per line,
+  matching `ls` shell command output
+- Tempdir for test 20 via `tempfile::tempdir()`, matching C's `mkdir+rm -Rf`
+- Tested: basic rendering, all fonts, long text, LTR/RTL, justification,
+  kerning/smushing/full-width modes, TLF fonts, combined modes, font dir
+  override, paragraph mode, control files (uskata, jis0201), RTL+JavE font
+- Notable C/Rust differences worked around in tests:
+  - C `-f` strips `.flf`/`.tlf` suffix; Rust doesn't → pass names without ext
+  - C `-C` resolves bare names via `FIGopen(fontdir)`; Rust opens path directly
+    → pass full relative path `fonts/name.flc`

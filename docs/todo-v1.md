@@ -259,7 +259,7 @@ and multi-byte input.
   - **Tests:** Deutsch flag test cases.
   - **Difficulty:** Low
 
-- [ ] `1.5.4` Phase merge: release/1.5 → main
+- [x] `1.5.4` Phase merge: release/1.5 → main
   - **Difficulty:** Low
 
 ---

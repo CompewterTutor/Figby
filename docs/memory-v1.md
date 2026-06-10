@@ -152,3 +152,30 @@ Phase 1.4 complete — all 3 subtasks merged from `release/1.4` into `master`.
 - 12 tests: ASCII, 2/3/4 byte valid sequences, overlong C0/C1, surrogate, invalid
   lead bytes (0xFE/0xFF), F5+ codepoints, truncated sequences, bad continuation,
   EOF on first byte, multiple mixed chars
+
+### 1.5.2 — DBCS, HZ, Shift-JIS input modes
+
+- `read_dbcs_char()` added to `input.rs` — port of C `getinchr()` cases 1/4
+  (DBCS/SJIS). Lead byte 0x80-0x9F/0xE0-0xEF + trail byte combined as
+  `(lead << 8) | trail`. Non-lead bytes pass through. EOF after lead byte
+  returns lead byte alone.
+- `HZState` struct tracks HZ escape mode (`~{` enter, `}~` leave, `~~` = tilde).
+  `read_hz_char()` uses recursive approach for mode toggling.
+- Wired into main event loop: modes 1/4 → `read_dbcs_char`, mode 3 → `read_hz_char`
+- 14 unit tests: 5 DBCS, 9 HZ covering all edge cases
+
+### 1.5.3 — Deutsch flag character re-routing
+
+- `deutsch_reroute()` added to `input.rs` — extracted from main event loop into
+  standalone function for testability. Maps `[\]` (0x5B-0x5D) → Ä/Ö/Ü (196/214/220)
+  and `{|}~` (0x7B-0x7E) → ä/ö/ü/ß (228/246/252/223) when `-D` flag is set.
+- Called before `remap_char()` in main event loop, matching C order.
+- 9 unit tests covering all 7 mappings, disabled flag, out-of-range characters.
+
+### 1.5.4 — Phase 1.5 Merge
+
+Phase 1.5 complete — all 3 subtasks merged from `release/1.5` into `master`.
+- UTF-8 input mode (1.5.1): `read_utf8_char()` with validation per FIGlet spec
+- DBCS/HZ/SJIS modes (1.5.2): multibyte input for legacy encodings
+- Deutsch re-routing (1.5.3): `deutsch_reroute()` for `-D` flag
+- Phase 1.6 (Test Suite & Verification) begins next

@@ -351,3 +351,10 @@ for testability. Maps `[\]` (0x5B-0x5D) to Ä/Ö/Ü (196/214/220) and
 `{|}~` (0x7B-0x7E) to ä/ö/ü/ß (228/246/252/223). Uses `DEUTSCH_CHARS`
 constant from `font.rs`. Called before `remap_char()` in main event loop.
 9 unit tests covering all 7 mappings, disabled flag, and out-of-range.
+
+### 1.5.4 — Phase merge: release/1.5 → master
+
+Merged all Phase 1.5 work into default branch (master). Phase 1.5 complete:
+UTF-8 input mode (1.5.1), DBCS/HZ/Shift-JIS input modes (1.5.2), Deutsch
+flag character re-routing (1.5.3). All 3 subtasks implemented, tested, merged.
+Phase 1.6 (Test Suite & Verification) is next.

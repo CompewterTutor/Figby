@@ -85,7 +85,7 @@ and multi-byte input.
 
 ## Phase 1.2 — Render Engine (Kerning + Smushing)
 
-- [ ] `1.2.1` Character lookup + width calculation
+- [x] `1.2.1` Character lookup + width calculation
   - **Goal:** Implement `getletter()`: given inchr code, find the
     `FIGcharacter` in the font map. Return char rows + width
     (length of first row). Fall back to missing-char (code 0).

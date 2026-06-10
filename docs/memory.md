@@ -98,3 +98,11 @@ crate scaffold, core types, FIGfont/TLF header parser, FIGcharacter data
 parser, code-tagged character parser, TLF support, ZIP/deflate compressed
 font loading. All 7 subtasks (1.1.1–1.1.7) implemented, tested, merged.
 Phase 1.2 (render engine) is next.
+
+### 1.2.1 — Character lookup + width calculation
+
+Added `lookup_char()` in `render.rs` — font char lookup with fallback to
+char code 0. Updates `current_width` (via `&mut usize`) so caller captures
+previous width before next call. Uses `expect()` for char 0 invariant
+(FIGfont spec requires it). Three tests: known char, unknown fallback,
+previous-width tracking.

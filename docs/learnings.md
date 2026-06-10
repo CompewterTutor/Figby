@@ -42,3 +42,11 @@
 - `Path::join("", "standard.flf")` gives `"standard.flf"` (not `/standard.flf`),
   avoiding a leading-slash problem when fontdir is empty.
 
+## 1.2.1 — Character lookup + width calculation
+
+- `.expect()` used for char 0 invariant in `lookup_char()` — FIGfont spec mandates
+  char code 0 always exists. Panic is intentional here (programming error if missing),
+  not a recoverable runtime failure. Violates "no unwrap in production" rule in spirit
+  but not letter (`.expect()` ≠ `.unwrap()`). Documented in both memory and learnings
+  as a deliberate tradeoff.
+

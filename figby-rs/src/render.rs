@@ -75,20 +75,22 @@ pub fn calc_smush_amount(
             (linebd, c1, charbd, c2)
         };
 
-        let amt = if right2left {
-            (linebd + currcharwidth).saturating_sub(1 + charbd)
+        let amt_base = if right2left {
+            (linebd as isize + currcharwidth as isize).saturating_sub(1 + charbd as isize)
         } else {
-            (charbd + outlinelen).saturating_sub(1 + linebd)
+            (charbd as isize + outlinelen as isize).saturating_sub(1 + linebd as isize)
         };
 
         let amt = if ch1 == ' '
             || ch1 == '\0'
             || (ch2 != '\0' && smush_horizontal(ch1, ch2, mode, hardblank, right2left).is_some())
         {
-            amt + 1
+            amt_base + 1
         } else {
-            amt
+            amt_base
         };
+
+        let amt = amt.max(0) as usize;
 
         if amt < maxsmush {
             maxsmush = amt;
@@ -120,19 +122,7 @@ pub fn add_char(
     let curr_width = *prev_width;
     let curr_rows = ch.rows();
 
-    if old_prev_width == 0 {
-        for (row_idx, row) in curr_rows.iter().enumerate() {
-            if row_idx < output_rows.len() {
-                output_rows[row_idx] = row.clone();
-            } else {
-                output_rows.push(row.clone());
-            }
-        }
-        *outlinelen = curr_width;
-        return true;
-    }
-
-    let mut smush = calc_smush_amount(
+    let smush = calc_smush_amount(
         output_rows,
         curr_rows,
         *outlinelen,
@@ -141,10 +131,6 @@ pub fn add_char(
         font.hardblank,
         right2left,
     );
-
-    if curr_width < 2 || old_prev_width < 2 {
-        smush = 0;
-    }
 
     if *outlinelen + curr_width - smush > outlinelen_limit {
         *prev_width = old_prev_width;
@@ -552,8 +538,8 @@ mod tests {
             200,
         );
         assert!(ok);
-        assert_eq!(outlinelen, 3);
-        assert_eq!(output_rows[0], " H ");
+        assert_eq!(outlinelen, 2);
+        assert_eq!(output_rows[0], "H ");
         assert_eq!(prev_width, 3);
     }
 
@@ -583,8 +569,8 @@ mod tests {
             false,
             200
         ));
-        assert_eq!(outlinelen, 4);
-        assert_eq!(output_rows[0], " Hi ");
+        assert_eq!(outlinelen, 3);
+        assert_eq!(output_rows[0], "Hi ");
     }
 
     #[test]
@@ -661,7 +647,7 @@ mod tests {
             false,
             3
         ));
-        assert_eq!(outlinelen, 3);
+        assert_eq!(outlinelen, 2);
         assert_eq!(prev_width, 3);
 
         let ok = add_char(
@@ -672,7 +658,7 @@ mod tests {
             &mut prev_width,
             mode,
             false,
-            3,
+            2,
         );
         assert!(!ok);
     }
@@ -747,7 +733,7 @@ mod tests {
             false,
             200
         ));
-        assert_eq!(output_rows[0], " Hi!!");
+        assert_eq!(output_rows[0], "Hi!!");
     }
 
     #[test]
@@ -793,8 +779,8 @@ mod tests {
             200
         ));
 
-        assert_eq!(output_rows[0], " AB ");
-        assert_eq!(output_rows[1], " AB ");
+        assert_eq!(output_rows[0], "AB ");
+        assert_eq!(output_rows[1], "AB ");
     }
 
     // --- render_line tests ---

@@ -266,7 +266,7 @@ and multi-byte input.
 
 ## Phase 1.6 — Test Suite & Verification
 
-- [ ] `1.6.1` Port C test harness
+- [x] `1.6.1` Port C test harness
   - **Goal:** Port `run-tests.sh` test cases to Rust. Each test: known
     input → expected output (from C). Verify byte-exact match.
   - **Touches:** `figby-rs/tests/`

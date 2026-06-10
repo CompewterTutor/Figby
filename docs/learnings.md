@@ -251,3 +251,28 @@ Three bugs found in phase merge review:
   clippy flags it as unused in the binary target. Move it inside the test module
   to silence the lint cleanly.
 
+## 1.6.1 — Port C test harness
+
+- C `-f` handler strips `.flf`/`.tlf` suffix from font name before `FIGopen()`:
+  `if (suffixcmp(fontname,FONTFILESUFFIX)) fontname[strlen-4] = '\0'` (figlet.c:1044-1046).
+  Rust `CliConfig::from_args()` doesn't strip extensions — `config.fontname = val` directly.
+  When names like `fonts/banner.flf` are passed (e.g., from shell glob), C strips to
+  `fonts/banner`; Rust keeps `fonts/banner.flf` which then fails in `font_candidates()`
+  since it appends another `.flf` suffix.
+- C `-C` flag strips `.flc` suffix (figlet.c:1055-1057) and uses `FIGopen()` which
+  prepends `fontdirname` and appends `.flc`. Rust `read_control()` opens the path
+  directly via `File::open()` — no fontdir-based resolution. Bare control names like
+  `uskata` don't resolve; full path `fonts/uskata.flc` required.
+- `font_candidates()` in Rust tries `{name}.flf` and `{name}.tlf` but never the bare
+  `name` directly (C's `FIGopen` also appends suffix, but the name has already been
+  stripped). This means Rust fails on names that already carry `.flf`/`.tlf` extension
+  while C' strips first then appends.
+- `env!("CARGO_BIN_EXE_figby")` provides binary path during integration tests only —
+  requires `[[bin]]` section in Cargo.toml. Works for `tests/` integration tests.
+- `CARGO_MANIFEST_DIR` gives crate directory; repo root is one level up. Used to
+  locate `fonts/`, `tests/`, and expected output files.
+- `std::fs::read_dir` + sort by filename matches POSIX `ls` default ordering for
+  ASCII filenames (used in `showfigfonts_output` and `list_control_files_output`).
+- Test 20 tempdir with `tempfile::tempdir()` is drop-safe for panic cleanup vs C's
+  `mkdir + rm -Rf` which leaks on error.
+

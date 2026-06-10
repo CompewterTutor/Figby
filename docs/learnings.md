@@ -118,3 +118,20 @@ Three bugs found in phase merge review:
    `!(smushmode & (KERN | SMUSH))` checks ANY bit set (OR). Changed to
    `!mode.contains(KERN) && !mode.contains(SMUSH)` to match C semantics.
 
+## 1.3.1 — CLI argument parsing
+
+- `#[allow(non_snake_case)]` is required on clap structs when flags have
+  uppercase/lowercase collisions (e.g., `-L` vs `-l`). In snake_case, `flag_L`
+  and `flag_l` collapse to the same name. Eight such collisions exist in FIGlet.
+- `CliArgs::try_parse_from(["feiglet", "-A"])` — the array arg must be
+  owned (no `&` prefix). Clippy `needless_borrows_for_generic_args` fires if
+  you write `&["feiglet", "-A"]`; clap's `try_parse_from` accepts
+  `impl IntoIterator` and `[&str; N]` already satisfies that without a borrow.
+- `-m -1` parsing with clap: requires `#[arg(allow_hyphen_values = true)]` on
+  the field. Without it, clap treats `-1` as an unknown flag. In clap 4 the
+  `Option<i32>` parser alone does NOT allow leading hyphens — the attribute
+  must be explicit.
+- `smushoverride` for `-s` does NOT change `smushmode` — it only sets
+  override to `SMO_NO`. This differs from `-W` which sets `smushmode = 0`
+  AND `override = SMO_YES`. Matching C semantics precisely is critical.
+

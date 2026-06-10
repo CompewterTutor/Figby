@@ -80,3 +80,21 @@
   `smush_horizontal`) is known and does not affect `add_char` correctness —
   `add_char` passes the correct `old_prev_width` in its own overlap loop.
 
+## 1.2.6 — Line breaking and word splitting
+
+- C's `splitline()` uses global `inchrline` (char buffer) and `outline`
+  (rendered rows). Rust version takes `&[u32]` char_buffer and `&mut Vec<String>`
+  output_rows as explicit parameters — no globals.
+- C's `splitline()` always produces output (even if no word break found, it
+  prints a blank line). Rust version returns `None` for no-break, letting the
+  caller decide the fallback (forced break or blank line). This is more
+  idiomatic and avoids silent blank-line generation.
+- Return type `Option<(Vec<String>, usize)>` packs both the rendered part1 rows
+  (for printing by caller) and the part2_start index (for caller to truncate
+  its char_buffer). Cleaner than C's side-effect-only approach.
+- The `#![allow(clippy::too_many_arguments)]` pattern from `add_char()` carries
+  over to `split_line()` (9 params) — all necessary to avoid globals.
+- Test pattern: `build_expected()` helper calls `add_char()` independently to
+  compute reference output, then compares against `split_line()` result. This
+  tests both the splitting logic and the rebuild correctness simultaneously.
+

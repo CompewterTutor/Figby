@@ -217,6 +217,95 @@ pub fn add_char(
     true
 }
 
+/// Split `char_buffer` at the last word break (run of consecutive spaces).
+///
+/// Mirrors C `splitline()` in figlet.c:1623-1658.
+/// Scans backward for the last run of spaces, splits the buffer, rebuilds
+/// the first part into returned rows, and the second part into `output_rows`.
+/// Returns `None` if no word break was found.
+/// On success, returns `Some((part1_rows, part2_start))` where `part2_start`
+/// is the index in `char_buffer` where the second part begins (caller uses
+/// this to truncate its buffer). `output_rows`, `outlinelen`, and `prev_width`
+/// are updated to reflect only part2.
+#[allow(clippy::too_many_arguments)]
+pub fn split_line(
+    font: &FIGfont,
+    char_buffer: &[u32],
+    output_rows: &mut Vec<String>,
+    outlinelen: &mut usize,
+    prev_width: &mut usize,
+    mode: SmushMode,
+    right2left: bool,
+    outlinelen_limit: usize,
+) -> Option<(Vec<String>, usize)> {
+    let buflen = char_buffer.len();
+    if buflen == 0 {
+        return None;
+    }
+
+    let mut gotspace = false;
+    let mut lastspace = buflen - 1;
+    let mut part1_end: isize = -1;
+
+    for i in (0..buflen).rev() {
+        if !gotspace && char_buffer[i] == b' ' as u32 {
+            gotspace = true;
+            lastspace = i;
+        }
+        if gotspace && char_buffer[i] != b' ' as u32 {
+            part1_end = i as isize;
+            break;
+        }
+    }
+
+    if !gotspace {
+        return None;
+    }
+
+    let part1_len = (part1_end + 1) as usize;
+    let part2_start = lastspace + 1;
+
+    let part1_codes = &char_buffer[..part1_len];
+    let part2_codes = &char_buffer[part2_start..];
+
+    let height = font.charheight as usize;
+    let mut part1_rows = vec![String::new(); height];
+    let mut p1_len = 0;
+    let mut p1_prev = 0;
+    for &code in part1_codes {
+        add_char(
+            font,
+            code,
+            &mut part1_rows,
+            &mut p1_len,
+            &mut p1_prev,
+            mode,
+            right2left,
+            outlinelen_limit,
+        );
+    }
+
+    *outlinelen = 0;
+    *prev_width = 0;
+    for row in output_rows.iter_mut() {
+        row.clear();
+    }
+    for &code in part2_codes {
+        add_char(
+            font,
+            code,
+            output_rows,
+            outlinelen,
+            prev_width,
+            mode,
+            right2left,
+            outlinelen_limit,
+        );
+    }
+
+    Some((part1_rows, part2_start))
+}
+
 /// Output justification mode.
 ///
 /// Matches C `justification` global: 0=left, 1=center, 2=right.
@@ -827,5 +916,326 @@ mod tests {
         let rows: Vec<String> = Vec::new();
         let result = render_line(&rows, '$', Justification::Center, 80);
         assert!(result.is_empty());
+    }
+
+    // --- split_line tests ---
+
+    fn split_font() -> FIGfont {
+        let mut chars = HashMap::new();
+        chars.insert(0, FIGcharacter::from(vec!["#".to_string()]));
+        chars.insert(32, FIGcharacter::from(vec![" ".to_string()]));
+        chars.insert(65, FIGcharacter::from(vec![" A ".to_string()]));
+        chars.insert(66, FIGcharacter::from(vec![" B  ".to_string()]));
+        chars.insert(72, FIGcharacter::from(vec![" H ".to_string()]));
+        chars.insert(105, FIGcharacter::from(vec![" i ".to_string()]));
+        chars.insert(87, FIGcharacter::from(vec![" W ".to_string()]));
+        chars.insert(111, FIGcharacter::from(vec![" o ".to_string()]));
+        chars.insert(114, FIGcharacter::from(vec![" r ".to_string()]));
+        chars.insert(108, FIGcharacter::from(vec![" l ".to_string()]));
+        chars.insert(100, FIGcharacter::from(vec![" d ".to_string()]));
+        chars.insert(67, FIGcharacter::from(vec![" C ".to_string()]));
+        FIGfont {
+            chars,
+            ..FIGfont::default()
+        }
+    }
+
+    fn build_expected(
+        part_codes: &[u32],
+        font: &FIGfont,
+        mode: SmushMode,
+        limit: usize,
+    ) -> (Vec<String>, usize, usize) {
+        let height = font.charheight as usize;
+        let mut rows = vec![String::new(); height];
+        let mut len = 0;
+        let mut prev = 0;
+        for &code in part_codes {
+            add_char(
+                font, code, &mut rows, &mut len, &mut prev, mode, false, limit,
+            );
+        }
+        (rows, len, prev)
+    }
+
+    #[test]
+    fn test_split_line_basic_multiword() {
+        let font = split_font();
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer = vec![72, 105, 32, 87, 111, 114, 108, 100]; // "Hi World"
+
+        let height = font.charheight as usize;
+        let mut output_rows = vec![String::new(); height];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_some());
+        let (part1_rows, part2_start) = result.unwrap();
+        assert_eq!(part2_start, 3);
+
+        let (expected_p1, _, _) = build_expected(&[72, 105], &font, mode, limit);
+        assert_eq!(part1_rows, expected_p1);
+
+        let (expected_p2, expected_len, expected_prev) =
+            build_expected(&[87, 111, 114, 108, 100], &font, mode, limit);
+        assert_eq!(output_rows, expected_p2);
+        assert_eq!(outlinelen, expected_len);
+        assert_eq!(prev_width, expected_prev);
+    }
+
+    #[test]
+    fn test_split_line_multiple_spaces() {
+        let font = split_font();
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer = vec![65, 32, 32, 32, 66]; // "A   B"
+
+        let height = font.charheight as usize;
+        let mut output_rows = vec![String::new(); height];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_some());
+        let (part1_rows, part2_start) = result.unwrap();
+        assert_eq!(part2_start, 4);
+
+        let (expected_p1, _, _) = build_expected(&[65], &font, mode, limit);
+        assert_eq!(part1_rows, expected_p1);
+
+        let (expected_p2, expected_len, expected_prev) = build_expected(&[66], &font, mode, limit);
+        assert_eq!(output_rows, expected_p2);
+        assert_eq!(outlinelen, expected_len);
+        assert_eq!(prev_width, expected_prev);
+    }
+
+    #[test]
+    fn test_split_line_no_word_break() {
+        let font = split_font();
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer = vec![72, 105]; // "Hi" — no space
+
+        let mut output_rows = vec!["".to_string()];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_split_line_single_char_after_space() {
+        let font = split_font();
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer = vec![72, 32, 105]; // "H i"
+
+        let height = font.charheight as usize;
+        let mut output_rows = vec![String::new(); height];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_some());
+        let (part1_rows, part2_start) = result.unwrap();
+        assert_eq!(part2_start, 2);
+
+        let (expected_p1, _, _) = build_expected(&[72], &font, mode, limit);
+        assert_eq!(part1_rows, expected_p1);
+
+        let (expected_p2, expected_len, expected_prev) = build_expected(&[105], &font, mode, limit);
+        assert_eq!(output_rows, expected_p2);
+        assert_eq!(outlinelen, expected_len);
+        assert_eq!(prev_width, expected_prev);
+    }
+
+    #[test]
+    fn test_split_line_leading_spaces() {
+        let font = split_font();
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer = vec![32, 65, 32, 66]; // " A B" (no trailing space)
+
+        let height = font.charheight as usize;
+        let mut output_rows = vec![String::new(); height];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_some());
+        let (part1_rows, part2_start) = result.unwrap();
+        assert_eq!(part2_start, 3);
+
+        let (expected_p1, _, _) = build_expected(&[32, 65], &font, mode, limit);
+        assert_eq!(part1_rows, expected_p1);
+
+        let (expected_p2, expected_len, expected_prev) = build_expected(&[66], &font, mode, limit);
+        assert_eq!(output_rows, expected_p2);
+        assert_eq!(outlinelen, expected_len);
+        assert_eq!(prev_width, expected_prev);
+    }
+
+    #[test]
+    fn test_split_line_all_spaces() {
+        let font = split_font();
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer = vec![32, 32, 32]; // "   "
+
+        let height = font.charheight as usize;
+        let mut output_rows = vec![String::new(); height];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_some());
+        let (part1_rows, part2_start) = result.unwrap();
+        assert_eq!(part2_start, 3);
+
+        let (expected_p1, _, _) = build_expected(&[], &font, mode, limit);
+        assert_eq!(part1_rows, expected_p1);
+
+        let (expected_p2, expected_len, expected_prev) = build_expected(&[], &font, mode, limit);
+        assert_eq!(output_rows, expected_p2);
+        assert_eq!(outlinelen, expected_len);
+        assert_eq!(prev_width, expected_prev);
+    }
+
+    #[test]
+    fn test_split_line_multirow() {
+        let mut chars = HashMap::new();
+        chars.insert(0, FIGcharacter::from(vec!["#".to_string(); 2]));
+        chars.insert(32, FIGcharacter::from(vec![" ".to_string(); 2]));
+        chars.insert(
+            65,
+            FIGcharacter::from(vec![" A ".to_string(), " A ".to_string()]),
+        );
+        chars.insert(
+            66,
+            FIGcharacter::from(vec![" B  ".to_string(), " B  ".to_string()]),
+        );
+        let font = FIGfont {
+            chars,
+            charheight: 2,
+            ..FIGfont::default()
+        };
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer = vec![65, 32, 66]; // "A B"
+
+        let mut output_rows = vec![String::new(); 2];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_some());
+        let (part1_rows, part2_start) = result.unwrap();
+        assert_eq!(part2_start, 2);
+
+        let (expected_p1, _, _) = build_expected(&[65], &font, mode, limit);
+        assert_eq!(part1_rows, expected_p1);
+
+        let (expected_p2, expected_len, expected_prev) = build_expected(&[66], &font, mode, limit);
+        assert_eq!(output_rows, expected_p2);
+        assert_eq!(outlinelen, expected_len);
+        assert_eq!(prev_width, expected_prev);
+    }
+
+    #[test]
+    fn test_split_line_empty_buffer() {
+        let font = split_font();
+        let mode = SmushMode::new(SmushMode::KERN);
+        let limit = 200;
+        let char_buffer: Vec<u32> = vec![];
+
+        let mut output_rows = vec!["".to_string()];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+
+        let result = split_line(
+            &font,
+            &char_buffer,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            limit,
+        );
+
+        assert!(result.is_none());
     }
 }

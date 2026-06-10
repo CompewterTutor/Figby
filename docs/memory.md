@@ -159,3 +159,17 @@ per C formula. Center formula: `2*i + len - 1 < outputwidth`. Right formula:
 replacement, left/center/right justification, width truncation, truncation
 with center, `outputwidth <= 1` bypass, multi-row, C formula trace tests,
 hardblank+truncation combination, zero outputwidth, empty rows.
+
+### 1.2.6 — Line breaking and word splitting
+
+Added `split_line()` in `render.rs` — port of C `splitline()` (figlet.c:1623-1658).
+Scans char_buffer backward for last run of consecutive spaces, splits into
+part1 (before space run) and part2 (after). Rebuilds both parts from scratch
+via `add_char()` calls, matching C's clearline->addchar->printline->addchar
+sequence. Returns `Option<(Vec<String>, usize)>` — part1 rows to caller and
+part2_start index for caller to truncate its buffer. `output_rows` is mutated
+in-place to contain only part2. Eight tests: basic multiword split, multiple
+spaces consumed, no-word-break (None), single char after space, leading spaces
+consumed, all-spaces buffer, multi-row font, empty buffer. All 8 tests use
+`build_expected()` helper that calls `add_char()` independently to verify
+part1/part2 output consistency.

@@ -134,7 +134,7 @@ and multi-byte input.
   - **Tests:** Justification tests. Width limit tests.
   - **Difficulty:** Low
 
-- [ ] `1.2.6` Line breaking and word splitting
+- [x] `1.2.6` Line breaking and word splitting
   - **Goal:** Port `splitline()` + main loop logic — break lines at word
     boundaries. Handle paragraph mode (`-p`). Edge cases: char wider than
     outputwidth, multiple spaces, forced breaks.

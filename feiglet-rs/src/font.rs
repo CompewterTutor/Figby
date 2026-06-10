@@ -105,6 +105,86 @@ impl fmt::Display for FontError {
 
 impl std::error::Error for FontError {}
 
+/// The 7 Deutsch characters supported by FIGlet: Ä, Ö, Ü, ä, ö, ü, ß.
+pub(crate) const DEUTSCH_CHARS: [u32; 7] = [196, 214, 220, 228, 246, 252, 223];
+
+/// Strip trailing endmark characters from a font file line.
+///
+/// Follows `figlet.c:1155-1165` algorithm:
+/// 1. Strip trailing whitespace
+/// 2. Last remaining char is the endmark
+/// 3. Remove all consecutive endmark chars from the right
+///
+/// Trailing whitespace before endmarks is preserved (width correctness).
+/// Returns empty string if the line is all endmarks/whitespace.
+fn strip_endmarks(line: &str) -> String {
+    let trimmed = line.trim_end_matches(|c: char| c.is_ascii_whitespace());
+    let endmark = match trimmed.chars().last() {
+        Some(c) => c,
+        None => return String::new(),
+    };
+    let endmark_len = endmark.len_utf8();
+    let mut end_pos = trimmed.len();
+    while end_pos >= endmark_len {
+        let slice = &trimmed[end_pos - endmark_len..end_pos];
+        if slice.starts_with(endmark) {
+            end_pos -= endmark_len;
+        } else {
+            break;
+        }
+    }
+    trimmed[..end_pos].to_string()
+}
+
+/// Parse the 95 required ASCII FIGcharacters (codes 32–126) and 7 Deutsch chars.
+///
+/// Returns the unconsumed slice of lines (for subsequent codetag parsing).
+/// Each character reads `font.charheight` rows, stripping endmarks via
+/// `strip_endmarks()`. Stores parsed glyphs in `font.chars` keyed by char code.
+pub fn parse_char_data<'a>(
+    font: &mut FIGfont,
+    lines: &'a [String],
+) -> Result<&'a [String], FontError> {
+    let height = font.charheight as usize;
+    let mut cursor = 0;
+
+    // ASCII chars 32–126 (95 characters)
+    for code in 32..=126 {
+        if cursor + height > lines.len() {
+            let parsed = cursor / height;
+            return Err(FontError::ParseError(format!(
+                "unexpected end of font data: parsed {} ASCII chars, need {} more rows for code {}",
+                parsed, height, code
+            )));
+        }
+        let rows: Vec<String> = lines[cursor..cursor + height]
+            .iter()
+            .map(|l| strip_endmarks(l))
+            .collect();
+        font.chars.insert(code, FIGcharacter::from(rows));
+        cursor += height;
+    }
+
+    // Deutsch chars
+    for &code in &DEUTSCH_CHARS {
+        if cursor + height > lines.len() {
+            let parsed = cursor / height - 95; // subtract ASCII chars
+            return Err(FontError::ParseError(format!(
+                "unexpected end of font data: parsed {} Deutsch chars, need {} more rows for code {}",
+                parsed, height, code
+            )));
+        }
+        let rows: Vec<String> = lines[cursor..cursor + height]
+            .iter()
+            .map(|l| strip_endmarks(l))
+            .collect();
+        font.chars.insert(code, FIGcharacter::from(rows));
+        cursor += height;
+    }
+
+    Ok(&lines[cursor..])
+}
+
 /// Parse the header line of a FIGfont (.flf) file.
 ///
 /// Expected format:
@@ -391,5 +471,195 @@ mod tests {
         let result = parse_header("flf2a$ 6 x 20 15 3");
         assert!(result.is_err());
         assert!(matches!(result, Err(FontError::ParseError(_))));
+    }
+
+    // --- strip_endmarks tests ---
+
+    #[test]
+    fn test_strip_endmarks_typical() {
+        assert_eq!(strip_endmarks("  __  @"), "  __  ");
+        assert_eq!(strip_endmarks("$@@"), "$");
+        assert_eq!(strip_endmarks(" @"), " ");
+    }
+
+    #[test]
+    fn test_strip_endmarks_trailing_newline() {
+        // With trailing newline: "  __  @\n"
+        // trim_end_matches(whitespace) removes \n → "  __  @"
+        // Then same as above
+        assert_eq!(strip_endmarks("  __  @\n"), "  __  ");
+        assert_eq!(strip_endmarks("$@@\n"), "$");
+    }
+
+    #[test]
+    fn test_strip_endmarks_no_endmark() {
+        // Already clean — no endmarks present
+        let line = "hello";
+        assert_eq!(strip_endmarks(line), "hello");
+    }
+
+    #[test]
+    fn test_strip_endmarks_empty() {
+        assert_eq!(strip_endmarks(""), "");
+        // "\n" → trim whitespace → "" → empty
+        assert_eq!(strip_endmarks("\n"), "");
+        // "\r\n" → trim whitespace → "" → empty
+        assert_eq!(strip_endmarks("\r\n"), "");
+    }
+
+    #[test]
+    fn test_strip_endmarks_whitespace_only() {
+        assert_eq!(strip_endmarks("   \n"), "");
+        assert_eq!(strip_endmarks("\t\n"), "");
+    }
+
+    #[test]
+    fn test_strip_endmarks_multi_char_endmark() {
+        // Endmark is '@', lines with multiple endmarks
+        assert_eq!(strip_endmarks("AAA@@@@"), "AAA");
+        assert_eq!(strip_endmarks("  X  @@@"), "  X  ");
+    }
+
+    #[test]
+    fn test_strip_endmarks_trailing_spaces_preserved() {
+        // Trailing spaces before endmarks are preserved per C spec
+        assert_eq!(strip_endmarks("X  @"), "X  ");
+        assert_eq!(strip_endmarks("  X  @"), "  X  ");
+    }
+
+    // --- parse_char_data tests ---
+
+    fn build_102_char_fixture(height: u32) -> Vec<String> {
+        let mut lines = Vec::new();
+        for code in 32..=126u32 {
+            let c = char::from_u32(code).expect("valid ASCII");
+            for _ in 0..height {
+                lines.push(format!("{}  @", c));
+            }
+        }
+        for &code in &DEUTSCH_CHARS {
+            let c = char::from_u32(code).expect("valid Deutsch char");
+            for _ in 0..height {
+                lines.push(format!("{}  @", c));
+            }
+        }
+        lines
+    }
+
+    #[test]
+    fn test_parse_char_data_102_chars() {
+        let height = 2;
+        let fixture = build_102_char_fixture(height);
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        let remaining = parse_char_data(&mut font, &fixture).expect("parse should succeed");
+        assert!(remaining.is_empty(), "all lines should be consumed");
+
+        // Must have 95 + 7 = 102 chars
+        assert_eq!(font.chars.len(), 102, "should have exactly 102 chars");
+
+        // All ASCII keys 32..=126 present
+        for code in 32..=126u32 {
+            assert!(
+                font.chars.contains_key(&code),
+                "missing ASCII char code {code}"
+            );
+        }
+
+        // All Deutsch keys present
+        for &code in &DEUTSCH_CHARS {
+            assert!(
+                font.chars.contains_key(&code),
+                "missing Deutsch char code {code}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_char_data_endmarks_stripped() {
+        let height = 1;
+        let fixture = build_102_char_fixture(height);
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_char_data(&mut font, &fixture).expect("parse should succeed");
+
+        for (code, ch) in &font.chars {
+            for (i, row) in ch.rows().iter().enumerate() {
+                assert!(
+                    !row.ends_with('@'),
+                    "char code {code} row {i} still ends with '@': '{row}'"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_char_data_widths_consistent() {
+        let height = 3;
+        let fixture = build_102_char_fixture(height);
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_char_data(&mut font, &fixture).expect("parse should succeed");
+
+        for (code, ch) in &font.chars {
+            let rows = ch.rows();
+            assert!(!rows.is_empty(), "char code {code} has no rows");
+            let expected_width = rows[0].len();
+            for (i, row) in rows.iter().enumerate() {
+                assert_eq!(
+                    row.len(),
+                    expected_width,
+                    "char code {code} row {i} width mismatch: expected {expected_width}, got {}",
+                    row.len()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_char_data_too_few_lines() {
+        let height = 2;
+        // Only provide 10 lines — not enough for even 1 char (needs height=2)
+        let fixture: Vec<String> = (0..10).map(|i| format!("line{i}@")).collect();
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        let result = parse_char_data(&mut font, &fixture);
+        assert!(result.is_err(), "should fail with too few lines");
+        match &result {
+            Err(FontError::ParseError(msg)) => {
+                assert!(
+                    msg.contains("unexpected end of font data"),
+                    "error should mention end of font data, got: {msg}"
+                );
+            }
+            other => panic!("expected ParseError, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_char_data_returns_unconsumed() {
+        // Provide extra lines beyond the 102 chars
+        let height = 1;
+        let mut fixture = build_102_char_fixture(height);
+        fixture.push("codetag 0".to_string());
+        fixture.push("row1@".to_string());
+
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        let remaining = parse_char_data(&mut font, &fixture).expect("parse should succeed");
+
+        assert_eq!(remaining.len(), 2, "should return 2 unconsumed lines");
+        assert_eq!(remaining[0], "codetag 0");
+        assert_eq!(remaining[1], "row1@");
     }
 }

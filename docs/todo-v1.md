@@ -36,7 +36,7 @@ and multi-byte input.
   - **Tests:** Fixture-based header parse tests. Error case tests.
   - **Difficulty:** Low
 
-- [ ] `1.1.4` FIGcharacter data parser (required ASCII + Deutsch chars)
+- [x] `1.1.4` FIGcharacter data parser (required ASCII + Deutsch chars)
   - **Goal:** Read the 95 required ASCII FIGcharacters (codes 32-126) plus 7
     Deutsch chars (196, 214, 220, 228, 246, 252, 223). Remove trailing
     endmark characters (last block of identical chars per line). Store rows

@@ -196,7 +196,7 @@ and multi-byte input.
 
 ## Phase 1.4 — Control Files & Character Mapping
 
-- [ ] `1.4.1` Control file parser
+- [x] `1.4.1` Control file parser
   - **Goal:** Port `readcontrol()` — parse `.flc` control files.
     Commands: `t` (translate), digits/mapping table entries,
     `f` (freeze), `b`/`u`/`h`/`j` (multibyte modes),

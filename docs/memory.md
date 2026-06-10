@@ -262,3 +262,19 @@ width detection (`-t` flag), main event loop with `InputIter` and line
 rendering. All 4 subtasks (1.3.1–1.3.4) implemented, tested, merged.
 Phase 1.4 (Control Files & Character Mapping) is next.
 >>>>>>> release/1.3
+
+### 1.4.1 — Control file parser
+
+Added `ControlCommand`, `ControlState`, `ControlError` types and `read_control()`
+function in `control.rs`. Byte-level parser mirrors C `readcontrol()`:
+- `t` (translate) with single char, range (`-` separator), and escape sequences
+- Mapping table entries (lines starting with `0-9` or `-`)
+- `f` (freeze) command
+- `b`/`u`/`h`/`j` (multibyte modes) set `state.multibyte`
+- `g` (ISO 2022 charset) with `charset_define()` for G0-G3,
+  `gl`/`gr` selection, `96`/`94`/`94x94` char set variants
+- `#` comments and blank lines silently consumed
+- `ByteReader` wrapper struct provides multi-byte unget/pushback matching
+  C `Zgetc`/`Zungetc` pattern
+- 35 unit tests covering all command types, escape sequences, numeric
+  formats (decimal, octal, hex), CRLF handling, fixture file parsing

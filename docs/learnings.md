@@ -163,3 +163,27 @@ Three bugs found in phase merge review:
   override to `SMO_NO`. This differs from `-W` which sets `smushmode = 0`
   AND `override = SMO_YES`. Matching C semantics precisely is critical.
 
+## 1.4.1 — Control file parser
+
+- C's `readcontrol()` outer switch reads the FIRST byte of each line.
+  Lines starting with `\` (backslash) in `upper.flc` (e.g.
+  `\0x037A \0x0399`) fall to `default:` and are silently skipped.
+  These mapping entries are effectively documentation-only in the C parser.
+  Only lines starting with `0-9` or `-` are parsed as mapping table entries.
+- `read_tchar()` and `read_num()` are deeply coupled — `read_tchar` parses
+  `\` escape prefix then delegates to `read_num` for numeric escapes
+  (`\0x...`, `\377`, `\-6`). `read_num` uses the full hex digit set
+  `"0123456789ABCDEF"` regardless of parsed base (decimal uses hex
+  digit set too, matching C's `strchr` approach).
+- C `charsetname()` has dead code: the `\n`/`\r` check is never hit
+  because `readTchar` already returns 0 for newlines. The `Zungetc(0, fp)`
+  bug (pushing back NUL byte) is also present — harmless since
+  `skiptoeol` always follows.
+- C `readcontrol()` has missing `break` before `case '\r': case '\n':`
+  after the `case 'g'` inner switch — harmless fallthrough since the
+  empty-line case just does `break`.
+- The `94x94` double-byte charset path reads `x`, then `9`, then `4`,
+  then `skipws` before `charsetname`. The `96` path has NO `skipws`
+  before `charsetname` — a C bug never triggered in practice (no
+  `.flc` uses `96` charset).
+

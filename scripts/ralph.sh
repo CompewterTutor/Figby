@@ -35,6 +35,8 @@ REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 SKILL="$REPO_ROOT/skills/ralph.md"
 LOG="$REPO_ROOT/docs/ralph-log.md"
 MANIFEST="--manifest-path feiglet-rs/Cargo.toml"
+# Resolve actual default branch (master vs main)
+DEFAULT_BRANCH="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo main)"
 
 # Agent Configuration
 # Each agent is a PROVIDER/MODEL pair (e.g. "opencode-go/deepseek-v4-flash").
@@ -150,7 +152,7 @@ release/*)
 *)
   die "ralph must be started from 'main' (or 'master') or a 'release/X.Y' branch, not '${BASE_BRANCH}'.\n" \
     "  From main/master (multi-phase — recommended for unattended runs):\n" \
-    "    git checkout main && ./scripts/ralph.sh\n" \
+    "    git checkout main/master && ./scripts/ralph.sh\n" \
     "  From a specific release branch (single-phase):\n" \
     "    git checkout release/1.1 && ./scripts/ralph.sh"
   ;;
@@ -236,7 +238,7 @@ log "PID $$ written to $RALPH_PID_FILE"
 if [ -n "$MINOR_VERSION" ]; then
   log "Mode: single-phase  branch: ${BASE_BRANCH}  phase: ${MINOR_VERSION}"
 else
-  log "Mode: multi-phase  starting from ${BASE_BRANCH} — will create release branches as needed"
+  log "Mode: multi-phase  starting from ${BASE_BRANCH} (default: ${DEFAULT_BRANCH}) — will create release branches as needed"
 fi
 log "To stop gracefully:  kill -TERM \$(cat $RALPH_PID_FILE)  or  touch $STOP_SENTINEL"
 log "Caveman mode: full (opencode agents will use terse response style)"
@@ -424,8 +426,8 @@ switch_to_phase() {
       warn "could not fast-forward ${_branch} from origin — continuing on local"
   else
     log "Creating ${_branch} from main"
-    git checkout main >/dev/null 2>&1
-    git pull --ff-only origin main >/dev/null 2>&1 ||
+    git checkout "${DEFAULT_BRANCH}" >/dev/null 2>&1
+    git pull --ff-only origin "${DEFAULT_BRANCH}" >/dev/null 2>&1 ||
       warn "could not fast-forward main from origin — continuing on local"
     git checkout -b "$_branch"
     git push -u origin "$_branch"
@@ -527,7 +529,7 @@ prepare_major_rc() {
   warn "    1. Round-table flagship review (>= 2 models)"
   warn "    2. Human review and sign-off"
   warn "    3. Documented manual end-to-end test on macOS + Linux + Windows"
-  warn "    4. Human runs: git checkout main && git merge --no-ff ${RC_BRANCH}"
+  warn "    4. Human runs: git checkout main/master && git merge --no-ff ${RC_BRANCH}"
   warn ""
   warn "  Ralph has stopped — do NOT re-run ralph to merge this release."
   exit 0
@@ -552,8 +554,8 @@ phase_review_and_merge() {
     log "Phase review attempt ${REVIEW_ATTEMPT}/${MAX_REVIEW_ATTEMPTS}"
 
     PHASE_TASK_STATUS="$(all_todo_lines | grep "\`${MINOR_VERSION}\." | head -30 || true)"
-    CHANGED_FILES="$(git diff --name-only main..."$BASE_BRANCH" 2>&1 || true)"
-    COMMIT_LOG="$(git log --oneline main..."$BASE_BRANCH" 2>&1 || true)"
+    CHANGED_FILES="$(git diff --name-only "${DEFAULT_BRANCH}"..."$BASE_BRANCH" 2>&1 || true)"
+    COMMIT_LOG="$(git log --oneline "${DEFAULT_BRANCH}"..."$BASE_BRANCH" 2>&1 || true)"
     REVIEW_LOG="/tmp/ralph-phase-review-${MINOR_VERSION}-${REVIEW_ATTEMPT}.log"
 
     invoke_agent "$RELEASE_REVIEW_AGENT" "You are performing a phase completion review for the Feiglet repository.
@@ -595,12 +597,12 @@ Then list what must be fixed before the merge can proceed." \
         git commit -m "docs: ralph-log — phase ${MINOR_VERSION} wrapped up"
         git push origin "$BASE_BRANCH"
       fi
-      git checkout main
-      git pull --ff-only origin main >/dev/null 2>&1 ||
-        warn "could not fast-forward main from origin — continuing on local"
+      git checkout "${DEFAULT_BRANCH}"
+      git pull --ff-only origin "${DEFAULT_BRANCH}" >/dev/null 2>&1 ||
+        warn "could not fast-forward ${DEFAULT_BRANCH} from origin — continuing on local"
       git merge --no-ff "$BASE_BRANCH" \
-        -m "release: merge ${BASE_BRANCH} to main — phase ${MINOR_VERSION} complete"
-      git push origin main
+        -m "release: merge ${BASE_BRANCH} to ${DEFAULT_BRANCH} — phase ${MINOR_VERSION} complete"
+      git push origin "${DEFAULT_BRANCH}"
       good "Phase ${MINOR_VERSION} merged to main successfully."
       ralph_log "PHASE_COMPLETE: ${MINOR_VERSION} merged to main after review approval."
       return 0
@@ -886,8 +888,8 @@ while true; do
   fi
 
   if [ "$BASE_BRANCH" = "main" ]; then
-    git pull --ff-only origin main >/dev/null 2>&1 ||
-      warn "could not fast-forward main from origin — continuing on local"
+    git pull --ff-only origin "${DEFAULT_BRANCH}" >/dev/null 2>&1 ||
+      warn "could not fast-forward ${DEFAULT_BRANCH} from origin — continuing on local"
     _next_minor="$(next_minor)"
     if [ -z "$_next_minor" ]; then
       good "All phases complete. Tasks completed this session: ${TASKS_DONE}."

@@ -1341,7 +1341,7 @@ mod tests {
         let font = load_font("standard", tmpdir.to_str().unwrap())
             .expect("should load standard font from plain file");
         assert_eq!(font.charheight, 6);
-        assert_eq!(font.chars.len(), 102);
+        assert_eq!(font.chars.len(), 325);
         assert_eq!(font.hardblank, '$');
 
         std::fs::remove_file(tmpdir.join("standard.flf")).unwrap();
@@ -1367,7 +1367,7 @@ mod tests {
         let font = load_font("standard", tmpdir.to_str().unwrap())
             .expect("should load standard font from ZIP archive");
         assert_eq!(font.charheight, 6);
-        assert_eq!(font.chars.len(), 102);
+        assert_eq!(font.chars.len(), 325);
         assert_eq!(font.hardblank, '$');
 
         std::fs::remove_file(&zip_path).unwrap();

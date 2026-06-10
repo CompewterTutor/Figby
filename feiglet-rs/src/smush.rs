@@ -96,8 +96,6 @@ pub fn smush_horizontal(
     rch: char,
     mode: SmushMode,
     hardblank: char,
-    prev_width: usize,
-    curr_width: usize,
     right2left: bool,
 ) -> Option<char> {
     if lch == ' ' {
@@ -105,10 +103,6 @@ pub fn smush_horizontal(
     }
     if rch == ' ' {
         return Some(lch);
-    }
-
-    if prev_width < 2 || curr_width < 2 {
-        return None;
     }
 
     if !mode.is_smush() {
@@ -250,172 +244,166 @@ mod tests {
     #[test]
     fn test_h1_equal_smush() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::EQUAL_CHARS);
-        assert_eq!(smush_horizontal('A', 'A', mode, HB, 2, 2, false), Some('A'));
-        assert_eq!(smush_horizontal('X', 'X', mode, HB, 2, 2, false), Some('X'));
+        assert_eq!(smush_horizontal('A', 'A', mode, HB, false), Some('A'));
+        assert_eq!(smush_horizontal('X', 'X', mode, HB, false), Some('X'));
     }
 
     // --- H2: Underscore smushing ---
     #[test]
     fn test_h2_underscore_left() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::UNDERSCORE);
-        assert_eq!(smush_horizontal('_', '/', mode, HB, 2, 2, false), Some('/'));
-        assert_eq!(smush_horizontal('_', '|', mode, HB, 2, 2, false), Some('|'));
-        assert_eq!(smush_horizontal('_', '<', mode, HB, 2, 2, false), Some('<'));
+        assert_eq!(smush_horizontal('_', '/', mode, HB, false), Some('/'));
+        assert_eq!(smush_horizontal('_', '|', mode, HB, false), Some('|'));
+        assert_eq!(smush_horizontal('_', '<', mode, HB, false), Some('<'));
     }
 
     #[test]
     fn test_h2_underscore_right() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::UNDERSCORE);
-        assert_eq!(smush_horizontal('/', '_', mode, HB, 2, 2, false), Some('/'));
-        assert_eq!(smush_horizontal('|', '_', mode, HB, 2, 2, false), Some('|'));
-        assert_eq!(smush_horizontal('>', '_', mode, HB, 2, 2, false), Some('>'));
+        assert_eq!(smush_horizontal('/', '_', mode, HB, false), Some('/'));
+        assert_eq!(smush_horizontal('|', '_', mode, HB, false), Some('|'));
+        assert_eq!(smush_horizontal('>', '_', mode, HB, false), Some('>'));
     }
 
     // --- H3: Hierarchy ---
     #[test]
     fn test_h3_hierarchy_forward() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::HIERARCHY);
-        assert_eq!(smush_horizontal('|', '/', mode, HB, 2, 2, false), Some('/'));
-        assert_eq!(smush_horizontal('/', '[', mode, HB, 2, 2, false), Some('['));
-        assert_eq!(smush_horizontal('[', '{', mode, HB, 2, 2, false), Some('{'));
-        assert_eq!(smush_horizontal('{', '(', mode, HB, 2, 2, false), Some('('));
-        assert_eq!(smush_horizontal('(', '<', mode, HB, 2, 2, false), Some('<'));
+        assert_eq!(smush_horizontal('|', '/', mode, HB, false), Some('/'));
+        assert_eq!(smush_horizontal('/', '[', mode, HB, false), Some('['));
+        assert_eq!(smush_horizontal('[', '{', mode, HB, false), Some('{'));
+        assert_eq!(smush_horizontal('{', '(', mode, HB, false), Some('('));
+        assert_eq!(smush_horizontal('(', '<', mode, HB, false), Some('<'));
     }
 
     #[test]
     fn test_h3_hierarchy_reverse() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::HIERARCHY);
-        assert_eq!(smush_horizontal('/', '|', mode, HB, 2, 2, false), Some('/'));
-        assert_eq!(smush_horizontal('[', '/', mode, HB, 2, 2, false), Some('['));
-        assert_eq!(smush_horizontal('{', '[', mode, HB, 2, 2, false), Some('{'));
-        assert_eq!(smush_horizontal('(', '{', mode, HB, 2, 2, false), Some('('));
-        assert_eq!(smush_horizontal('<', '(', mode, HB, 2, 2, false), Some('<'));
+        assert_eq!(smush_horizontal('/', '|', mode, HB, false), Some('/'));
+        assert_eq!(smush_horizontal('[', '/', mode, HB, false), Some('['));
+        assert_eq!(smush_horizontal('{', '[', mode, HB, false), Some('{'));
+        assert_eq!(smush_horizontal('(', '{', mode, HB, false), Some('('));
+        assert_eq!(smush_horizontal('<', '(', mode, HB, false), Some('<'));
     }
 
     // --- H4: Pair smushing ---
     #[test]
     fn test_h4_pair_brackets() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::PAIR);
-        assert_eq!(smush_horizontal('[', ']', mode, HB, 2, 2, false), Some('|'));
-        assert_eq!(smush_horizontal(']', '[', mode, HB, 2, 2, false), Some('|'));
+        assert_eq!(smush_horizontal('[', ']', mode, HB, false), Some('|'));
+        assert_eq!(smush_horizontal(']', '[', mode, HB, false), Some('|'));
     }
 
     #[test]
     fn test_h4_pair_braces() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::PAIR);
-        assert_eq!(smush_horizontal('{', '}', mode, HB, 2, 2, false), Some('|'));
-        assert_eq!(smush_horizontal('}', '{', mode, HB, 2, 2, false), Some('|'));
+        assert_eq!(smush_horizontal('{', '}', mode, HB, false), Some('|'));
+        assert_eq!(smush_horizontal('}', '{', mode, HB, false), Some('|'));
     }
 
     #[test]
     fn test_h4_pair_parens() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::PAIR);
-        assert_eq!(smush_horizontal('(', ')', mode, HB, 2, 2, false), Some('|'));
-        assert_eq!(smush_horizontal(')', '(', mode, HB, 2, 2, false), Some('|'));
+        assert_eq!(smush_horizontal('(', ')', mode, HB, false), Some('|'));
+        assert_eq!(smush_horizontal(')', '(', mode, HB, false), Some('|'));
     }
 
     // --- H5: Big X ---
     #[test]
     fn test_h5_bigx_fwd() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::BIGX);
-        assert_eq!(
-            smush_horizontal('/', '\\', mode, HB, 2, 2, false),
-            Some('|')
-        );
+        assert_eq!(smush_horizontal('/', '\\', mode, HB, false), Some('|'));
     }
 
     #[test]
     fn test_h5_bigx_rev() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::BIGX);
-        assert_eq!(
-            smush_horizontal('\\', '/', mode, HB, 2, 2, false),
-            Some('Y')
-        );
+        assert_eq!(smush_horizontal('\\', '/', mode, HB, false), Some('Y'));
     }
 
     #[test]
     fn test_h5_bigx_greater_less() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::BIGX);
-        assert_eq!(smush_horizontal('>', '<', mode, HB, 2, 2, false), Some('X'));
+        assert_eq!(smush_horizontal('>', '<', mode, HB, false), Some('X'));
     }
 
     #[test]
     fn test_h5_bigx_no_reverse() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::BIGX);
-        assert_eq!(smush_horizontal('<', '>', mode, HB, 2, 2, false), None);
+        assert_eq!(smush_horizontal('<', '>', mode, HB, false), None);
     }
 
     // --- H6: Hardblank ---
     #[test]
     fn test_h6_hardblank_pair() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::HARDBLANK);
-        assert_eq!(smush_horizontal(HB, HB, mode, HB, 2, 2, false), Some(HB));
+        assert_eq!(smush_horizontal(HB, HB, mode, HB, false), Some(HB));
     }
 
     // --- Hardblank guard ---
     #[test]
     fn test_hardblank_visible_none() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::HARDBLANK | SmushMode::EQUAL_CHARS);
-        assert_eq!(smush_horizontal(HB, 'A', mode, HB, 2, 2, false), None);
-        assert_eq!(smush_horizontal('A', HB, mode, HB, 2, 2, false), None);
+        assert_eq!(smush_horizontal(HB, 'A', mode, HB, false), None);
+        assert_eq!(smush_horizontal('A', HB, mode, HB, false), None);
     }
 
     // --- Blank smushing ---
     #[test]
     fn test_blank_smush_left() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::EQUAL_CHARS);
-        assert_eq!(smush_horizontal(' ', 'A', mode, HB, 2, 2, false), Some('A'));
-        assert_eq!(smush_horizontal(' ', HB, mode, HB, 2, 2, false), Some(HB));
+        assert_eq!(smush_horizontal(' ', 'A', mode, HB, false), Some('A'));
+        assert_eq!(smush_horizontal(' ', HB, mode, HB, false), Some(HB));
     }
 
     #[test]
     fn test_blank_smush_right() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::EQUAL_CHARS);
-        assert_eq!(smush_horizontal('A', ' ', mode, HB, 2, 2, false), Some('A'));
-        assert_eq!(smush_horizontal(HB, ' ', mode, HB, 2, 2, false), Some(HB));
+        assert_eq!(smush_horizontal('A', ' ', mode, HB, false), Some('A'));
+        assert_eq!(smush_horizontal(HB, ' ', mode, HB, false), Some(HB));
     }
 
-    // --- Width guard ---
+    // --- Width guard moved to add_char ---
     #[test]
     fn test_width_guard() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::EQUAL_CHARS);
-        assert_eq!(smush_horizontal('A', 'A', mode, HB, 1, 2, false), None);
-        assert_eq!(smush_horizontal('A', 'A', mode, HB, 2, 1, false), None);
-        assert_eq!(smush_horizontal('A', 'A', mode, HB, 0, 0, false), None);
+        // Width guard is no longer in smush_horizontal — width ≥ 2
+        // constraint is handled in add_char
+        assert_eq!(smush_horizontal('A', 'A', mode, HB, false), Some('A'));
     }
 
     // --- Kerning mode ---
     #[test]
     fn test_kerning_mode() {
         let mode = SmushMode::new(SmushMode::KERN | SmushMode::EQUAL_CHARS);
-        assert_eq!(smush_horizontal('A', 'A', mode, HB, 2, 2, false), None);
+        assert_eq!(smush_horizontal('A', 'A', mode, HB, false), None);
     }
 
     // --- Universal overlapping ---
     #[test]
     fn test_universal_overlap() {
         let mode = SmushMode::new(MODE_SMUSH);
-        assert_eq!(smush_horizontal('A', 'B', mode, HB, 2, 2, false), Some('B'));
+        assert_eq!(smush_horizontal('A', 'B', mode, HB, false), Some('B'));
     }
 
     #[test]
     fn test_universal_hardblank() {
         let mode = SmushMode::new(MODE_SMUSH);
-        assert_eq!(smush_horizontal(HB, 'A', mode, HB, 2, 2, false), Some('A'));
-        assert_eq!(smush_horizontal('A', HB, mode, HB, 2, 2, false), Some('A'));
+        assert_eq!(smush_horizontal(HB, 'A', mode, HB, false), Some('A'));
+        assert_eq!(smush_horizontal('A', HB, mode, HB, false), Some('A'));
     }
 
     #[test]
     fn test_universal_right2left() {
         let mode = SmushMode::new(MODE_SMUSH);
-        assert_eq!(smush_horizontal('A', 'B', mode, HB, 2, 2, true), Some('A'));
+        assert_eq!(smush_horizontal('A', 'B', mode, HB, true), Some('A'));
     }
 
     // --- No smush when no rule matches ---
     #[test]
     fn test_no_rule_match_returns_none() {
         let mode = SmushMode::new(MODE_SMUSH | SmushMode::EQUAL_CHARS);
-        assert_eq!(smush_horizontal('A', 'B', mode, HB, 2, 2, false), None);
+        assert_eq!(smush_horizontal('A', 'B', mode, HB, false), None);
     }
 
     // --- Vertical V1: Equal chars ---

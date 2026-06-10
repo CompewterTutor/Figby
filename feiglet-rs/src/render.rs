@@ -51,7 +51,7 @@ pub fn calc_smush_amount(
     hardblank: char,
     right2left: bool,
 ) -> usize {
-    if !mode.contains(SmushMode::KERN | SmushMode::SMUSH) {
+    if !mode.contains(SmushMode::KERN) && !mode.contains(SmushMode::SMUSH) {
         return 0;
     }
 
@@ -83,17 +83,7 @@ pub fn calc_smush_amount(
 
         let amt = if ch1 == ' '
             || ch1 == '\0'
-            || (ch2 != '\0'
-                && smush_horizontal(
-                    ch1,
-                    ch2,
-                    mode,
-                    hardblank,
-                    outlinelen,
-                    currcharwidth,
-                    right2left,
-                )
-                .is_some())
+            || (ch2 != '\0' && smush_horizontal(ch1, ch2, mode, hardblank, right2left).is_some())
         {
             amt + 1
         } else {
@@ -130,7 +120,19 @@ pub fn add_char(
     let curr_width = *prev_width;
     let curr_rows = ch.rows();
 
-    let smush = calc_smush_amount(
+    if old_prev_width == 0 {
+        for (row_idx, row) in curr_rows.iter().enumerate() {
+            if row_idx < output_rows.len() {
+                output_rows[row_idx] = row.clone();
+            } else {
+                output_rows.push(row.clone());
+            }
+        }
+        *outlinelen = curr_width;
+        return true;
+    }
+
+    let mut smush = calc_smush_amount(
         output_rows,
         curr_rows,
         *outlinelen,
@@ -139,6 +141,10 @@ pub fn add_char(
         font.hardblank,
         right2left,
     );
+
+    if curr_width < 2 || old_prev_width < 2 {
+        smush = 0;
+    }
 
     if *outlinelen + curr_width - smush > outlinelen_limit {
         *prev_width = old_prev_width;
@@ -160,15 +166,9 @@ pub fn add_char(
                 let col = curr_width.saturating_sub(smush).saturating_add(k);
                 if col < temp.len() {
                     let lch = temp[col];
-                    if let Some(smushed) = smush_horizontal(
-                        lch,
-                        *rch,
-                        mode,
-                        font.hardblank,
-                        old_prev_width,
-                        curr_width,
-                        right2left,
-                    ) {
+                    if let Some(smushed) =
+                        smush_horizontal(lch, *rch, mode, font.hardblank, right2left)
+                    {
                         temp[col] = smushed;
                     }
                 }
@@ -187,15 +187,9 @@ pub fn add_char(
                 .max(0) as usize;
                 if col < out.len() {
                     let lch = out[col];
-                    if let Some(smushed) = smush_horizontal(
-                        lch,
-                        *rch,
-                        mode,
-                        font.hardblank,
-                        old_prev_width,
-                        curr_width,
-                        right2left,
-                    ) {
+                    if let Some(smushed) =
+                        smush_horizontal(lch, *rch, mode, font.hardblank, right2left)
+                    {
                         out[col] = smushed;
                     }
                 }
@@ -558,8 +552,8 @@ mod tests {
             200,
         );
         assert!(ok);
-        assert_eq!(outlinelen, 2);
-        assert_eq!(output_rows[0], "H ");
+        assert_eq!(outlinelen, 3);
+        assert_eq!(output_rows[0], " H ");
         assert_eq!(prev_width, 3);
     }
 
@@ -589,8 +583,8 @@ mod tests {
             false,
             200
         ));
-        assert_eq!(outlinelen, 3);
-        assert_eq!(output_rows[0], "Hi ");
+        assert_eq!(outlinelen, 4);
+        assert_eq!(output_rows[0], " Hi ");
     }
 
     #[test]
@@ -667,7 +661,7 @@ mod tests {
             false,
             3
         ));
-        assert_eq!(outlinelen, 2);
+        assert_eq!(outlinelen, 3);
         assert_eq!(prev_width, 3);
 
         let ok = add_char(
@@ -753,7 +747,7 @@ mod tests {
             false,
             200
         ));
-        assert_eq!(output_rows[0], "Hi!!");
+        assert_eq!(output_rows[0], " Hi!!");
     }
 
     #[test]
@@ -799,8 +793,8 @@ mod tests {
             200
         ));
 
-        assert_eq!(output_rows[0], "A B ");
-        assert_eq!(output_rows[1], "A B ");
+        assert_eq!(output_rows[0], " AB ");
+        assert_eq!(output_rows[1], " AB ");
     }
 
     // --- render_line tests ---
@@ -850,8 +844,8 @@ mod tests {
         let rows = vec!["HelloWorld".to_string()];
         let result = render_line(&rows, '$', Justification::Center, 8);
         // outputwidth=8 > 1, truncate to 7 → "HelloWo"
-        // len=7, center: 2*i + 7 - 1 < 8 → 2*i + 6 < 8 → i=1 → 1 space
-        assert_eq!(result[0], " HelloWo");
+        // len=7, center: 2*i + 7 - 1 < 8 → 2*i + 6 < 8 → i=1: 8<8 false → 0 spaces
+        assert_eq!(result[0], "HelloWo");
     }
 
     #[test]

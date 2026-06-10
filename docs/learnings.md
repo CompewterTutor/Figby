@@ -98,3 +98,23 @@
   compute reference output, then compares against `split_line()` result. This
   tests both the splitting logic and the rebuild correctness simultaneously.
 
+## 1.2.7 — Phase merge review
+
+Three bugs found in phase merge review:
+
+1. **Width guard in wrong function**: C's `smushem()` (which Rust `smush_horizontal()` mirrors)
+   has NO width guard. The guard `if (currcharwidth < 2 || old_prev_width < 2) smush = 0`
+   belongs in `addchar()`/`add_char()`, not in `smushem()`/`smush_horizontal()`. Having it
+   in `smush_horizontal()` caused `calc_smush_amount()` to fail because it passed
+   `outlinelen` (not `old_prev_width`) as the width parameter, causing false `None`
+   returns when outlinelen was small.
+
+2. **Missing first-char optimization**: C's `addchar()` has `if (prev_width == 0)` short-circuit
+   that copies the character directly without smush computation. Rust `add_char()` lacked
+   this, causing incorrect overlap calculations for the first character.
+
+3. **Wrong `contains()` usage for KERN|SMUSH check**: `calc_smush_amount()` used
+   `!mode.contains(KERN | SMUSH)` which checks ALL bits set (AND), but C's
+   `!(smushmode & (KERN | SMUSH))` checks ANY bit set (OR). Changed to
+   `!mode.contains(KERN) && !mode.contains(SMUSH)` to match C semantics.
+

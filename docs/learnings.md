@@ -30,3 +30,15 @@
   stored via two's complement `(code as u32)` — preserves bit pattern.
 - Codetagged section end is signaled by first non-numeric line (not EOF). No error raised.
 
+## 1.1.7 — Compressed font support (zip/deflate)
+
+- `zip` crate v2.x uses `FileOptions<'_, T: FileOptionExtension>` — `Default::default()`
+  alone can't infer `T`. Use `zip.start_file::<&str, ()>("name", Default::default())` or
+  annotate `let opts: zip::write::FileOptions<'_, ()> = Default::default();`.
+- `zip::ZipArchive::len()` triggers `clippy::len_zero` — use `is_empty()` instead.
+- `std::io::Error` doesn't implement `PartialEq`, so `#[derive(PartialEq)]` must be
+  removed from `FontError` when adding `IoError(std::io::Error)`. Manual `PartialEq`
+  impl skips `IoError` variant comparison (correct for all existing test patterns).
+- `Path::join("", "standard.flf")` gives `"standard.flf"` (not `/standard.flf`),
+  avoiding a leading-slash problem when fontdir is empty.
+

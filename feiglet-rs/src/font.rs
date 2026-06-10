@@ -99,12 +99,27 @@ impl Default for FIGfont {
 }
 
 /// Errors that can occur during font parsing.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum FontError {
     /// The magic number doesn't match a known font format.
     InvalidMagic,
     /// A general parsing error occurred.
     ParseError(String),
+    /// An I/O error occurred (file not found, permission denied, etc.).
+    IoError(std::io::Error),
+    /// A ZIP archive processing error occurred.
+    ZipError(String),
+}
+
+impl PartialEq for FontError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::InvalidMagic, Self::InvalidMagic) => true,
+            (Self::ParseError(a), Self::ParseError(b)) => a == b,
+            (Self::ZipError(a), Self::ZipError(b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for FontError {
@@ -112,11 +127,19 @@ impl fmt::Display for FontError {
         match self {
             FontError::InvalidMagic => write!(f, "invalid font magic number"),
             FontError::ParseError(msg) => write!(f, "font parse error: {}", msg),
+            FontError::IoError(e) => write!(f, "I/O error: {}", e),
+            FontError::ZipError(msg) => write!(f, "ZIP error: {}", msg),
         }
     }
 }
 
 impl std::error::Error for FontError {}
+
+impl From<std::io::Error> for FontError {
+    fn from(e: std::io::Error) -> Self {
+        FontError::IoError(e)
+    }
+}
 
 /// The 7 Deutsch characters supported by FIGlet: Ä, Ö, Ü, ä, ö, ü, ß.
 pub(crate) const DEUTSCH_CHARS: [u32; 7] = [196, 214, 220, 228, 246, 252, 223];
@@ -382,6 +405,114 @@ pub fn parse_tlf_font(content: &str) -> Result<FIGfont, FontError> {
     parse_codetagged(&mut font, remaining)?;
 
     Ok(font)
+}
+
+/// Check if a font name contains a path separator.
+fn has_path_separator(name: &str) -> bool {
+    name.contains('/') || name.contains('\\')
+}
+
+/// Generate candidate font paths in the order FIGopen() tries them.
+fn font_candidates(name: &str, fontdir: &str) -> Vec<String> {
+    use std::path::Path;
+    let mut candidates = Vec::new();
+    if !has_path_separator(name) {
+        let dir = Path::new(fontdir);
+        candidates.push(
+            dir.join(format!("{}.flf", name))
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
+    candidates.push(format!("{}.flf", name));
+    if !has_path_separator(name) {
+        let dir = Path::new(fontdir);
+        candidates.push(
+            dir.join(format!("{}.tlf", name))
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
+    candidates.push(format!("{}.tlf", name));
+    candidates
+}
+
+/// Read raw bytes from a font file path.
+fn read_font_bytes(path: &str) -> Result<Vec<u8>, FontError> {
+    Ok(std::fs::read(path)?)
+}
+
+/// Check if byte slice starts with a ZIP local file header magic.
+fn is_zip_bytes(bytes: &[u8]) -> bool {
+    bytes.len() >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04
+}
+
+/// Extract the first entry from a ZIP archive in memory.
+fn extract_first_zip_entry(bytes: &[u8]) -> Result<Vec<u8>, FontError> {
+    use std::io::Read;
+    use zip::ZipArchive;
+
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = ZipArchive::new(cursor)
+        .map_err(|e| FontError::ZipError(format!("failed to open ZIP archive: {}", e)))?;
+
+    if archive.is_empty() {
+        return Err(FontError::ZipError("ZIP archive is empty".to_string()));
+    }
+
+    let mut entry = archive
+        .by_index(0)
+        .map_err(|e| FontError::ZipError(format!("failed to read first ZIP entry: {}", e)))?;
+
+    let mut content = Vec::new();
+    entry
+        .read_to_end(&mut content)
+        .map_err(|e| FontError::ZipError(format!("failed to read ZIP entry contents: {}", e)))?;
+
+    Ok(content)
+}
+
+/// Parse font content as either FLF or TLF (delegates to parse_tlf_font).
+fn parse_font_bytes(content: &str) -> Result<FIGfont, FontError> {
+    parse_tlf_font(content)
+}
+
+/// Load a font by name from a font directory, with ZIP archive fallback.
+///
+/// Search order mirrors C's `FIGopen()`:
+/// 1. `fontdir/name.flf` (if `name` has no path separator)
+/// 2. `name.flf`
+/// 3. `fontdir/name.tlf` (if `name` has no path separator)
+/// 4. `name.tlf`
+///
+/// Each candidate is checked for existence. If found and is a ZIP archive,
+/// the first entry is extracted and parsed. Otherwise the file is parsed
+/// directly.
+pub fn load_font(name: &str, fontdir: &str) -> Result<FIGfont, FontError> {
+    let candidates = font_candidates(name, fontdir);
+    for path in &candidates {
+        match read_font_bytes(path) {
+            Ok(bytes) => {
+                let content = if is_zip_bytes(&bytes) {
+                    let extracted = extract_first_zip_entry(&bytes)?;
+                    String::from_utf8(extracted).map_err(|e| {
+                        FontError::ParseError(format!("non-UTF-8 in ZIP entry: {}", e))
+                    })?
+                } else {
+                    String::from_utf8(bytes).map_err(|e| {
+                        FontError::ParseError(format!("non-UTF-8 in font file: {}", e))
+                    })?
+                };
+                return parse_font_bytes(&content);
+            }
+            Err(FontError::IoError(_)) => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(FontError::ParseError(format!(
+        "could not find font '{}'",
+        name
+    )))
 }
 
 #[cfg(test)]
@@ -1163,5 +1294,145 @@ mod tests {
 
         let result = parse_header("tlf2b$ 6 5 20 15 3");
         assert_eq!(result, Err(FontError::InvalidMagic));
+    }
+
+    // --- load_font / ZIP support tests ---
+
+    fn temp_dir_uniq() -> std::path::PathBuf {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("feiglet_test_{}_{}", std::process::id(), ts))
+    }
+
+    fn write_standard_font(dir: &std::path::Path) {
+        let bytes = include_bytes!("../../fonts/standard.flf");
+        std::fs::write(dir.join("standard.flf"), bytes).unwrap();
+    }
+
+    #[test]
+    fn test_is_zip_bytes() {
+        // PK\x03\x04 is ZIP local file header
+        assert!(is_zip_bytes(&[0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]));
+        assert!(is_zip_bytes(&[0x50, 0x4B, 0x03, 0x04]));
+        assert!(!is_zip_bytes(&[]));
+        assert!(!is_zip_bytes(&[0x00, 0x00, 0x00, 0x00]));
+        assert!(!is_zip_bytes(&[0x50, 0x4B]));
+        assert!(!is_zip_bytes(&[0x50, 0x4B, 0x03]));
+    }
+
+    #[test]
+    fn test_has_path_separator() {
+        assert!(!has_path_separator("standard"));
+        assert!(has_path_separator("./standard"));
+        assert!(has_path_separator("/abs/path/standard"));
+        assert!(has_path_separator("subdir\\standard"));
+        assert!(!has_path_separator(""));
+        assert!(has_path_separator("a/b"));
+    }
+
+    #[test]
+    fn test_load_font_plain_file() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        write_standard_font(&tmpdir);
+
+        let font = load_font("standard", tmpdir.to_str().unwrap())
+            .expect("should load standard font from plain file");
+        assert_eq!(font.charheight, 6);
+        assert_eq!(font.chars.len(), 102);
+        assert_eq!(font.hardblank, '$');
+
+        std::fs::remove_file(tmpdir.join("standard.flf")).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_load_font_from_zip() {
+        use std::io::Write;
+
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+
+        let font_bytes = include_bytes!("../../fonts/standard.flf");
+        let zip_path = tmpdir.join("standard.flf");
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file::<&str, ()>("standard.flf", Default::default())
+            .unwrap();
+        zip.write_all(font_bytes).unwrap();
+        zip.finish().unwrap();
+
+        let font = load_font("standard", tmpdir.to_str().unwrap())
+            .expect("should load standard font from ZIP archive");
+        assert_eq!(font.charheight, 6);
+        assert_eq!(font.chars.len(), 102);
+        assert_eq!(font.hardblank, '$');
+
+        std::fs::remove_file(&zip_path).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_load_font_search_order() {
+        // Create fontdir/standard.flf (stripped-down, height=1) and
+        // plain standard.flf (full font, height=6).
+        // load_font with fontdir pointing to parent of fontdir/
+        // should pick up the fontdir version (height=1).
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+
+        // Write the stripped-down font in fontdir/standard.flf
+        let fontdir = tmpdir.join("fontdir");
+        std::fs::create_dir_all(&fontdir).unwrap();
+        let mut content = String::from("flf2a$ 1 0 1 0 0\n");
+        for code in 32..=126u32 {
+            let c = char::from_u32(code).unwrap();
+            content.push(c);
+            content.push_str("  @\n");
+        }
+        for &code in &DEUTSCH_CHARS {
+            let c = char::from_u32(code).unwrap();
+            content.push(c);
+            content.push_str("  @\n");
+        }
+        std::fs::write(fontdir.join("standard.flf"), &content).unwrap();
+
+        // Write the full font as bare path standard.flf
+        let full_bytes = include_bytes!("../../fonts/standard.flf");
+        std::fs::write(tmpdir.join("standard.flf"), full_bytes).unwrap();
+
+        // Load with fontdir pointing to tmpdir/fontdir
+        let font = load_font("standard", fontdir.to_str().unwrap())
+            .expect("should load font from fontdir");
+        // Height=1 confirms fontdir version was picked
+        assert_eq!(font.charheight, 1);
+        assert_eq!(font.chars.len(), 102);
+
+        std::fs::remove_file(fontdir.join("standard.flf")).unwrap();
+        std::fs::remove_dir(&fontdir).unwrap();
+        std::fs::remove_file(tmpdir.join("standard.flf")).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_load_font_nonexistent() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+
+        let result = load_font("nonexistent_font_xyzzy", tmpdir.to_str().unwrap());
+        assert!(result.is_err(), "should return error for nonexistent font");
+        match &result {
+            Err(FontError::ParseError(msg)) => {
+                assert!(
+                    msg.contains("could not find font"),
+                    "error should mention could not find font, got: {msg}"
+                );
+            }
+            other => panic!("expected ParseError, got: {other:?}"),
+        }
+
+        std::fs::remove_dir(&tmpdir).unwrap();
     }
 }

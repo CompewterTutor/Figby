@@ -80,3 +80,13 @@ Added `FontFormat` enum (`Figfont`/`Tlf`), `format` field on `FIGfont`,
 and `tlf2a` magic numbers. Reuses all FIGfont parsing infrastructure
 (endmark stripping, char data, codetagged). TLF rows are UTF-8 natively
 (Rust `String` handles this without special treatment).
+
+### 1.1.7 — Compressed font support (zip/deflate)
+
+Added `load_font()` as FIGopen() equivalent: try `fontdir/name.flf`, bare
+`name.flf`, `fontdir/name.tlf`, then bare `name.tlf`. Each candidate reads
+bytes, detects ZIP magic (`PK\x03\x04`), extracts first entry if ZIP, parses
+via existing `parse_tlf_font()`. `FontError` gained `IoError(std::io::Error)`
+and `ZipError(String)` variants. `zip = "2"` and `flate2 = "1"` added to
+Cargo.toml. ZIP is only read from — `ZipWriter` used solely in tests.
+`PartialEq` on `FontError` is now manual (cannot derive with `std::io::Error`).

@@ -65,7 +65,7 @@ and multi-byte input.
   - **Tests:** Parse `emboss.tlf` fixture. Compare with C output.
   - **Difficulty:** Medium
 
-- [ ] `1.1.7` Compressed font support (zip/deflate)
+- [x] `1.1.7` Compressed font support (zip/deflate)
   - **Goal:** Read `.flf` files inside ZIP archives using `zip` crate.
     Implement `FIGopen()` equivalent: try font directory + suffix, then
     bare path. Fall back to ZIP reading. Use `flate2` for raw deflate if

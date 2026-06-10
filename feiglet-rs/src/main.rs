@@ -1,5 +1,8 @@
 use clap::Parser;
-use std::io::{self, Write};
+use feiglet::font::{self, FIGfont, DEUTSCH_CHARS};
+use feiglet::render::{add_char, lookup_char, render_line, split_line, Justification};
+use feiglet::smush::SmushMode;
+use std::io::{self, Read, Write};
 use std::process;
 
 const VERSION_INT: i32 = 20205;
@@ -13,6 +16,95 @@ enum SmushOverride {
     No = 0,
     Yes = 1,
     Force = 2,
+}
+
+enum InputIter {
+    Stdin {
+        bytes: io::Bytes<io::BufReader<io::Stdin>>,
+        buf: Option<u32>,
+    },
+    Args {
+        args: Vec<String>,
+        arg_idx: usize,
+        char_idx: usize,
+        exhausted: bool,
+        buf: Option<u32>,
+    },
+}
+
+impl InputIter {
+    fn new(message: Vec<String>, cmdinput: bool) -> Self {
+        if cmdinput {
+            let exhausted = message.is_empty();
+            Self::Args {
+                args: message,
+                arg_idx: 0,
+                char_idx: 0,
+                exhausted,
+                buf: None,
+            }
+        } else {
+            Self::Stdin {
+                bytes: io::BufReader::new(io::stdin()).bytes(),
+                buf: None,
+            }
+        }
+    }
+
+    fn next(&mut self) -> Option<u32> {
+        match self {
+            Self::Stdin { bytes, buf } => {
+                if let Some(c) = buf.take() {
+                    return Some(c);
+                }
+                match bytes.next() {
+                    Some(Ok(b)) => Some(b as u32),
+                    _ => None,
+                }
+            }
+            Self::Args {
+                args,
+                arg_idx,
+                char_idx,
+                exhausted,
+                buf,
+            } => {
+                if let Some(c) = buf.take() {
+                    return Some(c);
+                }
+                if *exhausted {
+                    return None;
+                }
+                if *arg_idx >= args.len() {
+                    *exhausted = true;
+                    return None;
+                }
+                let arg_bytes = args[*arg_idx].as_bytes();
+                if *char_idx < arg_bytes.len() {
+                    let c = arg_bytes[*char_idx] as u32;
+                    *char_idx += 1;
+                    return Some(c);
+                }
+                let is_empty = *char_idx == 0;
+                let is_last = *arg_idx + 1 >= args.len();
+                *arg_idx += 1;
+                *char_idx = 0;
+                if is_last {
+                    *exhausted = true;
+                    return None;
+                }
+                Some(if is_empty { b'\n' as u32 } else { b' ' as u32 })
+            }
+        }
+    }
+
+    fn unget(&mut self, c: u32) {
+        match self {
+            Self::Stdin { buf, .. } | Self::Args { buf, .. } => {
+                *buf = Some(c);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -301,7 +393,314 @@ fn get_columns() -> Option<u16> {
     termion::terminal_size().ok().map(|(cols, _)| cols)
 }
 
-fn run(_config: CliConfig) {}
+#[allow(clippy::ptr_arg, clippy::too_many_arguments)]
+fn flush_output_line(
+    output_rows: &mut Vec<String>,
+    font: &FIGfont,
+    justification: Justification,
+    output_width: usize,
+    char_buffer: &mut Vec<u32>,
+    outlinelen: &mut usize,
+    prev_width: &mut usize,
+    out: &mut impl Write,
+) {
+    let rendered = render_line(output_rows, font.hardblank, justification, output_width);
+    for row in &rendered {
+        let _ = writeln!(out, "{}", row);
+    }
+    for row in output_rows.iter_mut() {
+        row.clear();
+    }
+    char_buffer.clear();
+    *outlinelen = 0;
+    *prev_width = 0;
+}
+
+fn run(config: CliConfig, message: Vec<String>) {
+    let font = match font::load_font(&config.fontname, &config.fontdirname) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            process::exit(1);
+        }
+    };
+
+    let smush_mode = match config.smushoverride {
+        SmushOverride::No => SmushMode::new(font.full_layout as u32),
+        SmushOverride::Yes => SmushMode::new(config.smushmode),
+        SmushOverride::Force => SmushMode::new(font.full_layout as u32 | config.smushmode),
+    };
+
+    let justification = Justification::from_i32(config.justification);
+    let rtl = if config.right2left == -1 {
+        font.print_direction == 1
+    } else {
+        config.right2left == 1
+    };
+
+    let outlinelen_limit = config.outputwidth.saturating_sub(1) as usize;
+    let output_width = config.outputwidth as usize;
+    let height = font.charheight as usize;
+
+    let mut output_rows = vec![String::new(); height];
+    let mut char_buffer: Vec<u32> = Vec::new();
+    let mut outlinelen: usize = 0;
+    let mut prev_width: usize = 0;
+    let mut wordbreakmode: i32 = 0;
+    let mut last_was_eol_flag: bool = false;
+
+    let mut input = InputIter::new(message, config.cmdinput);
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+
+    loop {
+        let c = match input.next() {
+            Some(c) => c,
+            None => {
+                if outlinelen != 0 {
+                    flush_output_line(
+                        &mut output_rows,
+                        &font,
+                        justification,
+                        output_width,
+                        &mut char_buffer,
+                        &mut outlinelen,
+                        &mut prev_width,
+                        &mut out,
+                    );
+                }
+                break;
+            }
+        };
+
+        let mut c = c;
+
+        // Paragraph mode
+        if c == b'\n' as u32 && config.paragraphflag && !last_was_eol_flag {
+            let c2 = match input.next() {
+                Some(c2) => c2,
+                None => {
+                    if outlinelen != 0 {
+                        flush_output_line(
+                            &mut output_rows,
+                            &font,
+                            justification,
+                            output_width,
+                            &mut char_buffer,
+                            &mut outlinelen,
+                            &mut prev_width,
+                            &mut out,
+                        );
+                    }
+                    break;
+                }
+            };
+            let is_ws = c2 <= 127 && (c2 as u8 as char).is_ascii_whitespace();
+            if !is_ws {
+                c = b' ' as u32;
+            }
+            input.unget(c2);
+        }
+
+        // Update last_was_eol_flag
+        last_was_eol_flag = c <= 127
+            && (c as u8 as char).is_ascii_whitespace()
+            && c != b'\t' as u32
+            && c != b' ' as u32;
+
+        // Deutsch re-routing
+        if config.deutschflag {
+            if c >= b'[' as u32 && c <= b']' as u32 {
+                let idx = (c - b'[' as u32) as usize;
+                c = DEUTSCH_CHARS[idx];
+            } else if c >= b'{' as u32 && c <= b'~' as u32 {
+                let idx = (c - b'{' as u32) as usize;
+                c = DEUTSCH_CHARS[3 + idx];
+            }
+        }
+
+        // handlemapping (identity for now — Phase 1.4.2)
+        // c = handlemapping(c);
+
+        // Space normalization
+        if c <= 127 && (c as u8 as char).is_ascii_whitespace() {
+            c = if c == b'\t' as u32 || c == b' ' as u32 {
+                b' ' as u32
+            } else {
+                b'\n' as u32
+            };
+        }
+
+        // Skip control chars 1-31 (except \n) and 127 (DEL)
+        if (c > 0 && c < b' ' as u32 && c != b'\n' as u32) || c == 127 {
+            continue;
+        }
+
+        // Inner loop (handles addchar retry after split/print, like C do-while)
+        // Every branch either breaks (char handled) or falls through to retry
+        loop {
+            if wordbreakmode == -1 {
+                if c == b' ' as u32 {
+                    break;
+                } else if c == b'\n' as u32 {
+                    wordbreakmode = 0;
+                    break;
+                }
+                wordbreakmode = 0;
+            }
+
+            if c == b'\n' as u32 {
+                flush_output_line(
+                    &mut output_rows,
+                    &font,
+                    justification,
+                    output_width,
+                    &mut char_buffer,
+                    &mut outlinelen,
+                    &mut prev_width,
+                    &mut out,
+                );
+                wordbreakmode = 0;
+                break;
+            }
+
+            if add_char(
+                &font,
+                c,
+                &mut output_rows,
+                &mut outlinelen,
+                &mut prev_width,
+                smush_mode,
+                rtl,
+                outlinelen_limit,
+            ) {
+                char_buffer.push(c);
+                if c != b' ' as u32 {
+                    wordbreakmode = if wordbreakmode >= 2 { 3 } else { 1 };
+                } else {
+                    wordbreakmode = if wordbreakmode > 0 { 2 } else { 0 };
+                }
+                break;
+            }
+
+            if outlinelen == 0 {
+                // Raw-char path: char wider than empty line
+                let mut dummy = 0;
+                let ch = lookup_char(&font, c, &mut dummy);
+                let rows = ch.rows();
+                let raw_rows: Vec<String> = if rtl && output_width > 1 {
+                    rows.iter()
+                        .map(|row| {
+                            let len = row.chars().count();
+                            let start = len.saturating_sub(outlinelen_limit);
+                            row.chars().skip(start).collect()
+                        })
+                        .collect()
+                } else {
+                    rows.to_vec()
+                };
+                let rendered = render_line(&raw_rows, font.hardblank, justification, output_width);
+                for row in &rendered {
+                    let _ = writeln!(out, "{}", row);
+                }
+                wordbreakmode = -1;
+                break;
+            }
+
+            // addchar failed — need to flush current line and retry
+            if c == b' ' as u32 {
+                if wordbreakmode >= 2 {
+                    if let Some((part1_rows, part2_start)) = split_line(
+                        &font,
+                        &char_buffer,
+                        &mut output_rows,
+                        &mut outlinelen,
+                        &mut prev_width,
+                        smush_mode,
+                        rtl,
+                        outlinelen_limit,
+                    ) {
+                        let rendered =
+                            render_line(&part1_rows, font.hardblank, justification, output_width);
+                        for row in &rendered {
+                            let _ = writeln!(out, "{}", row);
+                        }
+                        char_buffer.truncate(part2_start);
+                    } else {
+                        flush_output_line(
+                            &mut output_rows,
+                            &font,
+                            justification,
+                            output_width,
+                            &mut char_buffer,
+                            &mut outlinelen,
+                            &mut prev_width,
+                            &mut out,
+                        );
+                    }
+                } else {
+                    flush_output_line(
+                        &mut output_rows,
+                        &font,
+                        justification,
+                        output_width,
+                        &mut char_buffer,
+                        &mut outlinelen,
+                        &mut prev_width,
+                        &mut out,
+                    );
+                }
+                wordbreakmode = -1;
+                break;
+            }
+
+            // Non-space char that didn't fit — retry after flush/split
+            if wordbreakmode >= 2 {
+                if let Some((part1_rows, part2_start)) = split_line(
+                    &font,
+                    &char_buffer,
+                    &mut output_rows,
+                    &mut outlinelen,
+                    &mut prev_width,
+                    smush_mode,
+                    rtl,
+                    outlinelen_limit,
+                ) {
+                    let rendered =
+                        render_line(&part1_rows, font.hardblank, justification, output_width);
+                    for row in &rendered {
+                        let _ = writeln!(out, "{}", row);
+                    }
+                    char_buffer.truncate(part2_start);
+                } else {
+                    flush_output_line(
+                        &mut output_rows,
+                        &font,
+                        justification,
+                        output_width,
+                        &mut char_buffer,
+                        &mut outlinelen,
+                        &mut prev_width,
+                        &mut out,
+                    );
+                }
+            } else {
+                flush_output_line(
+                    &mut output_rows,
+                    &font,
+                    justification,
+                    output_width,
+                    &mut char_buffer,
+                    &mut outlinelen,
+                    &mut prev_width,
+                    &mut out,
+                );
+            }
+            wordbreakmode = if wordbreakmode == 3 { 1 } else { 0 };
+            // loop continues (retry addchar with fresh output line)
+        }
+    }
+}
 
 fn main() {
     let args = CliArgs::parse();
@@ -312,6 +711,7 @@ fn main() {
         process::exit(1);
     }
 
+    let message = args.message.clone();
     let config = CliConfig::from_args(args);
 
     if let Some(infocode) = infocode {
@@ -330,7 +730,7 @@ fn main() {
         process::exit(0);
     }
 
-    run(config);
+    run(config, message);
 }
 
 #[cfg(test)]
@@ -602,5 +1002,157 @@ mod tests {
         let mut buf = Vec::new();
         printinfo(&mut buf, 5, &config, "feiglet").unwrap();
         assert_eq!(buf, b"flf2 tlf2\n");
+    }
+
+    // --- InputIter tests ---
+
+    #[test]
+    fn test_input_iter_stdin_empty() {
+        let mut iter = InputIter::new(vec![], false);
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_input_iter_args_empty() {
+        let mut iter = InputIter::new(vec![], true);
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_input_iter_single_word() {
+        let mut iter = InputIter::new(vec!["hello".to_string()], true);
+        assert_eq!(iter.next(), Some(b'h' as u32));
+        assert_eq!(iter.next(), Some(b'e' as u32));
+        assert_eq!(iter.next(), Some(b'l' as u32));
+        assert_eq!(iter.next(), Some(b'l' as u32));
+        assert_eq!(iter.next(), Some(b'o' as u32));
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_input_iter_two_words() {
+        let mut iter = InputIter::new(vec!["hello".to_string(), "world".to_string()], true);
+        let chars: Vec<u32> = std::iter::from_fn(|| iter.next()).collect();
+        assert_eq!(
+            chars,
+            vec![
+                b'h' as u32,
+                b'e' as u32,
+                b'l' as u32,
+                b'l' as u32,
+                b'o' as u32,
+                b' ' as u32,
+                b'w' as u32,
+                b'o' as u32,
+                b'r' as u32,
+                b'l' as u32,
+                b'd' as u32,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_input_iter_empty_word_middle() {
+        let mut iter = InputIter::new(
+            vec!["hello".to_string(), "".to_string(), "world".to_string()],
+            true,
+        );
+        let chars: Vec<u32> = std::iter::from_fn(|| iter.next()).collect();
+        assert_eq!(
+            chars,
+            vec![
+                b'h' as u32,
+                b'e' as u32,
+                b'l' as u32,
+                b'l' as u32,
+                b'o' as u32,
+                b' ' as u32,
+                b'\n' as u32,
+                b'w' as u32,
+                b'o' as u32,
+                b'r' as u32,
+                b'l' as u32,
+                b'd' as u32,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_input_iter_empty_word_at_end() {
+        let mut iter = InputIter::new(vec!["hello".to_string(), "".to_string()], true);
+        let chars: Vec<u32> = std::iter::from_fn(|| iter.next()).collect();
+        assert_eq!(
+            chars,
+            vec![
+                b'h' as u32,
+                b'e' as u32,
+                b'l' as u32,
+                b'l' as u32,
+                b'o' as u32,
+                b' ' as u32,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_input_iter_unget() {
+        let mut iter = InputIter::new(vec!["ab".to_string()], true);
+        assert_eq!(iter.next(), Some(b'a' as u32));
+        iter.unget(b'x' as u32);
+        assert_eq!(iter.next(), Some(b'x' as u32));
+        assert_eq!(iter.next(), Some(b'b' as u32));
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_end_to_end_hello() {
+        let tmpdir = std::env::temp_dir().join("feiglet-test-1.3.4");
+        let _ = std::fs::create_dir_all(&tmpdir);
+        let fontpath = tmpdir.join("testfont.flf");
+        // Minimal FIGfont (height=1, baseline=0, max=1, old=0, comment=0)
+        let mut font = String::from("flf2a$ 1 0 1 0 0\n");
+        for code in 32..=126u32 {
+            let c = char::from_u32(code).unwrap();
+            font.push(c);
+            font.push_str("  @\n");
+        }
+        for &code in &DEUTSCH_CHARS {
+            let c = char::from_u32(code).unwrap();
+            font.push(c);
+            font.push_str("  @\n");
+        }
+        std::fs::write(&fontpath, &font).unwrap();
+        let config = CliConfig {
+            cmdinput: true,
+            outputwidth: 80,
+            fontdirname: tmpdir.to_str().unwrap().to_string(),
+            fontname: "testfont".to_string(),
+            ..Default::default()
+        };
+        // Exercise full pipeline: input → font → render → output
+        run(config, vec!["Hello".to_string()]);
+        // Should not panic. stdout captured by test framework.
+        let _ = std::fs::remove_file(&fontpath);
+        let _ = std::fs::remove_dir(&tmpdir);
+    }
+
+    #[test]
+    fn test_input_iter_all_empty() {
+        let mut iter = InputIter::new(vec!["".to_string()], true);
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_input_iter_three_empty() {
+        let mut iter = InputIter::new(vec!["".to_string(), "".to_string(), "".to_string()], true);
+        let chars: Vec<u32> = std::iter::from_fn(|| iter.next()).collect();
+        assert_eq!(chars, vec![b'\n' as u32, b'\n' as u32]);
+    }
+
+    #[test]
+    fn test_input_iter_multiple_empty_then_word() {
+        let mut iter = InputIter::new(vec!["".to_string(), "".to_string(), "a".to_string()], true);
+        let chars: Vec<u32> = std::iter::from_fn(|| iter.next()).collect();
+        assert_eq!(chars, vec![b'\n' as u32, b'\n' as u32, b'a' as u32]);
     }
 }

@@ -118,6 +118,27 @@ Three bugs found in phase merge review:
    `!(smushmode & (KERN | SMUSH))` checks ANY bit set (OR). Changed to
    `!mode.contains(KERN) && !mode.contains(SMUSH)` to match C semantics.
 
+## 1.3.4 — Main event loop
+
+- `pub(crate)` visibility in `font.rs` constants is NOT visible from binary crate
+  (`main.rs`), since the binary depends on `feiglet` as a separate library crate.
+  Changing `DEUTSCH_CHARS` to `pub` is required when the binary needs it.
+- `std::io::Stdin::bytes()` requires `Read` trait in scope (`use std::io::Read`).
+  Using `io::BufReader::new(io::stdin()).bytes()` avoids
+  `clippy::unbuffered_bytes` lint.
+- `clippy::never_loop` fires on one-shot `loop { return ... }` — replace with
+  plain `match`/`if`.
+- The inner retry loop in C uses `do {} while (char_not_added)` with a flag.
+  Rust alternative: `loop { ... break; ... }` where every branch either `break`s
+  (char handled) or falls through (retry after flush/split). Avoids
+  `clippy::needless_late_init`.
+- Clippy `ptr_arg` on `&mut Vec<String>` — use `#[allow(clippy::ptr_arg)]` when
+  the function signature needs to match the calling convention (callers pass
+  `Vec<String>` and mutate it). Changing to `&mut [String]` loses the ability
+  to `clear()`.
+- `flush_output_line` has 8 parameters triggering `clippy::too_many_arguments`.
+  Acceptable mirror of C's global-based approach — suppressed with allow attr.
+
 ## 1.3.1 — CLI argument parsing
 
 - `#[allow(non_snake_case)]` is required on clap structs when flags have

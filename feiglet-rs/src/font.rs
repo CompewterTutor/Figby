@@ -142,7 +142,7 @@ impl From<std::io::Error> for FontError {
 }
 
 /// The 7 Deutsch characters supported by FIGlet: Ä, Ö, Ü, ä, ö, ü, ß.
-pub(crate) const DEUTSCH_CHARS: [u32; 7] = [196, 214, 220, 228, 246, 252, 223];
+pub const DEUTSCH_CHARS: [u32; 7] = [196, 214, 220, 228, 246, 252, 223];
 
 /// Strip trailing endmark characters from a font file line.
 ///

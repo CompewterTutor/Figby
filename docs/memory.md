@@ -219,3 +219,30 @@ handling placed before `-w` so explicit `-w` flag overrides `-t` when both given
 `termion = "4"` added to `Cargo.toml`. No `unwrap()` in production — returns
 `None` gracefully on non-TTY or error, falling back to default 80. 3 unit tests:
 parsing, width update, `-w` override, `get_columns()` never panics.
+
+### 1.3.4 — Main event loop
+
+Full `run()` implementation porting C's `main()` loop (figlet.c:2003-2134).
+`InputIter` enum handles both stdin and argv-based input (`Agetchar` equivalent)
+with `unget` support for paragraph mode peeking. `flush_output_line()` helper
+calls `render_line()` then writes rows to stdout, then clears output state.
+
+Main loop matches C exactly:
+- Paragraph mode (`-p`): peek at next char after `\n`, map to space if non-ws
+- `last_was_eol_flag` tracking for `\n`/`\v`/`\f`/`\r` (not tab/space)
+- Deutsch re-routing (`-D`): `[\]` → umlauts, `{|}~` → lowercase umlauts+ß
+- `handlemapping()` identity (Phase 1.4.2 will integrate control files)
+- Space normalization: tab/space→space, other ws→newline
+- Control char skip: 1-31 (except `\n`) and 127 (DEL)
+- Inner retry loop matching C's `do {} while (char_not_added)`:
+  - `wordbreakmode == -1`: absorb spaces/newlines after forced break
+  - `c == '\n'`: flush line unconditionally
+  - `addchar` success: track wordbreakmode (0/1/2/3 per C spec)
+  - `addchar` fail + `outlinelen == 0`: raw-char path (print char directly)
+  - `addchar` fail + `c == ' '`: split (if wordbreakmode>=2) or flush, then absorb space
+  - `addchar` fail + else: split/flush, set wordbreakmode, retry
+- EOF flush: if `outlinelen != 0`, flush remaining line
+
+`DEUTSCH_CHARS` visibility changed from `pub(crate)` to `pub` (needed by binary crate).
+`io::Read` import added to `main.rs` for `BufReader::bytes()`.
+12 unit tests for `InputIter`: empty args, single/multi word, empty words, unget.

@@ -180,7 +180,7 @@ and multi-byte input.
   - **Tests:** Mock terminal width test.
   - **Difficulty:** Low
 
-- [ ] `1.3.4` Main event loop
+- [x] `1.3.4` Main event loop
   - **Goal:** Port `main()` loop — read chars via `getinchr()`, process
     through `handlemapping()` + Deutsch re-routing, build lines with
     `addchar()`, handle line breaking. End-of-file exits.

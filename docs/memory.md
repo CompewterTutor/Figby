@@ -198,3 +198,14 @@ Flag normalization matches C switch-case semantics: `-m` value mapping,
 placeholder for 1.3.4. `#[allow(non_snake_case)]` needed on `CliArgs`
 struct because uppercase flags (e.g. `-L` vs `-l`, `-S` vs `-s`) would
 collide in snake_case. 20 unit tests covering every flag + defaults.
+
+### 1.3.2 — Info codes (`-I` flag)
+
+Added `printinfo()` and `printusage()` functions ported from C. Six infocodes
+mapped exactly: 0 (copyright + usage), 1 (version int), 2 (font dir), 3 (font),
+4 (output width), 5 (font formats). Both functions take `&mut impl Write` for
+testability — production passes `io::stdout().lock()`, tests pass `Vec<u8>`.
+Constants added: `VERSION_INT=20205`, `VERSION="2.2.5"`, `DATE="31 May 2012"`,
+`FONTFILE_MAGIC="flf2"`, `TOILETFILE_MAGIC="tlf2"`. `-I` handler in `main()`
+prints info and exits with code 0, matching C behavior. 6 unit tests covering
+all infocodes (0–5) with byte-exact output assertions.

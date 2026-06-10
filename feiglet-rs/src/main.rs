@@ -1,5 +1,12 @@
 use clap::Parser;
+use std::io::{self, Write};
 use std::process;
+
+const VERSION_INT: i32 = 20205;
+const VERSION: &str = "2.2.5";
+const DATE: &str = "31 May 2012";
+const FONTFILE_MAGIC: &str = "flf2";
+const TOILETFILE_MAGIC: &str = "tlf2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SmushOverride {
@@ -206,10 +213,87 @@ impl CliConfig {
     }
 }
 
+fn printusage(out: &mut impl Write, myname: &str) -> io::Result<()> {
+    writeln!(
+        out,
+        "Usage: {myname} [ -cklnoprstvxDELNRSWX ] [ -d fontdirectory ]"
+    )?;
+    writeln!(
+        out,
+        "              [ -f fontfile ] [ -m smushmode ] [ -w outputwidth ]"
+    )?;
+    writeln!(
+        out,
+        "              [ -C controlfile ] [ -I infocode ] [ message ]"
+    )?;
+    Ok(())
+}
+
+fn printinfo(
+    out: &mut impl Write,
+    infocode: i32,
+    config: &CliConfig,
+    myname: &str,
+) -> io::Result<()> {
+    match infocode {
+        0 => {
+            writeln!(
+                out,
+                "FIGlet Copyright (C) 1991-2012 Glenn Chappell, Ian Chai, John Cowan,"
+            )?;
+            writeln!(out, "Christiaan Keet and Claudio Matsuoka")?;
+            writeln!(
+                out,
+                "Internet: <info@figlet.org> Version: {}, date: {}",
+                VERSION, DATE
+            )?;
+            writeln!(out)?;
+            writeln!(
+                out,
+                "FIGlet, along with the various FIGlet fonts and documentation, may be"
+            )?;
+            writeln!(out, "freely copied and distributed.")?;
+            writeln!(out)?;
+            writeln!(
+                out,
+                "If you use FIGlet, please send an e-mail message to <info@figlet.org>."
+            )?;
+            writeln!(out)?;
+            writeln!(
+                out,
+                "The latest version of FIGlet is available from the web site,"
+            )?;
+            writeln!(out, "\thttp://www.figlet.org/")?;
+            writeln!(out)?;
+            printusage(out, myname)?;
+        }
+        1 => {
+            writeln!(out, "{}", VERSION_INT)?;
+        }
+        2 => {
+            writeln!(out, "{}", config.fontdirname)?;
+        }
+        3 => {
+            writeln!(out, "{}", config.fontname)?;
+        }
+        4 => {
+            writeln!(out, "{}", config.outputwidth)?;
+        }
+        5 => {
+            write!(out, "{}", FONTFILE_MAGIC)?;
+            write!(out, " {}", TOILETFILE_MAGIC)?;
+            writeln!(out)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 fn run(_config: CliConfig) {}
 
 fn main() {
     let args = CliArgs::parse();
+    let infocode = args.infocode;
 
     if args.flag_F {
         eprintln!("Error: -F option is not implemented in this version");
@@ -217,6 +301,23 @@ fn main() {
     }
 
     let config = CliConfig::from_args(args);
+
+    if let Some(infocode) = infocode {
+        let myname = match std::env::args().next() {
+            Some(s) => {
+                let s = s.rsplit('/').next().unwrap_or(&s);
+                s.to_string()
+            }
+            None => "feiglet".to_string(),
+        };
+        let mut stdout = io::stdout().lock();
+        if let Err(e) = printinfo(&mut stdout, infocode, &config, &myname) {
+            eprintln!("Error writing info: {e}");
+            process::exit(1);
+        }
+        process::exit(0);
+    }
+
     run(config);
 }
 
@@ -418,5 +519,55 @@ mod tests {
         let args = CliArgs::try_parse_from(["feiglet", "-k", "-s"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.smushoverride, SmushOverride::No);
+    }
+
+    #[test]
+    fn test_infocode_0_copyright() {
+        let config = CliConfig::default();
+        let mut buf = Vec::new();
+        printinfo(&mut buf, 0, &config, "feiglet").unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("FIGlet Copyright (C)"));
+        assert!(output.contains("feiglet"));
+    }
+
+    #[test]
+    fn test_infocode_1_version() {
+        let config = CliConfig::default();
+        let mut buf = Vec::new();
+        printinfo(&mut buf, 1, &config, "feiglet").unwrap();
+        assert_eq!(buf, b"20205\n");
+    }
+
+    #[test]
+    fn test_infocode_2_fontdir() {
+        let config = CliConfig::default();
+        let mut buf = Vec::new();
+        printinfo(&mut buf, 2, &config, "feiglet").unwrap();
+        assert_eq!(buf, b"fonts\n");
+    }
+
+    #[test]
+    fn test_infocode_3_font() {
+        let config = CliConfig::default();
+        let mut buf = Vec::new();
+        printinfo(&mut buf, 3, &config, "feiglet").unwrap();
+        assert_eq!(buf, b"standard\n");
+    }
+
+    #[test]
+    fn test_infocode_4_outputwidth() {
+        let config = CliConfig::default();
+        let mut buf = Vec::new();
+        printinfo(&mut buf, 4, &config, "feiglet").unwrap();
+        assert_eq!(buf, b"80\n");
+    }
+
+    #[test]
+    fn test_infocode_5_formats() {
+        let config = CliConfig::default();
+        let mut buf = Vec::new();
+        printinfo(&mut buf, 5, &config, "feiglet").unwrap();
+        assert_eq!(buf, b"flf2 tlf2\n");
     }
 }

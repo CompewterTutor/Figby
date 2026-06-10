@@ -163,7 +163,7 @@ and multi-byte input.
   - **Tests:** Flag parse tests. Default value tests.
   - **Difficulty:** Low
 
-- [ ] `1.3.2` Info codes (`-I` flag)
+- [x] `1.3.2` Info codes (`-I` flag)
   - **Goal:** Implement `printinfo()`: infocode 0 (copyright), 1 (version),
     2 (fontdir), 3 (font), 4 (outputwidth), 5 (formats).
     Output format must match C exactly.

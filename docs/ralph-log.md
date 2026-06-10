@@ -90,3 +90,7 @@ DONE: 1.3.2 merged into release/1.3.
 ## 2026-06-10 00:43
 
 DONE: 1.3.3 merged into release/1.3.
+
+## 2026-06-10 01:00
+
+DONE: 1.3.5 merged into release/1.3.

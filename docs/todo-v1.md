@@ -189,7 +189,7 @@ and multi-byte input.
   - **Tests:** End-to-end CLI test with known input/output.
   - **Difficulty:** High
 
-- [ ] `1.3.5` Phase merge: release/1.3 → main
+- [x] `1.3.5` Phase merge: release/1.3 → main
   - **Difficulty:** Low
 
 ---

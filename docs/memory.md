@@ -116,3 +116,18 @@ with bitmask constants matching FIGfont `full_layout` encoding.
 V1-V5 vertical smushing rules. Hardblank treated as space for vertical ops.
 Hierarchy helpers shared between H3/V3. No `.unwrap()` in production — all
 fallible paths use `Option<char>`. 34 unit tests covering every rule.
+
+### 1.2.3 — Smush amount calculation
+
+Added `calc_smush_amount()` in `render.rs` — port of C `smushamt()`.
+Two private helpers: `last_non_space()` (RTL scan for last non-space) and
+`first_non_space()` (LTR scan for first non-space), each with fallback
+position/char parameters matching C sentinel behavior (null terminator
+for forward scans, position 0 for backward scans). Main function iterates
+over row pairs, computes overlap between last non-space of output and
+first non-space of current char, applies edge adjustment (boundary char
+smush or space), and returns minimum across all rows. Handles LTR and RTL,
+KERN-only and SMUSH modes. Uses `saturating_sub` for safe unsigned
+arithmetic matching C signed-int boundary behavior. 9 unit tests covering
+guards, LTR/RTL basics, row-min, boundary smush/no-smush, and all-spaces
+edge cases.

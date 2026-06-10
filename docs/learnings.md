@@ -50,3 +50,19 @@
   but not letter (`.expect()` ≠ `.unwrap()`). Documented in both memory and learnings
   as a deliberate tradeoff.
 
+## 1.2.3 — Smush amount calculation
+
+- C's `smushamt()` computes signed `int` arithmetic that can go negative.
+  Rust version uses `saturating_sub` for `usize`, clamping negative results
+  to 0. This is safe for all FIGfont rendering since negative smush amounts
+  only occur in degenerate (empty-line) edge cases.
+- C uses comma operator in `for` loop conditions to assign and check in one
+  expression. Rust port separates assignment from logic using helper functions
+  (`last_non_space`, `first_non_space`) with fallback parameters.
+- The `ch2` null check in C (`if (ch2)`) maps to `ch2 != '\0'` in Rust.
+  Forward-scan all-spaces case yields fallback char `'\0'`, matching C's
+  null-terminator sentinel behavior.
+- Clippy `if_same_then_else` lint fires when both branches of an `if/else if`
+  have identical bodies. Fix: merge conditions with `||` since the logic is
+  naturally OR (either ch1 is space/null OR (ch2 exists AND smush succeeds)).
+

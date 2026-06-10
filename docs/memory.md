@@ -60,3 +60,15 @@ comment_lines) and 3 optional fields (print_direction, full_layout, codetag_coun
 Missing optionals defaulted per C logic: print_direction → -1, full_layout derived
 from old_layout, codetag_count → 0. Defined `FontError` enum with `InvalidMagic`
 and `ParseError` variants. 11 fixture + error tests.
+
+### 1.1.4 — FIGcharacter data parser
+Added `parse_char_data()` in `font.rs` — reads 95 required ASCII FIGcharacters
+(codes 32–126) and 7 Deutsch chars (196, 214, 220, 228, 246, 252, 223). Added
+`strip_endmarks()` private helper that follows `figlet.c:1155-1165` algorithm:
+trim trailing whitespace, identify endmark as last remaining char, remove all
+consecutive endmarks from the right. Trailing whitespace before endmarks is
+preserved for width correctness. Added `DEUTSCH_CHARS` constant matching C
+`inchr deutsch[7]`. Function returns unconsumed line slice for subsequent
+codetag parsing (1.1.5). 10 tests covering endmark stripping edge cases,
+102-char parse, endmark removal verification, width consistency, error on
+truncated input, and unconsumed line return.

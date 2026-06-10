@@ -10,3 +10,7 @@ DONE: 1.1.2 merged into release/1.1.
 ## 2026-06-09 22:28
 
 DONE: 1.1.3 merged into release/1.1.
+
+## 2026-06-09 22:35
+
+DONE: 1.1.4 merged into release/1.1.

@@ -46,7 +46,7 @@ and multi-byte input.
   - **Tests:** Parse known FIGfont fixture. Verify char count = 102.
   - **Difficulty:** Medium
 
-- [ ] `1.1.5` Code-tagged FIGcharacter parser
+- [x] `1.1.5` Code-tagged FIGcharacter parser
   - **Goal:** After required chars, read variable-length code-tagged chars.
     Each has a numeric code tag line followed by height rows. Build
     `HashMap<inchr, FIGcharacter>`. Handle negative codes. Skip code -1

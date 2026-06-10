@@ -281,6 +281,65 @@ pub fn parse_header(line: &str) -> Result<FIGfont, FontError> {
     })
 }
 
+/// Parse a codetag integer from a line, mirroring C's `sscanf(fileline,"%li",&theord)`.
+///
+/// Handles `0x`/`0X` prefix for hex. Returns `None` if the line doesn't contain
+/// a valid integer (signals end of codetagged section — not an error).
+fn parse_codetag_integer(line: &str) -> Option<i64> {
+    let token = line.split_whitespace().next()?;
+    if token.is_empty() {
+        return None;
+    }
+    if (token.starts_with("0x") || token.starts_with("0X")) && token.len() > 2 {
+        i64::from_str_radix(&token[2..], 16).ok()
+    } else {
+        token.parse::<i64>().ok()
+    }
+}
+
+/// Parse code-tagged FIGcharacters from remaining lines after required chars.
+///
+/// Reads variable-length code-tagged chars. Each line starts with a numeric
+/// code tag, followed by `font.charheight` rows of character data. Handles
+/// negative codes via two's complement storage. Skips code `-1` (reserved).
+/// Stops at first non-numeric line (end of codetagged section).
+pub fn parse_codetagged(font: &mut FIGfont, lines: &[String]) -> Result<(), FontError> {
+    let height = font.charheight as usize;
+    let mut cursor = 0;
+
+    while cursor < lines.len() {
+        let Some(code) = parse_codetag_integer(&lines[cursor]) else {
+            break;
+        };
+
+        if cursor + 1 + height > lines.len() {
+            return Err(FontError::ParseError(format!(
+                "truncated codetagged char: code {} at line {}, need {} rows, got {}",
+                code,
+                cursor,
+                height,
+                lines.len() - cursor - 1
+            )));
+        }
+
+        cursor += 1;
+
+        if code == -1 {
+            cursor += height;
+            continue;
+        }
+
+        let rows: Vec<String> = lines[cursor..cursor + height]
+            .iter()
+            .map(|l| strip_endmarks(l))
+            .collect();
+        font.chars.insert(code as u32, FIGcharacter::from(rows));
+        cursor += height;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -493,9 +552,9 @@ mod tests {
 
     #[test]
     fn test_strip_endmarks_no_endmark() {
-        // Already clean — no endmarks present
-        let line = "hello";
-        assert_eq!(strip_endmarks(line), "hello");
+        // Per C algorithm: last non-whitespace char IS the endmark
+        // So 'o' is endmark, stripped to "hell"
+        assert_eq!(strip_endmarks("hello"), "hell");
     }
 
     #[test]
@@ -661,5 +720,286 @@ mod tests {
         assert_eq!(remaining.len(), 2, "should return 2 unconsumed lines");
         assert_eq!(remaining[0], "codetag 0");
         assert_eq!(remaining[1], "row1@");
+    }
+
+    // --- parse_codetag_integer tests ---
+
+    #[test]
+    fn test_parse_codetag_integer_decimal() {
+        assert_eq!(parse_codetag_integer("200"), Some(200));
+        assert_eq!(parse_codetag_integer("0"), Some(0));
+        assert_eq!(parse_codetag_integer("-5"), Some(-5));
+    }
+
+    #[test]
+    fn test_parse_codetag_integer_hex() {
+        assert_eq!(parse_codetag_integer("0xCA0"), Some(3232));
+        assert_eq!(parse_codetag_integer("0XCA0"), Some(3232));
+        assert_eq!(parse_codetag_integer("0xff"), Some(255));
+    }
+
+    #[test]
+    fn test_parse_codetag_integer_non_numeric() {
+        assert_eq!(parse_codetag_integer("hello"), None);
+        assert_eq!(parse_codetag_integer(""), None);
+        assert_eq!(parse_codetag_integer("  "), None);
+    }
+
+    #[test]
+    fn test_parse_codetag_integer_whitespace_prefix() {
+        assert_eq!(parse_codetag_integer("  200  "), Some(200));
+        assert_eq!(parse_codetag_integer("  -1  "), Some(-1));
+    }
+
+    // --- parse_codetagged tests ---
+
+    fn build_codetag_fixture(_height: u32, entries: &[(i64, Vec<&str>)]) -> Vec<String> {
+        let mut lines = Vec::new();
+        for (code, rows) in entries {
+            lines.push(code.to_string());
+            for &row in rows {
+                lines.push(format!("{}@", row));
+            }
+        }
+        lines
+    }
+
+    #[test]
+    fn test_parse_codetagged_basic() {
+        let height = 2;
+        let fixture = build_codetag_fixture(
+            height,
+            &[
+                (200, vec!["row1_200", "row2_200"]),
+                (300, vec!["row1_300", "row2_300"]),
+            ],
+        );
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed");
+        assert_eq!(font.chars.len(), 2);
+
+        let ch200 = font.chars.get(&200).expect("code 200 should exist");
+        assert_eq!(ch200.rows().len(), height as usize);
+        assert_eq!(ch200.rows()[0], "row1_200");
+        assert_eq!(ch200.rows()[1], "row2_200");
+
+        let ch300 = font.chars.get(&300).expect("code 300 should exist");
+        assert_eq!(ch300.rows()[0], "row1_300");
+    }
+
+    #[test]
+    fn test_parse_codetagged_skip_minus_one() {
+        let height = 2;
+        let fixture = build_codetag_fixture(
+            height,
+            &[
+                (-1, vec!["skip1", "skip2"]),
+                (200, vec!["actual1", "actual2"]),
+            ],
+        );
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed");
+        assert_eq!(font.chars.len(), 1, "only code 200 should be inserted");
+        assert!(
+            !font.chars.contains_key(&(4294967295u32)),
+            "code -1 should not be stored"
+        );
+        assert!(font.chars.contains_key(&200), "code 200 should exist");
+    }
+
+    #[test]
+    fn test_parse_codetagged_hex_code() {
+        let height = 1;
+        let fixture: Vec<String> = vec!["0xCA0".to_string(), "hex_char@".to_string()];
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed");
+        assert_eq!(font.chars.len(), 1);
+        let ch = font
+            .chars
+            .get(&3232)
+            .expect("code 3232 (0xCA0) should exist");
+        assert_eq!(ch.rows()[0], "hex_char");
+    }
+
+    #[test]
+    fn test_parse_codetagged_negative_code() {
+        let height = 1;
+        let fixture = build_codetag_fixture(height, &[(-5, vec!["negative_code"])]);
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed");
+
+        // -5 as i32 cast to u32 = 4294967291
+        let key = (-5i32) as u32;
+        assert!(
+            font.chars.contains_key(&key),
+            "code -5 should exist as u32 key {key}"
+        );
+        let ch = font.chars.get(&key).expect("code -5 should exist");
+        assert_eq!(ch.rows()[0], "negative_code");
+    }
+
+    #[test]
+    fn test_parse_codetagged_truncated() {
+        let height = 3;
+        // Tag line + only 1 row instead of 3
+        let fixture: Vec<String> = vec!["100".to_string(), "only_one_row@".to_string()];
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        let result = parse_codetagged(&mut font, &fixture);
+        assert!(result.is_err(), "should fail on truncated data");
+        match &result {
+            Err(FontError::ParseError(msg)) => {
+                assert!(
+                    msg.contains("truncated"),
+                    "error should mention truncated, got: {msg}"
+                );
+            }
+            other => panic!("expected ParseError, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_codetagged_no_codetags() {
+        // Lines that don't start with a number → empty section
+        let fixture: Vec<String> = vec![
+            "some comment".to_string(),
+            "another line".to_string(),
+            "".to_string(),
+        ];
+        let mut font = FIGfont {
+            charheight: 2,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed with no codetags");
+        assert!(font.chars.is_empty(), "no chars should be inserted");
+    }
+
+    #[test]
+    fn test_parse_codetagged_count_matches() {
+        // Build fixture with known codetag_count
+        let height = 1;
+        let fixture = build_codetag_fixture(height, &[(100, vec!["a"]), (200, vec!["b"])]);
+        let mut font = FIGfont {
+            charheight: height,
+            codetag_count: 2,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed");
+        assert_eq!(
+            font.chars.len() as u32,
+            font.codetag_count,
+            "parsed chars should match codetag_count"
+        );
+    }
+
+    #[test]
+    fn test_parse_codetagged_strips_endmarks() {
+        let height = 2;
+        let fixture = build_codetag_fixture(height, &[(42, vec!["content  @", "more  @"])]);
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed");
+        let ch = font.chars.get(&42).expect("code 42 should exist");
+        assert_eq!(
+            ch.rows()[0],
+            "content  ",
+            "trailing spaces preserved, endmarks removed"
+        );
+        assert_eq!(ch.rows()[1], "more  ");
+    }
+
+    #[test]
+    fn test_parse_codetagged_stops_at_non_numeric() {
+        let height = 1;
+        let mut fixture = build_codetag_fixture(height, &[(100, vec!["first"])]);
+        fixture.push("trailing text".to_string());
+        fixture.push("more trailing".to_string());
+        let mut font = FIGfont {
+            charheight: height,
+            ..FIGfont::default()
+        };
+        parse_codetagged(&mut font, &fixture).expect("parse should succeed");
+        assert_eq!(font.chars.len(), 1, "only one codetagged char parsed");
+        assert!(font.chars.contains_key(&100));
+    }
+
+    #[test]
+    fn test_parse_codetagged_integration_with_parse_char_data() {
+        // Full flow: parse header → parse_char_data → parse_codetagged
+        let height = 2;
+        let mut all_lines: Vec<String> = Vec::new();
+        // 102 required chars
+        for code in 32..=126u32 {
+            let c = char::from_u32(code).expect("valid ASCII");
+            for _ in 0..height {
+                all_lines.push(format!("{}  @", c));
+            }
+        }
+        for &code in &DEUTSCH_CHARS {
+            let c = char::from_u32(code).expect("valid Deutsch char");
+            for _ in 0..height {
+                all_lines.push(format!("{}  @", c));
+            }
+        }
+        // codetagged section
+        all_lines.push("0xCA0".to_string());
+        all_lines.push("row1  @".to_string());
+        all_lines.push("row2  @".to_string());
+        all_lines.push("-1".to_string());
+        all_lines.push("skip1@".to_string());
+        all_lines.push("skip2@".to_string());
+        all_lines.push("300".to_string());
+        all_lines.push("extra1  @".to_string());
+        all_lines.push("extra2  @".to_string());
+
+        let mut font = FIGfont {
+            charheight: height,
+            codetag_count: 2,
+            ..FIGfont::default()
+        };
+
+        let remaining =
+            parse_char_data(&mut font, &all_lines).expect("parse_char_data should succeed");
+        assert_eq!(
+            remaining.len(),
+            9,
+            "9 lines should remain for codetagged section"
+        );
+
+        parse_codetagged(&mut font, remaining).expect("parse_codetagged should succeed");
+
+        assert_eq!(
+            font.chars.len(),
+            104,
+            "102 required + 2 codetagged = 104 total"
+        );
+        assert!(
+            font.chars.contains_key(&3232),
+            "hex code 0xCA0 should exist"
+        );
+        assert!(font.chars.contains_key(&300), "code 300 should exist");
+        assert!(
+            !font.chars.contains_key(&(4294967295u32)),
+            "code -1 should be skipped"
+        );
+
+        let ch = font.chars.get(&3232).expect("code 3232");
+        assert_eq!(ch.rows()[0], "row1  ");
     }
 }

@@ -21,3 +21,12 @@
 - `pub(crate)` triggers `dead_code` lint when function only called from tests.
   Made function `pub` instead — will be used by subsequent font parser stages.
 
+## 1.1.5 — Code-tagged FIGcharacter parser
+
+- C's `sscanf(fileline,"%li",&theord)` auto-detects hex (`0x` prefix) via `strtol` behavior.
+  Rust `parse_codetag_integer()` must manually detect `0x`/`0X` and call `i64::from_str_radix`.
+- C stores code `-1` as a normal entry in the linked list; Rust port skips it (reserved per task spec).
+- `inchr` in C is `long` (64-bit on Linux), but Rust map uses `u32` keys. Negative codes
+  stored via two's complement `(code as u32)` — preserves bit pattern.
+- Codetagged section end is signaled by first non-numeric line (not EOF). No error raised.
+

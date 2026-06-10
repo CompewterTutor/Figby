@@ -13,7 +13,7 @@ clap = { version = "4", features = ["derive"] }
 # flate2 = "1"        # uncomment for deflate support (Phase 1.1.7)
 # font-kit = "0.14.3"   # uncomment for system font → FIGfont creation
 # ratatui = "0.30.1"    # uncomment for TUI/interactive preview mode
-# rascii = "0.1.2"     # uncomment for image → ASCII conversion (Phase 2.1)
+# rascii_art = "0.4.5" # uncomment for image → ASCII conversion (Phase 2.1) — https://github.com/orhnk/RASCII
 
 [dev-dependencies]
 # criterion = "0.5"   # uncomment for benchmarks (Phase 1.6.3)

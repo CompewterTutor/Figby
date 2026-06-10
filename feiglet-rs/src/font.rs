@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 /// A single character glyph in a FIGfont.
 ///
@@ -82,6 +83,122 @@ impl Default for FIGfont {
             codetag_count: 0,
         }
     }
+}
+
+/// Errors that can occur during font parsing.
+#[derive(Debug, PartialEq)]
+pub enum FontError {
+    /// The magic number doesn't match a known font format.
+    InvalidMagic,
+    /// A general parsing error occurred.
+    ParseError(String),
+}
+
+impl fmt::Display for FontError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FontError::InvalidMagic => write!(f, "invalid font magic number"),
+            FontError::ParseError(msg) => write!(f, "font parse error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for FontError {}
+
+/// Parse the header line of a FIGfont (.flf) file.
+///
+/// Expected format:
+/// `flf2a<hardblank> <height> <baseline> <max_length> <old_layout> <comment_lines>`
+/// `[<print_direction> [<full_layout> [<codetag_count>]]]`
+///
+/// Missing optional fields are defaulted following FIGlet 2.2.5 conventions.
+pub fn parse_header(line: &str) -> Result<FIGfont, FontError> {
+    if !line.starts_with("flf2a") {
+        return Err(FontError::InvalidMagic);
+    }
+
+    let rest = &line[5..];
+    if rest.is_empty() {
+        return Err(FontError::InvalidMagic);
+    }
+
+    let hardblank = rest.chars().next().ok_or(FontError::InvalidMagic)?;
+    let rest = rest[hardblank.len_utf8()..].trim_start();
+
+    let tokens: Vec<&str> = rest.split_whitespace().collect();
+
+    if tokens.len() < 5 {
+        return Err(FontError::ParseError(format!(
+            "expected at least 5 numeric fields after hardblank, got {}",
+            tokens.len()
+        )));
+    }
+
+    let height = tokens[0].parse::<i32>().map_err(|e| {
+        FontError::ParseError(format!("invalid height value '{}': {}", tokens[0], e))
+    })?;
+    let baseline = tokens[1].parse::<i32>().map_err(|e| {
+        FontError::ParseError(format!("invalid baseline value '{}': {}", tokens[1], e))
+    })?;
+    let max_length = tokens[2].parse::<i32>().map_err(|e| {
+        FontError::ParseError(format!("invalid max_length value '{}': {}", tokens[2], e))
+    })?;
+    let old_layout = tokens[3].parse::<i32>().map_err(|e| {
+        FontError::ParseError(format!("invalid old_layout value '{}': {}", tokens[3], e))
+    })?;
+    let comment_lines = tokens[4].parse::<i32>().map_err(|e| {
+        FontError::ParseError(format!(
+            "invalid comment_lines value '{}': {}",
+            tokens[4], e
+        ))
+    })?;
+
+    let print_direction = if tokens.len() > 5 {
+        tokens[5].parse::<i32>().map_err(|e| {
+            FontError::ParseError(format!(
+                "invalid print_direction value '{}': {}",
+                tokens[5], e
+            ))
+        })?
+    } else {
+        -1
+    };
+
+    let full_layout = if tokens.len() > 6 {
+        tokens[6].parse::<i32>().map_err(|e| {
+            FontError::ParseError(format!("invalid full_layout value '{}': {}", tokens[6], e))
+        })?
+    } else if old_layout == 0 {
+        64
+    } else if old_layout < 0 {
+        0
+    } else {
+        (old_layout & 31) | 128
+    };
+
+    let codetag_count = if tokens.len() > 7 {
+        tokens[7].parse::<i32>().map_err(|e| {
+            FontError::ParseError(format!(
+                "invalid codetag_count value '{}': {}",
+                tokens[7], e
+            ))
+        })?
+    } else {
+        0
+    };
+
+    Ok(FIGfont {
+        hardblank,
+        charheight: height as u32,
+        baseline: baseline as u32,
+        maxlength: max_length as u32,
+        old_layout,
+        full_layout,
+        print_direction,
+        comment_lines: comment_lines as u32,
+        chars: HashMap::new(),
+        codetag_count: codetag_count as u32,
+    })
 }
 
 #[cfg(test)]
@@ -171,5 +288,108 @@ mod tests {
         let json = serde_json::to_string(&original).expect("serialize");
         let deserialized: FIGfont = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_parse_header_full() {
+        let result = parse_header("flf2a$ 6 5 20 15 3 0 143 229");
+        assert!(result.is_ok());
+        let font = result.unwrap();
+        assert_eq!(font.hardblank, '$');
+        assert_eq!(font.charheight, 6);
+        assert_eq!(font.baseline, 5);
+        assert_eq!(font.maxlength, 20);
+        assert_eq!(font.old_layout, 15);
+        assert_eq!(font.comment_lines, 3);
+        assert_eq!(font.print_direction, 0);
+        assert_eq!(font.full_layout, 143);
+        assert_eq!(font.codetag_count, 229);
+        assert!(font.chars.is_empty());
+    }
+
+    #[test]
+    fn test_parse_header_minimal() {
+        let result = parse_header("flf2a$ 6 5 20 15 3");
+        assert!(result.is_ok());
+        let font = result.unwrap();
+        assert_eq!(font.hardblank, '$');
+        assert_eq!(font.charheight, 6);
+        assert_eq!(font.baseline, 5);
+        assert_eq!(font.maxlength, 20);
+        assert_eq!(font.old_layout, 15);
+        assert_eq!(font.comment_lines, 3);
+        assert_eq!(font.print_direction, -1);
+        assert_eq!(font.full_layout, (15 & 31) | 128);
+        assert_eq!(font.codetag_count, 0);
+    }
+
+    #[test]
+    fn test_parse_header_old_layout_zero() {
+        let result = parse_header("flf2a$ 6 5 20 0 3");
+        assert!(result.is_ok());
+        let font = result.unwrap();
+        assert_eq!(font.old_layout, 0);
+        assert_eq!(font.full_layout, 64);
+    }
+
+    #[test]
+    fn test_parse_header_old_layout_negative() {
+        let result = parse_header("flf2a$ 6 5 20 -1 3");
+        assert!(result.is_ok());
+        let font = result.unwrap();
+        assert_eq!(font.old_layout, -1);
+        assert_eq!(font.full_layout, 0);
+    }
+
+    #[test]
+    fn test_parse_header_with_print_direction() {
+        let result = parse_header("flf2a$ 8 3 15 5 2 1");
+        assert!(result.is_ok());
+        let font = result.unwrap();
+        assert_eq!(font.charheight, 8);
+        assert_eq!(font.baseline, 3);
+        assert_eq!(font.maxlength, 15);
+        assert_eq!(font.old_layout, 5);
+        assert_eq!(font.comment_lines, 2);
+        assert_eq!(font.print_direction, 1);
+        assert_eq!(font.full_layout, (5 & 31) | 128);
+    }
+
+    #[test]
+    fn test_parse_header_invalid_magic() {
+        let result = parse_header("flf2b$ 6 5 20 15 3");
+        assert_eq!(result, Err(FontError::InvalidMagic));
+    }
+
+    #[test]
+    fn test_parse_header_wrong_prefix() {
+        let result = parse_header("xyzzy$ 6 5 20 15 3");
+        assert_eq!(result, Err(FontError::InvalidMagic));
+    }
+
+    #[test]
+    fn test_parse_header_empty() {
+        let result = parse_header("");
+        assert_eq!(result, Err(FontError::InvalidMagic));
+    }
+
+    #[test]
+    fn test_parse_header_truncated_magic() {
+        let result = parse_header("flf");
+        assert_eq!(result, Err(FontError::InvalidMagic));
+    }
+
+    #[test]
+    fn test_parse_header_not_enough_fields() {
+        let result = parse_header("flf2a$ 6 5 20");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(FontError::ParseError(_))));
+    }
+
+    #[test]
+    fn test_parse_header_non_numeric_field() {
+        let result = parse_header("flf2a$ 6 x 20 15 3");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(FontError::ParseError(_))));
     }
 }

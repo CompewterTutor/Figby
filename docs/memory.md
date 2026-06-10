@@ -52,3 +52,11 @@ derive (Serialize/Deserialize). `FIGcharacter` wraps `Vec<String>` rows with
 old_layout, full_layout, print_direction, comment_lines, codetag_count) +
 `HashMap<u32, FIGcharacter>` chars. All types derive `Default` (FIGfont: -1
 for print_direction, rest zero/empty). Round-trip serde tests via serde_json.
+
+### 1.1.3 — FIGfont magic number + header line parser
+Added `parse_header()` in `font.rs` — validates `flf2a` magic, extracts hardblank
+char, parses 5 required numeric fields (height, baseline, max_length, old_layout,
+comment_lines) and 3 optional fields (print_direction, full_layout, codetag_count).
+Missing optionals defaulted per C logic: print_direction → -1, full_layout derived
+from old_layout, codetag_count → 0. Defined `FontError` enum with `InvalidMagic`
+and `ParseError` variants. 11 fixture + error tests.

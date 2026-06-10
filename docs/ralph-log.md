@@ -54,3 +54,15 @@ DONE: 1.2.4 merged into release/1.2.
 ## 2026-06-09 23:52
 
 DONE: 1.2.5 merged into release/1.2.
+
+## 2026-06-10
+
+DONE: 1.2.6 merged into release/1.2.
+
+## 2026-06-10
+
+DONE: 1.2.7 merged into master (phase merge).
+
+## 2026-06-10
+
+All 1.2 tasks complete. Starting phase review.

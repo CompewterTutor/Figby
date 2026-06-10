@@ -143,7 +143,7 @@ and multi-byte input.
   - **Tests:** Multi-word render tests. Compare to C output.
   - **Difficulty:** High
 
-- [ ] `1.2.7` Phase merge: release/1.2 → main
+- [x] `1.2.7` Phase merge: release/1.2 → main
   - **Difficulty:** Low
 
 ---

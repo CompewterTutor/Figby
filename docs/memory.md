@@ -173,3 +173,12 @@ spaces consumed, no-word-break (None), single char after space, leading spaces
 consumed, all-spaces buffer, multi-row font, empty buffer. All 8 tests use
 `build_expected()` helper that calls `add_char()` independently to verify
 part1/part2 output consistency.
+
+### 1.2.7 — Phase merge: release/1.2 → master
+
+Merged all Phase 1.2 work into default branch (master). Phase 1.2 complete:
+character lookup + width calculation, smushing rules engine (all 6 horizontal
++ 5 vertical rules), smush amount calculation, character addition with
+smushing, output line printing with justification, line breaking and word
+splitting. All 6 subtasks (1.2.1–1.2.6) implemented, tested, merged.
+Phase 1.3 (CLI Interface) is next.

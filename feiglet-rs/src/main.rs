@@ -197,6 +197,14 @@ impl CliConfig {
             }
         }
 
+        if args.flag_t {
+            if let Some(cols) = get_columns() {
+                if cols > 0 {
+                    config.outputwidth = cols as u32;
+                }
+            }
+        }
+
         if let Some(val) = args.outputwidth_arg {
             config.outputwidth = val;
         }
@@ -287,6 +295,10 @@ fn printinfo(
         _ => {}
     }
     Ok(())
+}
+
+fn get_columns() -> Option<u16> {
+    termion::terminal_size().ok().map(|(cols, _)| cols)
 }
 
 fn run(_config: CliConfig) {}
@@ -438,6 +450,27 @@ mod tests {
     fn test_flag_t_terminal() {
         let args = CliArgs::try_parse_from(["feiglet", "-t"]).unwrap();
         assert!(args.flag_t);
+    }
+
+    #[test]
+    fn test_flag_t_updates_width() {
+        let args = CliArgs::try_parse_from(["feiglet", "-t"]).unwrap();
+        let config = CliConfig::from_args(args);
+        assert!(config.outputwidth >= 80);
+    }
+
+    #[test]
+    fn test_get_columns_never_panics() {
+        let cols = get_columns();
+        let _ = cols; // never panics, always returns Some or None
+        assert!(cols.is_none() || cols.unwrap() >= 20);
+    }
+
+    #[test]
+    fn test_flag_t_w_override() {
+        let args = CliArgs::try_parse_from(["feiglet", "-t", "-w", "120"]).unwrap();
+        let config = CliConfig::from_args(args);
+        assert_eq!(config.outputwidth, 120);
     }
 
     #[test]

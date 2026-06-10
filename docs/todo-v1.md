@@ -172,7 +172,7 @@ and multi-byte input.
   - **Tests:** All infocodes tested.
   - **Difficulty:** Low
 
-- [ ] `1.3.3` Terminal width detection (`-t`)
+- [x] `1.3.3` Terminal width detection (`-t`)
   - **Goal:** Implement `get_columns()` using `termion` or `crossterm`.
     Fall back to `DEFAULTCOLUMNS` (80) if terminal unavailable.
   - **Touches:** `feiglet-rs/src/main.rs`, `Cargo.toml` (add `termion`)

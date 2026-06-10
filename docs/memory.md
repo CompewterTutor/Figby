@@ -209,3 +209,13 @@ Constants added: `VERSION_INT=20205`, `VERSION="2.2.5"`, `DATE="31 May 2012"`,
 `FONTFILE_MAGIC="flf2"`, `TOILETFILE_MAGIC="tlf2"`. `-I` handler in `main()`
 prints info and exits with code 0, matching C behavior. 6 unit tests covering
 all infocodes (0–5) with byte-exact output assertions.
+
+### 1.3.3 — Terminal width detection (`-t`)
+
+Added `get_columns()` using `termion::terminal_size()` — wraps `ioctl(TIOCGWINSZ)`
+on Unix, returns `Option<u16>`. `-t` flag in `CliConfig::from_args()` calls
+`get_columns()` and sets `outputwidth` to detected width if successful. `-t`
+handling placed before `-w` so explicit `-w` flag overrides `-t` when both given.
+`termion = "4"` added to `Cargo.toml`. No `unwrap()` in production — returns
+`None` gracefully on non-TTY or error, falling back to default 80. 3 unit tests:
+parsing, width update, `-w` override, `get_columns()` never panics.

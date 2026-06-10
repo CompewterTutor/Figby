@@ -1,5 +1,5 @@
 use clap::Parser;
-use feiglet::control;
+use feiglet::control::{self, CharReader};
 use feiglet::font::{self, FIGfont, DEUTSCH_CHARS};
 use feiglet::render::{add_char, lookup_char, render_line, split_line, Justification};
 use feiglet::smush::SmushMode;
@@ -105,6 +105,15 @@ impl InputIter {
                 *buf = Some(c);
             }
         }
+    }
+}
+
+impl CharReader for InputIter {
+    fn next(&mut self) -> Option<u32> {
+        InputIter::next(self)
+    }
+    fn unget(&mut self, c: u32) {
+        InputIter::unget(self, c);
     }
 }
 
@@ -430,7 +439,7 @@ fn run(config: CliConfig, message: Vec<String>) {
         }
     };
 
-    let control_state = match config.controlfile {
+    let mut control_state = match config.controlfile {
         Some(ref path) => {
             let mut state = control::ControlState::default();
             if let Err(e) = control::read_control(path, &mut state) {
@@ -470,8 +479,16 @@ fn run(config: CliConfig, message: Vec<String>) {
     let stdout = io::stdout();
     let mut out = stdout.lock();
 
+    let next_char = |input: &mut InputIter, state: &mut control::ControlState| -> Option<u32> {
+        if config.multibyte == 0 {
+            state.iso2022(input)
+        } else {
+            input.next()
+        }
+    };
+
     loop {
-        let c = match input.next() {
+        let c = match next_char(&mut input, &mut control_state) {
             Some(c) => c,
             None => {
                 if outlinelen != 0 {
@@ -494,7 +511,7 @@ fn run(config: CliConfig, message: Vec<String>) {
 
         // Paragraph mode
         if c == b'\n' as u32 && config.paragraphflag && !last_was_eol_flag {
-            let c2 = match input.next() {
+            let c2 = match next_char(&mut input, &mut control_state) {
                 Some(c2) => c2,
                 None => {
                     if outlinelen != 0 {

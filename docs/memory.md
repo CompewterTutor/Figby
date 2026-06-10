@@ -35,3 +35,11 @@ issues (truncation, extreme values) as C does.
 ### CLI Library
 Use `clap` with derive macros for CLI parsing, replacing `getopt`.
 FIGlet flag semantics preserved exactly.
+
+## Task History
+
+### 1.1.1 — Create `feiglet` crate in workspace
+Added `[lib]` section to `feiglet-rs/Cargo.toml` (name=feiglet, path=src/lib.rs,
+crate-type=[lib]). Added `#![doc]` crate-level attribute to `src/lib.rs` with
+description. Sorted `pub mod` declarations alphabetically (rustfmt preference).
+Five module stubs (font, render, smush, control, input) compile as-is.

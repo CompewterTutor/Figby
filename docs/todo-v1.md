@@ -8,7 +8,7 @@ and multi-byte input.
 
 ## Phase 1.1 — Crate Scaffold & Font Parser
 
-- [ ] `1.1.1` Create `feiglet` crate in workspace
+- [x] `1.1.1` Create `feiglet` crate in workspace
   - **Goal:** Rust crate `feiglet` added to workspace. Compiles clean.
   - **Touches:** `feiglet-rs/Cargo.toml`, `feiglet-rs/src/lib.rs`
   - **Success:** `cargo build -p feiglet` succeeds. Clippy clean.

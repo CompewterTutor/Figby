@@ -106,3 +106,13 @@ char code 0. Updates `current_width` (via `&mut usize`) so caller captures
 previous width before next call. Uses `expect()` for char 0 invariant
 (FIGfont spec requires it). Three tests: known char, unknown fallback,
 previous-width tracking.
+
+### 1.2.2 — Smushing rules engine
+
+Full smushing rules engine in `smush.rs`. `SmushMode` newtype over `u32`
+with bitmask constants matching FIGfont `full_layout` encoding.
+`smush_horizontal()` mirrors `figlet.c:smushem()` — all 6 horizontal rules
+(H1-H6) plus universal overlap and kerning. `smush_vertical()` implements
+V1-V5 vertical smushing rules. Hardblank treated as space for vertical ops.
+Hierarchy helpers shared between H3/V3. No `.unwrap()` in production — all
+fallible paths use `Option<char>`. 34 unit tests covering every rule.

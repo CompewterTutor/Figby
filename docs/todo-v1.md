@@ -95,7 +95,7 @@ and multi-byte input.
   - **Tests:** Lookup tests for all required chars. Fallback test.
   - **Difficulty:** Low
 
-- [ ] `1.2.2` Smushing rules engine
+- [x] `1.2.2` Smushing rules engine
   - **Goal:** Port `smushem()` — all 6 horizontal + 5 vertical smushing
     rules. Enum-based rule selection. Return `Option<char>` (None = no
     smush). Handle universal smushing (no rules = overlap).

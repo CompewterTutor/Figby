@@ -39,6 +39,20 @@ in one crate for simplicity. Library exposes `font`, `render`, `smush`,
 - `parse_codetagged()` takes `&[String]` (the unconsumed slice from `parse_char_data()`)
 - 12 unit tests: basic, skip -1, hex, negative, truncated, empty, count matching, endmarks, non-numeric stop, full integration flow
 
+### Smushing Rules Engine (1.2.2)
+
+Full smushing rules engine in `smush.rs`:
+- `SmushMode` newtype over `u32` with `const` bitmask values matching FIGfont full_layout encoding
+  - H1-H6 in lower 6 bits (values 1/2/4/8/16/32), SM_KERN=64, SM_SMUSH=128
+  - V1-V5 in bits 8-12 (values 256/512/1024/2048/4096), V_FIT=8192, V_SMUSH=16384
+- `smush_horizontal()` mirrors `figlet.c:smushem()` exactly: blank→other, width guard, kerning⇒None, universal overlap, H6→H5→H4→H3→H2→H1 cascade
+- `smush_vertical()` implements V1-V5 rules (EQUAL, UNDERSCORE, HIERARCHY, LINE, SUPERSMUSH)
+- Hardblank treated as space for vertical smushing per FIGfont spec
+- Hierarchy helpers (`hierarchy_class`, `is_hierarchy_char`) shared between H3/V3
+- `u32` newtype avoids `bitflags` crate dependency — no new Cargo.toml entries
+- No `.unwrap()` in production — all fallible paths use `Option<char>`
+- 34 unit tests covering every rule, edge cases (blanks, widths, kerning), universal overlap, RTL, vertical blank/hardblank semantics
+
 ### Phase 1.1 Merge (1.1.8)
 
 Phase 1.1 complete — all 7 subtasks merged from `release/1.1` into `master`.

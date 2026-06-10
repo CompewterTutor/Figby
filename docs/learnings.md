@@ -139,6 +139,13 @@ Three bugs found in phase merge review:
 - `flush_output_line` has 8 parameters triggering `clippy::too_many_arguments`.
   Acceptable mirror of C's global-based approach — suppressed with allow attr.
 
+## 1.3.5 — Phase merge
+
+- Merge `c7ab68d` is single-parent (fast-forward), unlike previous phase
+  merges (1.1.8, 1.2.7) which used `--no-ff` (two parents). The fast-forward
+  was likely due to `master` being directly on `release/1.3`'s linear history
+  with no divergent commits.
+
 ## 1.3.1 — CLI argument parsing
 
 - `#[allow(non_snake_case)]` is required on clap structs when flags have

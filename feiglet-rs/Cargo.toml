@@ -9,6 +9,7 @@ repository = "https://github.com/DoseOfGose/feiglet"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 # zip = "2"           # uncomment for ZIP font support (Phase 1.1.7)
 # flate2 = "1"        # uncomment for deflate support (Phase 1.1.7)
 # font-kit = "0.14.3"   # uncomment for system font → FIGfont creation
@@ -16,6 +17,7 @@ clap = { version = "4", features = ["derive"] }
 # rascii_art = "0.4.5" # uncomment for image → ASCII conversion (Phase 2.1) — https://github.com/orhnk/RASCII
 
 [dev-dependencies]
+serde_json = "1"
 # criterion = "0.5"   # uncomment for benchmarks (Phase 1.6.3)
 
 [profile.release]

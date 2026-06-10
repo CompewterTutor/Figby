@@ -15,13 +15,13 @@ and multi-byte input.
   - **Tests:** Empty crate compiles.
   - **Difficulty:** Low
 
-- [ ] `1.1.2` Define core types: FIGfont, FIGcharacter, FCharnode
+- [x] `1.1.2` Define core types: FIGfont, FIGcharacter, FCharnode
   - **Goal:** Port C structs (`fcharnode`, `inchr`, `outchr`) to Rust types.
     `FIGfont` struct owns parsed font data. `FCharnode` maps char code to
     rows of sub-character strings. Use `Vec<Vec<&str>>` or `Vec<String>`.
     `Hardblank` tracked as `char`. `CharHeight`, `Baseline`, `MaxLength`,
     `OldLayout`, `FullLayout`, `PrintDirection`, `CommentLines` fields.
-  - **Touches:** `feiglet-rs/src/font.rs`
+  - **Touches:** `feiglet-rs/src/font.rs`, `feiglet-rs/Cargo.toml`
   - **Success:** All types defined + documented. Round-trip serde tests.
   - **Tests:** Type construction + default tests.
   - **Difficulty:** Low

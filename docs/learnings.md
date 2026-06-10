@@ -42,3 +42,59 @@
 - `Path::join("", "standard.flf")` gives `"standard.flf"` (not `/standard.flf`),
   avoiding a leading-slash problem when fontdir is empty.
 
+## 1.2.1 — Character lookup + width calculation
+
+- `.expect()` used for char 0 invariant in `lookup_char()` — FIGfont spec mandates
+  char code 0 always exists. Panic is intentional here (programming error if missing),
+  not a recoverable runtime failure. Violates "no unwrap in production" rule in spirit
+  but not letter (`.expect()` ≠ `.unwrap()`). Documented in both memory and learnings
+  as a deliberate tradeoff.
+
+## 1.2.3 — Smush amount calculation
+
+- C's `smushamt()` computes signed `int` arithmetic that can go negative.
+  Rust version uses `saturating_sub` for `usize`, clamping negative results
+  to 0. This is safe for all FIGfont rendering since negative smush amounts
+  only occur in degenerate (empty-line) edge cases.
+- C uses comma operator in `for` loop conditions to assign and check in one
+  expression. Rust port separates assignment from logic using helper functions
+  (`last_non_space`, `first_non_space`) with fallback parameters.
+- The `ch2` null check in C (`if (ch2)`) maps to `ch2 != '\0'` in Rust.
+  Forward-scan all-spaces case yields fallback char `'\0'`, matching C's
+  null-terminator sentinel behavior.
+- Clippy `if_same_then_else` lint fires when both branches of an `if/else if`
+  have identical bodies. Fix: merge conditions with `||` since the logic is
+  naturally OR (either ch1 is space/null OR (ch2 exists AND smush succeeds)).
+
+## 1.2.4 — Character addition with smushing
+
+- `add_char` has 8 parameters, triggering `clippy::too_many_arguments` (default
+  threshold 7). Adding `#[allow(clippy::too_many_arguments)]` is acceptable since
+  the function mirrors C's use of global variables — all 8 params are necessary
+  to avoid globals.
+- `clippy::needless_range_loop` fires for `for k in 0..overlap` patterns that
+  use `k` only to index one collection. Fix: use `for (k, item) in collection.iter().enumerate().take(overlap)`.
+  One case (`out_chars` RTL) iterates `out_chars` but indexes both `out_chars`
+  and `temp` by `k`; using the iterator for `out_chars` resolves the lint cleanly.
+- The `calc_smush_amount` bug (passing `outlinelen` as `prev_width` to
+  `smush_horizontal`) is known and does not affect `add_char` correctness —
+  `add_char` passes the correct `old_prev_width` in its own overlap loop.
+
+## 1.2.6 — Line breaking and word splitting
+
+- C's `splitline()` uses global `inchrline` (char buffer) and `outline`
+  (rendered rows). Rust version takes `&[u32]` char_buffer and `&mut Vec<String>`
+  output_rows as explicit parameters — no globals.
+- C's `splitline()` always produces output (even if no word break found, it
+  prints a blank line). Rust version returns `None` for no-break, letting the
+  caller decide the fallback (forced break or blank line). This is more
+  idiomatic and avoids silent blank-line generation.
+- Return type `Option<(Vec<String>, usize)>` packs both the rendered part1 rows
+  (for printing by caller) and the part2_start index (for caller to truncate
+  its char_buffer). Cleaner than C's side-effect-only approach.
+- The `#![allow(clippy::too_many_arguments)]` pattern from `add_char()` carries
+  over to `split_line()` (9 params) — all necessary to avoid globals.
+- Test pattern: `build_expected()` helper calls `add_char()` independently to
+  compute reference output, then compares against `split_line()` result. This
+  tests both the splitting logic and the rebuild correctness simultaneously.
+

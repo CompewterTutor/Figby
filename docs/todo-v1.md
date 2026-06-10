@@ -85,7 +85,7 @@ and multi-byte input.
 
 ## Phase 1.2 — Render Engine (Kerning + Smushing)
 
-- [ ] `1.2.1` Character lookup + width calculation
+- [x] `1.2.1` Character lookup + width calculation
   - **Goal:** Implement `getletter()`: given inchr code, find the
     `FIGcharacter` in the font map. Return char rows + width
     (length of first row). Fall back to missing-char (code 0).
@@ -95,7 +95,7 @@ and multi-byte input.
   - **Tests:** Lookup tests for all required chars. Fallback test.
   - **Difficulty:** Low
 
-- [ ] `1.2.2` Smushing rules engine
+- [x] `1.2.2` Smushing rules engine
   - **Goal:** Port `smushem()` — all 6 horizontal + 5 vertical smushing
     rules. Enum-based rule selection. Return `Option<char>` (None = no
     smush). Handle universal smushing (no rules = overlap).
@@ -106,7 +106,7 @@ and multi-byte input.
   - **Tests:** Unit test per rule. Golden output comparison.
   - **Difficulty:** Medium
 
-- [ ] `1.2.3` Smush amount calculation
+- [x] `1.2.3` Smush amount calculation
   - **Goal:** Port `smushamt()` — max overlap between current char and
     output line. For each row, find last non-space in output line and
     first non-space in current char. Minimum across all rows determines
@@ -116,7 +116,7 @@ and multi-byte input.
   - **Tests:** Known-fixture smush amount tests.
   - **Difficulty:** Medium
 
-- [ ] `1.2.4` Character addition with smushing
+- [x] `1.2.4` Character addition with smushing
   - **Goal:** Port `addchar()` — append char to output line. Apply smush
     amount. For overlapping columns, call `smushem()`. Handle RTL by
     building char on left side. Bail if `outlinelen` exceeds limit.
@@ -125,7 +125,7 @@ and multi-byte input.
   - **Tests:** Single-word render test. Compare output to C.
   - **Difficulty:** Medium
 
-- [ ] `1.2.5` Output line printing
+- [x] `1.2.5` Output line printing
   - **Goal:** Port `putstring()` / `printline()` — render output rows with
     justification (left/center/right). Replace hardblanks with spaces.
     Respect `outputwidth` for line truncation.
@@ -134,7 +134,7 @@ and multi-byte input.
   - **Tests:** Justification tests. Width limit tests.
   - **Difficulty:** Low
 
-- [ ] `1.2.6` Line breaking and word splitting
+- [x] `1.2.6` Line breaking and word splitting
   - **Goal:** Port `splitline()` + main loop logic — break lines at word
     boundaries. Handle paragraph mode (`-p`). Edge cases: char wider than
     outputwidth, multiple spaces, forced breaks.

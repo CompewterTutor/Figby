@@ -98,3 +98,78 @@ crate scaffold, core types, FIGfont/TLF header parser, FIGcharacter data
 parser, code-tagged character parser, TLF support, ZIP/deflate compressed
 font loading. All 7 subtasks (1.1.1–1.1.7) implemented, tested, merged.
 Phase 1.2 (render engine) is next.
+
+### 1.2.1 — Character lookup + width calculation
+
+Added `lookup_char()` in `render.rs` — font char lookup with fallback to
+char code 0. Updates `current_width` (via `&mut usize`) so caller captures
+previous width before next call. Uses `expect()` for char 0 invariant
+(FIGfont spec requires it). Three tests: known char, unknown fallback,
+previous-width tracking.
+
+### 1.2.2 — Smushing rules engine
+
+Full smushing rules engine in `smush.rs`. `SmushMode` newtype over `u32`
+with bitmask constants matching FIGfont `full_layout` encoding.
+`smush_horizontal()` mirrors `figlet.c:smushem()` — all 6 horizontal rules
+(H1-H6) plus universal overlap and kerning. `smush_vertical()` implements
+V1-V5 vertical smushing rules. Hardblank treated as space for vertical ops.
+Hierarchy helpers shared between H3/V3. No `.unwrap()` in production — all
+fallible paths use `Option<char>`. 34 unit tests covering every rule.
+
+### 1.2.3 — Smush amount calculation
+
+Added `calc_smush_amount()` in `render.rs` — port of C `smushamt()`.
+
+### 1.2.4 — Character addition with smushing
+
+Added `add_char()` in `render.rs` — port of C `addchar()`. Function takes
+font, char code, mutable output rows, outlinelen, prev_width, smush mode,
+RTL flag, and outlinelen_limit. Returns `bool` (true if char added, false
+if limit exceeded). Saves and restores `prev_width` on failure. LTR: builds
+char on right side of output with kerning/smushing overlap. RTL: builds char
+on left side with reversed smush dominance. Post-loop updates `outlinelen`
+from `output_rows[0]` character count. Uses `#[allow(clippy::too_many_arguments)]`
+(8 params, mirrors C's global-based approach). Uses iterator-style loops to
+avoid `needless_range_loop` clippy lint. 9 tests: first-char, two-char kerning,
+two-char smush, RTL smush, limit bail, prev_width restore, single-word
+("Hi!"), multi-row, and boundary smush.
+Two private helpers: `last_non_space()` (RTL scan for last non-space) and
+`first_non_space()` (LTR scan for first non-space), each with fallback
+position/char parameters matching C sentinel behavior (null terminator
+for forward scans, position 0 for backward scans). Main function iterates
+over row pairs, computes overlap between last non-space of output and
+first non-space of current char, applies edge adjustment (boundary char
+smush or space), and returns minimum across all rows. Handles LTR and RTL,
+KERN-only and SMUSH modes. Uses `saturating_sub` for safe unsigned
+arithmetic matching C signed-int boundary behavior. 9 unit tests covering
+guards, LTR/RTL basics, row-min, boundary smush/no-smush, and all-spaces
+edge cases.
+
+### 1.2.5 — Output line printing
+
+Added `Justification` enum (`Left`/`Center`/`Right`) with `from_i32()`
+conversion matching C `justification` global (0/1/2). Added `render_line()`
+in `render.rs` — port of C `putstring()`/`printline()` figlet.c:1553-1610.
+Processes each row: (1) replace hardblank with space, (2) truncate to
+`outputwidth - 1` if `outputwidth > 1`, (3) prepend spaces for Center/Right
+per C formula. Center formula: `2*i + len - 1 < outputwidth`. Right formula:
+`i + len < outputwidth`. No `clearline()` port — Rust returns fresh
+`Vec<String>` each call; caller manages lifecycle. 13 tests: hardblank
+replacement, left/center/right justification, width truncation, truncation
+with center, `outputwidth <= 1` bypass, multi-row, C formula trace tests,
+hardblank+truncation combination, zero outputwidth, empty rows.
+
+### 1.2.6 — Line breaking and word splitting
+
+Added `split_line()` in `render.rs` — port of C `splitline()` (figlet.c:1623-1658).
+Scans char_buffer backward for last run of consecutive spaces, splits into
+part1 (before space run) and part2 (after). Rebuilds both parts from scratch
+via `add_char()` calls, matching C's clearline->addchar->printline->addchar
+sequence. Returns `Option<(Vec<String>, usize)>` — part1 rows to caller and
+part2_start index for caller to truncate its buffer. `output_rows` is mutated
+in-place to contain only part2. Eight tests: basic multiword split, multiple
+spaces consumed, no-word-break (None), single char after space, leading spaces
+consumed, all-spaces buffer, multi-row font, empty buffer. All 8 tests use
+`build_expected()` helper that calls `add_char()` independently to verify
+part1/part2 output consistency.

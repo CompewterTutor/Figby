@@ -232,7 +232,7 @@ and multi-byte input.
 
 ## Phase 1.5 — Multi-byte Input
 
-- [ ] `1.5.1` UTF-8 input mode
+- [x] `1.5.1` UTF-8 input mode
   - **Goal:** Port `getinchr()` case 2 — UTF-8 decoder. Handle 1-6 byte
     sequences. Validate: reject overlong sequences (0xC0/0xC1), reject
     surrogate halves (0xD800-0xDFFF), reject 0xFF/0xF5+. Map to `char`.

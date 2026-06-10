@@ -128,3 +128,7 @@ DONE: 1.4.4 merged into release/1.4.
 ## 2026-06-10 02:01
 
 All 1.4 tasks complete. Starting phase review.
+
+## 2026-06-10 02:03
+
+PHASE_COMPLETE: 1.4 merged to main after review approval.

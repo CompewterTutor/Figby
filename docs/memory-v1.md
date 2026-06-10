@@ -131,3 +131,24 @@ Phase 1.4 complete — all 3 subtasks merged from `release/1.4` into `master`.
 - ISO 2022 handling (1.4.3): `iso2022()` with G0-G3 set designation, GL/GR
   shift, SS2/SS3 invocation, double-byte combining
 - Phase 1.5 (Multi-byte Input) begins next
+
+## Phase 1.5 Multi-byte Input
+
+### 1.5.1 — UTF-8 input mode
+
+- `read_utf8_char()` added to `input.rs` — port of C `getinchr()` case 2
+  (UTF-8 decoder). Signature: `pub fn read_utf8_char(input: &mut impl CharReader) -> Option<u32>`
+- Decodes 1-6 byte UTF-8 sequences using `std::str::from_utf8` for validation
+- Error sentinel: `0x0080` for invalid sequences (matching C)
+- Validation rules:
+  - Overlong sequences (0xC0, 0xC1) rejected by `from_utf8`
+  - Surrogate halves (0xD800-0xDFFF) rejected by `from_utf8`
+  - 0xFE/0xFF caught by leading byte pattern check
+  - 0xF5+ values decode to codepoints > U+10FFFF, rejected by `from_utf8`
+  - Bad/missing continuation bytes handled by explicit check (`b & 0xC0 == 0x80`)
+- Wired into main event loop in `main.rs`: `config.multibyte == 2` → `input::read_utf8_char(input)`
+  inserted before the generic `input.next()` fallback
+- No `.unwrap()` in production — `from_utf8`'s `Ok` arm uses `.map()` for safe char extraction
+- 12 tests: ASCII, 2/3/4 byte valid sequences, overlong C0/C1, surrogate, invalid
+  lead bytes (0xFE/0xFF), F5+ codepoints, truncated sequences, bad continuation,
+  EOF on first byte, multiple mixed chars

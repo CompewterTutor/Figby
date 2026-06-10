@@ -202,3 +202,16 @@ Three bugs found in phase merge review:
   in Rust — use literal hex values like `0x128` instead. Hex is readable
   as `0x100 + byte_value` mapping.
 
+## 1.5.1 — UTF-8 input mode
+
+- `clippy::needless_range_loop` fires even for simple `for i in 1..length { buf[i] = ... }`
+  patterns. Fix: `for slot in buf.iter_mut().take(length).skip(1) { *slot = ... }`.
+- `std::str::from_utf8` handles all the complex validation (overlong, surrogate,
+  >U+10FFFF) — the decoder only needs explicit continuation byte checks and
+  leading byte pattern dispatch. This keeps the production code simple and correct.
+- `char::from_u32` is not needed — when `from_utf8` succeeds, `s.chars().next()`
+  always returns `Some(char)` for a non-empty slice, and `char as u32` gives the
+  scalar value directly.
+- The `0x0080` error sentinel is FIGlet's C replacement character for invalid
+  multi-byte sequences — must match exactly for compatibility.
+

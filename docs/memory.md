@@ -316,3 +316,16 @@ ISO 2022 charset commands), character remapping via `remap_char()` with freeze-
 block semantics, ISO 2022 character set handling with G0-G3/GL/GR/SS2/SS3.
 All 3 subtasks (1.4.1–1.4.3) implemented, tested, merged. Phase 1.5
 (Multi-byte Input) is next.
+
+### 1.5.1 — UTF-8 input mode
+
+Added `read_utf8_char()` in `input.rs` — port of C `getinchr()` case 2
+(UTF-8 decoder). Decodes 1-6 byte sequences using `std::str::from_utf8`
+for validation with explicit continuation byte checks. Error sentinel
+`0x0080` for invalid sequences (matching C). Wired into main event loop
+via `config.multibyte == 2` dispatch. Initial leading byte dispatch
+uses bitmask matching. Continuation bytes validated (`b & 0xC0 == 0x80`).
+No `.unwrap()` in production — `from_utf8` error path returns `Some(0x0080)`.
+12 unit tests covering ASCII, 2/3/4 byte valid, overlong C0/C1, surrogate,
+invalid lead bytes (0xFE/0xFF), F5+ codepoints, truncated sequences, bad
+continuation, EOF on first byte, multiple mixed chars.

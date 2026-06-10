@@ -1,6 +1,7 @@
 use clap::Parser;
 use feiglet::control::{self, CharReader};
 use feiglet::font::{self, FIGfont, DEUTSCH_CHARS};
+use feiglet::input;
 use feiglet::render::{add_char, lookup_char, render_line, split_line, Justification};
 use feiglet::smush::SmushMode;
 use std::io::{self, Read, Write};
@@ -482,6 +483,8 @@ fn run(config: CliConfig, message: Vec<String>) {
     let next_char = |input: &mut InputIter, state: &mut control::ControlState| -> Option<u32> {
         if config.multibyte == 0 {
             state.iso2022(input)
+        } else if config.multibyte == 2 {
+            input::read_utf8_char(input)
         } else {
             input.next()
         }

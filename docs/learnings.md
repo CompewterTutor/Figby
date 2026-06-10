@@ -215,3 +215,20 @@ Three bugs found in phase merge review:
 - The `0x0080` error sentinel is FIGlet's C replacement character for invalid
   multi-byte sequences — must match exactly for compatibility.
 
+## 1.5.2 — DBCS, HZ, Shift-JIS input modes
+
+- HZ C code for `}~` exit reads the byte after `~` and returns it directly.
+  Rust recursive approach (set hz_mode = false, recurse) produces same result:
+  recursive call reads next byte in non-HZ mode.
+- HZ C code loses the non-`~` byte when `}` is followed by a non-`~` byte
+  inside HZ mode. Rust `unget(c)` pushes it back, treating `}` as first byte
+  of a proper double-byte pair. This is a clear improvement.
+- Plan's test `test_hz_eof_in_exit` expected 0x7E7B but recursive implementation
+  returns None for `~{` + EOF (recursive call hits EOF). Adjusted test to verify
+  `}` + EOF in hz_mode returns `}` alone (incomplete double-byte).
+- Closure with 3 mutable ref params works when closure captures only `config`
+  (immutable ref) and takes `input`, `state`, `hz` as mutable parameters.
+  No borrow conflicts because each param is a separate `&mut` to disjoint data.
+- DBCS and SJIS byte ranges are identical (0x80-0x9F, 0xE0-0xEF — lead bytes;
+  any byte as trail). Combined as `(lead << 8) | trail`.
+

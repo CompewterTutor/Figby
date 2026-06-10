@@ -479,19 +479,23 @@ fn run(config: CliConfig, message: Vec<String>) {
     let mut input = InputIter::new(message, config.cmdinput);
     let stdout = io::stdout();
     let mut out = stdout.lock();
+    let mut hz_state = input::HZState::default();
 
-    let next_char = |input: &mut InputIter, state: &mut control::ControlState| -> Option<u32> {
-        if config.multibyte == 0 {
-            state.iso2022(input)
-        } else if config.multibyte == 2 {
-            input::read_utf8_char(input)
-        } else {
-            input.next()
+    let next_char = |input: &mut InputIter,
+                     state: &mut control::ControlState,
+                     hz: &mut input::HZState|
+     -> Option<u32> {
+        match config.multibyte {
+            0 => state.iso2022(input),
+            1 | 4 => input::read_dbcs_char(input),
+            2 => input::read_utf8_char(input),
+            3 => input::read_hz_char(input, hz),
+            _ => input.next(),
         }
     };
 
     loop {
-        let c = match next_char(&mut input, &mut control_state) {
+        let c = match next_char(&mut input, &mut control_state, &mut hz_state) {
             Some(c) => c,
             None => {
                 if outlinelen != 0 {
@@ -514,7 +518,7 @@ fn run(config: CliConfig, message: Vec<String>) {
 
         // Paragraph mode
         if c == b'\n' as u32 && config.paragraphflag && !last_was_eol_flag {
-            let c2 = match next_char(&mut input, &mut control_state) {
+            let c2 = match next_char(&mut input, &mut control_state, &mut hz_state) {
                 Some(c2) => c2,
                 None => {
                     if outlinelen != 0 {

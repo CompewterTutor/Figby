@@ -329,3 +329,16 @@ No `.unwrap()` in production — `from_utf8` error path returns `Some(0x0080)`.
 12 unit tests covering ASCII, 2/3/4 byte valid, overlong C0/C1, surrogate,
 invalid lead bytes (0xFE/0xFF), F5+ codepoints, truncated sequences, bad
 continuation, EOF on first byte, multiple mixed chars.
+
+### 1.5.2 — DBCS, HZ, Shift-JIS input modes
+
+Added `read_dbcs_char()` in `input.rs` — port of C `getinchr()` cases 1/4
+(DBCS/SJIS). Lead byte 0x80-0x9F or 0xE0-0xEF combines with trail byte as
+`(lead << 8) | trail`. Non-lead bytes pass through. EOF after lead byte
+returns lead byte alone. `HZState` struct tracks HZ escape mode (`~{` enter,
+`}~` leave, `~~` = tilde). `read_hz_char()` uses recursive approach:
+`~{` sets mode + recurses, `}~` clears mode + recurses, `~~` returns `~`,
+`~x` skips + recurses. Wired into main event loop via `config.multibyte`
+match: modes 1/4 → `read_dbcs_char`, mode 3 → `read_hz_char`. `HZState`
+passed as third parameter to `next_char` closure. 14 unit tests: 5 DBCS,
+9 HZ covering all edge cases. `HZState` derives `Default`.

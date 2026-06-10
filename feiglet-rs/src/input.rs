@@ -1,5 +1,53 @@
 use crate::control::CharReader;
 
+pub fn read_dbcs_char(input: &mut impl CharReader) -> Option<u32> {
+    let b = input.next()?;
+    if (0x80..=0x9F).contains(&b) || (0xE0..=0xEF).contains(&b) {
+        match input.next() {
+            Some(trail) => Some((b << 8) | trail),
+            None => Some(b),
+        }
+    } else {
+        Some(b)
+    }
+}
+
+#[derive(Default)]
+pub struct HZState {
+    pub hzmode: bool,
+}
+
+pub fn read_hz_char(input: &mut impl CharReader, state: &mut HZState) -> Option<u32> {
+    let b = input.next()?;
+    if state.hzmode {
+        if b == b'}' as u32 {
+            if let Some(c) = input.next() {
+                if c == b'~' as u32 {
+                    state.hzmode = false;
+                    return read_hz_char(input, state);
+                }
+                input.unget(c);
+            }
+        }
+        match input.next() {
+            Some(b2) => Some((b << 8) | b2),
+            None => Some(b),
+        }
+    } else if b == b'~' as u32 {
+        match input.next() {
+            Some(c) if c == b'{' as u32 => {
+                state.hzmode = true;
+                read_hz_char(input, state)
+            }
+            Some(c) if c == b'~' as u32 => Some(b'~' as u32),
+            Some(_) => read_hz_char(input, state),
+            None => Some(b'~' as u32),
+        }
+    } else {
+        Some(b)
+    }
+}
+
 pub fn read_utf8_char(input: &mut impl CharReader) -> Option<u32> {
     let b0 = input.next()?;
 
@@ -190,5 +238,130 @@ mod tests {
         assert_eq!(read_utf8_char(&mut input), Some(0x4E2D));
         assert_eq!(read_utf8_char(&mut input), Some(0x1F600));
         assert_eq!(read_utf8_char(&mut input), None);
+    }
+
+    // --- DBCS tests ---
+
+    #[test]
+    fn test_dbcs_single_byte() {
+        let mut input = MockReader::new(b"abc\xA0\xDF\xF0\xFF");
+        assert_eq!(read_dbcs_char(&mut input), Some(b'a' as u32));
+        assert_eq!(read_dbcs_char(&mut input), Some(b'b' as u32));
+        assert_eq!(read_dbcs_char(&mut input), Some(b'c' as u32));
+        assert_eq!(read_dbcs_char(&mut input), Some(0xA0));
+        assert_eq!(read_dbcs_char(&mut input), Some(0xDF));
+        assert_eq!(read_dbcs_char(&mut input), Some(0xF0));
+        assert_eq!(read_dbcs_char(&mut input), Some(0xFF));
+        assert_eq!(read_dbcs_char(&mut input), None);
+    }
+
+    #[test]
+    fn test_dbcs_lead_80_9f() {
+        let mut input = MockReader::new(&[0x81, 0x40]);
+        assert_eq!(read_dbcs_char(&mut input), Some((0x81u32 << 8) | 0x40));
+        assert_eq!(read_dbcs_char(&mut input), None);
+    }
+
+    #[test]
+    fn test_dbcs_lead_e0_ef() {
+        let mut input = MockReader::new(&[0xE0, 0x80]);
+        assert_eq!(read_dbcs_char(&mut input), Some((0xE0u32 << 8) | 0x80));
+        assert_eq!(read_dbcs_char(&mut input), None);
+    }
+
+    #[test]
+    fn test_dbcs_eof_after_lead() {
+        let mut input = MockReader::new(&[0x81]);
+        assert_eq!(read_dbcs_char(&mut input), Some(0x81));
+    }
+
+    #[test]
+    fn test_dbcs_eof_on_first() {
+        let mut input = MockReader::new(b"");
+        assert_eq!(read_dbcs_char(&mut input), None);
+    }
+
+    // --- HZ tests ---
+
+    #[test]
+    fn test_hz_ascii_passthrough() {
+        let mut input = MockReader::new(b"hello");
+        let mut state = HZState::default();
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'h' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'e' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'l' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'l' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'o' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), None);
+    }
+
+    #[test]
+    fn test_hz_enter_exit() {
+        let mut input = MockReader::new(b"a~{BC}~d");
+        let mut state = HZState::default();
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'a' as u32));
+        assert_eq!(
+            read_hz_char(&mut input, &mut state),
+            Some((b'B' as u32) << 8 | b'C' as u32)
+        );
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'd' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), None);
+    }
+
+    #[test]
+    fn test_hz_double_byte_content() {
+        let mut input = MockReader::new(b"~{AB}~");
+        let mut state = HZState::default();
+        assert_eq!(
+            read_hz_char(&mut input, &mut state),
+            Some((b'A' as u32) << 8 | b'B' as u32)
+        );
+        assert!(read_hz_char(&mut input, &mut state).is_none());
+    }
+
+    #[test]
+    fn test_hz_tilde_escape() {
+        let mut input = MockReader::new(b"a~~b");
+        let mut state = HZState::default();
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'a' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'~' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'b' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), None);
+    }
+
+    #[test]
+    fn test_hz_skip_unknown() {
+        let mut input = MockReader::new(b"a~xb");
+        let mut state = HZState::default();
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'a' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'b' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), None);
+    }
+
+    #[test]
+    fn test_hz_eof_in_intro() {
+        let mut input = MockReader::new(b"a~");
+        let mut state = HZState::default();
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'a' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'~' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), None);
+    }
+
+    #[test]
+    fn test_hz_eof_in_exit() {
+        // In hz_mode, }~ is the exit sequence. If we see } followed by EOF,
+        // exit doesn't trigger, } becomes first byte of a pair, EOF ends it.
+        let mut state = HZState { hzmode: true };
+        let mut input = MockReader::new(b"}");
+        assert_eq!(read_hz_char(&mut input, &mut state), Some(b'}' as u32));
+        assert_eq!(read_hz_char(&mut input, &mut state), None);
+    }
+
+    #[test]
+    fn test_hz_entry_eof_recurse() {
+        // ~{ enters HZ mode then recurses. Recursive call hits EOF.
+        let mut input = MockReader::new(b"~{");
+        let mut state = HZState::default();
+        assert_eq!(read_hz_char(&mut input, &mut state), None);
     }
 }

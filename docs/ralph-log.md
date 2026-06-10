@@ -132,3 +132,7 @@ All 1.4 tasks complete. Starting phase review.
 ## 2026-06-10 02:03
 
 PHASE_COMPLETE: 1.4 merged to main after review approval.
+
+## 2026-06-10 02:09
+
+DONE: 1.5.1 merged into release/1.5.

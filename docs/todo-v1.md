@@ -241,7 +241,7 @@ and multi-byte input.
   - **Tests:** UTF-8 test vectors. Error case tests.
   - **Difficulty:** Low (use `std::str::from_utf8` or `char::from_u32`)
 
-- [ ] `1.5.2` DBCS, HZ, Shift-JIS input modes
+- [x] `1.5.2` DBCS, HZ, Shift-JIS input modes
   - **Goal:** Port multibyte modes 1 (DBCS), 3 (HZ), 4 (Shift-JIS).
     DBCS: lead byte 0x80-0x9F/0xE0-0xEF + trail byte.
     HZ: `~{` enters, `}~` leaves, `~~` = tilde.

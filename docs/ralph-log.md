@@ -158,3 +158,11 @@ DONE: 1.5.4 merged into release/1.5.
 ## 2026-06-10 02:26
 
 All 1.5 tasks complete. Starting phase review.
+
+## 2026-06-10 02:26
+
+PHASE_COMPLETE: 1.5 merged to main after review approval.
+
+## 2026-06-10 02:36
+
+BLOCKED on task 1.6.1: pre-commit hook still failing after 3 attempts.

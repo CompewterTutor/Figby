@@ -1,4 +1,4 @@
-# Feiglet v1 — C-to-Rust Port
+# Figby v1 — C-to-Rust Port
 
 Milestone goal: Feature-complete Rust port of FIGlet 2.2.5 supporting all
 FIGfont (.flf) and TOIlet (.tlf) fonts with kerning, smushing, control files,
@@ -8,10 +8,10 @@ and multi-byte input.
 
 ## Phase 1.1 — Crate Scaffold & Font Parser
 
-- [x] `1.1.1` Create `feiglet` crate in workspace
-  - **Goal:** Rust crate `feiglet` added to workspace. Compiles clean.
-  - **Touches:** `feiglet-rs/Cargo.toml`, `feiglet-rs/src/lib.rs`
-  - **Success:** `cargo build -p feiglet` succeeds. Clippy clean.
+- [x] `1.1.1` Create `figby` crate in workspace
+  - **Goal:** Rust crate `figby` added to workspace. Compiles clean.
+  - **Touches:** `figby-rs/Cargo.toml`, `figby-rs/src/lib.rs`
+  - **Success:** `cargo build -p figby` succeeds. Clippy clean.
   - **Tests:** Empty crate compiles.
   - **Difficulty:** Low
 
@@ -21,7 +21,7 @@ and multi-byte input.
     rows of sub-character strings. Use `Vec<Vec<&str>>` or `Vec<String>`.
     `Hardblank` tracked as `char`. `CharHeight`, `Baseline`, `MaxLength`,
     `OldLayout`, `FullLayout`, `PrintDirection`, `CommentLines` fields.
-  - **Touches:** `feiglet-rs/src/font.rs`, `feiglet-rs/Cargo.toml`
+  - **Touches:** `figby-rs/src/font.rs`, `figby-rs/Cargo.toml`
   - **Success:** All types defined + documented. Round-trip serde tests.
   - **Tests:** Type construction + default tests.
   - **Difficulty:** Low
@@ -31,7 +31,7 @@ and multi-byte input.
     number (`flf2a`). Extract hardblank char, height, baseline, max_length,
     old_layout, comment_lines, print_direction, full_layout, codetag_count.
     Handle missing optional fields. Reject invalid magic.
-  - **Touches:** `feiglet-rs/src/font.rs` — `parse_header()`
+  - **Touches:** `figby-rs/src/font.rs` — `parse_header()`
   - **Success:** Parse known headers correctly. Error on bad magic.
   - **Tests:** Fixture-based header parse tests. Error case tests.
   - **Difficulty:** Low
@@ -41,7 +41,7 @@ and multi-byte input.
     Deutsch chars (196, 214, 220, 228, 246, 252, 223). Remove trailing
     endmark characters (last block of identical chars per line). Store rows
     as `Vec<String>`. Handle `\r\n` and `\n` line endings.
-  - **Touches:** `feiglet-rs/src/font.rs` — `parse_char_data()`
+  - **Touches:** `figby-rs/src/font.rs` — `parse_char_data()`
   - **Success:** All required chars parsed. Endmarks stripped. Widths consistent.
   - **Tests:** Parse known FIGfont fixture. Verify char count = 102.
   - **Difficulty:** Medium
@@ -51,7 +51,7 @@ and multi-byte input.
     Each has a numeric code tag line followed by height rows. Build
     `HashMap<inchr, FIGcharacter>`. Handle negative codes. Skip code -1
     (reserved).
-  - **Touches:** `feiglet-rs/src/font.rs` — `parse_codetagged()`
+  - **Touches:** `figby-rs/src/font.rs` — `parse_codetagged()`
   - **Success:** All codetagged chars parsed. Map complete.
   - **Tests:** Parse known FIGfont with codetagged chars. Count matches `codetag_count`.
   - **Difficulty:** Medium
@@ -60,7 +60,7 @@ and multi-byte input.
   - **Goal:** Support `tlf2a` magic number. UTF-8 encoded rows instead of
     raw bytes. Shared parser infrastructure with FIGfont, differing only in
     magic check and row encoding.
-  - **Touches:** `feiglet-rs/src/font.rs` — TLF detection + UTF-8 decode
+  - **Touches:** `figby-rs/src/font.rs` — TLF detection + UTF-8 decode
   - **Success:** TLF font parses identically to C output.
   - **Tests:** Parse `emboss.tlf` fixture. Compare with C output.
   - **Difficulty:** Medium
@@ -70,7 +70,7 @@ and multi-byte input.
     Implement `FIGopen()` equivalent: try font directory + suffix, then
     bare path. Fall back to ZIP reading. Use `flate2` for raw deflate if
     needed.
-  - **Touches:** `feiglet-rs/src/font.rs`, `Cargo.toml` (add `zip`, `flate2`)
+  - **Touches:** `figby-rs/src/font.rs`, `Cargo.toml` (add `zip`, `flate2`)
   - **Success:** Font loads from ZIP and from plain file.
   - **Tests:** ZIP font loading test.
   - **Difficulty:** Medium
@@ -90,7 +90,7 @@ and multi-byte input.
     `FIGcharacter` in the font map. Return char rows + width
     (length of first row). Fall back to missing-char (code 0).
     Track `previouscharwidth`.
-  - **Touches:** `feiglet-rs/src/render.rs` — `lookup_char()`
+  - **Touches:** `figby-rs/src/render.rs` — `lookup_char()`
   - **Success:** Known chars resolve correctly. Unknown chars fall back.
   - **Tests:** Lookup tests for all required chars. Fallback test.
   - **Difficulty:** Low
@@ -101,7 +101,7 @@ and multi-byte input.
     smush). Handle universal smushing (no rules = overlap).
     Algorithm identical to C: blank→other, hardblank→hardblank,
     equal chars, underscore, hierarchy, pair, big X.
-  - **Touches:** `feiglet-rs/src/smush.rs`
+  - **Touches:** `figby-rs/src/smush.rs`
   - **Success:** All smushing rules produce identical output to C.
   - **Tests:** Unit test per rule. Golden output comparison.
   - **Difficulty:** Medium
@@ -111,7 +111,7 @@ and multi-byte input.
     output line. For each row, find last non-space in output line and
     first non-space in current char. Minimum across all rows determines
     smush amount. Handle left-to-right and right-to-left.
-  - **Touches:** `feiglet-rs/src/render.rs` — `calc_smush_amount()`
+  - **Touches:** `figby-rs/src/render.rs` — `calc_smush_amount()`
   - **Success:** Smush amount matches C for known inputs.
   - **Tests:** Known-fixture smush amount tests.
   - **Difficulty:** Medium
@@ -120,7 +120,7 @@ and multi-byte input.
   - **Goal:** Port `addchar()` — append char to output line. Apply smush
     amount. For overlapping columns, call `smushem()`. Handle RTL by
     building char on left side. Bail if `outlinelen` exceeds limit.
-  - **Touches:** `feiglet-rs/src/render.rs` — `add_char()`
+  - **Touches:** `figby-rs/src/render.rs` — `add_char()`
   - **Success:** Lines build correctly with kerning and smushing.
   - **Tests:** Single-word render test. Compare output to C.
   - **Difficulty:** Medium
@@ -129,7 +129,7 @@ and multi-byte input.
   - **Goal:** Port `putstring()` / `printline()` — render output rows with
     justification (left/center/right). Replace hardblanks with spaces.
     Respect `outputwidth` for line truncation.
-  - **Touches:** `feiglet-rs/src/render.rs` — `render_line()`
+  - **Touches:** `figby-rs/src/render.rs` — `render_line()`
   - **Success:** Output matches C for simple cases.
   - **Tests:** Justification tests. Width limit tests.
   - **Difficulty:** Low
@@ -138,7 +138,7 @@ and multi-byte input.
   - **Goal:** Port `splitline()` + main loop logic — break lines at word
     boundaries. Handle paragraph mode (`-p`). Edge cases: char wider than
     outputwidth, multiple spaces, forced breaks.
-  - **Touches:** `feiglet-rs/src/render.rs` — `split_line()`
+  - **Touches:** `figby-rs/src/render.rs` — `split_line()`
   - **Success:** Multi-word text renders with correct line breaks.
   - **Tests:** Multi-word render tests. Compare to C output.
   - **Difficulty:** High
@@ -158,7 +158,7 @@ and multi-byte input.
     Set globals: `smushmode`, `smushoverride`, `justification`,
     `right2left`, `paragraphflag`, `deutschflag`, `cmdinput`,
     `outputwidth`, `fontdirname`, `fontname`, `multibyte`.
-  - **Touches:** `feiglet-rs/src/main.rs` — CLI struct + parse
+  - **Touches:** `figby-rs/src/main.rs` — CLI struct + parse
   - **Success:** All flags parsed. Defaults match C. `-F` prints error.
   - **Tests:** Flag parse tests. Default value tests.
   - **Difficulty:** Low
@@ -167,7 +167,7 @@ and multi-byte input.
   - **Goal:** Implement `printinfo()`: infocode 0 (copyright), 1 (version),
     2 (fontdir), 3 (font), 4 (outputwidth), 5 (formats).
     Output format must match C exactly.
-  - **Touches:** `feiglet-rs/src/main.rs`
+  - **Touches:** `figby-rs/src/main.rs`
   - **Success:** Info output matches C byte-for-byte.
   - **Tests:** All infocodes tested.
   - **Difficulty:** Low
@@ -175,7 +175,7 @@ and multi-byte input.
 - [x] `1.3.3` Terminal width detection (`-t`)
   - **Goal:** Implement `get_columns()` using `termion` or `crossterm`.
     Fall back to `DEFAULTCOLUMNS` (80) if terminal unavailable.
-  - **Touches:** `feiglet-rs/src/main.rs`, `Cargo.toml` (add `termion`)
+  - **Touches:** `figby-rs/src/main.rs`, `Cargo.toml` (add `termion`)
   - **Success:** Terminal width detected. Falls back gracefully.
   - **Tests:** Mock terminal width test.
   - **Difficulty:** Low
@@ -184,7 +184,7 @@ and multi-byte input.
   - **Goal:** Port `main()` loop — read chars via `getinchr()`, process
     through `handlemapping()` + Deutsch re-routing, build lines with
     `addchar()`, handle line breaking. End-of-file exits.
-  - **Touches:** `feiglet-rs/src/main.rs` — `run()` function
+  - **Touches:** `figby-rs/src/main.rs` — `run()` function
   - **Success:** Full pipeline: input→font→render→output.
   - **Tests:** End-to-end CLI test with known input/output.
   - **Difficulty:** High
@@ -202,7 +202,7 @@ and multi-byte input.
     `f` (freeze), `b`/`u`/`h`/`j` (multibyte modes),
     `g` (ISO 2022 charset), `#` (comments).
     Build linked list of `comnode` commands.
-  - **Touches:** `feiglet-rs/src/control.rs`
+  - **Touches:** `figby-rs/src/control.rs`
   - **Success:** All control file commands parsed correctly.
   - **Tests:** Parse each command type. Known .flc fixture tests.
   - **Difficulty:** Medium
@@ -211,7 +211,7 @@ and multi-byte input.
   - **Goal:** Port `handlemapping()` — iterate control file commands.
     Translate chars via range+offset. Freeze commands halt translates
     until next unfreeze. Sequential apply.
-  - **Touches:** `feiglet-rs/src/control.rs` — `remap_char()`
+  - **Touches:** `figby-rs/src/control.rs` — `remap_char()`
   - **Success:** Mapped chars transform correctly. Freeze works.
   - **Tests:** Known mapping test cases from C test suite.
   - **Difficulty:** Medium
@@ -220,7 +220,7 @@ and multi-byte input.
   - **Goal:** Port `iso2022()` — process ISO 2022 escape sequences.
     G0/G1/G2/G3 set selection, double-byte flag, GL/GR invocation.
     Port `charset()` for charset definition.
-  - **Touches:** `feiglet-rs/src/control.rs` — `iso2022()`
+  - **Touches:** `figby-rs/src/control.rs` — `iso2022()`
   - **Success:** ISO 2022 sequences processed correctly.
   - **Tests:** Escape sequence tests.
   - **Difficulty:** High
@@ -236,7 +236,7 @@ and multi-byte input.
   - **Goal:** Port `getinchr()` case 2 — UTF-8 decoder. Handle 1-6 byte
     sequences. Validate: reject overlong sequences (0xC0/0xC1), reject
     surrogate halves (0xD800-0xDFFF), reject 0xFF/0xF5+. Map to `char`.
-  - **Touches:** `feiglet-rs/src/input.rs`
+  - **Touches:** `figby-rs/src/input.rs`
   - **Success:** UTF-8 decoded correctly. Invalid sequences handled.
   - **Tests:** UTF-8 test vectors. Error case tests.
   - **Difficulty:** Low (use `std::str::from_utf8` or `char::from_u32`)
@@ -246,7 +246,7 @@ and multi-byte input.
     DBCS: lead byte 0x80-0x9F/0xE0-0xEF + trail byte.
     HZ: `~{` enters, `}~` leaves, `~~` = tilde.
     Shift-JIS: same as DBCS byte ranges.
-  - **Touches:** `feiglet-rs/src/input.rs`
+  - **Touches:** `figby-rs/src/input.rs`
   - **Success:** All multibyte modes produce correct inchr values.
   - **Tests:** Known-sequence tests per mode.
   - **Difficulty:** Medium
@@ -254,7 +254,7 @@ and multi-byte input.
 - [x] `1.5.3` Deutsch flag (`-D`) character re-routing
   - **Goal:** Port deutsch re-routing: `[\]` → umlauted A/O/U,
     `{|}~` → lowercase umlauts + ess-zed. Applies before mapping.
-  - **Touches:** `feiglet-rs/src/input.rs`
+  - **Touches:** `figby-rs/src/input.rs`
   - **Success:** Deutsch re-routing matches C.
   - **Tests:** Deutsch flag test cases.
   - **Difficulty:** Low
@@ -269,7 +269,7 @@ and multi-byte input.
 - [ ] `1.6.1` Port C test harness
   - **Goal:** Port `run-tests.sh` test cases to Rust. Each test: known
     input → expected output (from C). Verify byte-exact match.
-  - **Touches:** `feiglet-rs/tests/`
+  - **Touches:** `figby-rs/tests/`
   - **Success:** All 27 existing test cases pass.
   - **Tests:** All test cases from C suite.
   - **Difficulty:** Medium
@@ -277,19 +277,30 @@ and multi-byte input.
 - [ ] `1.6.2` Font fuzz testing
   - **Goal:** Fuzz font parser with malformed FIGfont files. No panics.
     Graceful error handling for all malformed inputs.
-  - **Touches:** `feiglet-rs/tests/fuzz.rs`
+  - **Touches:** `figby-rs/tests/fuzz.rs`
   - **Success:** No panics on any malformed input.
   - **Tests:** `cargo fuzz` or property-based tests.
   - **Difficulty:** Medium
 
-- [ ] `1.6.3` Performance benchmarks
+- [x] `1.6.3` Rename project from `feiglet` to `figby`
+  - **Goal:** Rename every instance of `Feiglet`/`feiglet` to `Figby`/`figby`
+    including directory name (`feiglet-rs/` → `figby-rs/`), Cargo package name,
+    CLI command name, and all documentation references.
+  - **Touches:** `figby-rs/Cargo.toml`, `figby-rs/src/*.rs`, `README.md`,
+    `AGENTS.md`, `scripts/ralph.sh`, `skills/ralph.md`, `docs/*.md`,
+    `CHANGELOG.md`
+  - **Success:** No remaining `feiglet` references anywhere in the repo.
+    `cargo build -p figby` succeeds. `cargo test -p figby` passes.
+  - **Difficulty:** Low
+
+- [ ] `1.6.4` Performance benchmarks
   - **Goal:** Benchmark render pipeline. At minimum match C performance.
     Use `criterion` for regression tracking.
-  - **Touches:** `feiglet-rs/benches/`
+  - **Touches:** `figby-rs/benches/`
   - **Success:** Render throughput at or above C baseline.
   - **Difficulty:** Low
 
-- [ ] `1.6.4` Phase merge: release/1.6 → main
+- [ ] `1.6.5` Phase merge: release/1.6 → main
   - **Difficulty:** Low
 
 ---

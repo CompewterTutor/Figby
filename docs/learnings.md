@@ -1,4 +1,4 @@
-# Feiglet — Learnings
+# Figby — Learnings
 
 ## 1.1.2 — Core types
 
@@ -14,7 +14,7 @@
 ## 1.1.3 — Header parser
 
 - `figlet.c` skips baseline with `%*d` in sscanf and doesn't parse `codetag_count`,
-  while `chkfont.c` includes both. Feiglet follows `chkfont.c` (parse all fields
+  while `chkfont.c` includes both. Figby follows `chkfont.c` (parse all fields
   including baseline and codetag_count as 9th optional field).
 - Full layout derivation rule (from `figlet.c:1231-1238`):
   `old_layout == 0 → 64 (SM_KERN)`, `old_layout < 0 → 0`, else `(old_layout & 31) | 128 (SM_SMUSH)`.
@@ -121,7 +121,7 @@ Three bugs found in phase merge review:
 ## 1.3.4 — Main event loop
 
 - `pub(crate)` visibility in `font.rs` constants is NOT visible from binary crate
-  (`main.rs`), since the binary depends on `feiglet` as a separate library crate.
+  (`main.rs`), since the binary depends on `figby` as a separate library crate.
   Changing `DEUTSCH_CHARS` to `pub` is required when the binary needs it.
 - `std::io::Stdin::bytes()` requires `Read` trait in scope (`use std::io::Read`).
   Using `io::BufReader::new(io::stdin()).bytes()` avoids
@@ -151,9 +151,9 @@ Three bugs found in phase merge review:
 - `#[allow(non_snake_case)]` is required on clap structs when flags have
   uppercase/lowercase collisions (e.g., `-L` vs `-l`). In snake_case, `flag_L`
   and `flag_l` collapse to the same name. Eight such collisions exist in FIGlet.
-- `CliArgs::try_parse_from(["feiglet", "-A"])` — the array arg must be
+- `CliArgs::try_parse_from(["figby", "-A"])` — the array arg must be
   owned (no `&` prefix). Clippy `needless_borrows_for_generic_args` fires if
-  you write `&["feiglet", "-A"]`; clap's `try_parse_from` accepts
+  you write `&["figby", "-A"]`; clap's `try_parse_from` accepts
   `impl IntoIterator` and `[&str; N]` already satisfies that without a borrow.
 - `-m -1` parsing with clap: requires `#[arg(allow_hyphen_values = true)]` on
   the field. Without it, clap treats `-1` as an unknown flag. In clap 4 the
@@ -231,6 +231,17 @@ Three bugs found in phase merge review:
   No borrow conflicts because each param is a separate `&mut` to disjoint data.
 - DBCS and SJIS byte ranges are identical (0x80-0x9F, 0xE0-0xEF — lead bytes;
   any byte as trail). Combined as `(lead << 8) | trail`.
+
+## 1.6.3 — Project rename: Feiglet → Figby
+
+- Using `replaceAll` on edit tool is efficient for bulk renames within a file,
+  but backtick-pattern `\`feiglet\`` won't match `cargo build -p feiglet` since
+  the backtick is at the start of the command, not right before feiglet. Need
+  a dedicated replace for such cases.
+- `rg -il` is the fastest way to verify zero remaining matches after a rename.
+- `git mv` for directory rename preserves history cleanly.
+- After directory rename, `cargo build` must be run from inside the renamed
+  directory (no workspace Cargo.toml at root).
 
 ## 1.5.3 — Deutsch flag character re-routing
 

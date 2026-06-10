@@ -1,19 +1,19 @@
-# Feiglet
+# Figby
 
 > Rust rewrite of FIGlet — ASCII art banner generator
 
-Feiglet renders text as large ASCII art characters using FIGfont (.flf) and
+Figby renders text as large ASCII art characters using FIGfont (.flf) and
 TOIlet (.tlf) font files. This is a **modern Rust port** of FIGlet 2.2.5
 preserving all features: kerning, smushing, multi-byte support, control files,
 and the full CLI interface.
 
 Original C source lives in the repo root for reference; the Rust port lives
-in `feiglet-rs/`.
+in `figby-rs/`.
 
 ## Quick Start
 
 ```bash
-cargo run -p feiglet -- -f fonts/standard "Hello, world!"
+cargo run -p figby -- -f fonts/standard "Hello, world!"
 ```
 
 ## Project Status

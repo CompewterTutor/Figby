@@ -4,7 +4,7 @@
 
 ### Added
 
-- Rust project scaffold (`feiglet-rs/`)
+- Rust project scaffold (`figby-rs/`)
 - Cargo workspace configuration
 - FIGlet font submodule for test fixtures
 - CI configuration (fmt + clippy + test)

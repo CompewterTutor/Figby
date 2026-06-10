@@ -1,4 +1,4 @@
-# Feiglet — Memory Index
+# Figby — Memory Index
 
 Master memory index. Detailed entries live in versioned files below.
 
@@ -11,7 +11,7 @@ Master memory index. Detailed entries live in versioned files below.
 ## Architectural Decisions
 
 ### UTF-8 Native Encoding
-Feiglet uses Rust `char`/`String` natively (UTF-8), not `wchar_t`.
+Figby uses Rust `char`/`String` natively (UTF-8), not `wchar_t`.
 FIGlet C used `typedef long inchr` for internal char representation.
 We map directly to `char` (Unicode scalar value) and use `String` for
 output rows. TLF fonts already UTF-8; FIGfont ASCII is valid UTF-8.
@@ -37,9 +37,9 @@ Use `clap` with derive macros for CLI parsing, replacing `getopt`.
 FIGlet flag semantics preserved exactly.
 
 ## Task History
+### 1.1.1 — Create `figby` crate in workspace
 
-### 1.1.1 — Create `feiglet` crate in workspace
-Added `[lib]` section to `feiglet-rs/Cargo.toml` (name=feiglet, path=src/lib.rs,
+Added `[lib]` section to `figby-rs/Cargo.toml` (name=figby, path=src/lib.rs,
 crate-type=[lib]). Added `#![doc]` crate-level attribute to `src/lib.rs` with
 description. Sorted `pub mod` declarations alphabetically (rustfmt preference).
 Five module stubs (font, render, smush, control, input) compile as-is.
@@ -358,3 +358,12 @@ Merged all Phase 1.5 work into default branch (master). Phase 1.5 complete:
 UTF-8 input mode (1.5.1), DBCS/HZ/Shift-JIS input modes (1.5.2), Deutsch
 flag character re-routing (1.5.3). All 3 subtasks implemented, tested, merged.
 Phase 1.6 (Test Suite & Verification) is next.
+
+### 1.6.3 — Rename project: Feiglet → Figby
+
+Renamed every instance of `Feiglet`/`feiglet` to `Figby`/`figby` across the
+entire repository. Includes: `figby-rs/` directory rename, Cargo package name,
+CLI command name (`figby`), lib name, module imports (`use figby::...`),
+all documentation files, scripts, and skills. Version 1.6.3 task added to
+todo-v1.md with renumbering of subsequent tasks (benchmarks → 1.6.4, phase
+merge → 1.6.5). Build, fmt, clippy, and all 273 tests pass clean.

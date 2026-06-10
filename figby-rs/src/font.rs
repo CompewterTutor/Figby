@@ -1303,7 +1303,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("feiglet_test_{}_{}", std::process::id(), ts))
+        std::env::temp_dir().join(format!("figby_test_{}_{}", std::process::id(), ts))
     }
 
     fn write_standard_font(dir: &std::path::Path) {

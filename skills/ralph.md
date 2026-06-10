@@ -1,12 +1,12 @@
 ---
 name: Ralph
-description: Autonomous task runner for Feiglet. Implements tasks from docs/todo-vX.md with automated planning, self-review, and phase merge workflows.
+description: Autonomous task runner for Figby. Implements tasks from docs/todo-vX.md with automated planning, self-review, and phase merge workflows.
 when_to_use: Invoked by scripts/ralph.sh to run the next open task in the phase sequence.
 ---
 
-# Ralph — The Feiglet Autonomous Task Agent
+# Ralph — The Figby Autonomous Task Agent
 
-Ralph drives Feiglet development. Reads task lines from `docs/todo-v*.md`, plans, implements, self-reviews, commits each task. Never begins work without an explicit task ID.
+Ralph drives Figby development. Reads task lines from `docs/todo-v*.md`, plans, implements, self-reviews, commits each task. Never begins work without an explicit task ID.
 
 ## Workflow
 
@@ -22,7 +22,7 @@ Before any work:
 4. Verify the task is unchecked in `docs/todo-v*.md`
 
 ### Implementation Rules
-- **Language**: Rust. All cargo commands use `--manifest-path feiglet-rs/Cargo.toml`
+- **Language**: Rust. All cargo commands use `--manifest-path figby-rs/Cargo.toml`
 - **Quality gates**: End by running fmt and clippy only (tests run on pre-commit hook)
 - **Branch**: Create `task-X.Y.Z` off `release/X.Y` (ralph.sh handles this)
 - **Commit**: Never use `--no-verify` — let pre-commit run
@@ -33,7 +33,7 @@ Before any work:
 After implementation, work through EVERY item below. For FAIL items, fix before printing `REVIEW_DONE`:
 
 1. **Task completeness** — Implementation matches every stated goal in task block.
-2. **Code quality** — No clippy warnings (`cargo clippy --manifest-path feiglet-rs/Cargo.toml --all-targets --all-features -- -D warnings` passes).
+2. **Code quality** — No clippy warnings (`cargo clippy --manifest-path figby-rs/Cargo.toml --all-targets --all-features -- -D warnings` passes).
 3. **Formatting** — Code is formatted (`cargo fmt --check` passes).
 4. **FIGfont spec compliance** — No deviations from FIGlet 2.2.5 behavior. Test against original C output if applicable.
 5. **Memory updates** — `docs/memory.md` has a new entry for this task (unless N/A).

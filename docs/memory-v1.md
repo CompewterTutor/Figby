@@ -1,9 +1,9 @@
-# Feiglet v1 — Port Memory
+# Figby v1 — Port Memory
 
 ## Phase 1.1 Scaffold
 
 ### Crate Structure (1.1.1)
-`feiglet-rs/` is the single crate in the workspace. Main binary + library
+`figby-rs/` is the single crate in the workspace. Main binary + library
 in one crate for simplicity. Library exposes `font`, `render`, `smush`,
 `control`, `input` modules.
 

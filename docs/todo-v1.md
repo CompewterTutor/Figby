@@ -150,7 +150,7 @@ and multi-byte input.
 
 ## Phase 1.3 — CLI Interface
 
-- [ ] `1.3.1` CLI argument parsing (all FIGlet flags)
+- [x] `1.3.1` CLI argument parsing (all FIGlet flags)
   - **Goal:** Parse all FIGlet 2.2.5 flags using `clap`:
     `-A`, `-D`, `-E`, `-X`, `-L`, `-R`, `-x`, `-l`, `-c`, `-r`, `-p`,
     `-n`, `-s`, `-k`, `-S`, `-o`, `-W`, `-t`, `-v`, `-I`, `-m`, `-w`,

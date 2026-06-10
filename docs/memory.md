@@ -182,3 +182,19 @@ character lookup + width calculation, smushing rules engine (all 6 horizontal
 smushing, output line printing with justification, line breaking and word
 splitting. All 6 subtasks (1.2.1–1.2.6) implemented, tested, merged.
 Phase 1.3 (CLI Interface) is next.
+
+### 1.3.1 — CLI argument parsing
+
+Rewrote `main.rs` from scaffold to full CLI parser using clap derive.
+`CliArgs` struct parses all 27 FIGlet flags (`-A` through `-F`) plus
+positional message. `CliConfig` holds all 11 globals (`smushmode`,
+`smushoverride`, `justification`, `right2left`, `paragraphflag`,
+`deutschflag`, `cmdinput`, `outputwidth`, `fontdirname`, `fontname`,
+`multibyte`). `SmushOverride` enum mirrors C `SMO_NO`/`SMO_YES`/`SMO_FORCE`.
+Flag normalization matches C switch-case semantics: `-m` value mapping,
+`-s`/`-k`/`-S`/`-o`/`-W` smush overrides, `-x`/`-l`/`-c`/`-r` justification,
+`-X`/`-L`/`-R` text direction, `-D`/`-E` deutsch, `-p`/`-n` paragraph,
+`-A`/positional cmdinput. `-F` prints error and exits. `run()` is a
+placeholder for 1.3.4. `#[allow(non_snake_case)]` needed on `CliArgs`
+struct because uppercase flags (e.g. `-L` vs `-l`, `-S` vs `-s`) would
+collide in snake_case. 20 unit tests covering every flag + defaults.

@@ -69,3 +69,26 @@ Phase 1.2 complete — all 6 subtasks merged from `release/1.2` into `master`.
   (`add_char`), output line printing with justification (`render_line`),
   line breaking and word splitting (`split_line`)
 - Phase 1.3 (CLI Interface) begins next
+
+## Phase 1.3 CLI Interface
+
+### 1.3.1 — CLI argument parsing
+
+- `main.rs` rewritten: scaffold placeholder → full clap derive CLI parser
+- `CliArgs` struct with `#[derive(Parser)]` + `#[command]` for program info
+- `#[allow(non_snake_case)]` on struct due to uppercase flag collisions
+  (`-L` vs `-l`, `-S` vs `-s`, `-W` vs `-w`, `-N` vs `-n`, `-F` vs `-f`,
+  `-D` vs `-d`, `-C` vs `-c`, `-R` vs `-r` — eight conflicts)
+- `SmushOverride` enum: `No=0`, `Yes=1`, `Force=2` matching C
+  `SMO_NO`/`SMO_YES`/`SMO_FORCE`
+- `CliConfig` struct holds 11 globals from task spec, `Default` impl matches C
+- `CliConfig::from_args()` normalization:
+  - Boolean flag groups: last-checked wins (e.g., `-s` overrides `-k` when both set)
+  - `-m` mapping: `< -1`→override=No, `== -1`→mode=0, `== 0`→mode=64, `> 0`→`(val&63)|128`+override=Yes
+  - `-A` + any positional → `cmdinput=true`
+- `-F` handled in `main()` before config build: prints error, exits(1)
+- `run()` is no-op placeholder (filled in 1.3.4)
+- `#[arg(short = 'I')] infocode: Option<i32>` parsed but unused until 1.3.2
+- `#[arg(short = 't')]` and `#[arg(short = 'v')]` parsed but unused until 1.3.3/1.3.2
+- `#[arg(short = 'C')] controlfile: Option<String>` parsed but unused until 1.4.1
+- 20 unit tests cover all flags, defaults, value flags, edge cases

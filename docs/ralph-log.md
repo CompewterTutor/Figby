@@ -102,3 +102,21 @@ DONE: 1.3.5 merged into release/1.3.
 ## 2026-06-10 01:04
 
 All 1.3 tasks complete. Starting phase review.
+
+## 2026-06-10 01:39
+
+DONE: 1.4.1 merged into release/1.4.
+
+## 2026-06-10 01:47
+
+DONE: 1.4.2 merged into release/1.4.
+
+## 2026-06-10 01:58
+
+DONE: 1.4.3 merged into release/1.4.
+
+## 2026-06-10 01:59
+
+DONE: 1.4.4 merged into release/1.4.
+
+All 1.4 tasks complete. Starting phase review.

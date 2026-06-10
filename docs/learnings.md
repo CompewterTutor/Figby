@@ -163,3 +163,42 @@ Three bugs found in phase merge review:
   override to `SMO_NO`. This differs from `-W` which sets `smushmode = 0`
   AND `override = SMO_YES`. Matching C semantics precisely is critical.
 
+## 1.4.1 — Control file parser
+
+- C's `readcontrol()` outer switch reads the FIRST byte of each line.
+  Lines starting with `\` (backslash) in `upper.flc` (e.g.
+  `\0x037A \0x0399`) fall to `default:` and are silently skipped.
+  These mapping entries are effectively documentation-only in the C parser.
+  Only lines starting with `0-9` or `-` are parsed as mapping table entries.
+- `read_tchar()` and `read_num()` are deeply coupled — `read_tchar` parses
+  `\` escape prefix then delegates to `read_num` for numeric escapes
+  (`\0x...`, `\377`, `\-6`). `read_num` uses the full hex digit set
+  `"0123456789ABCDEF"` regardless of parsed base (decimal uses hex
+  digit set too, matching C's `strchr` approach).
+- C `charsetname()` has dead code: the `\n`/`\r` check is never hit
+  because `readTchar` already returns 0 for newlines. The `Zungetc(0, fp)`
+  bug (pushing back NUL byte) is also present — harmless since
+  `skiptoeol` always follows.
+- C `readcontrol()` has missing `break` before `case '\r': case '\n':`
+  after the `case 'g'` inner switch — harmless fallthrough since the
+  empty-line case just does `break`.
+- The `94x94` double-byte charset path reads `x`, then `9`, then `4`,
+  then `skipws` before `charsetname`. The `96` path has NO `skipws`
+  before `charsetname` — a C bug never triggered in practice (no
+  `.flc` uses `96` charset).
+
+## 1.4.3 — ISO 2022 character set handling
+
+- Closure-based dispatch (`next_char`) used to route between `iso2022()`
+  and raw `input.next()` based on `multibyte` flag. Parameters for `input`
+  and `state` avoid closure capturing them, preventing borrow conflicts
+  with `remap_char` usage later in the function.
+- `control_state` must be `mut` even though most phases use it immutably
+  (`remap_char`), because `iso2022()` takes `&mut self` to update gl/gr/gndbl.
+- C `iso2022()` uses `inchr` (long) for ch, so values can exceed u32 range
+  on shift operations. Rust port uses `u32` which is sufficient since
+  FIGlet's gn values are ASCII codes shifted by at most 24 bits.
+- `b'B' as u32 + 0x100` patterns can't be used directly in match arms
+  in Rust — use literal hex values like `0x128` instead. Hex is readable
+  as `0x100 + byte_value` mapping.
+

@@ -92,3 +92,42 @@ Phase 1.2 complete — all 6 subtasks merged from `release/1.2` into `master`.
 - `#[arg(short = 't')]` and `#[arg(short = 'v')]` parsed but unused until 1.3.3/1.3.2
 - `#[arg(short = 'C')] controlfile: Option<String>` parsed but unused until 1.4.1
 - 20 unit tests cover all flags, defaults, value flags, edge cases
+
+## Phase 1.4 Control Files & Character Mapping
+
+### 1.4.3 — ISO 2022 character set handling
+
+- `CharReader` trait added to `control.rs` with `next()`/`unget()` methods —
+  abstracts input reading for `iso2022()` to work with both `InputIter` and
+  test `MockReader`
+- `ControlState::iso2022()` (control.rs:64-218) port of C `iso2022()` (figlet.c:1745-1875):
+  - Reads input bytes, detects ESC (0x1B) → adds 0x100 to next byte,
+    detects ESC $ (0x124) → adds 0x200 to next byte
+  - Switch cases: SO(0x0E)/SI(0x0F) → GL shift, SS2(0x8E/ESC N)/SS3(0x8F/ESC O) →
+    temporary G2/G3 with save/restore, ESC letters for LS2/LS3/G2-3 into GR,
+    ESC (/*/0+ → 94-char set designation (G0-G3), ESC -/./ → 96-char set (G1-G3),
+    ESC $ (/*/0+ → 94x94 double-byte (G0-G3), deprecated ESC $ x fallback
+  - GL zone (0x21-0x7E) and GR zone (0xA0-0xFF) processing with gndbl
+    double-byte combining and gn offset ORing
+- `InputIter` implements `CharReader` (main.rs:112-121)
+- Main event loop: closure `next_char` dispatches to `control_state.iso2022()`
+  when `config.multibyte == 0`, else raw `input.next()` — used for both
+  main input and paragraph mode peek
+- All `.unwrap_or(0)` calls match C's lenient second-byte read behavior
+  (no EOF check on designation/combining read)
+- 15 unit tests: SO/SI GL switch, 94-char set designation, 96-char set + GR,
+  double-byte via ESC $, SS2 single invocation, LS2 permanent, GR invocation,
+  ASCII reset via `ESC ( B`, EOF mid-escape, EOF mid-double-byte, ESC $ ( J
+  (no B special case), gn state persistence, SS2 gl/gr restore, plain char
+  passthrough, newline/space passthrough
+
+### 1.4.4 — Phase merge: release/1.4 → main
+
+Phase 1.4 complete — all 3 subtasks merged from `release/1.4` into `master`.
+- Control file parser (1.4.1): `read_control()` port with translate, freeze,
+  multibyte mode, ISO 2022 charset, and mapping table commands
+- Character remapping (1.4.2): `remap_char()` with freeze-block semantics,
+  range+offset matching C `handlemapping()`
+- ISO 2022 handling (1.4.3): `iso2022()` with G0-G3 set designation, GL/GR
+  shift, SS2/SS3 invocation, double-byte combining
+- Phase 1.5 (Multi-byte Input) begins next

@@ -196,7 +196,7 @@ and multi-byte input.
 
 ## Phase 1.4 — Control Files & Character Mapping
 
-- [ ] `1.4.1` Control file parser
+- [x] `1.4.1` Control file parser
   - **Goal:** Port `readcontrol()` — parse `.flc` control files.
     Commands: `t` (translate), digits/mapping table entries,
     `f` (freeze), `b`/`u`/`h`/`j` (multibyte modes),
@@ -207,7 +207,7 @@ and multi-byte input.
   - **Tests:** Parse each command type. Known .flc fixture tests.
   - **Difficulty:** Medium
 
-- [ ] `1.4.2` Character remapping via control files
+- [x] `1.4.2` Character remapping via control files
   - **Goal:** Port `handlemapping()` — iterate control file commands.
     Translate chars via range+offset. Freeze commands halt translates
     until next unfreeze. Sequential apply.
@@ -216,7 +216,7 @@ and multi-byte input.
   - **Tests:** Known mapping test cases from C test suite.
   - **Difficulty:** Medium
 
-- [ ] `1.4.3` ISO 2022 character set handling
+- [x] `1.4.3` ISO 2022 character set handling
   - **Goal:** Port `iso2022()` — process ISO 2022 escape sequences.
     G0/G1/G2/G3 set selection, double-byte flag, GL/GR invocation.
     Port `charset()` for charset definition.
@@ -225,7 +225,7 @@ and multi-byte input.
   - **Tests:** Escape sequence tests.
   - **Difficulty:** High
 
-- [ ] `1.4.4` Phase merge: release/1.4 → main
+- [x] `1.4.4` Phase merge: release/1.4 → main
   - **Difficulty:** Low
 
 ---

@@ -1,4 +1,5 @@
 use clap::Parser;
+use feiglet::control::{self, CharReader};
 use feiglet::font::{self, FIGfont, DEUTSCH_CHARS};
 use feiglet::render::{add_char, lookup_char, render_line, split_line, Justification};
 use feiglet::smush::SmushMode;
@@ -107,6 +108,15 @@ impl InputIter {
     }
 }
 
+impl CharReader for InputIter {
+    fn next(&mut self) -> Option<u32> {
+        InputIter::next(self)
+    }
+    fn unget(&mut self, c: u32) {
+        InputIter::unget(self, c);
+    }
+}
+
 #[derive(Debug, Clone)]
 struct CliConfig {
     smushmode: u32,
@@ -120,6 +130,7 @@ struct CliConfig {
     fontdirname: String,
     fontname: String,
     multibyte: u32,
+    controlfile: Option<String>,
 }
 
 impl Default for CliConfig {
@@ -136,6 +147,7 @@ impl Default for CliConfig {
             fontdirname: "fonts".to_string(),
             fontname: "standard".to_string(),
             multibyte: 0,
+            controlfile: None,
         }
     }
 }
@@ -309,6 +321,8 @@ impl CliConfig {
             config.fontname = val;
         }
 
+        config.controlfile = args.controlfile;
+
         config
     }
 }
@@ -425,6 +439,18 @@ fn run(config: CliConfig, message: Vec<String>) {
         }
     };
 
+    let mut control_state = match config.controlfile {
+        Some(ref path) => {
+            let mut state = control::ControlState::default();
+            if let Err(e) = control::read_control(path, &mut state) {
+                eprintln!("Error reading control file: {e}");
+                process::exit(1);
+            }
+            state
+        }
+        None => control::ControlState::default(),
+    };
+
     let smush_mode = match config.smushoverride {
         SmushOverride::No => SmushMode::new(font.full_layout as u32),
         SmushOverride::Yes => SmushMode::new(config.smushmode),
@@ -453,8 +479,16 @@ fn run(config: CliConfig, message: Vec<String>) {
     let stdout = io::stdout();
     let mut out = stdout.lock();
 
+    let next_char = |input: &mut InputIter, state: &mut control::ControlState| -> Option<u32> {
+        if config.multibyte == 0 {
+            state.iso2022(input)
+        } else {
+            input.next()
+        }
+    };
+
     loop {
-        let c = match input.next() {
+        let c = match next_char(&mut input, &mut control_state) {
             Some(c) => c,
             None => {
                 if outlinelen != 0 {
@@ -477,7 +511,7 @@ fn run(config: CliConfig, message: Vec<String>) {
 
         // Paragraph mode
         if c == b'\n' as u32 && config.paragraphflag && !last_was_eol_flag {
-            let c2 = match input.next() {
+            let c2 = match next_char(&mut input, &mut control_state) {
                 Some(c2) => c2,
                 None => {
                     if outlinelen != 0 {
@@ -519,8 +553,7 @@ fn run(config: CliConfig, message: Vec<String>) {
             }
         }
 
-        // handlemapping (identity for now — Phase 1.4.2)
-        // c = handlemapping(c);
+        c = control::remap_char(&control_state, c);
 
         // Space normalization
         if c <= 127 && (c as u8 as char).is_ascii_whitespace() {

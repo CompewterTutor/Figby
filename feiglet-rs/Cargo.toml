@@ -9,6 +9,7 @@ repository = "https://github.com/DoseOfGose/feiglet"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+termion = "4"
 serde = { version = "1", features = ["derive"] }
 zip = "2"
 flate2 = "1"

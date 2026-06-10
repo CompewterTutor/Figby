@@ -216,7 +216,7 @@ and multi-byte input.
   - **Tests:** Known mapping test cases from C test suite.
   - **Difficulty:** Medium
 
-- [ ] `1.4.3` ISO 2022 character set handling
+- [x] `1.4.3` ISO 2022 character set handling
   - **Goal:** Port `iso2022()` — process ISO 2022 escape sequences.
     G0/G1/G2/G3 set selection, double-byte flag, GL/GR invocation.
     Port `charset()` for charset definition.

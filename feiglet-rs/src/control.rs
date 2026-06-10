@@ -56,6 +56,168 @@ impl std::fmt::Display for ControlError {
 
 impl std::error::Error for ControlError {}
 
+pub trait CharReader {
+    fn next(&mut self) -> Option<u32>;
+    fn unget(&mut self, c: u32);
+}
+
+impl ControlState {
+    pub fn iso2022(&mut self, input: &mut impl CharReader) -> Option<u32> {
+        let mut ch = input.next()?;
+        if ch == 0x1B {
+            ch = input.next()? + 0x100;
+        }
+        if ch == 0x124 {
+            ch = input.next()? + 0x200;
+        }
+        match ch {
+            0x0E => {
+                self.gl = 1;
+                return self.iso2022(input);
+            }
+            0x0F => {
+                self.gl = 0;
+                return self.iso2022(input);
+            }
+            0x8E | 0x14E => {
+                let save_gl = self.gl;
+                let save_gr = self.gr;
+                self.gl = 2;
+                self.gr = 2;
+                let result = self.iso2022(input);
+                self.gl = save_gl;
+                self.gr = save_gr;
+                return result;
+            }
+            0x8F | 0x14F => {
+                let save_gl = self.gl;
+                let save_gr = self.gr;
+                self.gl = 3;
+                self.gr = 3;
+                let result = self.iso2022(input);
+                self.gl = save_gl;
+                self.gr = save_gr;
+                return result;
+            }
+            0x16E => {
+                self.gl = 2;
+                return self.iso2022(input);
+            }
+            0x16F => {
+                self.gl = 3;
+                return self.iso2022(input);
+            }
+            0x17E => {
+                self.gr = 1;
+                return self.iso2022(input);
+            }
+            0x17D => {
+                self.gr = 2;
+                return self.iso2022(input);
+            }
+            0x17C => {
+                self.gr = 3;
+                return self.iso2022(input);
+            }
+            0x128 => {
+                let c = input.next().unwrap_or(0);
+                let c = if c == 0x42 { 0 } else { c };
+                self.gn[0] = c << 16;
+                self.gndbl[0] = false;
+                return self.iso2022(input);
+            }
+            0x129 => {
+                let c = input.next().unwrap_or(0);
+                let c = if c == 0x42 { 0 } else { c };
+                self.gn[1] = c << 16;
+                self.gndbl[1] = false;
+                return self.iso2022(input);
+            }
+            0x12A => {
+                let c = input.next().unwrap_or(0);
+                let c = if c == 0x42 { 0 } else { c };
+                self.gn[2] = c << 16;
+                self.gndbl[2] = false;
+                return self.iso2022(input);
+            }
+            0x12B => {
+                let c = input.next().unwrap_or(0);
+                let c = if c == 0x42 { 0 } else { c };
+                self.gn[3] = c << 16;
+                self.gndbl[3] = false;
+                return self.iso2022(input);
+            }
+            0x12D => {
+                let c = input.next().unwrap_or(0);
+                let c = if c == 0x41 { 0 } else { c };
+                self.gn[1] = (c << 16) | 0x80;
+                self.gndbl[1] = false;
+                return self.iso2022(input);
+            }
+            0x12E => {
+                let c = input.next().unwrap_or(0);
+                let c = if c == 0x41 { 0 } else { c };
+                self.gn[2] = (c << 16) | 0x80;
+                self.gndbl[2] = false;
+                return self.iso2022(input);
+            }
+            0x12F => {
+                let c = input.next().unwrap_or(0);
+                let c = if c == 0x41 { 0 } else { c };
+                self.gn[3] = (c << 16) | 0x80;
+                self.gndbl[3] = false;
+                return self.iso2022(input);
+            }
+            0x228 => {
+                let c = input.next().unwrap_or(0);
+                self.gn[0] = c << 16;
+                self.gndbl[0] = true;
+                return self.iso2022(input);
+            }
+            0x229 => {
+                let c = input.next().unwrap_or(0);
+                self.gn[1] = c << 16;
+                self.gndbl[1] = true;
+                return self.iso2022(input);
+            }
+            0x22A => {
+                let c = input.next().unwrap_or(0);
+                self.gn[2] = c << 16;
+                self.gndbl[2] = true;
+                return self.iso2022(input);
+            }
+            0x22B => {
+                let c = input.next().unwrap_or(0);
+                self.gn[3] = c << 16;
+                self.gndbl[3] = true;
+                return self.iso2022(input);
+            }
+            _ => {
+                if ch & 0x200 != 0 {
+                    self.gn[0] = (ch & !0x200) << 16;
+                    self.gndbl[0] = true;
+                    return self.iso2022(input);
+                }
+            }
+        }
+        if (0x21..=0x7E).contains(&ch) {
+            if self.gndbl[self.gl as usize] {
+                let ch2 = input.next().unwrap_or(0);
+                return Some(self.gn[self.gl as usize] | (ch << 8) | ch2);
+            }
+            return Some(self.gn[self.gl as usize] | ch);
+        }
+        if (0xA0..=0xFF).contains(&ch) {
+            if self.gndbl[self.gr as usize] {
+                let ch2 = input.next().unwrap_or(0);
+                return Some(self.gn[self.gr as usize] | (ch << 8) | ch2);
+            }
+            return Some(self.gn[self.gr as usize] | (ch & !0x80));
+        }
+        Some(ch)
+    }
+}
+
 struct ByteReader<R: Read> {
     reader: BufReader<R>,
     pushback: Vec<u8>,
@@ -978,5 +1140,177 @@ mod tests {
         let mut state = test_state();
         read_control([FONTS_DIR, "upper.flc"].concat(), &mut state).unwrap();
         assert_eq!(remap_char(&state, b'z' as u32), b'Z' as u32);
+    }
+
+    struct MockReader {
+        data: Vec<u8>,
+        pos: usize,
+        buf: Option<u32>,
+    }
+
+    impl CharReader for MockReader {
+        fn next(&mut self) -> Option<u32> {
+            if let Some(c) = self.buf.take() {
+                return Some(c);
+            }
+            if self.pos < self.data.len() {
+                let c = self.data[self.pos] as u32;
+                self.pos += 1;
+                Some(c)
+            } else {
+                None
+            }
+        }
+        fn unget(&mut self, c: u32) {
+            self.buf = Some(c);
+        }
+    }
+
+    impl MockReader {
+        fn new(data: &[u8]) -> Self {
+            Self {
+                data: data.to_vec(),
+                pos: 0,
+                buf: None,
+            }
+        }
+    }
+
+    #[test]
+    fn test_iso2022_so_si_gl_switch() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[b'A', 0x0E, b'B', 0x0F, b'C']);
+        assert_eq!(state.iso2022(&mut input), Some(0x41));
+        assert_eq!(state.iso2022(&mut input), Some(0x43));
+        assert_eq!(state.iso2022(&mut input), Some(0x43));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_esc_designate_94_set() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'(', b'J', b'A']);
+        assert_eq!(state.iso2022(&mut input), Some(0x4A0041));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_esc_designate_96_set() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'-', b'A', 0xA0]);
+        assert_eq!(state.iso2022(&mut input), Some(0xA0));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_esc_dollar_double_byte() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'$', b'(', b'B', 0x21, 0x41]);
+        assert_eq!(state.iso2022(&mut input), Some(0x422141));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_ss2_single_invocation() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x8E, b'A']);
+        assert_eq!(state.iso2022(&mut input), Some(0x41));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_esc_n_ls2_permanent() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'n', b'A']);
+        assert_eq!(state.iso2022(&mut input), Some(0x41));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_gr_invocation() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'}', 0xA0]);
+        assert_eq!(state.iso2022(&mut input), Some(0x20));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_esc_b_ascii_reset() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'(', b'J', 0x1B, b'(', b'B', b'A']);
+        assert_eq!(state.iso2022(&mut input), Some(0x41));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_eof_during_escape() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B]);
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_eof_during_double_byte_second_byte() {
+        let mut state = test_state();
+        state.gndbl[0] = true;
+        let mut input = MockReader::new(&[0x21]);
+        assert_eq!(state.iso2022(&mut input), Some(0x2100));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_esc_dollar_lparen_double_byte_no_special_b() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'$', b'(', b'J', 0x21, 0x41]);
+        assert_eq!(state.iso2022(&mut input), Some(0x4A2141));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_esc_b_remap_via_gn() {
+        let mut state = test_state();
+        let mut input = MockReader::new(&[0x1B, b'(', b'J', b'A']);
+        assert_eq!(state.iso2022(&mut input), Some(0x4A0041));
+        // After the call, gn[0] should still be 0x4A0000
+        // (only changed by another escape sequence)
+        assert_eq!(state.gn[0], 0x4A0000);
+    }
+
+    #[test]
+    fn test_iso2022_ss2_restores_gl_gr() {
+        let mut state = test_state();
+        state.gl = 1;
+        state.gr = 2;
+        let save_gl = state.gl;
+        let save_gr = state.gr;
+        let mut input = MockReader::new(&[0x8E, b'A']);
+        assert_eq!(state.iso2022(&mut input), Some(0x41));
+        assert_eq!(state.gl, save_gl);
+        assert_eq!(state.gr, save_gr);
+    }
+
+    #[test]
+    fn test_iso2022_plain_char_passthrough() {
+        let mut state = test_state();
+        let mut input = MockReader::new(b"Hi");
+        assert_eq!(state.iso2022(&mut input), Some(0x48));
+        assert_eq!(state.iso2022(&mut input), Some(0x69));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_newline_passthrough() {
+        let mut state = test_state();
+        let mut input = MockReader::new(b"\n");
+        assert_eq!(state.iso2022(&mut input), Some(0x0A));
+        assert_eq!(state.iso2022(&mut input), None);
+    }
+
+    #[test]
+    fn test_iso2022_space_passthrough() {
+        let mut state = test_state();
+        let mut input = MockReader::new(b" ");
+        assert_eq!(state.iso2022(&mut input), Some(0x20));
+        assert_eq!(state.iso2022(&mut input), None);
     }
 }

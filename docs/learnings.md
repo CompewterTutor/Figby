@@ -187,3 +187,18 @@ Three bugs found in phase merge review:
   before `charsetname` — a C bug never triggered in practice (no
   `.flc` uses `96` charset).
 
+## 1.4.3 — ISO 2022 character set handling
+
+- Closure-based dispatch (`next_char`) used to route between `iso2022()`
+  and raw `input.next()` based on `multibyte` flag. Parameters for `input`
+  and `state` avoid closure capturing them, preventing borrow conflicts
+  with `remap_char` usage later in the function.
+- `control_state` must be `mut` even though most phases use it immutably
+  (`remap_char`), because `iso2022()` takes `&mut self` to update gl/gr/gndbl.
+- C `iso2022()` uses `inchr` (long) for ch, so values can exceed u32 range
+  on shift operations. Rust port uses `u32` which is sufficient since
+  FIGlet's gn values are ASCII codes shifted by at most 24 bits.
+- `b'B' as u32 + 0x100` patterns can't be used directly in match arms
+  in Rust — use literal hex values like `0x128` instead. Hex is readable
+  as `0x100 + byte_value` mapping.
+

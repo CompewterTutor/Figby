@@ -386,3 +386,11 @@ via `OnceLock` to avoid re-parsing. `criterion = "0.5"` dev-dependency added,
 `[[bench]]` entry with `harness = false`. No C binary available for baseline
 comparison — Rust baseline established; manual C comparison needed separately.
 `target/criterion/` already covered by `target/` in `.gitignore`.
+
+### 1.6.5 — Phase merge: release/1.6 → main
+
+Merged all Phase 1.6 work into default branch (master). Phase 1.6 complete:
+port of C test harness (27 test cases, 1.6.1), font fuzz testing via proptest
+(1.6.2), project rename Feiglet→Figby including `figby-rs/` directory (1.6.3),
+Criterion performance benchmarks (1.6.4). All 4 subtasks implemented, tested,
+merged. Phase 1.7 (Major Release: end-to-end verification + RC) is next.

@@ -300,7 +300,7 @@ and multi-byte input.
   - **Success:** Render throughput at or above C baseline.
   - **Difficulty:** Low
 
-- [ ] `1.6.5` Phase merge: release/1.6 → main
+- [x] `1.6.5` Phase merge: release/1.6 → main
   - **Difficulty:** Low
 
 ---

@@ -116,7 +116,7 @@ and multi-byte input.
   - **Tests:** Known-fixture smush amount tests.
   - **Difficulty:** Medium
 
-- [ ] `1.2.4` Character addition with smushing
+- [x] `1.2.4` Character addition with smushing
   - **Goal:** Port `addchar()` — append char to output line. Apply smush
     amount. For overlapping columns, call `smushem()`. Handle RTL by
     building char on left side. Bail if `outlinelen` exceeds limit.

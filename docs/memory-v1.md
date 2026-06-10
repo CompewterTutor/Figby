@@ -38,3 +38,10 @@ in one crate for simplicity. Library exposes `font`, `render`, `smush`,
 - Truncated char data (tag + fewer rows than charheight) returns `FontError::ParseError`
 - `parse_codetagged()` takes `&[String]` (the unconsumed slice from `parse_char_data()`)
 - 12 unit tests: basic, skip -1, hex, negative, truncated, empty, count matching, endmarks, non-numeric stop, full integration flow
+
+### Phase 1.1 Merge (1.1.8)
+
+Phase 1.1 complete — all 7 subtasks merged from `release/1.1` into `master`.
+Phase 1.2 (render engine: kerning + smushing) begins.
+- `release/1.1` branch contains all Phase 1.1 commits
+- Default branch is `master` (not `main`) — task spec alias resolved

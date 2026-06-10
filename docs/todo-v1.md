@@ -75,7 +75,7 @@ and multi-byte input.
   - **Tests:** ZIP font loading test.
   - **Difficulty:** Medium
 
-- [ ] `1.1.8` Phase merge: release/1.1 → main
+- [x] `1.1.8` Phase merge: release/1.1 → master
   - **Goal:** Phase review passes, branch merges cleanly.
   - **Touches:** CI, todo-v1.md checkboxes
   - **Success:** All 1.1.x tasks checked. Review approved.

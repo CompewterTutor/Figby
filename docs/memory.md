@@ -145,3 +145,17 @@ KERN-only and SMUSH modes. Uses `saturating_sub` for safe unsigned
 arithmetic matching C signed-int boundary behavior. 9 unit tests covering
 guards, LTR/RTL basics, row-min, boundary smush/no-smush, and all-spaces
 edge cases.
+
+### 1.2.5 — Output line printing
+
+Added `Justification` enum (`Left`/`Center`/`Right`) with `from_i32()`
+conversion matching C `justification` global (0/1/2). Added `render_line()`
+in `render.rs` — port of C `putstring()`/`printline()` figlet.c:1553-1610.
+Processes each row: (1) replace hardblank with space, (2) truncate to
+`outputwidth - 1` if `outputwidth > 1`, (3) prepend spaces for Center/Right
+per C formula. Center formula: `2*i + len - 1 < outputwidth`. Right formula:
+`i + len < outputwidth`. No `clearline()` port — Rust returns fresh
+`Vec<String>` each call; caller manages lifecycle. 13 tests: hardblank
+replacement, left/center/right justification, width truncation, truncation
+with center, `outputwidth <= 1` bypass, multi-row, C formula trace tests,
+hardblank+truncation combination, zero outputwidth, empty rows.

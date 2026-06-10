@@ -46,3 +46,7 @@ DONE: 1.2.2 merged into release/1.2.
 ## 2026-06-09 23:38
 
 DONE: 1.2.3 merged into release/1.2.
+
+## 2026-06-09 23:48
+
+DONE: 1.2.4 merged into release/1.2.

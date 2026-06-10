@@ -274,7 +274,7 @@ and multi-byte input.
   - **Tests:** All test cases from C suite.
   - **Difficulty:** Medium
 
-- [ ] `1.6.2` Font fuzz testing
+- [x] `1.6.2` Font fuzz testing
   - **Goal:** Fuzz font parser with malformed FIGfont files. No panics.
     Graceful error handling for all malformed inputs.
   - **Touches:** `figby-rs/tests/fuzz.rs`

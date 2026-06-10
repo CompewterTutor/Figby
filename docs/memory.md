@@ -359,6 +359,14 @@ UTF-8 input mode (1.5.1), DBCS/HZ/Shift-JIS input modes (1.5.2), Deutsch
 flag character re-routing (1.5.3). All 3 subtasks implemented, tested, merged.
 Phase 1.6 (Test Suite & Verification) is next.
 
+### 1.6.2 — Font fuzz testing
+
+Added property-based fuzz tests for font parser in `tests/fuzz.rs` using `proptest`.
+All 4 public parser functions (`parse_header`, `parse_tlf_font`, `parse_char_data`,
+`parse_codetagged`) exercised with random malformed strings — no panics, only
+`Result` returns. Height bounds prevent infinite loops at height=0. `proptest`
+dev-dependency added.
+
 ### 1.6.3 — Rename project: Feiglet → Figby
 
 Renamed every instance of `Feiglet`/`feiglet` to `Figby`/`figby` across the

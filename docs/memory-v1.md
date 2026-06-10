@@ -202,3 +202,18 @@ Phase 1.5 complete — all 3 subtasks merged from `release/1.5` into `master`.
   - C `-f` strips `.flf`/`.tlf` suffix; Rust doesn't → pass names without ext
   - C `-C` resolves bare names via `FIGopen(fontdir)`; Rust opens path directly
     → pass full relative path `fonts/name.flc`
+
+### 1.6.2 — Font fuzz testing
+
+- `proptest` dev-dependency added to `figby-rs/Cargo.toml` — property-based testing framework
+- `figby-rs/tests/fuzz.rs` created with 4 fuzz tests exercising `parse_header`, `parse_tlf_font`,
+  `parse_char_data`, and `parse_codetagged` with randomly generated malformed inputs
+- Each test runs 1000 random cases via `ProptestConfig::with_cases(1000)`
+- Fuzz strategies use `any::<String>()` for arbitrary valid UTF-8 strings and
+  `prop::collection::vec` for vectors with bounded size ranges
+- Height bounded to `1..20` for `parse_char_data` and `1..10` for `parse_codetagged`
+  to avoid infinite loops at height=0 (pre-existing edge case — parser adds `height` to
+  cursor each iteration, so zero height never advances)
+- All public parser functions return `Result` — no panics on malformed input
+- Private functions (`strip_endmarks`, `parse_codetag_integer`) exercised indirectly
+  through public API calls (`parse_tlf_font` → `strip_endmarks`, `parse_codetagged` → `parse_codetag_integer`)

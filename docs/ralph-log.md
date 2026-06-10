@@ -166,3 +166,7 @@ PHASE_COMPLETE: 1.5 merged to main after review approval.
 ## 2026-06-10 02:36
 
 BLOCKED on task 1.6.1: pre-commit hook still failing after 3 attempts.
+
+## 2026-06-10 03:15
+
+DONE: 1.6.1 merged into release/1.6.

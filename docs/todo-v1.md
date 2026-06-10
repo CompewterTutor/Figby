@@ -207,7 +207,7 @@ and multi-byte input.
   - **Tests:** Parse each command type. Known .flc fixture tests.
   - **Difficulty:** Medium
 
-- [ ] `1.4.2` Character remapping via control files
+- [x] `1.4.2` Character remapping via control files
   - **Goal:** Port `handlemapping()` — iterate control file commands.
     Translate chars via range+offset. Freeze commands halt translates
     until next unfreeze. Sequential apply.

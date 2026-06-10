@@ -293,7 +293,7 @@ and multi-byte input.
     `cargo build -p figby` succeeds. `cargo test -p figby` passes.
   - **Difficulty:** Low
 
-- [ ] `1.6.4` Performance benchmarks
+- [x] `1.6.4` Performance benchmarks
   - **Goal:** Benchmark render pipeline. At minimum match C performance.
     Use `criterion` for regression tracking.
   - **Touches:** `figby-rs/benches/`

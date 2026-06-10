@@ -170,3 +170,7 @@ BLOCKED on task 1.6.1: pre-commit hook still failing after 3 attempts.
 ## 2026-06-10 03:15
 
 DONE: 1.6.1 merged into release/1.6.
+
+## 2026-06-10 03:21
+
+DONE: 1.6.2 merged into release/1.6.

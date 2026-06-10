@@ -375,3 +375,14 @@ CLI command name (`figby`), lib name, module imports (`use figby::...`),
 all documentation files, scripts, and skills. Version 1.6.3 task added to
 todo-v1.md with renumbering of subsequent tasks (benchmarks → 1.6.4, phase
 merge → 1.6.5). Build, fmt, clippy, and all 273 tests pass clean.
+
+### 1.6.4 — Performance benchmarks
+
+Added Criterion benchmark suite in `figby-rs/benches/render_bench.rs` with 9 benches:
+font_load, lookup_char (1000x), smush_horizontal (10000x), calc_smush_amount (1000x),
+add_char_kerning (100x "Hi World"), add_char_smushing (100x), render_line (4
+justifications), split_line, full_pipeline (~5KB Lorem Ipsum text). Font loaded lazily
+via `OnceLock` to avoid re-parsing. `criterion = "0.5"` dev-dependency added,
+`[[bench]]` entry with `harness = false`. No C binary available for baseline
+comparison — Rust baseline established; manual C comparison needed separately.
+`target/criterion/` already covered by `target/` in `.gitignore`.

@@ -276,3 +276,16 @@ Three bugs found in phase merge review:
 - Test 20 tempdir with `tempfile::tempdir()` is drop-safe for panic cleanup vs C's
   `mkdir + rm -Rf` which leaks on error.
 
+## 1.6.4 — Performance benchmarks
+
+- `cargo fmt` requires `--manifest-path figby-rs/Cargo.toml` since there's no workspace
+  Cargo.toml at the repo root.
+- `std::sync::OnceLock` is stable since Rust 1.70 and works well for lazy font loading
+  in benchmarks. Must use `FONT.get_or_init(|| { ... })` pattern.
+- Criterion 0.5 uses `criterion::black_box` (re-export of `std::hint::black_box`).
+  `criterion_group!` and `criterion_main!` macros work unchanged.
+- `std::iter::repeat_n()` (stable since 1.82) is preferred over `repeat().take(N)` —
+  clippy `manual_repeat_n` lint enforces this.
+- No compiled C `figlet` binary exists in the repo for baseline comparison. The
+  benchmarks establish a Rust baseline; manual C comparison is separate work.
+

@@ -21,7 +21,7 @@ flate2 = "1"
 serde_json = "1"
 tempfile = "3"
 proptest = "1"
-# criterion = "0.5"   # uncomment for benchmarks (Phase 1.6.3)
+criterion = "0.5"
 
 [profile.release]
 lto = true
@@ -36,3 +36,7 @@ crate-type = ["lib"]
 [[bin]]
 name = "figby"
 path = "src/main.rs"
+
+[[bench]]
+name = "render_bench"
+harness = false

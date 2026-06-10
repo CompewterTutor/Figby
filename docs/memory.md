@@ -72,3 +72,11 @@ preserved for width correctness. Added `DEUTSCH_CHARS` constant matching C
 codetag parsing (1.1.5). 10 tests covering endmark stripping edge cases,
 102-char parse, endmark removal verification, width consistency, error on
 truncated input, and unconsumed line return.
+
+### 1.1.6 — TLF font support (TOIlet format)
+
+Added `FontFormat` enum (`Figfont`/`Tlf`), `format` field on `FIGfont`,
+`parse_tlf_font()` entry point. `parse_header()` now accepts both `flf2a`
+and `tlf2a` magic numbers. Reuses all FIGfont parsing infrastructure
+(endmark stripping, char data, codetagged). TLF rows are UTF-8 natively
+(Rust `String` handles this without special treatment).

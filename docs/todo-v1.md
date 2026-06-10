@@ -56,7 +56,7 @@ and multi-byte input.
   - **Tests:** Parse known FIGfont with codetagged chars. Count matches `codetag_count`.
   - **Difficulty:** Medium
 
-- [ ] `1.1.6` TLF font support (TOIlet format)
+- [x] `1.1.6` TLF font support (TOIlet format)
   - **Goal:** Support `tlf2a` magic number. UTF-8 encoded rows instead of
     raw bytes. Shared parser infrastructure with FIGfont, differing only in
     magic check and row encoding.

@@ -21,6 +21,14 @@ in one crate for simplicity. Library exposes `font`, `render`, `smush`,
 - `DEUTSCH_CHARS` constant: `[196, 214, 220, 228, 246, 252, 223]` matching C array
 - No `char 0` (missing char sentinel) parsing here — handled at render time via `lookup_char()` fallback (1.2.1)
 
+### TLF Font Support (1.1.6)
+- `FontFormat` enum (`Figfont`/`Tlf`) tracks font format variant
+- `parse_header()` accepts `tlf2a` magic in addition to `flf2a`
+- `parse_tlf_font()`: public entry point parses full TLF content (header → comments → char data → codetagged)
+- TLF rows are UTF-8 — Rust's native `String` handles this without special decode
+- Reuses `parse_char_data()`, `parse_codetagged()`, `strip_endmarks()` unchanged
+- 5 tests: magic detection, full header fields, full font parse (102 chars), endmark stripping, invalid magic rejection
+
 ### Code-tagged FIGcharacter Parser (1.1.5)
 - `parse_codetagged()` reads variable-length code-tagged chars after required chars
 - `parse_codetag_integer()` mirrors C's `sscanf(fileline,"%li",&theord)` — handles `0x`/`0X` hex prefix

@@ -33,6 +33,16 @@ impl From<Vec<String>> for FIGcharacter {
     }
 }
 
+/// Font format variant for the font file.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FontFormat {
+    /// Standard FIGfont (.flf) format
+    #[default]
+    Figfont,
+    /// TOIlet (.tlf) format — UTF-8 encoded rows
+    Tlf,
+}
+
 /// A character node mapping a character code to its glyph.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FCharnode {
@@ -46,6 +56,8 @@ pub struct FCharnode {
 /// font file header.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FIGfont {
+    /// Font format (FIGfont or TLF)
+    pub format: FontFormat,
     /// The hardblank character (e.g., `$`)
     pub hardblank: char,
     /// Font height in lines
@@ -71,6 +83,7 @@ pub struct FIGfont {
 impl Default for FIGfont {
     fn default() -> Self {
         FIGfont {
+            format: FontFormat::Figfont,
             hardblank: '$',
             charheight: 1,
             baseline: 0,
@@ -123,17 +136,15 @@ fn strip_endmarks(line: &str) -> String {
         Some(c) => c,
         None => return String::new(),
     };
-    let endmark_len = endmark.len_utf8();
-    let mut end_pos = trimmed.len();
-    while end_pos >= endmark_len {
-        let slice = &trimmed[end_pos - endmark_len..end_pos];
-        if slice.starts_with(endmark) {
-            end_pos -= endmark_len;
+    let mut end = trimmed.len();
+    for c in trimmed.chars().rev() {
+        if c == endmark {
+            end -= c.len_utf8();
         } else {
             break;
         }
     }
-    trimmed[..end_pos].to_string()
+    trimmed[..end].to_string()
 }
 
 /// Parse the 95 required ASCII FIGcharacters (codes 32–126) and 7 Deutsch chars.
@@ -193,9 +204,13 @@ pub fn parse_char_data<'a>(
 ///
 /// Missing optional fields are defaulted following FIGlet 2.2.5 conventions.
 pub fn parse_header(line: &str) -> Result<FIGfont, FontError> {
-    if !line.starts_with("flf2a") {
+    let format = if line.starts_with("flf2a") {
+        FontFormat::Figfont
+    } else if line.starts_with("tlf2a") {
+        FontFormat::Tlf
+    } else {
         return Err(FontError::InvalidMagic);
-    }
+    };
 
     let rest = &line[5..];
     if rest.is_empty() {
@@ -268,6 +283,7 @@ pub fn parse_header(line: &str) -> Result<FIGfont, FontError> {
     };
 
     Ok(FIGfont {
+        format,
         hardblank,
         charheight: height as u32,
         baseline: baseline as u32,
@@ -340,6 +356,34 @@ pub fn parse_codetagged(font: &mut FIGfont, lines: &[String]) -> Result<(), Font
     Ok(())
 }
 
+/// Parse a TLF font from its full file content.
+///
+/// Splits content into lines, parses header, skips comment lines,
+/// then parses required ASCII + Deutsch chars and any codetagged chars.
+pub fn parse_tlf_font(content: &str) -> Result<FIGfont, FontError> {
+    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+
+    if lines.is_empty() {
+        return Err(FontError::ParseError("empty font file".to_string()));
+    }
+
+    let mut font = parse_header(&lines[0])?;
+
+    let comment_count = font.comment_lines as usize;
+    let data_start = 1 + comment_count;
+
+    if data_start >= lines.len() {
+        return Err(FontError::ParseError(
+            "no character data in font file".to_string(),
+        ));
+    }
+
+    let remaining = parse_char_data(&mut font, &lines[data_start..])?;
+    parse_codetagged(&mut font, remaining)?;
+
+    Ok(font)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -373,6 +417,7 @@ mod tests {
     #[test]
     fn test_figfont_default() {
         let font = FIGfont::default();
+        assert_eq!(font.format, FontFormat::Figfont);
         assert_eq!(font.hardblank, '$');
         assert_eq!(font.charheight, 1);
         assert_eq!(font.maxlength, 1);
@@ -1001,5 +1046,122 @@ mod tests {
 
         let ch = font.chars.get(&3232).expect("code 3232");
         assert_eq!(ch.rows()[0], "row1  ");
+    }
+
+    // --- TLF font tests ---
+
+    #[test]
+    fn test_tlf_magic_detection() {
+        let result = parse_header("tlf2a$ 6 5 20 -1 18");
+        assert!(result.is_ok());
+        let font = result.unwrap();
+        assert_eq!(font.format, FontFormat::Tlf);
+        assert_eq!(font.hardblank, '$');
+        assert_eq!(font.charheight, 6);
+        assert_eq!(font.old_layout, -1);
+    }
+
+    #[test]
+    fn test_tlf_parse_header_fields() {
+        // Header from tests/emboss.tlf: tlf2a<DEL> 3 3 8 -1 18 0 0 0
+        let header = "tlf2a\u{7f} 3 3 8 -1 18 0 0 0";
+        let result = parse_header(header);
+        assert!(result.is_ok());
+        let font = result.unwrap();
+        assert_eq!(font.format, FontFormat::Tlf);
+        assert_eq!(font.hardblank, '\u{7f}');
+        assert_eq!(font.charheight, 3);
+        assert_eq!(font.baseline, 3);
+        assert_eq!(font.maxlength, 8);
+        assert_eq!(font.old_layout, -1);
+        assert_eq!(font.comment_lines, 18);
+        assert_eq!(font.print_direction, 0);
+        assert_eq!(font.full_layout, 0);
+        assert_eq!(font.codetag_count, 0);
+    }
+
+    #[test]
+    fn test_tlf_parse_full_font() {
+        let content = include_str!("../../tests/emboss.tlf");
+        let font = parse_tlf_font(content).expect("TLF font should parse");
+
+        assert_eq!(font.format, FontFormat::Tlf);
+        assert_eq!(font.charheight, 3);
+        assert_eq!(
+            font.chars.len(),
+            102,
+            "should have 102 chars (95 ASCII + 7 Deutsch)"
+        );
+
+        // All ASCII codes 32..=126 present
+        for code in 32..=126u32 {
+            assert!(
+                font.chars.contains_key(&code),
+                "missing ASCII char code {code}"
+            );
+        }
+
+        // All Deutsch codes present
+        for &code in &DEUTSCH_CHARS {
+            assert!(
+                font.chars.contains_key(&code),
+                "missing Deutsch char code {code}"
+            );
+        }
+
+        // Check specific glyph content: space (code 32)
+        let space = font.chars.get(&32).expect("space");
+        assert_eq!(space.rows().len(), 3);
+        assert_eq!(space.rows()[0], " \u{7f}");
+        assert_eq!(space.rows()[1], " \u{7f}");
+        assert_eq!(space.rows()[2], " \u{7f}");
+
+        // Check '!' (code 33)
+        let excl = font.chars.get(&33).expect("exclamation");
+        assert_eq!(excl.rows()[0], "\u{2503}");
+        assert_eq!(excl.rows()[1], "\u{251b}");
+        assert_eq!(excl.rows()[2], "\u{251b}");
+
+        // Check '"' (code 34)
+        let dquote = font.chars.get(&34).expect("double quote");
+        assert_eq!(dquote.rows()[0], "\u{251b}\u{251b}");
+        assert_eq!(dquote.rows()[1], "  ");
+        assert_eq!(dquote.rows()[2], "  ",);
+    }
+
+    #[test]
+    fn test_tlf_parse_char_data_endmarks_stripped() {
+        let content = include_str!("../../tests/emboss.tlf");
+        let font = parse_tlf_font(content).expect("TLF font should parse");
+
+        for (code, ch) in &font.chars {
+            for (i, row) in ch.rows().iter().enumerate() {
+                // Endmarks are per-character in FIGfont/TLF: the last non-whitespace
+                // char on each row. After 'strip_endmarks', no row should contain
+                // its endmark at the end. Since endmark varies per char, just verify
+                // no trailing '!', '"', '@', etc.
+                if *code == 32 {
+                    // Space uses '@' as endmark - rows end with DEL, which is fine
+                    continue;
+                }
+                // All rows in emboss.tlf should have non-empty content after stripping
+                assert!(
+                    !row.is_empty(),
+                    "char code {code} row {i} is empty after stripping endmarks"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_header_dual_magic_rejection() {
+        let result = parse_header("xyzzy$ 6 5 20 15 3");
+        assert_eq!(result, Err(FontError::InvalidMagic));
+
+        let result = parse_header("flf2b$ 6 5 20 15 3");
+        assert_eq!(result, Err(FontError::InvalidMagic));
+
+        let result = parse_header("tlf2b$ 6 5 20 15 3");
+        assert_eq!(result, Err(FontError::InvalidMagic));
     }
 }

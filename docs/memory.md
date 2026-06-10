@@ -246,3 +246,12 @@ Main loop matches C exactly:
 `DEUTSCH_CHARS` visibility changed from `pub(crate)` to `pub` (needed by binary crate).
 `io::Read` import added to `main.rs` for `BufReader::bytes()`.
 12 unit tests for `InputIter`: empty args, single/multi word, empty words, unget.
+
+### 1.3.5 — Phase merge: release/1.3 → master
+
+Merged all Phase 1.3 work into default branch (master). Phase 1.3 complete:
+CLI argument parsing (all 27 FIGlet flags), info codes (-I flag with 6 codes),
+terminal width detection (-t flag via termion), main event loop with full
+FIGlet 2.2.5 input processing pipeline. All 4 subtasks (1.3.1–1.3.4)
+implemented, tested, merged. Phase 1.4 (Control Files & Character Mapping)
+is next.

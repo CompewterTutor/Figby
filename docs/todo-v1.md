@@ -106,7 +106,7 @@ and multi-byte input.
   - **Tests:** Unit test per rule. Golden output comparison.
   - **Difficulty:** Medium
 
-- [ ] `1.2.3` Smush amount calculation
+- [x] `1.2.3` Smush amount calculation
   - **Goal:** Port `smushamt()` — max overlap between current char and
     output line. For each row, find last non-space in output line and
     first non-space in current char. Minimum across all rows determines

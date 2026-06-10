@@ -1,8 +1,29 @@
-chkfont
-figlet
-tags
+# Rust
+target/
+Cargo.lock
+
+# Build artifacts
 *.o
-core
+*.so
+*.a
+
+# Editor
+*.swp
 *~
+.vscode/
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Tests
 tests.log
-*.tar.gz

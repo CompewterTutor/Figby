@@ -1,0 +1,3 @@
+[submodule "fonts-external"]
+	path = fonts-external
+	url = git@github.com:DoseOfGose/figlet-fonts.git

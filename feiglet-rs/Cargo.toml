@@ -1,0 +1,25 @@
+[package]
+name = "feiglet"
+version = "0.1.0"
+edition = "2021"
+description = "Rust port of FIGlet — ASCII art banner generator"
+license = "BSD-3-Clause"
+authors = ["Feiglet contributors"]
+repository = "https://github.com/DoseOfGose/feiglet"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+# zip = "2"           # uncomment for ZIP font support (Phase 1.1.7)
+# flate2 = "1"        # uncomment for deflate support (Phase 1.1.7)
+
+[dev-dependencies]
+# criterion = "0.5"   # uncomment for benchmarks (Phase 1.6.3)
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[[bin]]
+name = "feiglet"
+path = "src/main.rs"

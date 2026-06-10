@@ -26,7 +26,7 @@ and multi-byte input.
   - **Tests:** Type construction + default tests.
   - **Difficulty:** Low
 
-- [ ] `1.1.3` FIGfont magic number + header line parser
+- [x] `1.1.3` FIGfont magic number + header line parser
   - **Goal:** Parse `flf2a$ 6 5 20 15 3 0 143 229` header. Validate magic
     number (`flf2a`). Extract hardblank char, height, baseline, max_length,
     old_layout, comment_lines, print_direction, full_layout, codetag_count.

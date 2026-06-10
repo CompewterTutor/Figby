@@ -216,4 +216,32 @@ Phase 1.5 complete — all 3 subtasks merged from `release/1.5` into `master`.
   cursor each iteration, so zero height never advances)
 - All public parser functions return `Result` — no panics on malformed input
 - Private functions (`strip_endmarks`, `parse_codetag_integer`) exercised indirectly
-  through public API calls (`parse_tlf_font` → `strip_endmarks`, `parse_codetagged` → `parse_codetag_integer`)
+through public API calls (`parse_tlf_font` → `strip_endmarks`, `parse_codetagged` → `parse_codetag_integer`)
+
+### 1.6.3 — Rename project: Feiglet → Figby
+
+- Every instance of `Feiglet`/`feiglet` renamed to `Figby`/`figby` across entire repo
+- Directory renamed: `feiglet-rs/` → `figby-rs/`
+- Cargo package name: `feiglet` → `figby`
+- CLI command name: `figlet` → `figby`
+- Lib name: `use feiglet::...` → `use figby::...`
+- All docs, scripts, skills updated
+- Subsequent tasks renumbered: benchmarks → 1.6.4, phase merge → 1.6.5
+- Build, fmt, clippy, all 273 tests pass clean
+
+### 1.6.4 — Performance benchmarks
+
+- Criterion benchmark suite in `figby-rs/benches/render_bench.rs` with 9 benches
+- Font loaded lazily via `OnceLock` to avoid re-parsing across benchmarks
+- `criterion = "0.5"` dev-dependency, `[[bench]]` entry with `harness = false`
+- No C binary for baseline — Rust baseline established for regression tracking
+- `.gitignore` already covers `target/criterion/`
+
+### 1.6.5 — Phase merge: release/1.6 → main
+
+Phase 1.6 complete — all 4 subtasks merged from `release/1.6` into `master`.
+- C test harness port (1.6.1): 27 integration tests via `std::process::Command`
+- Font fuzz testing (1.6.2): proptest property-based tests for all parser functions
+- Project rename (1.6.3): Feiglet→Figby across all files, dirs, config, docs
+- Performance benchmarks (1.6.4): Criterion suite with 9 benches for regression tracking
+- Phase 1.7 (Major Release: end-to-end verification + RC sign-off) begins next

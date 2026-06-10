@@ -125,7 +125,7 @@ and multi-byte input.
   - **Tests:** Single-word render test. Compare output to C.
   - **Difficulty:** Medium
 
-- [ ] `1.2.5` Output line printing
+- [x] `1.2.5` Output line printing
   - **Goal:** Port `putstring()` / `printline()` — render output rows with
     justification (left/center/right). Replace hardblanks with spaces.
     Respect `outputwidth` for line truncation.

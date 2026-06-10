@@ -59,3 +59,13 @@ Phase 1.1 complete — all 7 subtasks merged from `release/1.1` into `master`.
 Phase 1.2 (render engine: kerning + smushing) begins.
 - `release/1.1` branch contains all Phase 1.1 commits
 - Default branch is `master` (not `main`) — task spec alias resolved
+
+### Phase 1.2 Merge (1.2.7)
+
+Phase 1.2 complete — all 6 subtasks merged from `release/1.2` into `master`.
+- Render engine components: character lookup (`lookup_char`), smushing rules
+  engine (6 horizontal + 5 vertical rules in `smush.rs`), smush amount
+  calculation (`calc_smush_amount`), character addition with smushing
+  (`add_char`), output line printing with justification (`render_line`),
+  line breaking and word splitting (`split_line`)
+- Phase 1.3 (CLI Interface) begins next

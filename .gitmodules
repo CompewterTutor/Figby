@@ -1,3 +1,6 @@
 [submodule "fonts-external"]
 	path = fonts-external
 	url = git@github.com:DoseOfGose/figlet-fonts.git
+[submodule "vendor_forks/ascii-image-converter"]
+	path = vendor_forks/ascii-image-converter
+	url = git@github.com:TheZoraiz/ascii-image-converter.git

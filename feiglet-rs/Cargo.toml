@@ -11,6 +11,8 @@ repository = "https://github.com/DoseOfGose/feiglet"
 clap = { version = "4", features = ["derive"] }
 # zip = "2"           # uncomment for ZIP font support (Phase 1.1.7)
 # flate2 = "1"        # uncomment for deflate support (Phase 1.1.7)
+# font-kit = "0.14.3"   # uncomment for system font → FIGfont creation
+# ratatui = "0.30.1"    # uncomment for TUI/interactive preview mode
 
 [dev-dependencies]
 # criterion = "0.5"   # uncomment for benchmarks (Phase 1.6.3)

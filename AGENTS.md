@@ -35,12 +35,29 @@ cargo run -p feiglet -- -f fonts/standard "Hello"
 ### Ralph Loop
 
 ```bash
-# Run autonomous task loop
+# Run autonomous task loop (multi-phase from main)
 ./scripts/ralph.sh
 
 # Run single task
 ./scripts/ralph.sh 1.1.1
+
+# Dry run to preview
+./scripts/ralph.sh --dry-run
+
+# Time-bounded run
+./scripts/ralph.sh --minutes=30
+
+# Run until specific task
+./scripts/ralph.sh --until=1.1.3
+
+# Log session to file
+./scripts/ralph.sh --log=/tmp/feiglet-ralph.log
+
+# Quiet mode (suppress agent stderr)
+./scripts/ralph.sh --quiet
 ```
+
+Ralph supports multi-phase loops, per-task agent selection via `Agent:`/`Difficulty:` fields in task blocks, phase completion review with auto-fix cycles, and major release (X.0) gates with RC branch creation. Stop gracefully: `kill -TERM $(cat /tmp/ralph.pid)` or `touch scripts/STOP.md`.
 
 ## Key Conventions
 
@@ -78,8 +95,10 @@ feiglet-rs/         # Rust crate (the port)
     └── util.rs       # Utilities, IO helpers
 fonts/                # FIGlet font files
 scripts/
-├── ralph.sh         # Autonomous task loop
+├── ralph.sh         # Autonomous task loop (bash)
 └── install-hooks.sh
+skills/
+└── ralph.md         # Self-review checklist for tasks
 docs/
 ├── todo.md          # Master todo index
 ├── todo-v1.md       # v1 tasks (port plan)

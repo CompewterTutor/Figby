@@ -22,6 +22,18 @@ Active development — porting FIGlet 2.2.5 to safe, idiomatic Rust.
 
 See [docs/todo.md](docs/todo.md) for current milestone and task tracking.
 
+
+## Future Enhancements
+
+- Ascii Image Generator library in rust as a port from the wonderful: git@github.com:TheZoraiz/ascii-image-converter.git
+
+- Ability to import a regular old font file and generate a figlet font
+
+- TUI with ratatui to edit figlet fonts
+
+- Overlay figlet fonts on ascii images for banner
+
+
 ## License
 
 New BSD License (same as FIGlet 2.2.5)

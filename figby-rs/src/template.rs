@@ -97,6 +97,19 @@ pub struct ImageTag {
     pub charset: String,
 }
 
+/// Builtin template function tag `{{date:format}}` or `{{repo-data:field}}`.
+///
+/// Syntax:
+/// - `{{date:strftime_format}}` — renders current date/time (deferred to 2.1)
+/// - `{{repo-data:author|email|name|release}}` — renders repo metadata (deferred to 2.1)
+#[derive(Debug, Clone)]
+pub enum TemplateBuiltin {
+    /// `{{date:format}}` — strftime-style date formatting (deferred).
+    Date(String),
+    /// `{{repo-data:field}}` — author, email, name, or release (deferred).
+    RepoData(String),
+}
+
 /// A renderable layer derived from a `{{varname}}` in the template body.
 #[derive(Debug, Clone)]
 pub struct Layer {
@@ -105,6 +118,7 @@ pub struct Layer {
     /// Position in body text (for tie-breaking on equal z).
     pub body_index: usize,
     pub image_tag: Option<ImageTag>,
+    pub builtin: Option<TemplateBuiltin>,
 }
 
 /// Parsed .ftmp template.
@@ -261,6 +275,25 @@ pub fn parse_ftmp(input: &str) -> Result<Template, TemplateError> {
                             y: Some(y),
                             charset,
                         }),
+                        builtin: None,
+                    });
+                } else if let Some(format) = tag_content.strip_prefix("date:") {
+                    let format_str = format.to_string();
+                    layers.push(Layer {
+                        varname: tag_content.to_string(),
+                        binding: VariableBinding::default(),
+                        body_index: body_idx,
+                        image_tag: None,
+                        builtin: Some(TemplateBuiltin::Date(format_str)),
+                    });
+                } else if let Some(field) = tag_content.strip_prefix("repo-data:") {
+                    let field_name = field.to_string();
+                    layers.push(Layer {
+                        varname: tag_content.to_string(),
+                        binding: VariableBinding::default(),
+                        body_index: body_idx,
+                        image_tag: None,
+                        builtin: Some(TemplateBuiltin::RepoData(field_name)),
                     });
                 } else if let Some(binding) = variables.get(tag_content) {
                     layers.push(Layer {
@@ -268,6 +301,7 @@ pub fn parse_ftmp(input: &str) -> Result<Template, TemplateError> {
                         binding: binding.clone(),
                         body_index: body_idx,
                         image_tag: None,
+                        builtin: None,
                     });
                 }
             }
@@ -527,6 +561,10 @@ pub fn render_template(
     for layer in &sorted_layers {
         let x = layer.binding.x.unwrap_or(0) as usize;
         let overlap = layer.binding.overlap.as_deref().unwrap_or("overwrite");
+
+        if layer.builtin.is_some() {
+            continue;
+        }
 
         if let Some(ref img) = layer.image_tag {
             let mut options = rascii_art::RenderOptions::new();

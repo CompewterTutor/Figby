@@ -104,7 +104,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Flag parse test only.
   - **Difficulty:** Low
 
-- [ ] `2.0.9` Builtin template functions: date + repo-data (defer to 2.1)
+- [x] `2.0.9` Builtin template functions: date + repo-data (defer to 2.1)
   - **Goal:** Add `{{date:format}}` (strftime-style date) and
     `{{repo-data:author|email|name|release}}` builtins for template use.
     Implementation deferred — just define syntax and reserve keywords.

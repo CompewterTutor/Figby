@@ -37,6 +37,15 @@ resolved from `-d`, `FIGLET_FONTDIR`, or default `/usr/share/figlet`.
 
 `toml = "0.8"` added to Cargo.toml dependencies for TOML frontmatter parsing.
 
+### 2.0.9 — Builtin template functions: date + repo-data (syntax + reserve)
+
+Added `TemplateBuiltin` enum with `Date(String)` and `RepoData(String)` variants
+to `template.rs`. Added `builtin: Option<TemplateBuiltin>` field to `Layer` struct
+(default `None`). `parse_ftmp()` recognizes `{{date:format}}` and
+`{{repo-data:field}}` tags before the variables lookup. `render_template()` skips
+builtin layers with `continue` (no-op, deferred to 2.1). No `.unwrap()` in
+production — all new code uses proper Option handling. fmt and clippy pass clean.
+
 ### 2.0.7 — Border and shadow rendering for template output
 
 Added three private helper functions to `template.rs`:

@@ -443,3 +443,12 @@ project status with v1/v2 milestone references, roadmap, and license.
 Added `--to-file <path>` long flag to `CliArgs` struct, `to_file: Option<String>` field
 on `CliConfig` with default `None`, assignment in `from_args()`. No file I/O — deferred
 to 2.1. One parse test (`test_flag_to_file`). `cargo fmt` and `cargo clippy` pass clean.
+
+### 2.0.9 — Builtin template functions: date + repo-data (syntax + reserve)
+
+Added `TemplateBuiltin` enum with `Date(String)` and `RepoData(String)` variants
+to `template.rs`. Added `builtin: Option<TemplateBuiltin>` field to `Layer` struct
+(default `None`). `parse_ftmp()` recognizes `{{date:format}}` and
+`{{repo-data:field}}` tags before the variables lookup. `render_template()` skips
+builtin layers with `continue` (no-op, deferred to 2.1). No `.unwrap()` in
+production — all new code uses proper Option handling. fmt and clippy pass clean.

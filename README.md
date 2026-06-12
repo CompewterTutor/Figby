@@ -10,10 +10,28 @@ and the full CLI interface.
 Original C source lives in the repo root for reference; the Rust port lives
 in `figby-rs/`.
 
+## Installation
+
+```bash
+# Install binary
+cargo install --path figby-rs
+
+# Install fonts system-wide
+sudo ln -s /path/to/Figby/fonts-external/fonts /usr/share/figlet
+```
+
+`figby` defaults to `/usr/share/figlet` for fonts. Override with `FIGLET_FONTDIR` env var or `-d` flag.
+
+```bash
+# Alternatively, use -d or env var without system install
+figby -d /path/to/fonts "Hello"
+FIGLET_FONTDIR=/path/to/fonts figby "Hello"
+```
+
 ## Quick Start
 
 ```bash
-cargo run -p figby -- -f fonts/standard "Hello, world!"
+cargo run --manifest-path figby-rs/Cargo.toml -- -f fonts/standard "Hello, world!"
 ```
 
 ## Project Status

@@ -1,0 +1,21 @@
+---
+[canvas]
+width = 80
+height = 30
+
+[variables.figby_text]
+text = "Figby"
+font = "dosrebel"
+x = 32
+y = 1
+
+[variables.version]
+text = "2.0.10"
+font = "standard"
+align = "right"
+y = 26
+z = 1
+---
+{{img:assets/img/figby.png:30::true:0,0:BLOCK}}
+{{figby_text}}
+{{version}}

@@ -339,4 +339,12 @@ Three bugs found in phase merge review:
 - `fill_shadow` and `fill_border` use `_y`/`_x` prefix for unused index
   variables (needed by `enumerate()` for correct iteration but not used
   in shadow body since it fills the entire region unconditionally).
+- Rust raw string `r#"..."#` delimiters: the closing `"#` sequence must not
+  appear in the string content. A string like `border_color = "."` ends with
+  `"#` which matches the raw string delimiter, truncating the content. Fix:
+  use more hashes (`r##"..."##`) or escape conventionally (`"border = \".\""`).
+- Colored image output from `rascii_art` embeds ANSI escape codes per-character.
+  These cannot be stored in a `Vec<Vec<char>>` grid — escape sequences occupy
+  multiple cells. Color rendering in templates requires a richer canvas type
+  that stores per-cell color metadata.
 

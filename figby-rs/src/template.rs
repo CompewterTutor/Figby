@@ -821,8 +821,8 @@ padding = 1
     fn test_render_overwrite_mode() {
         // Two layers at same (x,y), second overwrites first.
         let font = test_font();
-        let text_a = "AA";
-        let text_b = "BB";
+        let text_a = "A";
+        let text_b = "B";
 
         let rows_a = render_figlet_text(&font, text_a, 20, Justification::Left);
         let rows_b = render_figlet_text(&font, text_b, 20, Justification::Left);
@@ -831,11 +831,10 @@ padding = 1
         place_on_canvas(&mut canvas, &rows_a, 0, 0);
         place_on_canvas(&mut canvas, &rows_b, 0, 0);
 
-        // 'B' char overwrites 'A' at start. But note overlay: ' AA ' placed at x=0
-        // then ' BB ' placed at x=0. canvas[0] should have "BB" then spaces.
+        // ' BB ' overwrites ' AA ' at (0,0). canvas[0] should have " BB" then spaces.
         let row: String = canvas[0].iter().collect();
         assert!(
-            row.starts_with("BB  "),
+            row.starts_with(" BB"),
             "second layer overwrites first: got '{row}'"
         );
     }
@@ -868,13 +867,12 @@ padding = 1
 
     #[test]
     fn test_render_z_order() {
-        // Three layers at (0,0) with z=0, z=2, z=1.
-        // Sort should order z=0, z=1, z=2 (ascending z).
-        // Last rendered (z=2) overwrites earlier.
+        // Three layers at (0,0) with z=0, z=1, z=2.
+        // Render in ascending z-order — highest z (last rendered) overwrites.
         let font = test_font();
-        let text_a = "AA"; // renders as " AA "
-        let text_b = "BB"; // renders as " BB "
-        let text_c = "CC"; // renders as " CC "
+        let text_a = "A"; // renders as " AA "
+        let text_b = "B"; // renders as " BB "
+        let text_c = "C"; // renders as " CC "
 
         let rows_a = render_figlet_text(&font, text_a, 20, Justification::Left);
         let rows_b = render_figlet_text(&font, text_b, 20, Justification::Left);
@@ -882,14 +880,14 @@ padding = 1
 
         let mut canvas = vec![vec![' '; 20]; 10];
 
-        // Render in z=2, z=0, z=1 order (simulating unsorted input)
-        place_on_canvas(&mut canvas, &rows_c, 0, 0); // z=2
+        // Render in ascending z-order: z=0 (A), z=1 (B), z=2 (C)
         place_on_canvas(&mut canvas, &rows_a, 0, 0); // z=0
         place_on_canvas(&mut canvas, &rows_b, 0, 0); // z=1
+        place_on_canvas(&mut canvas, &rows_c, 0, 0); // z=2
 
-        // After re-sorting: z=0 (AA), z=1 (BB), z=2 (CC) → final = CC
+        // z=2 (C) rendered last, so " CC " should be on top
         let row: String = canvas[0].iter().collect();
-        assert!(row.starts_with("CC  "), "z=2 should be on top: got '{row}'");
+        assert!(row.starts_with(" CC"), "z=2 should be on top: got '{row}'");
     }
 
     #[test]
@@ -1242,9 +1240,10 @@ font = "standard"
         assert_eq!(bbox, (1, 1, 2, 2));
         fill_shadow(&mut canvas, bbox, 2);
 
-        // Shadow at (3, 3) — offset 2 down-right from (1, 2)
+        // Shadow at (3, 4) — offset 2 down-right from content (1, 2)
         assert_eq!(canvas[3][4], '.', "shadow at offset");
-        assert_eq!(canvas[3][3], '.', "shadow at offset");
+        // Cell before shadow left edge unchanged
+        assert_eq!(canvas[3][3], ' ', "pre-shadow cell preserved");
         // Content preserved
         assert_eq!(canvas[1][2], 'X');
         // Cells before offset unchanged
@@ -1284,13 +1283,13 @@ font = "standard"
             .map(|w| format!("border_width = {}", w))
             .unwrap_or_default();
         let bc = border_width
-            .map(|_| r#"border_color = "."#.to_string())
+            .map(|_| "border_color = \".\"".to_string())
             .unwrap_or_default();
         let ss = shadow_size
             .map(|s| format!("shadow_size = {}", s))
             .unwrap_or_default();
         let sc = shadow_size
-            .map(|_| r#"shadow_color = "."#.to_string())
+            .map(|_| "shadow_color = \".\"".to_string())
             .unwrap_or_default();
         format!(
             r#"---

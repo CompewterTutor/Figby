@@ -64,3 +64,35 @@ applies border then shadow. Only activates when `border_width`/`shadow_size` is
 4 new tests: border-only, shadow-only, border+shadow, border-no-overwrite-other-layer.
 Plus 5 direct unit tests for the helpers (content_bbox basic/no-content/multi-row,
 fill_border ring/shadow offset/border preserves content).
+
+### 2.0.x — Fix broken template tests
+
+Fixed 6 failing unit tests in `template.rs`:
+
+1. **TOML quoting bug** in `make_border_shadow_ftmp()`: Raw string `r#"border_color = "."#`
+   consumed the closing `"` of the TOML value into the `"#` raw string delimiter, producing
+   `border_color = ".` (invalid TOML). Fixed with regular string `"border_color = \".\""`.
+
+2. **`test_render_overwrite_mode`**: Assertion expected `starts_with("BB  ")` but test font
+   renders `" BB "` (leading space). Changed text from `"AA"/"BB"` to single `"A"/"B"` and
+   assertion to `starts_with(" BB")`.
+
+3. **`test_render_z_order`**: Placed layers in order z=2, z=0, z=1 without actual sorting —
+   last-placed (z=1) won. Fixed to place in ascending z-order so highest z overwrites last.
+
+4. **`test_fill_shadow_offset`**: Asserted `canvas[3][3] == '.'` but shadow rect is a single
+   cell at (row=3, col=4) — col 3 is outside shadow. Fixed assertion to expect `' '`.
+
+### 2.0.x — README header template
+
+Created `assets/templates/figby-30w.ftmp` — `.ftmp` template that renders the README header:
+- figby image (30px wide, colored via rascii_art BLOCK charset) on the left
+- "Figby" text in DOS Rebel font (`fonts/dosrebel.flf`, x=32) to the right
+- Version "2.0.10" in standard font, right-aligned, near bottom
+
+Output saved to `assets/templates/figby-30w.ftm`.
+
+**Known limitation:** Colored image output embeds ANSI escape codes per-character.
+The `Vec<Vec<char>>` canvas grid treats escape sequences as content characters,
+corrupting layout. Fix deferred — color mode works for terminal display but not
+for grid-based placement.

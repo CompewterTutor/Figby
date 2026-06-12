@@ -36,3 +36,22 @@ reads `.ftmp`, parses, renders, prints output rows. Font directory
 resolved from `-d`, `FIGLET_FONTDIR`, or default `/usr/share/figlet`.
 
 `toml = "0.8"` added to Cargo.toml dependencies for TOML frontmatter parsing.
+
+### 2.0.7 — Border and shadow rendering for template output
+
+Added three private helper functions to `template.rs`:
+- `content_bbox()` — scans rendered rows at canvas position for non-space chars,
+  returns `Option<(top, bottom, left, right)>` bounding box.
+- `fill_border()` — fills a ring of `'.'` chars around the content bbox, only
+  overwriting space cells. Border ring = expanded rect minus content rect.
+- `fill_shadow()` — fills `'.'` chars in a rectangular region offset down-right
+  from content bbox, only overwriting space cells.
+
+Wired into `render_template()` in both image and text branches — after
+`place_on_canvas()`, computes bbox from each layer's rendered rows + placement,
+applies border then shadow. Only activates when `border_width`/`shadow_size` is
+`Some` and `> 0`.
+
+4 new tests: border-only, shadow-only, border+shadow, border-no-overwrite-other-layer.
+Plus 5 direct unit tests for the helpers (content_bbox basic/no-content/multi-row,
+fill_border ring/shadow offset/border preserves content).

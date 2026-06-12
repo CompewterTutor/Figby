@@ -12,6 +12,8 @@ use crate::smush::SmushMode;
 pub enum TemplateError {
     ParseError(String),
     FontError(FontError),
+    ImageError(String),
+    ResolveError(String),
 }
 
 impl std::fmt::Display for TemplateError {
@@ -19,6 +21,8 @@ impl std::fmt::Display for TemplateError {
         match self {
             TemplateError::ParseError(msg) => write!(f, "template parse error: {}", msg),
             TemplateError::FontError(e) => write!(f, "template font error: {}", e),
+            TemplateError::ImageError(msg) => write!(f, "template image error: {}", msg),
+            TemplateError::ResolveError(msg) => write!(f, "template resolve error: {}", msg),
         }
     }
 }
@@ -32,7 +36,7 @@ impl From<FontError> for TemplateError {
 }
 
 /// Canvas settings section in .ftmp frontmatter.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct CanvasSettings {
     #[serde(default)]
     pub width: Option<u32>,
@@ -47,7 +51,7 @@ pub struct CanvasSettings {
 }
 
 /// A single variable binding in .ftmp frontmatter.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct VariableBinding {
     pub text: String,
     #[serde(default)]
@@ -81,6 +85,18 @@ struct TemplateFrontmatter {
     variables: Option<HashMap<String, VariableBinding>>,
 }
 
+/// An inline image tag `{{img:source:width:height:color:pos:charset}}`.
+#[derive(Debug, Clone)]
+pub struct ImageTag {
+    pub source: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub colored: bool,
+    pub x: Option<u32>,
+    pub y: Option<u32>,
+    pub charset: String,
+}
+
 /// A renderable layer derived from a `{{varname}}` in the template body.
 #[derive(Debug, Clone)]
 pub struct Layer {
@@ -88,6 +104,7 @@ pub struct Layer {
     pub binding: VariableBinding,
     /// Position in body text (for tie-breaking on equal z).
     pub body_index: usize,
+    pub image_tag: Option<ImageTag>,
 }
 
 /// Parsed .ftmp template.
@@ -104,6 +121,55 @@ pub struct RenderConfig {
     pub font_dir: String,
     pub term_width: u32,
     pub override_width: Option<u32>,
+}
+
+/// Resolve `${VAR}` env var and `$(cmd)` command substitution in a text value.
+/// Plain string literals pass through unchanged.
+pub fn resolve_text_value(text: &str) -> Result<String, TemplateError> {
+    let mut result = String::new();
+    let mut remaining = text;
+
+    while let Some(dollar_pos) = remaining.find('$') {
+        result.push_str(&remaining[..dollar_pos]);
+        remaining = &remaining[dollar_pos + 1..];
+
+        if let Some(rest) = remaining.strip_prefix('{') {
+            let closing = rest.find('}').ok_or_else(|| {
+                TemplateError::ResolveError("unclosed env var `${...}`".to_string())
+            })?;
+            let var_name = &rest[..closing];
+            let value = std::env::var(var_name).map_err(|_| {
+                TemplateError::ResolveError(format!("env var '{}' not set", var_name))
+            })?;
+            result.push_str(&value);
+            remaining = &rest[closing + 1..];
+        } else if let Some(rest) = remaining.strip_prefix('(') {
+            let closing = rest.find(')').ok_or_else(|| {
+                TemplateError::ResolveError("unclosed command sub `$(...)`".to_string())
+            })?;
+            let cmd_str = &rest[..closing];
+            let shell = if cfg!(target_os = "windows") { "cmd" } else { "sh" };
+            let arg = if cfg!(target_os = "windows") { "/C" } else { "-c" };
+            let output = std::process::Command::new(shell)
+                .args([arg, cmd_str])
+                .output()
+                .map_err(|e| TemplateError::ResolveError(format!("command failed: {}", e)))?;
+            if !output.status.success() {
+                return Err(TemplateError::ResolveError(format!(
+                    "command exited with {}",
+                    output.status
+                )));
+            }
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            result.push_str(stdout.trim_end_matches('\n'));
+            remaining = &rest[closing + 1..];
+        } else {
+            result.push('$');
+        }
+    }
+
+    result.push_str(remaining);
+    Ok(result)
 }
 
 /// Parse a .ftmp template string into a `Template`.
@@ -140,13 +206,7 @@ pub fn parse_ftmp(input: &str) -> Result<Template, TemplateError> {
         .map_err(|e| TemplateError::ParseError(format!("invalid TOML frontmatter: {}", e)))?;
 
     let variables = frontmatter.variables.unwrap_or_default();
-    let canvas = frontmatter.canvas.unwrap_or(CanvasSettings {
-        width: None,
-        height: None,
-        keep_ratio: None,
-        margin: None,
-        padding: None,
-    });
+    let canvas = frontmatter.canvas.unwrap_or_default();
 
     let mut layers = Vec::new();
     let mut body_idx = 0;
@@ -155,13 +215,50 @@ pub fn parse_ftmp(input: &str) -> Result<Template, TemplateError> {
     while let Some(start) = remaining.find("{{") {
         remaining = &remaining[start + 2..];
         if let Some(end) = remaining.find("}}") {
-            let varname = remaining[..end].trim();
-            if !varname.is_empty() {
-                if let Some(binding) = variables.get(varname) {
+            let tag_content = remaining[..end].trim();
+            if !tag_content.is_empty() {
+                if let Some(img_rest) = tag_content.strip_prefix("img:") {
+                    let parts: Vec<&str> = img_rest.split(':').collect();
+                    let source = parts.first().unwrap_or(&"").to_string();
+                    let width = parts.get(1).and_then(|s| s.parse().ok());
+                    let height = parts.get(2).and_then(|s| s.parse().ok());
+                    let colored = matches!(
+                        *parts.get(3).unwrap_or(&""),
+                        "true" | "1" | "yes" | "y"
+                    );
+                    let (x, y) = parts.get(4).and_then(|s| {
+                        let mut ps = s.split(',');
+                        let px = ps.next()?.parse().ok()?;
+                        let py = ps.next()?.parse().ok()?;
+                        Some((px, py))
+                    }).unwrap_or((0, 0));
+                    let charset = parts.get(5).unwrap_or(&"").to_string();
+
                     layers.push(Layer {
-                        varname: varname.to_string(),
+                        varname: tag_content.to_string(),
+                        binding: VariableBinding {
+                            x: Some(x),
+                            y: Some(y),
+                            z: Some(0),
+                            ..VariableBinding::default()
+                        },
+                        body_index: body_idx,
+                        image_tag: Some(ImageTag {
+                            source,
+                            width,
+                            height,
+                            colored,
+                            x: Some(x),
+                            y: Some(y),
+                            charset,
+                        }),
+                    });
+                } else if let Some(binding) = variables.get(tag_content) {
+                    layers.push(Layer {
+                        varname: tag_content.to_string(),
                         binding: binding.clone(),
                         body_index: body_idx,
+                        image_tag: None,
                     });
                 }
             }
@@ -293,11 +390,12 @@ pub fn render_template(
 
     let mut canvas = vec![vec![' '; width]; height];
 
-    // Collect unique font names and pre-load them.
+    // Collect unique font names from non-image layers and pre-load them.
     let font_names: Vec<String> = {
         let mut names: Vec<String> = tmpl
             .layers
             .iter()
+            .filter(|l| l.image_tag.is_none())
             .map(|l| {
                 l.binding
                     .font
@@ -326,31 +424,68 @@ pub fn render_template(
     let mut flow_y: usize = 0;
 
     for layer in &sorted_layers {
-        let font_name = layer.binding.font.as_deref().unwrap_or("standard");
-        let font = font_cache
-            .get(font_name)
-            .ok_or_else(|| TemplateError::ParseError(format!("font '{}' not loaded", font_name)))?;
-
-        let align = match layer.binding.align.as_deref() {
-            Some("center") => Justification::Center,
-            Some("right") => Justification::Right,
-            _ => Justification::Left,
-        };
-
-        let rows = render_figlet_text(font, &layer.binding.text, width, align);
-
         let x = layer.binding.x.unwrap_or(0) as usize;
         let overlap = layer.binding.overlap.as_deref().unwrap_or("overwrite");
 
-        match overlap {
-            "flow" => {
-                let y_pos = flow_y;
-                flow_y += rows.len();
-                place_on_canvas(&mut canvas, &rows, x, y_pos);
+        if let Some(ref img) = layer.image_tag {
+            let mut options = rascii_art::RenderOptions::new();
+            if let Some(w) = img.width {
+                options = options.width(w);
             }
-            _ => {
-                let y = layer.binding.y.unwrap_or(0) as usize;
-                place_on_canvas(&mut canvas, &rows, x, y);
+            if let Some(h) = img.height {
+                options = options.height(h);
+            }
+            if img.colored {
+                options = options.colored(true);
+            }
+            if !img.charset.is_empty() {
+                if let Some(cs) = rascii_art::charsets::from_str(&img.charset) {
+                    options = options.charset(cs);
+                }
+            }
+
+            let mut buf = String::new();
+            rascii_art::render_to(&img.source, &mut buf, &options)
+                .map_err(|e| TemplateError::ImageError(e.to_string()))?;
+
+            let rows: Vec<String> = buf.lines().map(|l| l.to_string()).collect();
+
+            match overlap {
+                "flow" => {
+                    let y_pos = flow_y;
+                    flow_y += rows.len();
+                    place_on_canvas(&mut canvas, &rows, x, y_pos);
+                }
+                _ => {
+                    let y = layer.binding.y.unwrap_or(0) as usize;
+                    place_on_canvas(&mut canvas, &rows, x, y);
+                }
+            }
+        } else {
+            let font_name = layer.binding.font.as_deref().unwrap_or("standard");
+            let font = font_cache.get(font_name).ok_or_else(|| {
+                TemplateError::ParseError(format!("font '{}' not loaded", font_name))
+            })?;
+
+            let align = match layer.binding.align.as_deref() {
+                Some("center") => Justification::Center,
+                Some("right") => Justification::Right,
+                _ => Justification::Left,
+            };
+
+            let text = resolve_text_value(&layer.binding.text)?;
+            let rows = render_figlet_text(font, &text, width, align);
+
+            match overlap {
+                "flow" => {
+                    let y_pos = flow_y;
+                    flow_y += rows.len();
+                    place_on_canvas(&mut canvas, &rows, x, y_pos);
+                }
+                _ => {
+                    let y = layer.binding.y.unwrap_or(0) as usize;
+                    place_on_canvas(&mut canvas, &rows, x, y);
+                }
             }
         }
     }
@@ -679,6 +814,174 @@ font = "standard"
 
         assert_eq!(result.len(), 5 + 4); // 5 original + 2 top + 2 bottom margin
         assert_eq!(result[0].len(), 22); // 20 + 2 padding
+    }
+
+    #[test]
+    fn test_resolve_text_value_literal() {
+        let result = resolve_text_value("Hello World").unwrap();
+        assert_eq!(result, "Hello World");
+    }
+
+    #[test]
+    fn test_resolve_text_value_empty() {
+        let result = resolve_text_value("").unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_resolve_env_var() {
+        let result = resolve_text_value("${HOME}").unwrap();
+        assert!(!result.is_empty(), "HOME should be set");
+        assert!(result.contains('/'), "HOME should be a path");
+    }
+
+    #[test]
+    fn test_resolve_env_var_in_context() {
+        let result = resolve_text_value("path=${HOME}/foo").unwrap();
+        assert!(result.starts_with("path="), "should preserve prefix");
+        assert!(result.ends_with("/foo"), "should preserve suffix");
+        assert!(
+            result.len() > "path=/foo".len(),
+            "should contain expanded HOME"
+        );
+    }
+
+    #[test]
+    fn test_resolve_env_var_not_set() {
+        let err = resolve_text_value("${DOES_NOT_EXIST_XYZZY}").unwrap_err();
+        assert!(err.to_string().contains("not set"));
+    }
+
+    #[test]
+    fn test_resolve_env_var_unclosed() {
+        let err = resolve_text_value("${UNCLOSED").unwrap_err();
+        assert!(err.to_string().contains("unclosed"));
+    }
+
+    #[test]
+    fn test_resolve_command_sub() {
+        let result = resolve_text_value("$(echo hello)").unwrap();
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn test_resolve_command_sub_in_context() {
+        let result = resolve_text_value("prefix_$(echo mid)_suffix").unwrap();
+        assert_eq!(result, "prefix_mid_suffix");
+    }
+
+    #[test]
+    fn test_resolve_command_failure() {
+        let err = resolve_text_value("$(false)").unwrap_err();
+        assert!(err.to_string().contains("exited"));
+    }
+
+    #[test]
+    fn test_resolve_mixed_literal_and_substitutions() {
+        let result = resolve_text_value("$(echo A)${HOME}B").unwrap();
+        assert!(result.starts_with('A'), "should start with cmd output");
+        assert!(result.contains('/'), "should contain HOME path");
+        assert!(result.ends_with('B'), "should end with literal B");
+    }
+
+    #[test]
+    fn test_parse_img_tag_basic() {
+        let ftmp = r#"---
+[canvas]
+width = 50
+height = 10
+---
+{{img:test.png:30::false:0,0:default}}
+"#;
+        let tmpl = parse_ftmp(ftmp).expect("should parse img tag");
+        assert_eq!(tmpl.layers.len(), 1);
+        let img = tmpl.layers[0].image_tag.as_ref().expect("should be image tag");
+        assert_eq!(img.source, "test.png");
+        assert_eq!(img.width, Some(30));
+        assert!(img.height.is_none());
+        assert!(!img.colored);
+        assert_eq!(img.charset, "default");
+    }
+
+    #[test]
+    fn test_parse_img_tag_all_fields() {
+        let ftmp = r#"---
+[canvas]
+width = 80
+---
+{{img:photo.jpg:80:24:true:5,10:BLOCK}}
+"#;
+        let tmpl = parse_ftmp(ftmp).expect("should parse");
+        let img = tmpl.layers[0].image_tag.as_ref().expect("should be image");
+        assert_eq!(img.source, "photo.jpg");
+        assert_eq!(img.width, Some(80));
+        assert_eq!(img.height, Some(24));
+        assert!(img.colored);
+        assert_eq!(img.x, Some(5));
+        assert_eq!(img.y, Some(10));
+        assert_eq!(img.charset, "BLOCK");
+    }
+
+    #[test]
+    fn test_resolve_text_in_template_ftmp() {
+        // Verify that ${VAR} in a variable's text field gets resolved.
+        // Set a known env var for the test.
+        let ftmp = r#"---
+[canvas]
+width = 40
+height = 10
+
+[variables.msg]
+text = "${USER}"
+font = "standard"
+---
+{{msg}}
+"#;
+        let tmpl = parse_ftmp(ftmp).expect("should parse");
+        let (_tmpdir, font_dir) = setup_font_dir();
+        let config = RenderConfig {
+            font_dir,
+            term_width: 80,
+            override_width: None,
+        };
+        let result = render_template(&tmpl, &config);
+        // Should succeed because USER is normally set
+        assert!(result.is_ok(), "render should succeed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_render_template_with_text_and_img_placeholders() {
+        // Path relative to figby-rs/ (where test binary runs)
+        let img_path = "../assets/img/figby.png";
+        if !std::path::Path::new(img_path).exists() {
+            eprintln!("skipping image test: file not found at {img_path}");
+            return;
+        }
+        let ftmp = format!(r#"---
+[canvas]
+width = 60
+height = 20
+
+[variables.greeting]
+text = "figby"
+font = "standard"
+---
+{{{{greeting}}}}{{{{img:{}:30:::0,0:}}}}
+"#, img_path);
+        let tmpl = parse_ftmp(&ftmp).expect("should parse");
+        assert_eq!(tmpl.layers.len(), 2);
+        assert!(tmpl.layers[0].image_tag.is_none());
+        assert!(tmpl.layers[1].image_tag.is_some());
+        let (_tmpdir, font_dir) = setup_font_dir();
+        let config = RenderConfig {
+            font_dir,
+            term_width: 80,
+            override_width: None,
+        };
+        let result = render_template(&tmpl, &config);
+        assert!(result.is_ok(), "render should succeed: {:?}", result.err());
+        let output = result.unwrap();
+        assert!(!output.is_empty(), "should produce output rows");
     }
 
     #[test]

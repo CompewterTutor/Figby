@@ -437,3 +437,9 @@ getting fonts (bundled + external sources), comparison with C FIGlet
 (feature parity table), contributing guide with setup and quality gates,
 project status with v1/v2 milestone references, roadmap, and license.
 `cargo fmt --check` and `cargo clippy` pass clean.
+
+### 2.0.8 — `--to-file` output flag (CLI arg only, no-op)
+
+Added `--to-file <path>` long flag to `CliArgs` struct, `to_file: Option<String>` field
+on `CliConfig` with default `None`, assignment in `from_args()`. No file I/O — deferred
+to 2.1. One parse test (`test_flag_to_file`). `cargo fmt` and `cargo clippy` pass clean.

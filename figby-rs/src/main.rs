@@ -133,6 +133,7 @@ struct CliConfig {
     fontname: String,
     multibyte: u32,
     controlfile: Option<String>,
+    to_file: Option<String>,
 }
 
 impl Default for CliConfig {
@@ -150,6 +151,7 @@ impl Default for CliConfig {
             fontname: "standard".to_string(),
             multibyte: 0,
             controlfile: None,
+            to_file: None,
         }
     }
 }
@@ -235,6 +237,8 @@ struct CliArgs {
         help = "Render a .ftmp template file"
     )]
     render_template: Option<String>,
+    #[arg(long = "to-file", help = "Write output to file instead of stdout")]
+    to_file: Option<String>,
     #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
@@ -350,6 +354,7 @@ impl CliConfig {
         }
 
         config.controlfile = args.controlfile;
+        config.to_file = args.to_file;
 
         config
     }
@@ -1044,6 +1049,13 @@ mod tests {
     fn test_flag_C_controlfile() {
         let args = CliArgs::try_parse_from(["figby", "-C", "my.flc"]).unwrap();
         assert_eq!(args.controlfile, Some("my.flc".to_string()));
+    }
+
+    #[test]
+    fn test_flag_to_file() {
+        let args = CliArgs::try_parse_from(["figby", "--to-file", "output.txt"]).unwrap();
+        let config = CliConfig::from_args(args);
+        assert_eq!(config.to_file, Some("output.txt".to_string()));
     }
 
     #[test]

@@ -95,7 +95,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Border-only, shadow-only, border+shadow output tests.
   - **Difficulty:** Medium
 
-- [ ] `2.0.8` `--to-file` output flag (add CLI arg, defer implementation)
+- [x] `2.0.8` `--to-file` output flag (add CLI arg, defer implementation)
   - **Goal:** Add `--to-file <path>` to CLI arg struct so it parses
     cleanly. Actual file write is deferred to 2.1 — output is piped
     or redirected for now.

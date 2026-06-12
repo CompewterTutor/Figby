@@ -237,11 +237,45 @@ through public API calls (`parse_tlf_font` → `strip_endmarks`, `parse_codetagg
 - No C binary for baseline — Rust baseline established for regression tracking
 - `.gitignore` already covers `target/criterion/`
 
-### 1.6.5 — Phase merge: release/1.6 → main
+### 1.6.5 — Fix rendering pipeline bug
 
-Phase 1.6 complete — all 4 subtasks merged from `release/1.6` into `master`.
-- C test harness port (1.6.1): 27 integration tests via `std::process::Command`
-- Font fuzz testing (1.6.2): proptest property-based tests for all parser functions
-- Project rename (1.6.3): Feiglet→Figby across all files, dirs, config, docs
-- Performance benchmarks (1.6.4): Criterion suite with 9 benches for regression tracking
-- Phase 1.7 (Major Release: end-to-end verification + RC sign-off) begins next
+Root cause: `wordbreakmode >= 2` in space-char failure path (main.rs:643).
+C figlet uses `wordbreakmode == 2` (figlet.c:2107), not `>= 2`. When `wordbreakmode
+== 3` (after a space, now in a word), a failing space character should trigger a
+simple `printline()` flush, not `splitline()`. The `>= 2` check incorrectly called
+`split_line()` which prematurely split on word boundaries, causing output divergence
+for multi-line stdin input at default width.
+
+Other fixes:
+- `char_buffer.truncate(part2_start)` → `char_buffer.drain(..part2_start)`: In
+  the no-word-break path, `split_line` returns part2_start as the index where
+  part2 begins (start of char_buffer for rebuild). `truncate` removed everything
+  up to that index (wrong), while `drain` removes everything before it (correct).
+  Bug existed in both `add_char` failure and flush paths. After fix, `add_char`
+  path matches C's `i = 0` loop; flush path matches `clearline`.
+- `String::from_utf8` → `String::from_utf8_lossy`: bubble font (and others)
+  contain non-UTF-8 bytes (0xFF padding). `from_utf8` returned `Err` causing
+  parse failure. `from_utf8_lossy` replaces invalid bytes with U+FFFD, matching
+  C figlet's Latin-1 byte-level handling.
+
+Result: 27/27 integration tests pass (305/305 total). All tests green.
+
+Key insight: The space-char path has different `wordbreakmode` semantics than
+the non-space path in C figlet. Non-space path correctly uses `wordbreakmode >= 2`
+(any mode ≥ 2 triggers flush/split), matching C figlet.c:2108. Space path
+specifically checks `== 2` (figlet.c:2107), meaning `wordbreakmode == 3` skips
+split and falls through to flush+absorb.
+
+Standard font space glyph is ` $@` (width 2 after strip_endmarks, renders as 1
+space after hardblank replacement). Standard font default char (code 0) has empty
+rows, not stored in font file for code 0 — C figlet allocates it empty; Rust
+parser reads code 32 from first data block (matches C behavior).
+
+Final bug (TLF overlap mode): `calc_smush_amount` was missing the
+`previouscharwidth<2 || currcharwidth<2 → return '\0'` guard from C's `smushem()`
+(figlet.c:1364). C disables non-space smushing when either adjacent char has
+width < 1 column. The emboss TLF font has many 1-wide chars (`<`, `>`, `:`,
+`.`, `i`, etc.) causing accumulated outlinelen undercount in Rust (each such
+transition overcounted smush by 1). Fix: added `prevcharwidth >= 2 && currcharwidth >= 2`
+condition to the `smush_horizontal` gate in `calc_smush_amount`; `add_char`
+passes `old_prev_width` as `prevcharwidth`.

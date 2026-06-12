@@ -300,7 +300,17 @@ and multi-byte input.
   - **Success:** Render throughput at or above C baseline.
   - **Difficulty:** Low
 
-- [x] `1.6.5` Phase merge: release/1.6 → main
+- [x] `1.6.5` Fix rendering pipeline bugs
+  - **Goal:** Fix wordbreakmode condition mismatch causing premature wraps.
+    C uses `wordbreakmode==2` for space-failure path; Rust used `>=2`.
+    Also fixed `char_buffer.truncate()` → `drain(..part2_start)` and
+    `String::from_utf8_lossy` for non-UTF-8 font bytes.
+  - **Touches:** `figby-rs/src/main.rs`, `figby-rs/src/render.rs`, `figby-rs/src/font.rs`
+  - **Status:** 17/27 integration pass (was 4/27). Remaining 10 failures
+    involve RTL, TLF fonts, paragraph mode — separate issues.
+  - **Difficulty:** Medium
+
+- [ ] `1.6.6` Phase merge: release/1.6 → main
   - **Difficulty:** Low
 
 ---

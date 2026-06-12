@@ -21,15 +21,17 @@ overlay, layers, and animation timeline.
   - **Difficulty:** Low
 
 - [x] `2.0.2` Port make-examples script to CLI
-  - **Goal:** Create `scripts/make-examples.sh` that generates example
-    output files for every font. Accept: `--sample-text` (default:
+  - **Goal:** Create `scripts/make-examples.sh` that generates a single
+    Markdown file (`examples/FIGLET_EXAMPLES.md`) with a `###` header
+    per font (showing font name, filename, and height), and the rendered
+    output in a fenced code block. Accept: `--sample-text` (default:
     `"hello figby"`), `--fonts` (comma-separated whitelist), `--exclude`
-    (comma-separated blacklist), `--categories` (accept arg but defer
-    actual category filter implementation).
+    (comma-separated blacklist).
   - **Touches:** `scripts/make-examples.sh`
-  - **Success:** Running with defaults generates per-font example files in
-    an output directory. Custom text and font filters work.
-  - **Tests:** Generate examples, verify file names and content.
+  - **Success:** Running with defaults produces a single markdown file
+    viewable on GitHub or any Markdown renderer. Custom text and font
+    filters work.
+  - **Tests:** Generate examples, verify markdown structure.
   - **Difficulty:** Medium
 
 - [ ] `2.0.3` Update README with proper documentation

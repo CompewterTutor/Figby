@@ -84,7 +84,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Env var resolve, command capture, image tag with known file.
   - **Difficulty:** Medium
 
-- [ ] `2.0.7` Border and shadow rendering for template output
+- [x] `2.0.7` Border and shadow rendering for template output
   - **Goal:** `borderWidth,borderColor` renders a border around the text
     block using `.` characters. `shadowSize,shadowColor` renders a
     drop-shadow offset by shadowSize using `.` characters. Both only

@@ -214,3 +214,7 @@ DONE: 2.0.4 merged into release/2.0.
 ## 2026-06-12 15:11
 
 DONE: 2.0.5 merged into release/2.0.
+
+## 2026-06-12 15:17
+
+DONE: 2.0.6 merged into release/2.0.

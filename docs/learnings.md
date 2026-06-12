@@ -326,3 +326,17 @@ Three bugs found in phase merge review:
 - POSIX `case` patterns use glob syntax, not regex. Comma-separated list matching
   uses `case ",$LIST," in *,"$ITEM",*)` — the simplest portable pattern.
 
+## 2.0.7 — Border and shadow rendering for template output
+
+- `clippy::needless_range_loop` fires for index loops where vars only index
+  one collection. Fix: `canvas.iter_mut().enumerate().skip(outer_top).take(count)`
+  yields `(y, row)` pairs with correct indices. `saturating_sub` + `saturating_add`
+  needed for `take()` arithmetic to avoid underflow when range is empty.
+- `clippy::needless_late_init` fires on `let x; match { ... x = val ... }` — fix:
+  `let x = match { ... val ... }`.
+- `clippy::unused_variables` fires when variables are assigned but never read.
+  Remove unused variables entirely.
+- `fill_shadow` and `fill_border` use `_y`/`_x` prefix for unused index
+  variables (needed by `enumerate()` for correct iteration but not used
+  in shadow body since it fills the entire region unconditionally).
+

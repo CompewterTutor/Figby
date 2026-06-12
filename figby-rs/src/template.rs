@@ -148,8 +148,16 @@ pub fn resolve_text_value(text: &str) -> Result<String, TemplateError> {
                 TemplateError::ResolveError("unclosed command sub `$(...)`".to_string())
             })?;
             let cmd_str = &rest[..closing];
-            let shell = if cfg!(target_os = "windows") { "cmd" } else { "sh" };
-            let arg = if cfg!(target_os = "windows") { "/C" } else { "-c" };
+            let shell = if cfg!(target_os = "windows") {
+                "cmd"
+            } else {
+                "sh"
+            };
+            let arg = if cfg!(target_os = "windows") {
+                "/C"
+            } else {
+                "-c"
+            };
             let output = std::process::Command::new(shell)
                 .args([arg, cmd_str])
                 .output()
@@ -222,16 +230,17 @@ pub fn parse_ftmp(input: &str) -> Result<Template, TemplateError> {
                     let source = parts.first().unwrap_or(&"").to_string();
                     let width = parts.get(1).and_then(|s| s.parse().ok());
                     let height = parts.get(2).and_then(|s| s.parse().ok());
-                    let colored = matches!(
-                        *parts.get(3).unwrap_or(&""),
-                        "true" | "1" | "yes" | "y"
-                    );
-                    let (x, y) = parts.get(4).and_then(|s| {
-                        let mut ps = s.split(',');
-                        let px = ps.next()?.parse().ok()?;
-                        let py = ps.next()?.parse().ok()?;
-                        Some((px, py))
-                    }).unwrap_or((0, 0));
+                    let colored =
+                        matches!(*parts.get(3).unwrap_or(&""), "true" | "1" | "yes" | "y");
+                    let (x, y) = parts
+                        .get(4)
+                        .and_then(|s| {
+                            let mut ps = s.split(',');
+                            let px = ps.next()?.parse().ok()?;
+                            let py = ps.next()?.parse().ok()?;
+                            Some((px, py))
+                        })
+                        .unwrap_or((0, 0));
                     let charset = parts.get(5).unwrap_or(&"").to_string();
 
                     layers.push(Layer {
@@ -374,6 +383,98 @@ fn place_on_canvas(canvas: &mut [Vec<char>], rows: &[String], x: usize, y: usize
     }
 }
 
+/// Compute bounding box of non-space content in rendered rows at canvas position (x, y).
+fn content_bbox(rows: &[String], x: usize, y: usize) -> Option<(usize, usize, usize, usize)> {
+    let mut top = None;
+    let mut bottom = 0;
+    let mut left = usize::MAX;
+    let mut right = 0;
+
+    for (i, row) in rows.iter().enumerate() {
+        let canvas_y = y + i;
+        for (j, c) in row.chars().enumerate() {
+            if c != ' ' {
+                let canvas_x = x + j;
+                if top.is_none() {
+                    top = Some(canvas_y);
+                }
+                bottom = canvas_y;
+                left = left.min(canvas_x);
+                right = right.max(canvas_x);
+            }
+        }
+    }
+
+    top.map(|t| (t, bottom, left, right))
+}
+
+/// Fill border around bbox on canvas using `'.'`, only overwriting spaces.
+fn fill_border(canvas: &mut [Vec<char>], bbox: (usize, usize, usize, usize), border_width: usize) {
+    let (top, bottom, left, right) = bbox;
+
+    let outer_top = top.saturating_sub(border_width);
+    let outer_bottom = bottom + border_width;
+    let outer_left = left.saturating_sub(border_width);
+    let outer_right = right + border_width;
+
+    let max_y = canvas.len().saturating_sub(1);
+    let y_end = outer_bottom.min(max_y);
+    for (y, row) in canvas
+        .iter_mut()
+        .enumerate()
+        .skip(outer_top)
+        .take(y_end.saturating_sub(outer_top).saturating_add(1))
+    {
+        let max_x = row.len().saturating_sub(1);
+        let x_end = outer_right.min(max_x);
+        for (x, cell) in row
+            .iter_mut()
+            .enumerate()
+            .skip(outer_left)
+            .take(x_end.saturating_sub(outer_left).saturating_add(1))
+        {
+            if x >= left && x <= right && y >= top && y <= bottom {
+                continue;
+            }
+            if *cell == ' ' {
+                *cell = '.';
+            }
+        }
+    }
+}
+
+/// Fill drop-shadow region offset from bbox on canvas using `'.'`, only overwriting spaces.
+fn fill_shadow(canvas: &mut [Vec<char>], bbox: (usize, usize, usize, usize), shadow_size: usize) {
+    let (top, bottom, left, right) = bbox;
+
+    let shadow_top = top + shadow_size;
+    let shadow_bottom = bottom + shadow_size;
+    let shadow_left = left + shadow_size;
+    let shadow_right = right + shadow_size;
+
+    let max_y = canvas.len().saturating_sub(1);
+    let y_end = shadow_bottom.min(max_y);
+    for (_y, row) in canvas
+        .iter_mut()
+        .enumerate()
+        .skip(shadow_top)
+        .take(y_end.saturating_sub(shadow_top).saturating_add(1))
+    {
+        let max_x = row.len().saturating_sub(1);
+        let x_end = shadow_right.min(max_x);
+        for (_x, cell) in row
+            .iter_mut()
+            .enumerate()
+            .skip(shadow_left)
+            .take(x_end.saturating_sub(shadow_left).saturating_add(1))
+        {
+            if *cell == ' ' {
+                *cell = '.';
+            }
+        }
+    }
+}
+
 /// Render a parsed template onto a canvas and return output rows.
 pub fn render_template(
     tmpl: &Template,
@@ -450,15 +551,32 @@ pub fn render_template(
 
             let rows: Vec<String> = buf.lines().map(|l| l.to_string()).collect();
 
-            match overlap {
+            let placed_y: usize = match overlap {
                 "flow" => {
                     let y_pos = flow_y;
                     flow_y += rows.len();
                     place_on_canvas(&mut canvas, &rows, x, y_pos);
+                    y_pos
                 }
                 _ => {
                     let y = layer.binding.y.unwrap_or(0) as usize;
                     place_on_canvas(&mut canvas, &rows, x, y);
+                    y
+                }
+            };
+
+            if layer.binding.border_width.is_some() || layer.binding.shadow_size.is_some() {
+                if let Some(bbox) = content_bbox(&rows, x, placed_y) {
+                    if let Some(bw) = layer.binding.border_width {
+                        if bw > 0 {
+                            fill_border(&mut canvas, bbox, bw as usize);
+                        }
+                    }
+                    if let Some(ss) = layer.binding.shadow_size {
+                        if ss > 0 {
+                            fill_shadow(&mut canvas, bbox, ss as usize);
+                        }
+                    }
                 }
             }
         } else {
@@ -476,15 +594,32 @@ pub fn render_template(
             let text = resolve_text_value(&layer.binding.text)?;
             let rows = render_figlet_text(font, &text, width, align);
 
-            match overlap {
+            let placed_y: usize = match overlap {
                 "flow" => {
                     let y_pos = flow_y;
                     flow_y += rows.len();
                     place_on_canvas(&mut canvas, &rows, x, y_pos);
+                    y_pos
                 }
                 _ => {
                     let y = layer.binding.y.unwrap_or(0) as usize;
                     place_on_canvas(&mut canvas, &rows, x, y);
+                    y
+                }
+            };
+
+            if layer.binding.border_width.is_some() || layer.binding.shadow_size.is_some() {
+                if let Some(bbox) = content_bbox(&rows, x, placed_y) {
+                    if let Some(bw) = layer.binding.border_width {
+                        if bw > 0 {
+                            fill_border(&mut canvas, bbox, bw as usize);
+                        }
+                    }
+                    if let Some(ss) = layer.binding.shadow_size {
+                        if ss > 0 {
+                            fill_shadow(&mut canvas, bbox, ss as usize);
+                        }
+                    }
                 }
             }
         }
@@ -895,7 +1030,10 @@ height = 10
 "#;
         let tmpl = parse_ftmp(ftmp).expect("should parse img tag");
         assert_eq!(tmpl.layers.len(), 1);
-        let img = tmpl.layers[0].image_tag.as_ref().expect("should be image tag");
+        let img = tmpl.layers[0]
+            .image_tag
+            .as_ref()
+            .expect("should be image tag");
         assert_eq!(img.source, "test.png");
         assert_eq!(img.width, Some(30));
         assert!(img.height.is_none());
@@ -957,7 +1095,8 @@ font = "standard"
             eprintln!("skipping image test: file not found at {img_path}");
             return;
         }
-        let ftmp = format!(r#"---
+        let ftmp = format!(
+            r#"---
 [canvas]
 width = 60
 height = 20
@@ -967,7 +1106,9 @@ text = "figby"
 font = "standard"
 ---
 {{{{greeting}}}}{{{{img:{}:30:::0,0:}}}}
-"#, img_path);
+"#,
+            img_path
+        );
         let tmpl = parse_ftmp(&ftmp).expect("should parse");
         assert_eq!(tmpl.layers.len(), 2);
         assert!(tmpl.layers[0].image_tag.is_none());
@@ -1000,5 +1141,266 @@ font = "standard"
 
         let args = TestArgs::try_parse_from(["test"]).unwrap();
         assert!(args.render_template.is_none());
+    }
+
+    // --- Border and shadow helper tests ---
+
+    #[test]
+    fn test_content_bbox_basic() {
+        let rows = vec!["X".to_string()];
+        let bbox = content_bbox(&rows, 5, 3).unwrap();
+        assert_eq!(bbox, (3, 3, 5, 5));
+    }
+
+    #[test]
+    fn test_content_bbox_no_content() {
+        let rows = vec!["   ".to_string()];
+        assert!(content_bbox(&rows, 0, 0).is_none());
+    }
+
+    #[test]
+    fn test_content_bbox_multiple_rows() {
+        let rows = vec![" A ".to_string(), "BBB".to_string(), " C ".to_string()];
+        let bbox = content_bbox(&rows, 2, 1).unwrap();
+        assert_eq!(bbox, (1, 3, 2, 4));
+    }
+
+    #[test]
+    fn test_fill_border_ring() {
+        let rows = vec!["X".to_string()];
+        let mut canvas = vec![vec![' '; 7]; 5];
+        place_on_canvas(&mut canvas, &rows, 3, 2);
+        let bbox = content_bbox(&rows, 3, 2).unwrap();
+        assert_eq!(bbox, (2, 2, 3, 3));
+        fill_border(&mut canvas, bbox, 1);
+
+        // Content cell preserved
+        assert_eq!(canvas[2][3], 'X');
+
+        // Border ring cells should be '.'
+        // Top row: y=1, x=2..4
+        assert_eq!(canvas[1][2], '.');
+        assert_eq!(canvas[1][3], '.');
+        assert_eq!(canvas[1][4], '.');
+        // Left/right on same row
+        assert_eq!(canvas[2][2], '.');
+        assert_eq!(canvas[2][4], '.');
+        // Bottom row: y=3, x=2..4
+        assert_eq!(canvas[3][2], '.');
+        assert_eq!(canvas[3][3], '.');
+        assert_eq!(canvas[3][4], '.');
+
+        // Cells outside border ring unchanged
+        assert_eq!(canvas[0][3], ' ');
+        assert_eq!(canvas[2][0], ' ');
+    }
+
+    #[test]
+    fn test_fill_shadow_offset() {
+        let rows = vec!["X".to_string()];
+        let mut canvas = vec![vec![' '; 10]; 10];
+        place_on_canvas(&mut canvas, &rows, 2, 1);
+        let bbox = content_bbox(&rows, 2, 1).unwrap();
+        assert_eq!(bbox, (1, 1, 2, 2));
+        fill_shadow(&mut canvas, bbox, 2);
+
+        // Shadow at (3, 3) — offset 2 down-right from (1, 2)
+        assert_eq!(canvas[3][4], '.', "shadow at offset");
+        assert_eq!(canvas[3][3], '.', "shadow at offset");
+        // Content preserved
+        assert_eq!(canvas[1][2], 'X');
+        // Cells before offset unchanged
+        assert_eq!(canvas[2][2], ' ');
+        assert_eq!(canvas[1][4], ' ');
+    }
+
+    #[test]
+    fn test_fill_border_no_overwrite_content() {
+        // Pre-place content in border ring area before fill_border runs
+        let rows = vec!["X".to_string()];
+        let mut canvas = vec![vec![' '; 7]; 5];
+        // Place second content at border-ring position
+        canvas[1][3] = 'Y';
+        place_on_canvas(&mut canvas, &rows, 3, 2);
+        let bbox = content_bbox(&rows, 3, 2).unwrap();
+        fill_border(&mut canvas, bbox, 1);
+
+        // 'Y' in border ring should still be 'Y' (not overwritten)
+        assert_eq!(
+            canvas[1][3], 'Y',
+            "pre-existing content in border ring preserved"
+        );
+        // Content 'X' preserved
+        assert_eq!(canvas[2][3], 'X');
+    }
+
+    // --- Template-level border and shadow tests ---
+
+    fn make_border_shadow_ftmp(
+        text: &str,
+        border_width: Option<u32>,
+        shadow_size: Option<u32>,
+        extra_fields: &str,
+    ) -> String {
+        let bw = border_width
+            .map(|w| format!("border_width = {}", w))
+            .unwrap_or_default();
+        let bc = border_width
+            .map(|_| r#"border_color = "."#.to_string())
+            .unwrap_or_default();
+        let ss = shadow_size
+            .map(|s| format!("shadow_size = {}", s))
+            .unwrap_or_default();
+        let sc = shadow_size
+            .map(|_| r#"shadow_color = "."#.to_string())
+            .unwrap_or_default();
+        format!(
+            r#"---
+[canvas]
+width = 30
+height = 10
+
+[variables.msg]
+text = "{text}"
+font = "standard"
+{bw}
+{bc}
+{ss}
+{sc}
+{extra_fields}
+---
+{{{{msg}}}}
+"#
+        )
+    }
+
+    #[test]
+    fn test_border_only_template() {
+        let ftmp = make_border_shadow_ftmp("A", Some(1), None, "");
+        let tmpl = parse_ftmp(&ftmp).expect("should parse");
+        let (_tmpdir, font_dir) = setup_font_dir();
+        let config = RenderConfig {
+            font_dir,
+            term_width: 80,
+            override_width: None,
+        };
+        let output = render_template(&tmpl, &config).expect("should render");
+
+        // Output should contain '.' characters (border)
+        let dot_count: usize = output
+            .iter()
+            .map(|row| row.chars().filter(|&c| c == '.').count())
+            .sum();
+        assert!(dot_count > 0, "border should produce '.' chars");
+
+        // Output should also contain text characters (not all dots)
+        let text_chars: usize = output
+            .iter()
+            .map(|row| row.chars().filter(|&c| c != ' ' && c != '.').count())
+            .sum();
+        assert!(text_chars > 0, "text content should be present");
+    }
+
+    #[test]
+    fn test_shadow_only_template() {
+        let ftmp = make_border_shadow_ftmp("A", None, Some(2), "");
+        let tmpl = parse_ftmp(&ftmp).expect("should parse");
+        let (_tmpdir, font_dir) = setup_font_dir();
+        let config = RenderConfig {
+            font_dir,
+            term_width: 80,
+            override_width: None,
+        };
+        let output = render_template(&tmpl, &config).expect("should render");
+
+        // Output should contain '.' characters (shadow)
+        let dot_count: usize = output
+            .iter()
+            .map(|row| row.chars().filter(|&c| c == '.').count())
+            .sum();
+        assert!(dot_count > 0, "shadow should produce '.' chars");
+
+        // Text characters still present
+        let text_chars: usize = output
+            .iter()
+            .map(|row| row.chars().filter(|&c| c != ' ' && c != '.').count())
+            .sum();
+        assert!(text_chars > 0, "text content should be present");
+    }
+
+    #[test]
+    fn test_border_and_shadow_template() {
+        let ftmp = make_border_shadow_ftmp("A", Some(1), Some(3), "");
+        let tmpl = parse_ftmp(&ftmp).expect("should parse");
+        let (_tmpdir, font_dir) = setup_font_dir();
+        let config = RenderConfig {
+            font_dir,
+            term_width: 80,
+            override_width: None,
+        };
+        let output = render_template(&tmpl, &config).expect("should render");
+
+        // Both border and shadow produce '.' chars
+        let dot_count: usize = output
+            .iter()
+            .map(|row| row.chars().filter(|&c| c == '.').count())
+            .sum();
+        assert!(dot_count > 0, "border+shadow should produce '.' chars");
+
+        // Text still present
+        let text_chars: usize = output
+            .iter()
+            .map(|row| row.chars().filter(|&c| c != ' ' && c != '.').count())
+            .sum();
+        assert!(text_chars > 0, "text content should be present");
+    }
+
+    #[test]
+    fn test_border_no_overwrite_other_layer() {
+        // Two layers at different positions.
+        // Layer "a" has border; layer "b" placed where border would extend.
+        // Layer "b" content should not be overwritten by layer "a"'s border.
+        let ftmp = r#"---
+[canvas]
+width = 40
+height = 12
+
+[variables.a]
+text = "A"
+font = "standard"
+x = 0
+y = 0
+border_width = 1
+border_color = "."
+
+[variables.b]
+text = "B"
+font = "standard"
+x = 0
+y = 6
+---
+{{a}}
+{{b}}
+"#;
+        let tmpl = parse_ftmp(ftmp).expect("should parse");
+        let (_tmpdir, font_dir) = setup_font_dir();
+        let config = RenderConfig {
+            font_dir,
+            term_width: 80,
+            override_width: None,
+        };
+        let output = render_template(&tmpl, &config).expect("should render");
+
+        // Both text chars should be present
+        assert!(
+            output.len() >= 12,
+            "should have enough rows for both layers"
+        );
+        // Verify border dots present
+        let dot_count: usize = output
+            .iter()
+            .map(|row| row.chars().filter(|&c| c == '.').count())
+            .sum();
+        assert!(dot_count > 0, "border should produce '.' chars");
     }
 }

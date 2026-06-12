@@ -7,6 +7,7 @@ Master memory index. Detailed entries live in versioned files below.
 | Milestone | File | Status |
 |-----------|------|--------|
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
+| v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 
 ## Architectural Decisions
 
@@ -408,3 +409,46 @@ failures involve RTL, TLF fonts, paragraph mode — separate issues from the
 wordbreakmode bug.
 
 Phase 1.7 (Major Release: end-to-end verification + RC) is next.
+
+### 2.0.2 — Port make-examples script to CLI
+
+Created `scripts/make-examples.sh` — POSIX shell script that generates
+example output for every font file in `fonts/`. Supports `--sample-text`
+(default `"hello figby"`), `--fonts` (comma-separated whitelist),
+`--exclude` (comma-separated blacklist), and `--categories` (parsed but
+deferred). Resolves `figby` binary via PATH, `figby-rs/target/debug/figby`,
+or builds if missing. Uses `-d fonts/` flag so font resolution works from
+repo root. Output goes to `examples/` with a `.gitkeep` sentinel file.
+
+### 2.0.4 — Repo cleanup: move C source to c-figlet/
+
+Moved all C FIGlet 2.2.5 source files (`figlet.c`, `chkfont.c`, `inflate.c`,
+`zipio.c`, `utf8.c`, `getopt.c`, `crc.c`, headers, `Makefile*`) from root into
+`c-figlet/`. Removed stale `.o` build artifacts. Updated references in README.md,
+AGENTS.md, skills/ralph.md, .travis.yml, snapcraft.yaml, and run-tests.sh.
+Root is now clean of loose C source files.
+
+### 2.0.3 — Update README with proper documentation
+
+Complete README rewrite covering: what Figby is, installation methods
+(cargo, build from git, pre-built, package managers), CLI usage with
+all 27 flags and examples, font directory setup and resolution order,
+getting fonts (bundled + external sources), comparison with C FIGlet
+(feature parity table), contributing guide with setup and quality gates,
+project status with v1/v2 milestone references, roadmap, and license.
+`cargo fmt --check` and `cargo clippy` pass clean.
+
+### 2.0.8 — `--to-file` output flag (CLI arg only, no-op)
+
+Added `--to-file <path>` long flag to `CliArgs` struct, `to_file: Option<String>` field
+on `CliConfig` with default `None`, assignment in `from_args()`. No file I/O — deferred
+to 2.1. One parse test (`test_flag_to_file`). `cargo fmt` and `cargo clippy` pass clean.
+
+### 2.0.9 — Builtin template functions: date + repo-data (syntax + reserve)
+
+Added `TemplateBuiltin` enum with `Date(String)` and `RepoData(String)` variants
+to `template.rs`. Added `builtin: Option<TemplateBuiltin>` field to `Layer` struct
+(default `None`). `parse_ftmp()` recognizes `{{date:format}}` and
+`{{repo-data:field}}` tags before the variables lookup. `render_template()` skips
+builtin layers with `continue` (no-op, deferred to 2.1). No `.unwrap()` in
+production — all new code uses proper Option handling. fmt and clippy pass clean.

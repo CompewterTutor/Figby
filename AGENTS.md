@@ -9,7 +9,7 @@ ASCII art banner generator. The original C implementation (v2.2.5) renders text
 in large characters using FIGfont (.flf) and TOIlet (.tlf) font files with
 kerning, smushing, and multi-byte character support.
 
-This repo preserves the original C source in the root while the Rust port lives
+This repo preserves the original C source in `c-figlet/` while the Rust port lives
 in `figby-rs/`. The goal is a **feature-complete, safe, modern Rust rewrite**
 that supports all FIGlet 2.2.5 features plus UTF-8 natively.
 

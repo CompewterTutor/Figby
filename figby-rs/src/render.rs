@@ -43,6 +43,7 @@ fn first_non_space(s: &str, fallback_pos: usize, fallback_char: char) -> (usize,
 /// smush amount. Handles left-to-right and right-to-left.
 ///
 /// Mirror of C `smushamt()` in figlet.c:1446-1485.
+#[allow(clippy::too_many_arguments)]
 pub fn calc_smush_amount(
     output_rows: &[String],
     curr_rows: &[String],

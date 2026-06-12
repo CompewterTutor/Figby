@@ -12,7 +12,7 @@ confinement: strict
 parts:
   figlet:
     plugin: make
-    source: .
+    source: c-figlet/
     make-parameters:
       - prefix=
     build-packages:

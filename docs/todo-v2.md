@@ -43,7 +43,7 @@ overlay, layers, and animation timeline.
   - **Tests:** N/A (manual review).
   - **Difficulty:** Low
 
-- [ ] `2.0.4` Repo cleanup — move C source to subdirectory
+- [x] `2.0.4` Repo cleanup — move C source to subdirectory
   - **Goal:** Move all C FIGlet 2.2.5 source files (`figlet.c`, `chkfont.c`,
     `inflate.c`, `zipio.c`, `utf8.c`, `getopt.c`, `crc.c`, headers,
     `Makefile*`) into `c-figlet/` to clean root. Update references in

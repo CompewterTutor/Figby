@@ -89,5 +89,5 @@ When implementing, print exactly: `IMPLEMENTATION_DONE` after all code changes d
 - Task definitions: `docs/todo-v*.md`
 - Memory: `docs/memory.md`
 - Coding standards: `AGENTS.md`
-- Original C source: root `figlet.c` and related files
+- Original C source: `c-figlet/` directory
 - Font files: `fonts/` directory

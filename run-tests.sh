@@ -6,7 +6,7 @@ export LC_ALL
 TESTDIR=tests
 OUTPUT=.test-output.txt
 LOGFILE=tests.log
-CMD="./figlet"
+CMD="c-figlet/figlet"
 FONTDIR="$1"
 
 run_test() {

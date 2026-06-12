@@ -11,7 +11,7 @@ TOIlet (`.tlf`) font files. It is a **safe, modern Rust rewrite** of FIGlet
 2.2.5 preserving all features: kerning, smushing, multi-byte character support,
 control files, and the full CLI interface.
 
-Original C source lives in the repo root for reference; the Rust port lives in
+Original C source lives in `c-figlet/` for reference; the Rust port lives in
 `figby-rs/`.
 
 ## Features

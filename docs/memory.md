@@ -420,6 +420,14 @@ deferred). Resolves `figby` binary via PATH, `figby-rs/target/debug/figby`,
 or builds if missing. Uses `-d fonts/` flag so font resolution works from
 repo root. Output goes to `examples/` with a `.gitkeep` sentinel file.
 
+### 2.0.4 — Repo cleanup: move C source to c-figlet/
+
+Moved all C FIGlet 2.2.5 source files (`figlet.c`, `chkfont.c`, `inflate.c`,
+`zipio.c`, `utf8.c`, `getopt.c`, `crc.c`, headers, `Makefile*`) from root into
+`c-figlet/`. Removed stale `.o` build artifacts. Updated references in README.md,
+AGENTS.md, skills/ralph.md, .travis.yml, snapcraft.yaml, and run-tests.sh.
+Root is now clean of loose C source files.
+
 ### 2.0.3 — Update README with proper documentation
 
 Complete README rewrite covering: what Figby is, installation methods

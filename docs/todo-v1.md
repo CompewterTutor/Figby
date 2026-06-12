@@ -310,14 +310,14 @@ and multi-byte input.
     involve RTL, TLF fonts, paragraph mode — separate issues.
   - **Difficulty:** Medium
 
-- [ ] `1.6.6` Phase merge: release/1.6 → main
+- [x] `1.6.6` Phase merge: release/1.6 → main
   - **Difficulty:** Low
 
 ---
 
 ## Phase 1.7 — Major Release
 
-- [ ] `1.7.1` End-to-end verification against C
+- [x] `1.7.1` End-to-end verification against C
   - **Goal:** Run full test suite, compare every output byte-for-byte
     with original FIGlet 2.2.5. No differences.
   - **Touches:** Test infrastructure

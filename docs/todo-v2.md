@@ -72,7 +72,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Parse `.ftmp`, render, verify output. `flow` vs `overwrite`.
   - **Difficulty:** High
 
-- [ ] `2.0.6` Template tag value sources + rascii image tag
+- [x] `2.0.6` Template tag value sources + rascii image tag
   - **Goal:** Tag `text` attribute accepts three source types: string
     literal, env var (`${VAR}`), command substitution (`$(cmd)`).
     Add rascii image tag: `{{img:source:width:height:color:pos:charset}}`

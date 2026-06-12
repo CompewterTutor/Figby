@@ -1,5 +1,5 @@
 #!/bin/sh
-# ralph — autonomous task loop for the Feiglet repository.
+# ralph — autonomous task loop for the Figby repository.
 #
 # Usage:
 #   ./scripts/ralph.sh                          # multi-phase: loop through all open phases from main
@@ -34,7 +34,7 @@ set -e
 REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 SKILL="$REPO_ROOT/skills/ralph.md"
 LOG="$REPO_ROOT/docs/ralph-log.md"
-MANIFEST="--manifest-path feiglet-rs/Cargo.toml"
+MANIFEST="--manifest-path figby-rs/Cargo.toml"
 # Resolve actual default branch (master vs main)
 DEFAULT_BRANCH="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo main)"
 
@@ -558,7 +558,7 @@ phase_review_and_merge() {
     COMMIT_LOG="$(git log --oneline "${DEFAULT_BRANCH}"..."$BASE_BRANCH" 2>&1 || true)"
     REVIEW_LOG="/tmp/ralph-phase-review-${MINOR_VERSION}-${REVIEW_ATTEMPT}.log"
 
-    invoke_agent "$RELEASE_REVIEW_AGENT" "You are performing a phase completion review for the Feiglet repository.
+    invoke_agent "$RELEASE_REVIEW_AGENT" "You are performing a phase completion review for the Figby repository.
 All tasks in phase ${MINOR_VERSION} are reported complete. You have full read
 access to the repository working directory. Inspect changed files and docs
 directly.
@@ -644,7 +644,7 @@ Then list what must be fixed before the merge can proceed." \
     REVIEW_OUT="$(cat "$REVIEW_LOG")"
     log "Asking architect agent to fix phase review blockers (attempt ${REVIEW_ATTEMPT})…"
 
-    invoke_agent "$ARCHITECT_AGENT" "The phase review for phase ${MINOR_VERSION} in the Feiglet repository returned PHASE_BLOCKED.
+    invoke_agent "$ARCHITECT_AGENT" "The phase review for phase ${MINOR_VERSION} in the Figby repository returned PHASE_BLOCKED.
 Read the full review output below. Fix every issue listed under 'Must fix before merge'.
 Make the minimum changes necessary — do not touch code or docs unrelated to the listed blockers.
 Do NOT commit. Just edit the files. Print exactly: REVIEW_FIXES_DONE when all edits are complete.
@@ -722,7 +722,7 @@ run_task() {
   log "Step 1/3 — planning with $(agent_model "$TASK_PLANNING_AGENT")"
 
   PLAN="$(
-    invoke_agent "$TASK_PLANNING_AGENT" "You are an expert Rust engineer planning a task for the Feiglet repository.
+    invoke_agent "$TASK_PLANNING_AGENT" "You are an expert Rust engineer planning a task for the Figby repository.
 Read the skill file and the task block carefully, then write a numbered
 implementation plan. Do NOT write any code. Output plain text only.
 
@@ -746,7 +746,7 @@ Produce:
   DEV_AGENT="$(resolve_dev_agent "$TASK_BLOCK")"
   log "Step 2/3 — implementing with $(agent_model "$DEV_AGENT")"
 
-  invoke_agent "$DEV_AGENT" "You are Ralph, the autonomous task agent for the Feiglet repository.
+  invoke_agent "$DEV_AGENT" "You are Ralph, the autonomous task agent for the Figby repository.
 Implement task ${TASK_ID} in full, following every rule in the skill file below.
 All cargo commands should use: cargo \$CMD ${MANIFEST}
 The pre-commit hook runs automatically on git commit — never use --no-verify.
@@ -775,7 +775,7 @@ ${SKILL_TEXT}" \
 
   DIFF="$(git diff HEAD 2>&1 | head -600)"
 
-  invoke_agent "$TASK_REVIEW_AGENT" "You are reviewing a Rust implementation for the Feiglet repository.
+  invoke_agent "$TASK_REVIEW_AGENT" "You are reviewing a Rust implementation for the Figby repository.
 Work through every item in the self-review checklist from the skill file.
 For each item write PASS or FAIL and a one-line reason.
 For any FAIL item: open the file and fix it now before printing REVIEW_DONE.
@@ -796,7 +796,7 @@ After fixing all failures print exactly: REVIEW_DONE." \
   log "Committing task ${TASK_ID}"
 
   COMMIT_MSG="$(
-    invoke_agent "$TASK_PLANNING_AGENT" "Write a git commit message for task ${TASK_ID} in the Feiglet repository.
+    invoke_agent "$TASK_PLANNING_AGENT" "Write a git commit message for task ${TASK_ID} in the Figby repository.
 Format: first line is '${TASK_ID}: <description, 10 words max>'.
 Then a blank line. Then one paragraph body: what was done and why.
 Output only the commit message text, no markdown fences.
@@ -836,7 +836,7 @@ Task: ${TASK_BLOCK}"
 
     HOOK_OUT="$(cat "$COMMIT_LOG")"
     log "Asking architect agent to fix failures…"
-    invoke_agent "$ARCHITECT_AGENT" "The pre-commit hook rejected the commit for task ${TASK_ID} in the Feiglet repository.
+    invoke_agent "$ARCHITECT_AGENT" "The pre-commit hook rejected the commit for task ${TASK_ID} in the Figby repository.
 Fix every failure shown below. Change only what is required to pass.
 When done print exactly: FIXES_DONE.
 

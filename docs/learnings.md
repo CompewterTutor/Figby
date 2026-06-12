@@ -1,4 +1,4 @@
-# Feiglet — Learnings
+# Figby — Learnings
 
 ## 1.1.2 — Core types
 
@@ -14,7 +14,7 @@
 ## 1.1.3 — Header parser
 
 - `figlet.c` skips baseline with `%*d` in sscanf and doesn't parse `codetag_count`,
-  while `chkfont.c` includes both. Feiglet follows `chkfont.c` (parse all fields
+  while `chkfont.c` includes both. Figby follows `chkfont.c` (parse all fields
   including baseline and codetag_count as 9th optional field).
 - Full layout derivation rule (from `figlet.c:1231-1238`):
   `old_layout == 0 → 64 (SM_KERN)`, `old_layout < 0 → 0`, else `(old_layout & 31) | 128 (SM_SMUSH)`.
@@ -121,7 +121,7 @@ Three bugs found in phase merge review:
 ## 1.3.4 — Main event loop
 
 - `pub(crate)` visibility in `font.rs` constants is NOT visible from binary crate
-  (`main.rs`), since the binary depends on `feiglet` as a separate library crate.
+  (`main.rs`), since the binary depends on `figby` as a separate library crate.
   Changing `DEUTSCH_CHARS` to `pub` is required when the binary needs it.
 - `std::io::Stdin::bytes()` requires `Read` trait in scope (`use std::io::Read`).
   Using `io::BufReader::new(io::stdin()).bytes()` avoids
@@ -151,9 +151,9 @@ Three bugs found in phase merge review:
 - `#[allow(non_snake_case)]` is required on clap structs when flags have
   uppercase/lowercase collisions (e.g., `-L` vs `-l`). In snake_case, `flag_L`
   and `flag_l` collapse to the same name. Eight such collisions exist in FIGlet.
-- `CliArgs::try_parse_from(["feiglet", "-A"])` — the array arg must be
+- `CliArgs::try_parse_from(["figby", "-A"])` — the array arg must be
   owned (no `&` prefix). Clippy `needless_borrows_for_generic_args` fires if
-  you write `&["feiglet", "-A"]`; clap's `try_parse_from` accepts
+  you write `&["figby", "-A"]`; clap's `try_parse_from` accepts
   `impl IntoIterator` and `[&str; N]` already satisfies that without a borrow.
 - `-m -1` parsing with clap: requires `#[arg(allow_hyphen_values = true)]` on
   the field. Without it, clap treats `-1` as an unknown flag. In clap 4 the
@@ -232,6 +232,17 @@ Three bugs found in phase merge review:
 - DBCS and SJIS byte ranges are identical (0x80-0x9F, 0xE0-0xEF — lead bytes;
   any byte as trail). Combined as `(lead << 8) | trail`.
 
+## 1.6.3 — Project rename: Feiglet → Figby
+
+- Using `replaceAll` on edit tool is efficient for bulk renames within a file,
+  but backtick-pattern `\`feiglet\`` won't match `cargo build -p feiglet` since
+  the backtick is at the start of the command, not right before feiglet. Need
+  a dedicated replace for such cases.
+- `rg -il` is the fastest way to verify zero remaining matches after a rename.
+- `git mv` for directory rename preserves history cleanly.
+- After directory rename, `cargo build` must be run from inside the renamed
+  directory (no workspace Cargo.toml at root).
+
 ## 1.5.3 — Deutsch flag character re-routing
 
 - Clippy `manual_range_contains` fires on `c >= x && c <= y` patterns — use
@@ -239,4 +250,66 @@ Three bugs found in phase merge review:
 - When a `use` import is used only in `#[cfg(test)]` code within the same file,
   clippy flags it as unused in the binary target. Move it inside the test module
   to silence the lint cleanly.
+
+## 1.6.1 — Port C test harness
+
+- C `-f` handler strips `.flf`/`.tlf` suffix from font name before `FIGopen()`:
+  `if (suffixcmp(fontname,FONTFILESUFFIX)) fontname[strlen-4] = '\0'` (figlet.c:1044-1046).
+  Rust `CliConfig::from_args()` doesn't strip extensions — `config.fontname = val` directly.
+  When names like `fonts/banner.flf` are passed (e.g., from shell glob), C strips to
+  `fonts/banner`; Rust keeps `fonts/banner.flf` which then fails in `font_candidates()`
+  since it appends another `.flf` suffix.
+- C `-C` flag strips `.flc` suffix (figlet.c:1055-1057) and uses `FIGopen()` which
+  prepends `fontdirname` and appends `.flc`. Rust `read_control()` opens the path
+  directly via `File::open()` — no fontdir-based resolution. Bare control names like
+  `uskata` don't resolve; full path `fonts/uskata.flc` required.
+- `font_candidates()` in Rust tries `{name}.flf` and `{name}.tlf` but never the bare
+  `name` directly (C's `FIGopen` also appends suffix, but the name has already been
+  stripped). This means Rust fails on names that already carry `.flf`/`.tlf` extension
+  while C' strips first then appends.
+- `env!("CARGO_BIN_EXE_figby")` provides binary path during integration tests only —
+  requires `[[bin]]` section in Cargo.toml. Works for `tests/` integration tests.
+- `CARGO_MANIFEST_DIR` gives crate directory; repo root is one level up. Used to
+  locate `fonts/`, `tests/`, and expected output files.
+- `std::fs::read_dir` + sort by filename matches POSIX `ls` default ordering for
+  ASCII filenames (used in `showfigfonts_output` and `list_control_files_output`).
+- Test 20 tempdir with `tempfile::tempdir()` is drop-safe for panic cleanup vs C's
+  `mkdir + rm -Rf` which leaks on error.
+
+## 1.6.5 — Rendering pipeline bug fix
+
+- C figlet's `addchar` failure for a space char checks `wordbreakmode == 2`
+  (figlet.c:2107), not `>= 2`. When `wordbreakmode == 3` (after a space, back
+  in a word), a failing space causes `printline()` (simple flush), not `splitline()`.
+  The non-space failure path (figlet.c:2108) correctly uses `wordbreakmode >= 2`.
+  Different semantics for space vs non-space paths — subtle C detail easy to miss.
+- `char_buffer.truncate(part2_start)` is wrong when `split_line` returns the
+  start index of part2 (not the length of part1). `drain(..part2_start)` is
+  correct. This matters when the char_buffer contains data before part2 —
+  `truncate` keeps only `part2_start` elements; `drain` removes `part2_start`
+  elements from the front. In the no-word-break case, `part2_start == 0`, so
+  `drain(..0)` is a no-op (correct) while `truncate(0)` clears the buffer
+  (wrong — drops all output lines).
+- `String::from_utf8` fails on any non-UTF-8 byte. FIGfont files from C era
+  can contain arbitrary bytes (0xFF padding, etc.). `String::from_utf8_lossy`
+  replaces invalid bytes with U+FFFD, matching C's byte-level Latin-1 handling
+  (where the byte just passes through as-is). Lossy is safe for FIGfonts since
+  valid ASCII/UTF-8 characters pass through unchanged.
+- Standard font space glyph ` $@` has width 2 after `strip_endmarks` (replaces
+  `$` with hardblank `@` after strip). Renders as 1 space after hardblank→space
+  replacement in `render_line`. This small width means space chars are the first
+  to hit output width limits, making them the primary trigger for line-wrap bugs.
+- Standard font default char (code 0/empty) has empty rows — not stored in font
+  file for code 0. C figlet allocates it empty via `addchar` first-call;
+  Rust parser reads code 32 from first data block (correctly matches C).
+- `cargo fmt` requires `--manifest-path figby-rs/Cargo.toml` since there's no workspace
+  Cargo.toml at the repo root.
+- `std::sync::OnceLock` is stable since Rust 1.70 and works well for lazy font loading
+  in benchmarks. Must use `FONT.get_or_init(|| { ... })` pattern.
+- Criterion 0.5 uses `criterion::black_box` (re-export of `std::hint::black_box`).
+  `criterion_group!` and `criterion_main!` macros work unchanged.
+- `std::iter::repeat_n()` (stable since 1.82) is preferred over `repeat().take(N)` —
+  clippy `manual_repeat_n` lint enforces this.
+- No compiled C `figlet` binary exists in the repo for baseline comparison. The
+  benchmarks establish a Rust baseline; manual C comparison is separate work.
 

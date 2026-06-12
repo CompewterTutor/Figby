@@ -158,3 +158,35 @@ DONE: 1.5.4 merged into release/1.5.
 ## 2026-06-10 02:26
 
 All 1.5 tasks complete. Starting phase review.
+
+## 2026-06-10 02:26
+
+PHASE_COMPLETE: 1.5 merged to main after review approval.
+
+## 2026-06-10 02:36
+
+BLOCKED on task 1.6.1: pre-commit hook still failing after 3 attempts.
+
+## 2026-06-10 03:15
+
+DONE: 1.6.1 merged into release/1.6.
+
+## 2026-06-10 03:21
+
+DONE: 1.6.2 merged into release/1.6.
+
+## 2026-06-10 03:28
+
+DONE: 1.6.4 merged into release/1.6.
+
+## 2026-06-10
+
+DONE: 1.6.5 — Phase merge docs committed. Actual merge performed by ralph.sh phase_review_and_merge().
+
+## 2026-06-10 03:32
+
+DONE: 1.6.5 merged into release/1.6.
+
+## 2026-06-10 03:32
+
+All 1.6 tasks complete. Starting phase review.

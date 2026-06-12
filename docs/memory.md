@@ -1,4 +1,4 @@
-# Feiglet — Memory Index
+# Figby — Memory Index
 
 Master memory index. Detailed entries live in versioned files below.
 
@@ -11,7 +11,7 @@ Master memory index. Detailed entries live in versioned files below.
 ## Architectural Decisions
 
 ### UTF-8 Native Encoding
-Feiglet uses Rust `char`/`String` natively (UTF-8), not `wchar_t`.
+Figby uses Rust `char`/`String` natively (UTF-8), not `wchar_t`.
 FIGlet C used `typedef long inchr` for internal char representation.
 We map directly to `char` (Unicode scalar value) and use `String` for
 output rows. TLF fonts already UTF-8; FIGfont ASCII is valid UTF-8.
@@ -37,9 +37,9 @@ Use `clap` with derive macros for CLI parsing, replacing `getopt`.
 FIGlet flag semantics preserved exactly.
 
 ## Task History
+### 1.1.1 — Create `figby` crate in workspace
 
-### 1.1.1 — Create `feiglet` crate in workspace
-Added `[lib]` section to `feiglet-rs/Cargo.toml` (name=feiglet, path=src/lib.rs,
+Added `[lib]` section to `figby-rs/Cargo.toml` (name=figby, path=src/lib.rs,
 crate-type=[lib]). Added `#![doc]` crate-level attribute to `src/lib.rs` with
 description. Sorted `pub mod` declarations alphabetically (rustfmt preference).
 Five module stubs (font, render, smush, control, input) compile as-is.
@@ -358,3 +358,53 @@ Merged all Phase 1.5 work into default branch (master). Phase 1.5 complete:
 UTF-8 input mode (1.5.1), DBCS/HZ/Shift-JIS input modes (1.5.2), Deutsch
 flag character re-routing (1.5.3). All 3 subtasks implemented, tested, merged.
 Phase 1.6 (Test Suite & Verification) is next.
+
+### 1.6.2 — Font fuzz testing
+
+Added property-based fuzz tests for font parser in `tests/fuzz.rs` using `proptest`.
+All 4 public parser functions (`parse_header`, `parse_tlf_font`, `parse_char_data`,
+`parse_codetagged`) exercised with random malformed strings — no panics, only
+`Result` returns. Height bounds prevent infinite loops at height=0. `proptest`
+dev-dependency added.
+
+### 1.6.3 — Rename project: Feiglet → Figby
+
+Renamed every instance of `Feiglet`/`feiglet` to `Figby`/`figby` across the
+entire repository. Includes: `figby-rs/` directory rename, Cargo package name,
+CLI command name (`figby`), lib name, module imports (`use figby::...`),
+all documentation files, scripts, and skills. Version 1.6.3 task added to
+todo-v1.md with renumbering of subsequent tasks (benchmarks → 1.6.4, phase
+merge → 1.6.5). Build, fmt, clippy, and all 273 tests pass clean.
+
+### 1.6.4 — Performance benchmarks
+
+Added Criterion benchmark suite in `figby-rs/benches/render_bench.rs` with 9 benches:
+font_load, lookup_char (1000x), smush_horizontal (10000x), calc_smush_amount (1000x),
+add_char_kerning (100x "Hi World"), add_char_smushing (100x), render_line (4
+justifications), split_line, full_pipeline (~5KB Lorem Ipsum text). Font loaded lazily
+via `OnceLock` to avoid re-parsing. `criterion = "0.5"` dev-dependency added,
+`[[bench]]` entry with `harness = false`. No C binary available for baseline
+comparison — Rust baseline established; manual C comparison needed separately.
+`target/criterion/` already covered by `target/` in `.gitignore`.
+
+### 1.6.5 — Fix rendering pipeline bug
+
+Identified and fixed root cause of `wordbreakmode` condition mismatch in
+space-char failure path of main event loop. C figlet uses `wordbreakmode == 2`,
+Rust used `wordbreakmode >= 2`. When `wordbreakmode == 3` (after a space, now
+in a word), a failing space causes `printline()` (simple flush), not
+`splitline()`. The `>= 2` check incorrectly called `split_line()` which
+prematurely split on word boundaries, causing output divergence for
+multi-line stdin input at default terminal width.
+
+Additional fixes:
+- `char_buffer.truncate(part2_start)` → `char_buffer.drain(..part2_start)` —
+  `split_line` returns start index of part2, not length of part1
+- Font parser: `String::from_utf8` → `String::from_utf8_lossy` for non-UTF-8
+  font bytes (bubble font had embedded 0xFF bytes)
+
+Status: 17/27 integration tests pass (was 4/27 before fixes). Remaining 10
+failures involve RTL, TLF fonts, paragraph mode — separate issues from the
+wordbreakmode bug.
+
+Phase 1.7 (Major Release: end-to-end verification + RC) is next.

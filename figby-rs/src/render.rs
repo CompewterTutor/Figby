@@ -18,7 +18,8 @@ pub fn lookup_char<'a>(
 }
 
 fn last_non_space(s: &str, fallback_pos: usize, fallback_char: char) -> (usize, char) {
-    for (i, c) in s.char_indices().rev() {
+    let chars: Vec<char> = s.chars().collect();
+    for (i, &c) in chars.iter().enumerate().rev() {
         if c != ' ' {
             return (i, c);
         }
@@ -27,7 +28,7 @@ fn last_non_space(s: &str, fallback_pos: usize, fallback_char: char) -> (usize, 
 }
 
 fn first_non_space(s: &str, fallback_pos: usize, fallback_char: char) -> (usize, char) {
-    for (i, c) in s.char_indices() {
+    for (i, c) in s.chars().enumerate() {
         if c != ' ' {
             return (i, c);
         }
@@ -47,6 +48,7 @@ pub fn calc_smush_amount(
     curr_rows: &[String],
     outlinelen: usize,
     currcharwidth: usize,
+    prevcharwidth: usize,
     mode: SmushMode,
     hardblank: char,
     right2left: bool,
@@ -75,20 +77,25 @@ pub fn calc_smush_amount(
             (linebd, c1, charbd, c2)
         };
 
-        let amt = if right2left {
-            (linebd + currcharwidth).saturating_sub(1 + charbd)
+        let amt_base = if right2left {
+            (linebd as isize + currcharwidth as isize).saturating_sub(1 + charbd as isize)
         } else {
-            (charbd + outlinelen).saturating_sub(1 + linebd)
+            (charbd as isize + outlinelen as isize).saturating_sub(1 + linebd as isize)
         };
 
         let amt = if ch1 == ' '
             || ch1 == '\0'
-            || (ch2 != '\0' && smush_horizontal(ch1, ch2, mode, hardblank, right2left).is_some())
+            || (ch2 != '\0'
+                && prevcharwidth >= 2
+                && currcharwidth >= 2
+                && smush_horizontal(ch1, ch2, mode, hardblank, right2left).is_some())
         {
-            amt + 1
+            amt_base + 1
         } else {
-            amt
+            amt_base
         };
+
+        let amt = amt.max(0) as usize;
 
         if amt < maxsmush {
             maxsmush = amt;
@@ -120,31 +127,16 @@ pub fn add_char(
     let curr_width = *prev_width;
     let curr_rows = ch.rows();
 
-    if old_prev_width == 0 {
-        for (row_idx, row) in curr_rows.iter().enumerate() {
-            if row_idx < output_rows.len() {
-                output_rows[row_idx] = row.clone();
-            } else {
-                output_rows.push(row.clone());
-            }
-        }
-        *outlinelen = curr_width;
-        return true;
-    }
-
-    let mut smush = calc_smush_amount(
+    let smush = calc_smush_amount(
         output_rows,
         curr_rows,
         *outlinelen,
         curr_width,
+        old_prev_width,
         mode,
         font.hardblank,
         right2left,
     );
-
-    if curr_width < 2 || old_prev_width < 2 {
-        smush = 0;
-    }
 
     if *outlinelen + curr_width - smush > outlinelen_limit {
         *prev_width = old_prev_width;
@@ -438,7 +430,7 @@ mod tests {
         let mode = SmushMode::new(0);
         let output = vec!["A".to_string()];
         let curr = vec!["B".to_string()];
-        let result = calc_smush_amount(&output, &curr, 1, 1, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 1, 1, 2, mode, HB, false);
         assert_eq!(result, 0);
     }
 
@@ -447,7 +439,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::KERN);
         let output = vec!["A".to_string()];
         let curr = vec!["A".to_string()];
-        let result = calc_smush_amount(&output, &curr, 1, 1, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 1, 1, 2, mode, HB, false);
         assert_eq!(result, 0);
     }
 
@@ -456,7 +448,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::SMUSH);
         let output = vec!["A".to_string()];
         let curr = vec![" B ".to_string()];
-        let result = calc_smush_amount(&output, &curr, 1, 3, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 1, 3, 2, mode, HB, false);
         assert_eq!(result, 2);
     }
 
@@ -465,7 +457,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::SMUSH);
         let output = vec![" A".to_string()];
         let curr = vec!["B ".to_string()];
-        let result = calc_smush_amount(&output, &curr, 2, 2, mode, HB, true);
+        let result = calc_smush_amount(&output, &curr, 2, 2, 2, mode, HB, true);
         assert_eq!(result, 2);
     }
 
@@ -474,7 +466,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::SMUSH);
         let output = vec!["AAA".to_string(), "A A".to_string()];
         let curr = vec!["  B".to_string(), "B  ".to_string()];
-        let result = calc_smush_amount(&output, &curr, 3, 3, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 3, 3, 2, mode, HB, false);
         assert_eq!(result, 1);
     }
 
@@ -483,7 +475,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::SMUSH | SmushMode::EQUAL_CHARS);
         let output = vec!["A".to_string()];
         let curr = vec![" A".to_string()];
-        let result = calc_smush_amount(&output, &curr, 1, 2, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 1, 2, 2, mode, HB, false);
         assert_eq!(result, 2);
     }
 
@@ -492,7 +484,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::SMUSH | SmushMode::EQUAL_CHARS);
         let output = vec!["A".to_string()];
         let curr = vec![" B".to_string()];
-        let result = calc_smush_amount(&output, &curr, 1, 2, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 1, 2, 2, mode, HB, false);
         assert_eq!(result, 1);
     }
 
@@ -501,7 +493,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::SMUSH);
         let output = vec!["  ".to_string()];
         let curr = vec!["A ".to_string()];
-        let result = calc_smush_amount(&output, &curr, 2, 2, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 2, 2, 2, mode, HB, false);
         assert_eq!(result, 2);
     }
 
@@ -510,7 +502,7 @@ mod tests {
         let mode = SmushMode::new(SmushMode::SMUSH);
         let output = vec!["A ".to_string()];
         let curr = vec!["  ".to_string()];
-        let result = calc_smush_amount(&output, &curr, 2, 2, mode, HB, false);
+        let result = calc_smush_amount(&output, &curr, 2, 2, 2, mode, HB, false);
         assert_eq!(result, 2);
     }
 
@@ -536,6 +528,45 @@ mod tests {
     }
 
     #[test]
+    fn test_add_char_10_as() {
+        let font_bytes = include_bytes!("../../fonts/standard.flf");
+        let font_str = String::from_utf8_lossy(font_bytes);
+        let font = crate::font::parse_tlf_font(&font_str).unwrap();
+        let mode = crate::smush::SmushMode::new(font.full_layout as u32);
+        let mut output_rows = vec![String::new(); font.charheight as usize];
+        let mut outlinelen = 0;
+        let mut prev_width = 0;
+        let limit = 79;
+        for i in 0..10 {
+            let ok = add_char(
+                &font,
+                'a' as u32,
+                &mut output_rows,
+                &mut outlinelen,
+                &mut prev_width,
+                mode,
+                false,
+                limit,
+            );
+            println!("add_char {}: ok={}, outlinelen={}", i, ok, outlinelen);
+            if i < 9 {
+                let ok2 = add_char(
+                    &font,
+                    ' ' as u32,
+                    &mut output_rows,
+                    &mut outlinelen,
+                    &mut prev_width,
+                    mode,
+                    false,
+                    limit,
+                );
+                println!("add_space {}: ok={}, outlinelen={}", i, ok2, outlinelen);
+            }
+        }
+        println!("final outlinelen={}", outlinelen);
+    }
+
+    #[test]
     fn test_add_char_first_char_ltr() {
         let font = add_char_font();
         let mode = SmushMode::new(SmushMode::KERN);
@@ -552,8 +583,8 @@ mod tests {
             200,
         );
         assert!(ok);
-        assert_eq!(outlinelen, 3);
-        assert_eq!(output_rows[0], " H ");
+        assert_eq!(outlinelen, 2);
+        assert_eq!(output_rows[0], "H ");
         assert_eq!(prev_width, 3);
     }
 
@@ -583,8 +614,8 @@ mod tests {
             false,
             200
         ));
-        assert_eq!(outlinelen, 4);
-        assert_eq!(output_rows[0], " Hi ");
+        assert_eq!(outlinelen, 3);
+        assert_eq!(output_rows[0], "Hi ");
     }
 
     #[test]
@@ -661,7 +692,7 @@ mod tests {
             false,
             3
         ));
-        assert_eq!(outlinelen, 3);
+        assert_eq!(outlinelen, 2);
         assert_eq!(prev_width, 3);
 
         let ok = add_char(
@@ -672,7 +703,7 @@ mod tests {
             &mut prev_width,
             mode,
             false,
-            3,
+            2,
         );
         assert!(!ok);
     }
@@ -747,7 +778,7 @@ mod tests {
             false,
             200
         ));
-        assert_eq!(output_rows[0], " Hi!!");
+        assert_eq!(output_rows[0], "Hi!!");
     }
 
     #[test]
@@ -793,8 +824,8 @@ mod tests {
             200
         ));
 
-        assert_eq!(output_rows[0], " AB ");
-        assert_eq!(output_rows[1], " AB ");
+        assert_eq!(output_rows[0], "AB ");
+        assert_eq!(output_rows[1], "AB ");
     }
 
     // --- render_line tests ---

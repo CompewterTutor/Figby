@@ -1,4 +1,4 @@
-# Feiglet — Master Todo Index
+# Figby — Master Todo Index
 
 Master index for all milestones. Ralph loop reads task lines from
 versioned files below. Do not add task lines directly here.

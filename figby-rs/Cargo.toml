@@ -1,11 +1,11 @@
 [package]
-name = "feiglet"
+name = "figby"
 version = "0.1.0"
 edition = "2021"
 description = "Rust port of FIGlet — ASCII art banner generator"
 license = "BSD-3-Clause"
-authors = ["Feiglet contributors"]
-repository = "https://github.com/DoseOfGose/feiglet"
+authors = ["Figby contributors"]
+repository = "https://github.com/DoseOfGose/figby"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -20,7 +20,8 @@ flate2 = "1"
 [dev-dependencies]
 serde_json = "1"
 tempfile = "3"
-# criterion = "0.5"   # uncomment for benchmarks (Phase 1.6.3)
+proptest = "1"
+criterion = "0.5"
 
 [profile.release]
 lto = true
@@ -28,10 +29,14 @@ codegen-units = 1
 opt-level = 3
 
 [lib]
-name = "feiglet"
+name = "figby"
 path = "src/lib.rs"
 crate-type = ["lib"]
 
 [[bin]]
-name = "feiglet"
+name = "figby"
 path = "src/main.rs"
+
+[[bench]]
+name = "render_bench"
+harness = false

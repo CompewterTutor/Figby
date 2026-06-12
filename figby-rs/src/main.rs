@@ -1,9 +1,9 @@
 use clap::Parser;
-use feiglet::control::{self, CharReader};
-use feiglet::font::{self, FIGfont};
-use feiglet::input;
-use feiglet::render::{add_char, lookup_char, render_line, split_line, Justification};
-use feiglet::smush::SmushMode;
+use figby::control::{self, CharReader};
+use figby::font::{self, FIGfont};
+use figby::input;
+use figby::render::{add_char, lookup_char, render_line, split_line, Justification};
+use figby::smush::SmushMode;
 use std::io::{self, Read, Write};
 use std::process;
 
@@ -156,7 +156,7 @@ impl Default for CliConfig {
 #[allow(non_snake_case)]
 #[derive(Parser, Debug)]
 #[command(
-    name = "feiglet",
+    name = "figby",
     about = "Rust port of FIGlet — ASCII art banner generator"
 )]
 struct CliArgs {
@@ -458,11 +458,19 @@ fn run(config: CliConfig, message: Vec<String>) {
         SmushOverride::Force => SmushMode::new(font.full_layout as u32 | config.smushmode),
     };
 
-    let justification = Justification::from_i32(config.justification);
     let rtl = if config.right2left == -1 {
         font.print_direction == 1
     } else {
         config.right2left == 1
+    };
+    let justification = if config.justification == -1 {
+        if rtl {
+            Justification::Right
+        } else {
+            Justification::Left
+        }
+    } else {
+        Justification::from_i32(config.justification)
     };
 
     let outlinelen_limit = config.outputwidth.saturating_sub(1) as usize;
@@ -518,29 +526,19 @@ fn run(config: CliConfig, message: Vec<String>) {
 
         // Paragraph mode
         if c == b'\n' as u32 && config.paragraphflag && !last_was_eol_flag {
-            let c2 = match next_char(&mut input, &mut control_state, &mut hz_state) {
-                Some(c2) => c2,
+            match next_char(&mut input, &mut control_state, &mut hz_state) {
                 None => {
-                    if outlinelen != 0 {
-                        flush_output_line(
-                            &mut output_rows,
-                            &font,
-                            justification,
-                            output_width,
-                            &mut char_buffer,
-                            &mut outlinelen,
-                            &mut prev_width,
-                            &mut out,
-                        );
-                    }
-                    break;
+                    // Trailing newline at EOF becomes a space (matches C figlet behavior)
+                    c = b' ' as u32;
                 }
-            };
-            let is_ws = c2 <= 127 && (c2 as u8 as char).is_ascii_whitespace();
-            if !is_ws {
-                c = b' ' as u32;
+                Some(c2) => {
+                    let is_ws = c2 <= 127 && (c2 as u8 as char).is_ascii_whitespace();
+                    if !is_ws {
+                        c = b' ' as u32;
+                    }
+                    input.unget(c2);
+                }
             }
-            input.unget(c2);
         }
 
         // Update last_was_eol_flag
@@ -640,7 +638,7 @@ fn run(config: CliConfig, message: Vec<String>) {
 
             // addchar failed — need to flush current line and retry
             if c == b' ' as u32 {
-                if wordbreakmode >= 2 {
+                if wordbreakmode == 2 {
                     if let Some((part1_rows, part2_start)) = split_line(
                         &font,
                         &char_buffer,
@@ -656,7 +654,7 @@ fn run(config: CliConfig, message: Vec<String>) {
                         for row in &rendered {
                             let _ = writeln!(out, "{}", row);
                         }
-                        char_buffer.truncate(part2_start);
+                        char_buffer.drain(..part2_start);
                     } else {
                         flush_output_line(
                             &mut output_rows,
@@ -702,7 +700,7 @@ fn run(config: CliConfig, message: Vec<String>) {
                     for row in &rendered {
                         let _ = writeln!(out, "{}", row);
                     }
-                    char_buffer.truncate(part2_start);
+                    char_buffer.drain(..part2_start);
                 } else {
                     flush_output_line(
                         &mut output_rows,
@@ -751,7 +749,7 @@ fn main() {
                 let s = s.rsplit('/').next().unwrap_or(&s);
                 s.to_string()
             }
-            None => "feiglet".to_string(),
+            None => "figby".to_string(),
         };
         let mut stdout = io::stdout().lock();
         if let Err(e) = printinfo(&mut stdout, infocode, &config, &myname) {
@@ -768,11 +766,11 @@ fn main() {
 #[allow(non_snake_case)]
 mod tests {
     use super::*;
-    use feiglet::font::DEUTSCH_CHARS;
+    use figby::font::DEUTSCH_CHARS;
 
     #[test]
     fn test_default_values() {
-        let args = CliArgs::try_parse_from(["feiglet"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.smushmode, 0);
         assert_eq!(config.smushoverride, SmushOverride::No);
@@ -789,83 +787,83 @@ mod tests {
 
     #[test]
     fn test_flag_A_cmdinput() {
-        let args = CliArgs::try_parse_from(["feiglet", "-A"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-A"]).unwrap();
         let config = CliConfig::from_args(args);
         assert!(config.cmdinput);
     }
 
     #[test]
     fn test_flag_D_deutsch() {
-        let args = CliArgs::try_parse_from(["feiglet", "-D"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-D"]).unwrap();
         let config = CliConfig::from_args(args);
         assert!(config.deutschflag);
     }
 
     #[test]
     fn test_flag_E_deutsch() {
-        let args = CliArgs::try_parse_from(["feiglet", "-E"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-E"]).unwrap();
         let config = CliConfig::from_args(args);
         assert!(!config.deutschflag);
     }
 
     #[test]
     fn test_flags_X_L_R_right2left() {
-        let args_x = CliArgs::try_parse_from(["feiglet", "-X"]).unwrap();
+        let args_x = CliArgs::try_parse_from(["figby", "-X"]).unwrap();
         assert_eq!(CliConfig::from_args(args_x).right2left, -1);
 
-        let args_l = CliArgs::try_parse_from(["feiglet", "-L"]).unwrap();
+        let args_l = CliArgs::try_parse_from(["figby", "-L"]).unwrap();
         assert_eq!(CliConfig::from_args(args_l).right2left, 0);
 
-        let args_r = CliArgs::try_parse_from(["feiglet", "-R"]).unwrap();
+        let args_r = CliArgs::try_parse_from(["figby", "-R"]).unwrap();
         assert_eq!(CliConfig::from_args(args_r).right2left, 1);
     }
 
     #[test]
     fn test_flags_x_l_c_r_justification() {
-        let args_x = CliArgs::try_parse_from(["feiglet", "-x"]).unwrap();
+        let args_x = CliArgs::try_parse_from(["figby", "-x"]).unwrap();
         assert_eq!(CliConfig::from_args(args_x).justification, -1);
 
-        let args_l = CliArgs::try_parse_from(["feiglet", "-l"]).unwrap();
+        let args_l = CliArgs::try_parse_from(["figby", "-l"]).unwrap();
         assert_eq!(CliConfig::from_args(args_l).justification, 0);
 
-        let args_c = CliArgs::try_parse_from(["feiglet", "-c"]).unwrap();
+        let args_c = CliArgs::try_parse_from(["figby", "-c"]).unwrap();
         assert_eq!(CliConfig::from_args(args_c).justification, 1);
 
-        let args_r = CliArgs::try_parse_from(["feiglet", "-r"]).unwrap();
+        let args_r = CliArgs::try_parse_from(["figby", "-r"]).unwrap();
         assert_eq!(CliConfig::from_args(args_r).justification, 2);
     }
 
     #[test]
     fn test_flags_p_n_paragraph() {
-        let args_p = CliArgs::try_parse_from(["feiglet", "-p"]).unwrap();
+        let args_p = CliArgs::try_parse_from(["figby", "-p"]).unwrap();
         assert!(CliConfig::from_args(args_p).paragraphflag);
 
-        let args_n = CliArgs::try_parse_from(["feiglet", "-n"]).unwrap();
+        let args_n = CliArgs::try_parse_from(["figby", "-n"]).unwrap();
         assert!(!CliConfig::from_args(args_n).paragraphflag);
     }
 
     #[test]
     fn test_flags_s_k_S_o_W_smush() {
-        let args_s = CliArgs::try_parse_from(["feiglet", "-s"]).unwrap();
+        let args_s = CliArgs::try_parse_from(["figby", "-s"]).unwrap();
         let config_s = CliConfig::from_args(args_s);
         assert_eq!(config_s.smushoverride, SmushOverride::No);
 
-        let args_k = CliArgs::try_parse_from(["feiglet", "-k"]).unwrap();
+        let args_k = CliArgs::try_parse_from(["figby", "-k"]).unwrap();
         let config_k = CliConfig::from_args(args_k);
         assert_eq!(config_k.smushmode, 64);
         assert_eq!(config_k.smushoverride, SmushOverride::Yes);
 
-        let args_S = CliArgs::try_parse_from(["feiglet", "-S"]).unwrap();
+        let args_S = CliArgs::try_parse_from(["figby", "-S"]).unwrap();
         let config_S = CliConfig::from_args(args_S);
         assert_eq!(config_S.smushmode, 128);
         assert_eq!(config_S.smushoverride, SmushOverride::Force);
 
-        let args_o = CliArgs::try_parse_from(["feiglet", "-o"]).unwrap();
+        let args_o = CliArgs::try_parse_from(["figby", "-o"]).unwrap();
         let config_o = CliConfig::from_args(args_o);
         assert_eq!(config_o.smushmode, 128);
         assert_eq!(config_o.smushoverride, SmushOverride::Yes);
 
-        let args_W = CliArgs::try_parse_from(["feiglet", "-W"]).unwrap();
+        let args_W = CliArgs::try_parse_from(["figby", "-W"]).unwrap();
         let config_W = CliConfig::from_args(args_W);
         assert_eq!(config_W.smushmode, 0);
         assert_eq!(config_W.smushoverride, SmushOverride::Yes);
@@ -873,20 +871,20 @@ mod tests {
 
     #[test]
     fn test_flag_N_multibyte() {
-        let args = CliArgs::try_parse_from(["feiglet", "-N"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-N"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.multibyte, 0);
     }
 
     #[test]
     fn test_flag_t_terminal() {
-        let args = CliArgs::try_parse_from(["feiglet", "-t"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-t"]).unwrap();
         assert!(args.flag_t);
     }
 
     #[test]
     fn test_flag_t_updates_width() {
-        let args = CliArgs::try_parse_from(["feiglet", "-t"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-t"]).unwrap();
         let config = CliConfig::from_args(args);
         assert!(config.outputwidth >= 80);
     }
@@ -900,40 +898,40 @@ mod tests {
 
     #[test]
     fn test_flag_t_w_override() {
-        let args = CliArgs::try_parse_from(["feiglet", "-t", "-w", "120"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-t", "-w", "120"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.outputwidth, 120);
     }
 
     #[test]
     fn test_flag_v_version() {
-        let args = CliArgs::try_parse_from(["feiglet", "-v"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-v"]).unwrap();
         assert!(args.flag_v);
     }
 
     #[test]
     fn test_flag_I_infocode() {
-        let args = CliArgs::try_parse_from(["feiglet", "-I", "3"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-I", "3"]).unwrap();
         assert_eq!(args.infocode, Some(3));
     }
 
     #[test]
     fn test_flag_m_smushmode() {
-        let args_0 = CliArgs::try_parse_from(["feiglet", "-m", "0"]).unwrap();
+        let args_0 = CliArgs::try_parse_from(["figby", "-m", "0"]).unwrap();
         let config_0 = CliConfig::from_args(args_0);
         assert_eq!(config_0.smushmode, 64);
         assert_eq!(config_0.smushoverride, SmushOverride::Yes);
 
-        let args_neg1 = CliArgs::try_parse_from(["feiglet", "-m", "-1"]).unwrap();
+        let args_neg1 = CliArgs::try_parse_from(["figby", "-m", "-1"]).unwrap();
         let config_neg1 = CliConfig::from_args(args_neg1);
         assert_eq!(config_neg1.smushmode, 0);
         assert_eq!(config_neg1.smushoverride, SmushOverride::Yes);
 
-        let args_neg2 = CliArgs::try_parse_from(["feiglet", "-m", "-2"]).unwrap();
+        let args_neg2 = CliArgs::try_parse_from(["figby", "-m", "-2"]).unwrap();
         let config_neg2 = CliConfig::from_args(args_neg2);
         assert_eq!(config_neg2.smushoverride, SmushOverride::No);
 
-        let args_5 = CliArgs::try_parse_from(["feiglet", "-m", "5"]).unwrap();
+        let args_5 = CliArgs::try_parse_from(["figby", "-m", "5"]).unwrap();
         let config_5 = CliConfig::from_args(args_5);
         assert_eq!(config_5.smushmode, (5 & 63) | 128);
         assert_eq!(config_5.smushoverride, SmushOverride::Yes);
@@ -941,47 +939,47 @@ mod tests {
 
     #[test]
     fn test_flag_w_width() {
-        let args = CliArgs::try_parse_from(["feiglet", "-w", "120"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-w", "120"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.outputwidth, 120);
     }
 
     #[test]
     fn test_flag_d_fontdir() {
-        let args = CliArgs::try_parse_from(["feiglet", "-d", "/my/fonts"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-d", "/my/fonts"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.fontdirname, "/my/fonts");
     }
 
     #[test]
     fn test_flag_f_fontname() {
-        let args = CliArgs::try_parse_from(["feiglet", "-f", "big"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-f", "big"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.fontname, "big");
     }
 
     #[test]
     fn test_flag_C_controlfile() {
-        let args = CliArgs::try_parse_from(["feiglet", "-C", "my.flc"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-C", "my.flc"]).unwrap();
         assert_eq!(args.controlfile, Some("my.flc".to_string()));
     }
 
     #[test]
     fn test_flag_F_error() {
-        let args = CliArgs::try_parse_from(["feiglet", "-F"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-F"]).unwrap();
         assert!(args.flag_F);
     }
 
     #[test]
     fn test_positional_args_cmdinput() {
-        let args = CliArgs::try_parse_from(["feiglet", "hello"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "hello"]).unwrap();
         let config = CliConfig::from_args(args);
         assert!(config.cmdinput);
     }
 
     #[test]
     fn test_flag_last_wins() {
-        let args = CliArgs::try_parse_from(["feiglet", "-k", "-s"]).unwrap();
+        let args = CliArgs::try_parse_from(["figby", "-k", "-s"]).unwrap();
         let config = CliConfig::from_args(args);
         assert_eq!(config.smushoverride, SmushOverride::No);
     }
@@ -990,17 +988,17 @@ mod tests {
     fn test_infocode_0_copyright() {
         let config = CliConfig::default();
         let mut buf = Vec::new();
-        printinfo(&mut buf, 0, &config, "feiglet").unwrap();
+        printinfo(&mut buf, 0, &config, "figby").unwrap();
         let output = String::from_utf8(buf).unwrap();
         assert!(output.contains("FIGlet Copyright (C)"));
-        assert!(output.contains("feiglet"));
+        assert!(output.contains("figby"));
     }
 
     #[test]
     fn test_infocode_1_version() {
         let config = CliConfig::default();
         let mut buf = Vec::new();
-        printinfo(&mut buf, 1, &config, "feiglet").unwrap();
+        printinfo(&mut buf, 1, &config, "figby").unwrap();
         assert_eq!(buf, b"20205\n");
     }
 
@@ -1008,7 +1006,7 @@ mod tests {
     fn test_infocode_2_fontdir() {
         let config = CliConfig::default();
         let mut buf = Vec::new();
-        printinfo(&mut buf, 2, &config, "feiglet").unwrap();
+        printinfo(&mut buf, 2, &config, "figby").unwrap();
         assert_eq!(buf, b"fonts\n");
     }
 
@@ -1016,7 +1014,7 @@ mod tests {
     fn test_infocode_3_font() {
         let config = CliConfig::default();
         let mut buf = Vec::new();
-        printinfo(&mut buf, 3, &config, "feiglet").unwrap();
+        printinfo(&mut buf, 3, &config, "figby").unwrap();
         assert_eq!(buf, b"standard\n");
     }
 
@@ -1024,7 +1022,7 @@ mod tests {
     fn test_infocode_4_outputwidth() {
         let config = CliConfig::default();
         let mut buf = Vec::new();
-        printinfo(&mut buf, 4, &config, "feiglet").unwrap();
+        printinfo(&mut buf, 4, &config, "figby").unwrap();
         assert_eq!(buf, b"80\n");
     }
 
@@ -1032,7 +1030,7 @@ mod tests {
     fn test_infocode_5_formats() {
         let config = CliConfig::default();
         let mut buf = Vec::new();
-        printinfo(&mut buf, 5, &config, "feiglet").unwrap();
+        printinfo(&mut buf, 5, &config, "figby").unwrap();
         assert_eq!(buf, b"flf2 tlf2\n");
     }
 
@@ -1138,7 +1136,7 @@ mod tests {
 
     #[test]
     fn test_end_to_end_hello() {
-        let tmpdir = std::env::temp_dir().join("feiglet-test-1.3.4");
+        let tmpdir = std::env::temp_dir().join("figby-test-1.3.4");
         let _ = std::fs::create_dir_all(&tmpdir);
         let fontpath = tmpdir.join("testfont.flf");
         // Minimal FIGfont (height=1, baseline=0, max=1, old=0, comment=0)

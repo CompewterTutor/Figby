@@ -1,35 +1,44 @@
 # AGENTS.md
 
-Guidance for AI agents working in the Feiglet repository.
+Guidance for AI agents working in the Figby repository.
 
 ## Project Overview
 
-Feiglet is a Rust port of FIGlet (Frank, Ian & Glenn's Letters) — the classic
+Figby is a Rust port of FIGlet (Frank, Ian & Glenn's Letters) — the classic
 ASCII art banner generator. The original C implementation (v2.2.5) renders text
 in large characters using FIGfont (.flf) and TOIlet (.tlf) font files with
 kerning, smushing, and multi-byte character support.
 
 This repo preserves the original C source in the root while the Rust port lives
-in `feiglet-rs/`. The goal is a **feature-complete, safe, modern Rust rewrite**
+in `figby-rs/`. The goal is a **feature-complete, safe, modern Rust rewrite**
 that supports all FIGlet 2.2.5 features plus UTF-8 natively.
 
 ## Development Commands
 
 ```bash
 # Build Rust crate
-cargo build -p feiglet
+cargo build -p figby
 
 # Run tests
-cargo test -p feiglet
+cargo test -p figby
 
 # Check formatting
 cargo fmt --check
 
 # Run clippy
-cargo clippy -p feiglet --all-targets --all-features -- -D warnings
+cargo clippy -p figby --all-targets --all-features -- -D warnings
 
 # Test with fonts
-cargo run -p feiglet -- -f fonts/standard "Hello"
+cargo run -p figby -- -f fonts/standard "Hello"
+
+# Run figby from repo root (binary is in figby-rs/target)
+../figby-rs/target/debug/figby < tests/input.txt
+
+# Compare against system figlet (built with TLF support)
+diff <(figlet < tests/input.txt) <(figby-rs/target/debug/figby < tests/input.txt)
+
+# Single input line test
+printf "unexpected token \`}'" | figby-rs/target/debug/figby
 ```
 
 ### Ralph Loop
@@ -51,7 +60,7 @@ cargo run -p feiglet -- -f fonts/standard "Hello"
 ./scripts/ralph.sh --until=1.1.3
 
 # Log session to file
-./scripts/ralph.sh --log=/tmp/feiglet-ralph.log
+./scripts/ralph.sh --log=/tmp/figby-ralph.log
 
 # Quiet mode (suppress agent stderr)
 ./scripts/ralph.sh --quiet
@@ -85,7 +94,7 @@ After completing any implementation work:
 ## File Structure
 
 ```
-feiglet-rs/         # Rust crate (the port)
+figby-rs/         # Rust crate (the port)
 ├── Cargo.toml
 └── src/
     ├── main.rs

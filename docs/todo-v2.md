@@ -10,7 +10,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.0 — CLI Polish, README, Templates & Repo Cleanup
 
-- [ ] `2.0.1` Implement CLI --help output
+- [x] `2.0.1` Implement CLI --help output
   - **Goal:** `--help` is minimal/blank. Add `#[arg(help = "...")]` or
     `#[command(about, long_about)]` to every clap field so `figby --help`
     and `figby --long-help` show complete usage with all flags, descriptions,

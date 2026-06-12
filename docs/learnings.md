@@ -313,3 +313,12 @@ Three bugs found in phase merge review:
 - No compiled C `figlet` binary exists in the repo for baseline comparison. The
   benchmarks establish a Rust baseline; manual C comparison is separate work.
 
+## 2.0.1 — CLI `--help` output
+
+- `clap::Command::render_help()` returns `StyledStr` (not `Result`) — no `.unwrap()` needed.
+- Bench `calc_smush_amount` call had wrong argument order (missing `prevcharwidth`,
+  passing `SmushMode` as `usize`). Pre-existing bug surfaced when clippy compiled
+  `--all-targets`. Argument 5 is `prevcharwidth: usize`, argument 6 is `mode: SmushMode`.
+- `calc_smush_amount` in `render.rs` was missing `#[allow(clippy::too_many_arguments)]` —
+  pre-existing lint that needed fixing to pass the clippy gate.
+

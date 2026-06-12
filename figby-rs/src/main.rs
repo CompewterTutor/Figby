@@ -157,64 +157,78 @@ impl Default for CliConfig {
 #[derive(Parser, Debug)]
 #[command(
     name = "figby",
-    about = "Rust port of FIGlet — ASCII art banner generator"
+    about = "Rust port of FIGlet — ASCII art banner generator",
+    long_about = "FIGby is a Rust port of FIGlet 2.2.5 (Frank, Ian & Glenn's Letters).\nRenders text in large characters using FIGfont (.flf) and TOIlet (.tlf)\nfont files with kerning, smushing, and multi-byte character support."
 )]
 struct CliArgs {
-    #[arg(short = 'A')]
+    #[arg(
+        short = 'A',
+        help = "Read input from arguments (implies command-line input)"
+    )]
     flag_A: bool,
-    #[arg(short = 'D')]
+    #[arg(short = 'D', help = "Enable German character handling")]
     flag_D: bool,
-    #[arg(short = 'E')]
+    #[arg(short = 'E', help = "Disable German character handling")]
     flag_E: bool,
-    #[arg(short = 'X')]
+    #[arg(short = 'X', help = "Use font's default writing direction")]
     flag_X: bool,
-    #[arg(short = 'L')]
+    #[arg(short = 'L', help = "Force left-to-right writing direction")]
     flag_L: bool,
-    #[arg(short = 'R')]
+    #[arg(short = 'R', help = "Force right-to-left writing direction")]
     flag_R: bool,
-    #[arg(short = 'x')]
+    #[arg(short = 'x', help = "Use font's default justification")]
     flag_x: bool,
-    #[arg(short = 'l')]
+    #[arg(short = 'l', help = "Left justify output")]
     flag_l: bool,
-    #[arg(short = 'c')]
+    #[arg(short = 'c', help = "Center justify output")]
     flag_c: bool,
-    #[arg(short = 'r')]
+    #[arg(short = 'r', help = "Right justify output")]
     flag_r: bool,
-    #[arg(short = 'p')]
+    #[arg(short = 'p', help = "Enable paragraph mode")]
     flag_p: bool,
-    #[arg(short = 'n')]
+    #[arg(short = 'n', help = "Disable paragraph mode")]
     flag_n: bool,
-    #[arg(short = 's')]
+    #[arg(short = 's', help = "Use font's default layout/smushing")]
     flag_s: bool,
-    #[arg(short = 'k')]
+    #[arg(short = 'k', help = "Use kerning (no smushing)")]
     flag_k: bool,
-    #[arg(short = 'S')]
+    #[arg(
+        short = 'S',
+        help = "Force smushing (font layout combined with smush mode)"
+    )]
     flag_S: bool,
-    #[arg(short = 'o')]
+    #[arg(short = 'o', help = "Use smushing (replaces font's layout)")]
     flag_o: bool,
-    #[arg(short = 'W')]
+    #[arg(short = 'W', help = "Width-only (no kerning or smushing)")]
     flag_W: bool,
-    #[arg(short = 't')]
+    #[arg(short = 't', help = "Use terminal width for output")]
     flag_t: bool,
-    #[arg(short = 'v')]
+    #[arg(short = 'v', help = "Display version information and exit")]
     flag_v: bool,
-    #[arg(short = 'N')]
+    #[arg(short = 'N', help = "Disable multi-byte input processing")]
     flag_N: bool,
-    #[arg(short = 'F')]
+    #[arg(short = 'F', help = "Display font information [not implemented]")]
     flag_F: bool,
-    #[arg(short = 'I')]
+    #[arg(
+        short = 'I',
+        help = "Print info code (0=copyright, 1=version, 2=fontdir, 3=font, 4=width, 5=formats)"
+    )]
     infocode: Option<i32>,
-    #[arg(short = 'm', allow_hyphen_values = true)]
+    #[arg(
+        short = 'm',
+        allow_hyphen_values = true,
+        help = "Set smush mode (-1=kerning, 0=default, >0=smush with mode)"
+    )]
     smushmode_arg: Option<i32>,
-    #[arg(short = 'w')]
+    #[arg(short = 'w', help = "Set output width in columns [default: 80]")]
     outputwidth_arg: Option<u32>,
-    #[arg(short = 'd')]
+    #[arg(short = 'd', help = "Font directory path")]
     fontdir: Option<String>,
-    #[arg(short = 'f')]
+    #[arg(short = 'f', help = "Font name to use [default: standard]")]
     fontname_arg: Option<String>,
-    #[arg(short = 'C')]
+    #[arg(short = 'C', help = "Path to control file (.flc)")]
     controlfile: Option<String>,
-    #[arg()]
+    #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
 
@@ -1190,5 +1204,33 @@ mod tests {
         let mut iter = InputIter::new(vec!["".to_string(), "".to_string(), "a".to_string()], true);
         let chars: Vec<u32> = std::iter::from_fn(|| iter.next()).collect();
         assert_eq!(chars, vec![b'\n' as u32, b'\n' as u32, b'a' as u32]);
+    }
+
+    #[test]
+    fn test_help_exits_with_display_help() {
+        let result = CliArgs::try_parse_from(["figby", "--help"]);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().kind(),
+            clap::error::ErrorKind::DisplayHelp
+        );
+    }
+
+    #[test]
+    fn test_long_help_contains_long_descriptions() {
+        use clap::CommandFactory;
+        let help = CliArgs::command().render_long_help().to_string();
+        assert!(help.contains("--help"));
+        assert!(help.contains("FIGlet 2.2.5"));
+    }
+
+    #[test]
+    fn test_help_contains_expected_flags() {
+        use clap::CommandFactory;
+        let help = CliArgs::command().render_help().to_string();
+        assert!(help.contains("-A"));
+        assert!(help.contains("-f"));
+        assert!(help.contains("MESSAGE"));
+        assert!(help.contains("FIGlet"));
     }
 }

@@ -146,6 +146,7 @@ fn bench_calc_smush_amount(c: &mut Criterion) {
                     &curr,
                     3,
                     3,
+                    3,
                     black_box(mode),
                     '$',
                     false,

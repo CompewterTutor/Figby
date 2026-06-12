@@ -7,6 +7,7 @@ Master memory index. Detailed entries live in versioned files below.
 | Milestone | File | Status |
 |-----------|------|--------|
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
+| v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 
 ## Architectural Decisions
 

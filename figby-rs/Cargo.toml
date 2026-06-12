@@ -13,6 +13,7 @@ termion = "4"
 serde = { version = "1", features = ["derive"] }
 zip = "2"
 flate2 = "1"
+rascii_art = "0.4.5"
 # font-kit = "0.14.3"   # uncomment for system font → FIGfont creation
 # ratatui = "0.30.1"    # uncomment for TUI/interactive preview mode
 # rascii_art = "0.4.5" # uncomment for image → ASCII conversion (Phase 2.1) — https://github.com/orhnk/RASCII

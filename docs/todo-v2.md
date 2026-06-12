@@ -34,7 +34,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Generate examples, verify markdown structure.
   - **Difficulty:** Medium
 
-- [ ] `2.0.3` Update README with proper documentation
+- [x] `2.0.3` Update README with proper documentation
   - **Goal:** Full README covering: what Figby is, installation (cargo,
     package managers, pre-built), CLI usage with examples, font directory
     setup, getting fonts, comparison with C FIGlet, contributing guide.

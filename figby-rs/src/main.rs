@@ -4,6 +4,7 @@ use figby::font::{self, FIGfont};
 use figby::input;
 use figby::render::{add_char, lookup_char, render_line, split_line, Justification};
 use figby::smush::SmushMode;
+use figby::template;
 use std::io::{self, Read, Write};
 use std::process;
 
@@ -228,6 +229,12 @@ struct CliArgs {
     fontname_arg: Option<String>,
     #[arg(short = 'C', help = "Path to control file (.flc)")]
     controlfile: Option<String>,
+    #[arg(
+        short = 'T',
+        long = "render-template",
+        help = "Render a .ftmp template file"
+    )]
+    render_template: Option<String>,
     #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
@@ -758,6 +765,61 @@ fn main() {
     if args.flag_F {
         eprintln!("Error: -F option is not implemented in this version");
         process::exit(1);
+    }
+
+    if let Some(ref path) = args.render_template {
+        let content = match std::fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Error reading template file '{}': {}", path, e);
+                process::exit(1);
+            }
+        };
+
+        let tmpl = match template::parse_ftmp(&content) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("Template parse error: {}", e);
+                process::exit(1);
+            }
+        };
+
+        let font_dir = if let Some(ref d) = args.fontdir {
+            d.clone()
+        } else if let Ok(val) = std::env::var("FIGLET_FONTDIR") {
+            if !val.is_empty() {
+                val
+            } else {
+                "/usr/share/figlet".to_string()
+            }
+        } else {
+            "/usr/share/figlet".to_string()
+        };
+
+        let term_width = get_columns().unwrap_or(80) as u32;
+        let override_width = args.outputwidth_arg;
+
+        let config = template::RenderConfig {
+            font_dir,
+            term_width,
+            override_width,
+        };
+
+        let output = match template::render_template(&tmpl, &config) {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("Template render error: {}", e);
+                process::exit(1);
+            }
+        };
+
+        let stdout = io::stdout();
+        let mut out = stdout.lock();
+        for row in &output {
+            let _ = writeln!(out, "{}", row);
+        }
+
+        return;
     }
 
     let message = args.message.clone();

@@ -53,7 +53,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Verify paths in AGENTS.md and scripts still resolve.
   - **Difficulty:** Low
 
-- [ ] `2.0.5` `.ftmp` template file format design + CLI
+- [x] `2.0.5` `.ftmp` template file format design + CLI
   - **Goal:** Design `.ftmp` (FIGby Template) file format. Template body
     is clean — just `{{varname}}` placeholders. All configuration lives
     in frontmatter (YAML/TOML) with two sections:

@@ -5,3 +5,4 @@ pub mod font;
 pub mod input;
 pub mod render;
 pub mod smush;
+pub mod template;

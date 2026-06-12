@@ -452,3 +452,12 @@ to `template.rs`. Added `builtin: Option<TemplateBuiltin>` field to `Layer` stru
 `{{repo-data:field}}` tags before the variables lookup. `render_template()` skips
 builtin layers with `continue` (no-op, deferred to 2.1). No `.unwrap()` in
 production — all new code uses proper Option handling. fmt and clippy pass clean.
+
+### 2.0.10 — Phase merge: release/2.0 → master
+
+Merged all Phase 2.0 work into default branch (master). Phase 2.0 complete:
+CLI `--help` output (2.0.1), make-examples.sh (2.0.2), comprehensive README
+(2.0.3), repo cleanup / C source relocation (2.0.4), `.ftmp` template format
++ renderer (2.0.5), border and shadow rendering (2.0.7), `--to-file` CLI arg
+(2.0.8), builtin template functions (2.0.9). All 8 subtasks implemented, tested,
+merged. Phase 2.1 (Image-to-ASCII Pipeline) is next.

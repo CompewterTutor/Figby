@@ -458,11 +458,19 @@ fn run(config: CliConfig, message: Vec<String>) {
         SmushOverride::Force => SmushMode::new(font.full_layout as u32 | config.smushmode),
     };
 
-    let justification = Justification::from_i32(config.justification);
     let rtl = if config.right2left == -1 {
         font.print_direction == 1
     } else {
         config.right2left == 1
+    };
+    let justification = if config.justification == -1 {
+        if rtl {
+            Justification::Right
+        } else {
+            Justification::Left
+        }
+    } else {
+        Justification::from_i32(config.justification)
     };
 
     let outlinelen_limit = config.outputwidth.saturating_sub(1) as usize;
@@ -518,29 +526,19 @@ fn run(config: CliConfig, message: Vec<String>) {
 
         // Paragraph mode
         if c == b'\n' as u32 && config.paragraphflag && !last_was_eol_flag {
-            let c2 = match next_char(&mut input, &mut control_state, &mut hz_state) {
-                Some(c2) => c2,
+            match next_char(&mut input, &mut control_state, &mut hz_state) {
                 None => {
-                    if outlinelen != 0 {
-                        flush_output_line(
-                            &mut output_rows,
-                            &font,
-                            justification,
-                            output_width,
-                            &mut char_buffer,
-                            &mut outlinelen,
-                            &mut prev_width,
-                            &mut out,
-                        );
-                    }
-                    break;
+                    // Trailing newline at EOF becomes a space (matches C figlet behavior)
+                    c = b' ' as u32;
                 }
-            };
-            let is_ws = c2 <= 127 && (c2 as u8 as char).is_ascii_whitespace();
-            if !is_ws {
-                c = b' ' as u32;
+                Some(c2) => {
+                    let is_ws = c2 <= 127 && (c2 as u8 as char).is_ascii_whitespace();
+                    if !is_ws {
+                        c = b' ' as u32;
+                    }
+                    input.unget(c2);
+                }
             }
-            input.unget(c2);
         }
 
         // Update last_was_eol_flag
@@ -640,7 +638,7 @@ fn run(config: CliConfig, message: Vec<String>) {
 
             // addchar failed — need to flush current line and retry
             if c == b' ' as u32 {
-                if wordbreakmode >= 2 {
+                if wordbreakmode == 2 {
                     if let Some((part1_rows, part2_start)) = split_line(
                         &font,
                         &char_buffer,
@@ -656,7 +654,7 @@ fn run(config: CliConfig, message: Vec<String>) {
                         for row in &rendered {
                             let _ = writeln!(out, "{}", row);
                         }
-                        char_buffer.truncate(part2_start);
+                        char_buffer.drain(..part2_start);
                     } else {
                         flush_output_line(
                             &mut output_rows,
@@ -702,7 +700,7 @@ fn run(config: CliConfig, message: Vec<String>) {
                     for row in &rendered {
                         let _ = writeln!(out, "{}", row);
                     }
-                    char_buffer.truncate(part2_start);
+                    char_buffer.drain(..part2_start);
                 } else {
                     flush_output_line(
                         &mut output_rows,

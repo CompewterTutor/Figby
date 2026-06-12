@@ -16,9 +16,9 @@ pub struct FIGcharacter {
 }
 
 impl FIGcharacter {
-    /// Width of the character (length of first row), or 0 if empty.
+    /// Width of the character in display columns (first row char count), or 0 if empty.
     pub fn width(&self) -> usize {
-        self.rows.first().map_or(0, |r| r.len())
+        self.rows.first().map_or(0, |r| r.chars().count())
     }
 
     /// Access the character's rows.
@@ -495,13 +495,9 @@ pub fn load_font(name: &str, fontdir: &str) -> Result<FIGfont, FontError> {
             Ok(bytes) => {
                 let content = if is_zip_bytes(&bytes) {
                     let extracted = extract_first_zip_entry(&bytes)?;
-                    String::from_utf8(extracted).map_err(|e| {
-                        FontError::ParseError(format!("non-UTF-8 in ZIP entry: {}", e))
-                    })?
+                    String::from_utf8_lossy(&extracted).into_owned()
                 } else {
-                    String::from_utf8(bytes).map_err(|e| {
-                        FontError::ParseError(format!("non-UTF-8 in font file: {}", e))
-                    })?
+                    String::from_utf8_lossy(&bytes).into_owned()
                 };
                 return parse_font_bytes(&content);
             }

@@ -182,3 +182,11 @@ DONE: 1.6.4 merged into release/1.6.
 ## 2026-06-10
 
 DONE: 1.6.5 — Phase merge docs committed. Actual merge performed by ralph.sh phase_review_and_merge().
+
+## 2026-06-10 03:32
+
+DONE: 1.6.5 merged into release/1.6.
+
+## 2026-06-10 03:32
+
+All 1.6 tasks complete. Starting phase review.

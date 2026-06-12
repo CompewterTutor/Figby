@@ -387,10 +387,24 @@ via `OnceLock` to avoid re-parsing. `criterion = "0.5"` dev-dependency added,
 comparison — Rust baseline established; manual C comparison needed separately.
 `target/criterion/` already covered by `target/` in `.gitignore`.
 
-### 1.6.5 — Phase merge: release/1.6 → main
+### 1.6.5 — Fix rendering pipeline bug
 
-Merged all Phase 1.6 work into default branch (master). Phase 1.6 complete:
-port of C test harness (27 test cases, 1.6.1), font fuzz testing via proptest
-(1.6.2), project rename Feiglet→Figby including `figby-rs/` directory (1.6.3),
-Criterion performance benchmarks (1.6.4). All 4 subtasks implemented, tested,
-merged. Phase 1.7 (Major Release: end-to-end verification + RC) is next.
+Identified and fixed root cause of `wordbreakmode` condition mismatch in
+space-char failure path of main event loop. C figlet uses `wordbreakmode == 2`,
+Rust used `wordbreakmode >= 2`. When `wordbreakmode == 3` (after a space, now
+in a word), a failing space causes `printline()` (simple flush), not
+`splitline()`. The `>= 2` check incorrectly called `split_line()` which
+prematurely split on word boundaries, causing output divergence for
+multi-line stdin input at default terminal width.
+
+Additional fixes:
+- `char_buffer.truncate(part2_start)` → `char_buffer.drain(..part2_start)` —
+  `split_line` returns start index of part2, not length of part1
+- Font parser: `String::from_utf8` → `String::from_utf8_lossy` for non-UTF-8
+  font bytes (bubble font had embedded 0xFF bytes)
+
+Status: 17/27 integration tests pass (was 4/27 before fixes). Remaining 10
+failures involve RTL, TLF fonts, paragraph mode — separate issues from the
+wordbreakmode bug.
+
+Phase 1.7 (Major Release: end-to-end verification + RC) is next.

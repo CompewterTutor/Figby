@@ -276,8 +276,32 @@ Three bugs found in phase merge review:
 - Test 20 tempdir with `tempfile::tempdir()` is drop-safe for panic cleanup vs C's
   `mkdir + rm -Rf` which leaks on error.
 
-## 1.6.4 — Performance benchmarks
+## 1.6.5 — Rendering pipeline bug fix
 
+- C figlet's `addchar` failure for a space char checks `wordbreakmode == 2`
+  (figlet.c:2107), not `>= 2`. When `wordbreakmode == 3` (after a space, back
+  in a word), a failing space causes `printline()` (simple flush), not `splitline()`.
+  The non-space failure path (figlet.c:2108) correctly uses `wordbreakmode >= 2`.
+  Different semantics for space vs non-space paths — subtle C detail easy to miss.
+- `char_buffer.truncate(part2_start)` is wrong when `split_line` returns the
+  start index of part2 (not the length of part1). `drain(..part2_start)` is
+  correct. This matters when the char_buffer contains data before part2 —
+  `truncate` keeps only `part2_start` elements; `drain` removes `part2_start`
+  elements from the front. In the no-word-break case, `part2_start == 0`, so
+  `drain(..0)` is a no-op (correct) while `truncate(0)` clears the buffer
+  (wrong — drops all output lines).
+- `String::from_utf8` fails on any non-UTF-8 byte. FIGfont files from C era
+  can contain arbitrary bytes (0xFF padding, etc.). `String::from_utf8_lossy`
+  replaces invalid bytes with U+FFFD, matching C's byte-level Latin-1 handling
+  (where the byte just passes through as-is). Lossy is safe for FIGfonts since
+  valid ASCII/UTF-8 characters pass through unchanged.
+- Standard font space glyph ` $@` has width 2 after `strip_endmarks` (replaces
+  `$` with hardblank `@` after strip). Renders as 1 space after hardblank→space
+  replacement in `render_line`. This small width means space chars are the first
+  to hit output width limits, making them the primary trigger for line-wrap bugs.
+- Standard font default char (code 0/empty) has empty rows — not stored in font
+  file for code 0. C figlet allocates it empty via `addchar` first-call;
+  Rust parser reads code 32 from first data block (correctly matches C).
 - `cargo fmt` requires `--manifest-path figby-rs/Cargo.toml` since there's no workspace
   Cargo.toml at the repo root.
 - `std::sync::OnceLock` is stable since Rust 1.70 and works well for lazy font loading

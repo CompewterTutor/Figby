@@ -30,6 +30,15 @@ cargo clippy -p figby --all-targets --all-features -- -D warnings
 
 # Test with fonts
 cargo run -p figby -- -f fonts/standard "Hello"
+
+# Run figby from repo root (binary is in figby-rs/target)
+../figby-rs/target/debug/figby < tests/input.txt
+
+# Compare against system figlet (built with TLF support)
+diff <(figlet < tests/input.txt) <(figby-rs/target/debug/figby < tests/input.txt)
+
+# Single input line test
+printf "unexpected token \`}'" | figby-rs/target/debug/figby
 ```
 
 ### Ralph Loop

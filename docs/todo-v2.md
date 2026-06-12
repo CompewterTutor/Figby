@@ -1,9 +1,118 @@
-# Figby v2 — Image Input & Full TUI Editor
+# Figby v2 — Templates, Image Input & Full TUI Editor
 
-Milestone goal: Extend Figby beyond FIGlet 2.2.5 with image-to-ASCII
+Milestone goal: Extend Figby beyond FIGlet 2.2.5 with a `.ftmp` template
+system (variable substitution, image embedding, layering), image-to-ASCII
 conversion, system font → FIGfont creation, and a comprehensive TUI editor
 with drawing tools, font/charset editing, image editing with FIGlet text
 overlay, layers, and animation timeline.
+
+---
+
+## Phase 2.0 — CLI Polish, README, Templates & Repo Cleanup
+
+- [ ] `2.0.1` Implement CLI --help output
+  - **Goal:** `--help` is minimal/blank. Add `#[arg(help = "...")]` or
+    `#[command(about, long_about)]` to every clap field so `figby --help`
+    and `figby --long-help` show complete usage with all flags, descriptions,
+    and examples.
+  - **Touches:** `figby-rs/src/main.rs`
+  - **Success:** `figby --help` exits 0 and shows all flags with descriptions.
+  - **Tests:** Check `--help` output contains expected flags.
+  - **Difficulty:** Low
+
+- [ ] `2.0.2` Port make-examples script to CLI
+  - **Goal:** Create `scripts/make-examples.sh` that generates example
+    output files for every font. Accept: `--sample-text` (default:
+    `"hello figby"`), `--fonts` (comma-separated whitelist), `--exclude`
+    (comma-separated blacklist), `--categories` (accept arg but defer
+    actual category filter implementation).
+  - **Touches:** `scripts/make-examples.sh`
+  - **Success:** Running with defaults generates per-font example files in
+    an output directory. Custom text and font filters work.
+  - **Tests:** Generate examples, verify file names and content.
+  - **Difficulty:** Medium
+
+- [ ] `2.0.3` Update README with proper documentation
+  - **Goal:** Full README covering: what Figby is, installation (cargo,
+    package managers, pre-built), CLI usage with examples, font directory
+    setup, getting fonts, comparison with C FIGlet, contributing guide.
+  - **Touches:** `README.md`
+  - **Success:** README is comprehensive and useful to new users.
+  - **Tests:** N/A (manual review).
+  - **Difficulty:** Low
+
+- [ ] `2.0.4` Repo cleanup — move C source to subdirectory
+  - **Goal:** Move all C FIGlet 2.2.5 source files (`figlet.c`, `chkfont.c`,
+    `inflate.c`, `zipio.c`, `utf8.c`, `getopt.c`, `crc.c`, headers,
+    `Makefile*`) into `c-figlet/` to clean root. Update references in
+    README, AGENTS.md, scripts.
+  - **Touches:** Move files to `c-figlet/`, update docs/scripts
+  - **Success:** Root no longer has loose C files. All references updated.
+  - **Tests:** Verify paths in AGENTS.md and scripts still resolve.
+  - **Difficulty:** Low
+
+- [ ] `2.0.5` `.ftmp` template file format design + CLI
+  - **Goal:** Design `.ftmp` (FIGby Template) file format. Template body
+    is clean — just `{{varname}}` placeholders. All configuration lives
+    in frontmatter (YAML/TOML) with two sections:
+    - **Canvas settings:** target width (defaults to terminal width via
+      `term_size`, overridable by `--width`), height, keep ratio, margin,
+      padding.
+    - **Variable bindings:** each `varname` maps to `{text, font, x, y,
+      z, align, overlap, borderWidth, borderColor, shadowSize, shadowColor}`.
+      z-index optional; rendering order = ascending z, last tagged = highest.
+      `overlap` mode: `overwrite` (pixels replace) or `flow` (no overlap —
+      falls to next line like normal FIGlet wrapping at target width).
+    `--render-template` CLI flag reads `.ftmp`, renders layers sequentially.
+  - **Touches:** `figby-rs/src/template.rs`, `figby-rs/src/main.rs`
+  - **Success:** Template body `{{greeting}}` with frontmatter binding
+    renders text in specified font. `flow` mode layers stack vertically.
+  - **Tests:** Parse `.ftmp`, render, verify output. `flow` vs `overwrite`.
+  - **Difficulty:** High
+
+- [ ] `2.0.6` Template tag value sources + rascii image tag
+  - **Goal:** Tag `text` attribute accepts three source types: string
+    literal, env var (`${VAR}`), command substitution (`$(cmd)`).
+    Add rascii image tag: `{{img:source:width:height:color:pos:charset}}`
+    that converts image to ASCII inline via `rascii_art`. Test with
+    `assets/img/figby.png` at width 30 with text "figby" alongside.
+  - **Touches:** `figby-rs/src/template.rs`
+  - **Success:** `${HOME}` resolves to home dir. `$(date)` runs and
+    captures output. Image tag renders ASCII art in output.
+  - **Tests:** Env var resolve, command capture, image tag with known file.
+  - **Difficulty:** Medium
+
+- [ ] `2.0.7` Border and shadow rendering for template output
+  - **Goal:** `borderWidth,borderColor` renders a border around the text
+    block using `.` characters. `shadowSize,shadowColor` renders a
+    drop-shadow offset by shadowSize using `.` characters. Both only
+    applied to `.` placeholder cells (not overwriting existing content).
+  - **Touches:** `figby-rs/src/template.rs`
+  - **Success:** Template with border and shadow produces framed output
+    with visible shadow offset.
+  - **Tests:** Border-only, shadow-only, border+shadow output tests.
+  - **Difficulty:** Medium
+
+- [ ] `2.0.8` `--to-file` output flag (add CLI arg, defer implementation)
+  - **Goal:** Add `--to-file <path>` to CLI arg struct so it parses
+    cleanly. Actual file write is deferred to 2.1 — output is piped
+    or redirected for now.
+  - **Touches:** `figby-rs/src/main.rs`
+  - **Success:** `--to-file` accepted without error but currently a no-op.
+  - **Tests:** Flag parse test only.
+  - **Difficulty:** Low
+
+- [ ] `2.0.9` Builtin template functions: date + repo-data (defer to 2.1)
+  - **Goal:** Add `{{date:format}}` (strftime-style date) and
+    `{{repo-data:author|email|name|release}}` builtins for template use.
+    Implementation deferred — just define syntax and reserve keywords.
+  - **Touches:** `figby-rs/src/template.rs`
+  - **Success:** Design documented. No runtime yet.
+  - **Tests:** N/A (deferred).
+  - **Difficulty:** Low
+
+- [ ] `2.0.10` Phase merge: release/2.0 → main
+  - **Difficulty:** Low
 
 ---
 

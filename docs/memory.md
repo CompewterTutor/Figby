@@ -419,3 +419,13 @@ example output for every font file in `fonts/`. Supports `--sample-text`
 deferred). Resolves `figby` binary via PATH, `figby-rs/target/debug/figby`,
 or builds if missing. Uses `-d fonts/` flag so font resolution works from
 repo root. Output goes to `examples/` with a `.gitkeep` sentinel file.
+
+### 2.0.3 — Update README with proper documentation
+
+Complete README rewrite covering: what Figby is, installation methods
+(cargo, build from git, pre-built, package managers), CLI usage with
+all 27 flags and examples, font directory setup and resolution order,
+getting fonts (bundled + external sources), comparison with C FIGlet
+(feature parity table), contributing guide with setup and quality gates,
+project status with v1/v2 milestone references, roadmap, and license.
+`cargo fmt --check` and `cargo clippy` pass clean.

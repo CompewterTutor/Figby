@@ -145,7 +145,7 @@ impl Default for CliConfig {
             deutschflag: false,
             cmdinput: false,
             outputwidth: 80,
-            fontdirname: "fonts".to_string(),
+            fontdirname: "/usr/share/figlet".to_string(),
             fontname: "standard".to_string(),
             multibyte: 0,
             controlfile: None,
@@ -312,6 +312,12 @@ impl CliConfig {
 
         if let Some(val) = args.outputwidth_arg {
             config.outputwidth = val;
+        }
+
+        if let Ok(val) = std::env::var("FIGLET_FONTDIR") {
+            if !val.is_empty() {
+                config.fontdirname = val;
+            }
         }
 
         if let Some(val) = args.fontdir {
@@ -780,7 +786,7 @@ mod tests {
         assert!(!config.deutschflag);
         assert!(!config.cmdinput);
         assert_eq!(config.outputwidth, 80);
-        assert_eq!(config.fontdirname, "fonts");
+        assert_eq!(config.fontdirname, "/usr/share/figlet");
         assert_eq!(config.fontname, "standard");
         assert_eq!(config.multibyte, 0);
     }
@@ -1007,7 +1013,7 @@ mod tests {
         let config = CliConfig::default();
         let mut buf = Vec::new();
         printinfo(&mut buf, 2, &config, "figby").unwrap();
-        assert_eq!(buf, b"fonts\n");
+        assert_eq!(buf, b"/usr/share/figlet\n");
     }
 
     #[test]

@@ -504,7 +504,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Config parse + override hierarchy tests.
   - **Difficulty:** Low
 
-- [ ] `2.7.6` Undo/redo system
+- [x] `2.7.6` Undo/redo system
   - **Goal:** Global undo/redo stack for all editing actions. Ctrl+Z /
     Ctrl+Shift+Z. Undo history panel. Configurable undo limit (default 50).
   - **Touches:** `figby-rs/src/tui/undo.rs`

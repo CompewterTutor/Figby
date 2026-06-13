@@ -1106,3 +1106,37 @@ Integration in `file_ops.rs`:
 missing file returns defaults, bad TOML returns defaults, CLI override hierarchy
 (4 tests: CLI wins, config fallback, partial mix, color_mode field), color_mode
 default, recent files roundtrip (updated for new path). fmt and clippy pass clean.
+
+### 2.7.6 — Undo/redo system
+
+Created `figby-rs/src/tui/undo.rs` with `UndoEntry` (buffer + label) and
+`UndoSystem` (undo/redo Vec stacks, configurable limit, batch support for
+drag operations). Key methods: `push_snapshot()`, `undo()`, `redo()`,
+`begin_batch()`/`end_batch()`, `clear()`, `can_undo()`, `can_redo()`.
+Batching: during a drag sequence, only the first snapshot pushes; subsequent
+pushes are discarded until `end_batch()`. No `unwrap()` in production.
+
+Created `figby-rs/src/tui/undo_panel.rs` with `UndoPanel` — toggleable overlay
+showing undo history entries with scroll and cursor indicator.
+
+Modified `figby-rs/src/tui/mod.rs`:
+- Added `undo` and `undo_panel` fields to `TuiApp`
+- `push_undo_snapshot(label)` helper captures canvas state
+- Snapshots pushed before: brush/eraser/line/fill/spray actions (mouse + keyboard),
+  text block operations, selection operations (move/delete/cut/paste)
+- Batched undo for mouse-drag operations (begin_batch on Down, end_batch on Up)
+- Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo
+- Ctrl+Shift+H toggles undo history panel
+- Undo cleared on: canvas resize, font load, image load, mode switch
+
+Modified `figby-rs/src/tui/font_editor.rs`:
+- Removed per-char `undo_stack`/`redo_stack` fields, `undo_char()`/`redo_char()`
+  methods, and Ctrl+Z/Y handling from char editor — delegates to global undo
+
+Modified `figby-rs/src/config.rs`: Added `undo_limit: Option<usize>` (default 50 in
+code, no limit in config means default).
+
+16 unit tests: push/pop, undo/redo cycle, multiple actions, limit enforcement
+(60→50), clear, batch first-pushes-rest-discarded, two batches independent,
+empty undo/redo returns None, history entries order, redo label. fmt and clippy
+pass clean.

@@ -21,6 +21,7 @@ fn run_figby(args: &[&str], stdin_data: Option<&[u8]>) -> Vec<u8> {
     let root = repo_root();
     let mut cmd = Command::new(figby_binary());
     cmd.current_dir(&root);
+    cmd.env("FIGLET_FONTDIR", root.join("fonts"));
     cmd.stdout(std::process::Stdio::piped());
     cmd.args(args);
     if stdin_data.is_some() {

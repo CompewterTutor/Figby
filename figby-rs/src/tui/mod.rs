@@ -205,6 +205,8 @@ impl TuiApp {
                     format!(" Image Editor [Path: {}] ", self.image_editor.path_buffer())
                 } else if let Some(err) = self.image_editor.error_message() {
                     format!(" Image Editor [Error: {err}] ")
+                } else if self.image_editor.has_cells() {
+                    format!(" Image Editor {} ", self.image_editor.adjustment_status())
                 } else {
                     self.mode.title().to_string()
                 }
@@ -313,11 +315,11 @@ impl TuiApp {
 
         let mode_name = match self.mode {
             AppMode::ImageEditor => {
-                let mode_str = match self.image_editor.mode() {
-                    image_editor::AsciiMode::Color => "Color",
-                    image_editor::AsciiMode::Grayscale => "Grayscale",
-                };
-                format!("Image Editor [{mode_str}]")
+                if self.image_editor.has_cells() {
+                    format!("Image Editor {}", self.image_editor.adjustment_status())
+                } else {
+                    "Image Editor".to_string()
+                }
             }
             AppMode::AsciiPreview => "ASCII Preview".to_string(),
             AppMode::FontEditor => {

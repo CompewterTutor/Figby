@@ -445,7 +445,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Move + rescale text block.
   - **Difficulty:** Medium
 
-- [ ] `2.6.4` Image adjustments
+- [x] `2.6.4` Image adjustments
   - **Goal:** Brightness/contrast sliders. Threshold (for braille mode).
     Dither toggle. Invert colors. Resize/re-sample image. All adjustments
     update canvas in real time.

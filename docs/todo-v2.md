@@ -120,10 +120,10 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.1 — Image-to-ASCII Pipeline
 
-- [ ] `2.1.1` Image loading + grayscale conversion via `rascii_art`
+- [x] `2.1.1` Image loading + grayscale conversion via `rascii_art`
   - **Goal:** Add `rascii_art` dep. Load JPEG, PNG, BMP, WEBP. Convert to
     grayscale luminance matrix.
-  - **Touches:** `figby-rs/Cargo.toml`, `figby-rs/src/image_input.rs`
+  - **Touches:** `figby-rs/Cargo.toml`, `figby-rs/src/lib.rs`, `figby-rs/src/image_input.rs`
   - **Success:** Image loads, pixels normalized to 0-255 luminance.
   - **Tests:** Load each supported format. Verify luminance values.
   - **Difficulty:** Medium

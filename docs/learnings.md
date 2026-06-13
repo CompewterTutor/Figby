@@ -367,3 +367,20 @@ Three bugs found in phase merge review:
   prior history on master — created cleanly.
 - `figby-rs/src/template.rs` was modified only on release/2.0 (no conflict).
 
+## 2.1.1 — Image loading + grayscale conversion
+
+- `image` 0.24.9 was already a transitive dependency via `rascii_art`. Adding it
+  as a direct dependency with explicit format features (`jpeg`, `png`, `bmp`, `webp`)
+  ensures features don't silently change when `rascii_art` updates.
+- Encoder API differences between formats:
+  - `JpegEncoder::new(w: W)` — takes ownership (by value)
+  - `BmpEncoder::new(w: &mut W)` — takes mutable reference
+  - `WebPEncoder::new_lossless(w: W)` — method is `new_lossless`, not `new`
+- `ImageBuffer` has inherent `dimensions()` and `get_pixel()` — no need to import
+  `GenericImageView` trait. Similarly, `put_pixel()` is inherent, no `GenericImage` needed.
+- `u8` value range (0..=255) is enforced by the type system — `val <= 255` for
+  `u8` triggers both `clippy::absurd_extreme_comparisons` and compiler
+  `unused_comparisons`. Remove such assertions entirely; type system guarantees it.
+- `rsplit('.').last()` triggers `clippy::double_ended_iterator_last` — use
+  `rsplit('.').next_back()` instead for direct O(1) access.
+

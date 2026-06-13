@@ -253,7 +253,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Canvas render + cursor movement tests.
   - **Difficulty:** Medium
 
-- [ ] `2.3.4` Color palette
+- [x] `2.3.4` Color palette
   - **Goal:** Color palette sidebar: 16 standard ANSI colors + 240-color
     extended grid. Foreground/background selector. Custom color picker
     (RGB sliders or hex input). Recent colors strip.

@@ -362,3 +362,11 @@ No `unwrap()` in production — all buffer accesses via `buffer.get()`/`set()`.
 13 unit tests: marquee mask, reversed coords, circle mask, radius 0, polygon
 triangle, too-few vertices, lasso, copy-paste, cut, delete, move with bounds
 update, clip-to-bounds, perimeter detection, empty/inactive, paste off-canvas.
+
+### 2.4.8 — Phase merge: release/2.4 → main
+
+Merged all Phase 2.4 work into default branch (master). Phase 2.4 complete:
+brush tool (2.4.1), eraser tool (2.4.2), line tool (2.4.3), fill/flood fill
+tool (2.4.4), selection tools (marquee/lasso/circle/polygon) (2.4.5),
+eyedropper tool (2.4.6), spray paint brush (2.4.7). All 7 subtasks
+implemented, tested, merged. Phase 2.5 (Font Editor Mode) is next.

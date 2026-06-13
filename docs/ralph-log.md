@@ -378,3 +378,21 @@ DONE: 2.4.5 merged into release/2.4.
 ## 2026-06-13 14:17
 
 DONE: 2.4.6 merged into release/2.4.
+
+## 2026-06-13 14:33
+
+DONE: 2.4.8 merged into release/2.4.
+
+## 2026-06-13 14:26
+
+DONE: 2.4.7 merged into release/2.4.
+
+## 2026-06-13 14:32
+
+DONE: 2.4.8 merged into master (phase merge).
+
+## 2026-06-13 14:32
+
+All 2.4 tasks complete. Starting phase review.
+
+PHASE_COMPLETE: 2.4 merged to main after review approval.

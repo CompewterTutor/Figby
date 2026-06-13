@@ -505,3 +505,16 @@ Added 24-bit ANSI color support in `image_input.rs`:
 
 No `.unwrap()` in production — all fallible paths return `Result`.
 fmt and clippy pass clean.
+
+### 2.1.4 — Braille art + dithering
+
+Added braille art pipeline in `image_input.rs`:
+- `BRAILLE_BASE` constant (U+2800) — Unicode braille starting codepoint
+- `pixels_to_braille_char()` — maps 2×4 pixel block to single braille char via 8-dot bit ordering
+- `floyd_steinberg_dither()` — error diffusion dithering with 7/16, 3/16, 5/16, 1/16 fractions
+- `luminance_to_braille()` — converts luminance matrix to braille string, with optional dithering
+- `image_to_braille()` — convenience wrapper: load image → grayscale → braille
+- 10 new tests: all-blank, all-filled, each dot individually, multiple blocks, partial/odd-sized, empty, dither binary output, no-dither vs dither output, file integration
+
+`.expect()` in `pixels_to_braille_char` for `char::from_u32` is a safe invariant (bits=0..255, base=0x2800, code always in valid Unicode range), following existing codebase convention.
+fmt and clippy pass clean.

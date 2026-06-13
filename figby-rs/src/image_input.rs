@@ -311,6 +311,142 @@ pub fn image_to_colored_ascii<P: AsRef<Path>>(
     Ok(color_matrix_to_ascii(&matrix, config))
 }
 
+/// Braille Unicode starting code point (U+2800).
+pub const BRAILLE_BASE: u32 = 0x2800;
+
+/// Map one 2×4 pixel block starting at `(x, y)` to a Unicode braille char.
+///
+/// Bit ordering (standard 8-dot braille):
+/// - bit 0: (x+0, y+0) — top-left
+/// - bit 1: (x+0, y+1) — left, second row
+/// - bit 2: (x+0, y+2) — left, third row
+/// - bit 3: (x+1, y+0) — top-right
+/// - bit 4: (x+1, y+1) — right, second row
+/// - bit 5: (x+1, y+2) — right, third row
+/// - bit 6: (x+0, y+3) — left, bottom
+/// - bit 7: (x+1, y+3) — right, bottom
+///
+/// Out-of-bounds pixels are treated as white (no dot).
+pub fn pixels_to_braille_char(
+    matrix: &[Vec<u8>],
+    x: usize,
+    y: usize,
+    threshold: u8,
+    img_w: usize,
+    img_h: usize,
+) -> char {
+    let position_bits = [
+        (0usize, 0usize, 0x01u8),
+        (0, 1, 0x02),
+        (0, 2, 0x04),
+        (1, 0, 0x08),
+        (1, 1, 0x10),
+        (1, 2, 0x20),
+        (0, 3, 0x40),
+        (1, 3, 0x80),
+    ];
+    let mut bits: u8 = 0;
+    for &(dx, dy, bit) in &position_bits {
+        if y + dy < img_h && x + dx < img_w && matrix[y + dy][x + dx] < threshold {
+            bits |= bit;
+        }
+    }
+    let code = BRAILLE_BASE + bits as u32;
+    char::from_u32(code).expect("braille code always valid (U+2800-U+28FF)")
+}
+
+/// Floyd-Steinberg error diffusion dithering.
+///
+/// Returns a binary matrix where values are either 0 (below threshold) or
+/// 255 (at or above threshold). Error is diffused left-to-right, top-to-bottom:
+/// - 7/16 to the right
+/// - 3/16 to bottom-left
+/// - 5/16 to bottom
+/// - 1/16 to bottom-right
+pub fn floyd_steinberg_dither(matrix: &[Vec<u8>], threshold: u8) -> Vec<Vec<u8>> {
+    if matrix.is_empty() || matrix[0].is_empty() {
+        return Vec::new();
+    }
+    let h = matrix.len();
+    let w = matrix[0].len();
+    let mut pixels: Vec<Vec<f64>> = matrix
+        .iter()
+        .map(|row| row.iter().map(|&v| v as f64).collect())
+        .collect();
+    let mut result = Vec::with_capacity(h);
+    let thresh = threshold as f64;
+    for y in 0..h {
+        let mut row = Vec::with_capacity(w);
+        for x in 0..w {
+            let old = pixels[y][x];
+            let new_val = if old >= thresh { 255.0 } else { 0.0 };
+            row.push(new_val as u8);
+            let err = old - new_val;
+            if x + 1 < w {
+                pixels[y][x + 1] += err * (7.0 / 16.0);
+            }
+            if y + 1 < h {
+                if x >= 1 {
+                    pixels[y + 1][x - 1] += err * (3.0 / 16.0);
+                }
+                pixels[y + 1][x] += err * (5.0 / 16.0);
+                if x + 1 < w {
+                    pixels[y + 1][x + 1] += err * (1.0 / 16.0);
+                }
+            }
+        }
+        result.push(row);
+    }
+    result
+}
+
+/// Convert luminance matrix to braille art string.
+///
+/// Each 2×4 pixel block maps to a single Unicode braille character
+/// (U+2800–U+28FF). When `dither=true`, Floyd-Steinberg error diffusion
+/// is applied first for improved visibility at the cost of detail loss.
+pub fn luminance_to_braille(matrix: &[Vec<u8>], threshold: u8, dither: bool) -> String {
+    if matrix.is_empty() || matrix[0].is_empty() {
+        return String::new();
+    }
+    let working = if dither {
+        floyd_steinberg_dither(matrix, threshold)
+    } else {
+        matrix.to_vec()
+    };
+    let h = working.len();
+    let w = working[0].len();
+    if w == 0 || h == 0 {
+        return String::new();
+    }
+    let mut lines = Vec::new();
+    let mut y = 0;
+    while y < h {
+        let mut line = String::new();
+        let mut x = 0;
+        while x < w {
+            line.push(pixels_to_braille_char(&working, x, y, threshold, w, h));
+            x += 2;
+        }
+        lines.push(line);
+        y += 4;
+    }
+    lines.join("\n")
+}
+
+/// Load image from file and convert to braille art string.
+///
+/// Convenience wrapper: loads image, converts to grayscale, then
+/// maps 2×4 blocks to braille characters.
+pub fn image_to_braille<P: AsRef<Path>>(
+    path: P,
+    threshold: u8,
+    dither: bool,
+) -> Result<String, ImageError> {
+    let matrix = load_luminance_matrix(path)?;
+    Ok(luminance_to_braille(&matrix, threshold, dither))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -801,5 +937,190 @@ mod tests {
     fn test_rgb_load_nonexistent() {
         let result = load_rgb_matrix::<&str>("/nonexistent/path/image.png");
         assert!(result.is_err(), "expected error for nonexistent path");
+    }
+
+    // -- braille art tests --
+
+    #[test]
+    fn test_braille_block_all_blank() {
+        let matrix = vec![vec![255u8; 2]; 4];
+        let ch = pixels_to_braille_char(&matrix, 0, 0, 128, 2, 4);
+        assert_eq!(
+            ch, '\u{2800}',
+            "all white pixels should produce empty braille"
+        );
+    }
+
+    #[test]
+    fn test_braille_block_all_filled() {
+        let matrix = vec![vec![0u8; 2]; 4];
+        let ch = pixels_to_braille_char(&matrix, 0, 0, 128, 2, 4);
+        assert_eq!(
+            ch, '\u{28FF}',
+            "all black pixels should produce filled braille"
+        );
+    }
+
+    #[test]
+    fn test_braille_block_each_dot() {
+        let expected_bits: [(usize, usize, char); 8] = [
+            (0, 0, '\u{2801}'), // bit 0: top-left
+            (0, 1, '\u{2802}'), // bit 1: left, row 2
+            (0, 2, '\u{2804}'), // bit 2: left, row 3
+            (1, 0, '\u{2808}'), // bit 3: top-right
+            (1, 1, '\u{2810}'), // bit 4: right, row 2
+            (1, 2, '\u{2820}'), // bit 5: right, row 3
+            (0, 3, '\u{2840}'), // bit 6: left, bottom
+            (1, 3, '\u{2880}'), // bit 7: right, bottom
+        ];
+        for &(dx, dy, expected) in &expected_bits {
+            let mut matrix = vec![vec![255u8; 2]; 4];
+            matrix[dy][dx] = 0;
+            let ch = pixels_to_braille_char(&matrix, 0, 0, 128, 2, 4);
+            assert_eq!(ch, expected, "failed for dot at (dx={dx}, dy={dy})");
+        }
+    }
+
+    #[test]
+    fn test_braille_multiple_blocks() {
+        let w = 4;
+        let h = 4;
+        let mut matrix = vec![vec![255u8; w]; h];
+        // top-right block (cols 2-3): all black
+        for row in &mut matrix {
+            row[2] = 0;
+            row[3] = 0;
+        }
+        let result = luminance_to_braille(&matrix, 128, false);
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(lines.len(), 1, "4 rows → 1 braille row");
+        assert_eq!(lines[0].chars().count(), 2, "4 columns → 2 braille chars");
+        let chars: Vec<char> = lines[0].chars().collect();
+        assert_eq!(chars[0], '\u{2800}', "top-left block all white");
+        assert_eq!(chars[1], '\u{28FF}', "top-right block all black");
+    }
+
+    #[test]
+    fn test_braille_partial_block() {
+        let matrix = vec![vec![0u8; 3]; 5];
+        let result = luminance_to_braille(&matrix, 128, false);
+        assert!(
+            !result.is_empty(),
+            "output should not be empty for odd-sized matrix"
+        );
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(lines.len(), 2, "5 rows → 2 braille rows (ceil(5/4))");
+        assert_eq!(
+            lines[0].chars().count(),
+            2,
+            "3 cols → 2 braille cols (ceil(3/2))"
+        );
+        // All pixels are black → all chars should be filled (full dot set where in bounds)
+        for ch in lines[0].chars() {
+            assert!(
+                ('\u{2800}'..='\u{28FF}').contains(&ch),
+                "char U+{:04X} out of braille range",
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn test_braille_empty_matrix() {
+        assert_eq!(luminance_to_braille(&[], 128, false), "");
+        assert_eq!(luminance_to_braille(&[vec![]], 128, false), "");
+    }
+
+    #[test]
+    fn test_floyd_steinberg_basic() {
+        let matrix = vec![
+            vec![0u8, 128, 255],
+            vec![64u8, 128, 192],
+            vec![128u8, 192, 255],
+        ];
+        let result = floyd_steinberg_dither(&matrix, 128);
+        // Verify output is binary
+        for row in &result {
+            for &v in row {
+                assert!(
+                    v == 0 || v == 255,
+                    "dithered value {v} is not binary (0 or 255)"
+                );
+            }
+        }
+        // Verify shape preserved
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].len(), 3);
+        // Original sum: 0+128+255+64+128+192+128+192+255 = 1342
+        // Dithered sum should be approximately preserved (moments)
+        let dither_sum: u32 = result
+            .iter()
+            .flat_map(|r| r.iter())
+            .map(|&v| v as u32)
+            .sum();
+        let threshold_sum = 1342u32;
+        let diff = dither_sum.abs_diff(threshold_sum);
+        // Allow ~30% error margin for small image
+        assert!(
+            diff <= 400,
+            "dither sum {dither_sum} differs from original {threshold_sum} by {diff}"
+        );
+    }
+
+    #[test]
+    fn test_luminance_to_braille_no_dither() {
+        let matrix = vec![
+            vec![64u8, 128],
+            vec![64u8, 128],
+            vec![64u8, 128],
+            vec![64u8, 128],
+        ];
+        let result = luminance_to_braille(&matrix, 128, false);
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(lines.len(), 1);
+        let ch = lines[0].chars().next().unwrap();
+        // Left column: all 64 < 128 → bits 0,1,2,6 set = 0x47
+        // Right column: all 128 >= 128 → no dots
+        assert_eq!(ch, '\u{2847}', "no-dither braille: expected U+2847");
+    }
+
+    #[test]
+    fn test_luminance_to_braille_with_dither() {
+        let matrix = vec![
+            vec![64u8, 128],
+            vec![64u8, 128],
+            vec![64u8, 128],
+            vec![64u8, 128],
+        ];
+        let result = luminance_to_braille(&matrix, 128, true);
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(lines.len(), 1);
+        let ch = lines[0].chars().next().unwrap();
+        // Dithering changes the output — should be different from no-dither case
+        assert_ne!(
+            ch, '\u{2847}',
+            "dithered output should differ from no-dither"
+        );
+        assert!(
+            ('\u{2800}'..='\u{28FF}').contains(&ch),
+            "dithered char U+{:04X} out of braille range",
+            ch as u32
+        );
+    }
+
+    #[test]
+    fn test_image_to_braille_from_file() {
+        let result =
+            image_to_braille(TEST_PNG, 128, false).expect("failed to convert PNG to braille");
+        assert!(!result.is_empty(), "braille output should not be empty");
+        for c in result.chars() {
+            if c != '\n' {
+                let code = c as u32;
+                assert!(
+                    (0x2800..=0x28FF).contains(&code),
+                    "char U+{code:04X} out of braille range"
+                );
+            }
+        }
     }
 }

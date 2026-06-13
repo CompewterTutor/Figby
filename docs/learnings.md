@@ -509,3 +509,19 @@ Three bugs found in phase merge review:
   commands are event-system primitives alongside `EnableBracketedPaste`,
   not terminal-mode commands like `EnterAlternateScreen`.
 
+## 2.4.3 — Line tool
+
+- Full-buffer clone/restore for line preview is simple but `O(n)` on every drag
+  event. For small canvases (≤200×100) this is imperceptible. Optimization to
+  region-only save/restore deferred until performance measurements show need.
+- Line tool reuses `brush::paint_line` (Bresenham) — no algorithm duplication
+  vs. eraser which also duplicates the Bresenham loop. The duplication pattern
+  (brush.rs has paint_line, eraser.rs has erase_line) could be refactored into
+  a shared Bresenham iterator, but deferring since each variant needs per-step
+  delegation (paint_stamp vs erase_stamp).
+- Line tool uses `line_start` + `saved_buffer` as separate state fields from
+  `prev_mouse_buf` (brush/eraser drag origin). This separation is deliberate:
+  Line needs two-point semantics (start + current) while brush/eraser use
+  sequential segment semantics (previous → current). Not combined to avoid
+  complicating the simpler brush/eraser drag path.
+

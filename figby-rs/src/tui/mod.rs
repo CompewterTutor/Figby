@@ -67,6 +67,8 @@ pub struct TuiApp {
     last_canvas_size: (u16, u16),
     canvas_inner_rect: Rect,
     prev_mouse_buf: Option<(i16, i16)>,
+    line_start: Option<(i16, i16)>,
+    saved_buffer: Option<canvas::CanvasBuffer>,
 }
 
 impl TuiApp {
@@ -85,6 +87,8 @@ impl TuiApp {
             prev_mouse_buf: None,
             unsaved: false,
             settings: status::CanvasSettings::new(),
+            line_start: None,
+            saved_buffer: None,
         }
     }
 
@@ -207,18 +211,29 @@ impl TuiApp {
         if self.settings.settings_open {
             return;
         }
-        if !matches!(self.toolbox.selected, Tool::Brush | Tool::Eraser) {
+        if !matches!(
+            self.toolbox.selected,
+            Tool::Brush | Tool::Eraser | Tool::Line
+        ) {
             self.prev_mouse_buf = None;
+            self.line_start = None;
+            self.saved_buffer = None;
             return;
         }
         match mouse.kind {
             MouseEventKind::Down(_) => {
                 let Some((bx, by)) = self.screen_to_buffer(mouse.column, mouse.row) else {
                     self.prev_mouse_buf = None;
+                    self.line_start = None;
                     return;
                 };
                 self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 self.unsaved = true;
+                if self.toolbox.selected == Tool::Line {
+                    self.line_start = Some((bx, by));
+                    self.saved_buffer = Some(self.canvas.buffer.clone());
+                    return;
+                }
                 if self.toolbox.selected == Tool::Eraser {
                     tools::eraser::erase_stamp(
                         &mut self.canvas.buffer,
@@ -251,6 +266,28 @@ impl TuiApp {
                 };
                 self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 self.unsaved = true;
+                if self.toolbox.selected == Tool::Line {
+                    if let (Some((sx, sy)), Some(saved)) = (self.line_start, &self.saved_buffer) {
+                        self.canvas.buffer = saved.clone();
+                        let mut cell = canvas::CanvasCell {
+                            ch: '\u{2588}',
+                            fg: None,
+                            bg: None,
+                        };
+                        self.palette.apply_to_cell(&mut cell);
+                        tools::line::draw_line_segment(
+                            &mut self.canvas.buffer,
+                            sx,
+                            sy,
+                            bx,
+                            by,
+                            self.brush.shape,
+                            self.brush.size,
+                            cell,
+                        );
+                    }
+                    return;
+                }
                 if let Some((px, py)) = self.prev_mouse_buf {
                     if self.toolbox.selected == Tool::Eraser {
                         tools::eraser::erase_line(
@@ -285,6 +322,8 @@ impl TuiApp {
             }
             MouseEventKind::Up(_) => {
                 self.prev_mouse_buf = None;
+                self.line_start = None;
+                self.saved_buffer = None;
             }
             _ => {}
         }
@@ -345,8 +384,10 @@ impl TuiApp {
             return;
         }
         // Keyboard painting: Space/Enter paints or erases at cursor
-        if matches!(self.toolbox.selected, Tool::Brush | Tool::Eraser)
-            && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
+        if matches!(
+            self.toolbox.selected,
+            Tool::Brush | Tool::Eraser | Tool::Line
+        ) && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
         {
             let (cx, cy) = self.canvas.cursor();
             if self.toolbox.selected == Tool::Eraser {

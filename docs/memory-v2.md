@@ -258,3 +258,25 @@ Integrated into TUI:
 
 9 tests: square clearance, circle shape, spray determinism, bounds clipping,
 horizontal/vertical/diagonal/reverse lines.
+
+### 2.4.3 — Line tool
+
+Created `figby-rs/src/tui/tools/line.rs` — line drawing module with one public
+function `draw_line_segment()` that delegates to `brush::paint_line` (shared
+Bresenham implementation). Thin wrapper keeps the door open for future
+line-specific features (arrow heads, dashed styles, etc.) without coupling to
+the brush module.
+
+Integrated into TUI:
+- Mouse dispatch guard broadened from `Tool::Brush | Tool::Eraser` to include
+  `Tool::Line` via `matches!()`.
+- Line tool mouse Down saves `line_start` + clones canvas buffer into
+  `saved_buffer` (no immediate draw).
+- Line tool mouse Drag restores buffer from `saved_buffer`, draws preview line
+  from `line_start` to current position using active brush shape/size/palette color.
+- Line tool mouse Up clears `line_start` and `saved_buffer`.
+- Keyboard painting (Space/Enter) stamps single point when Line tool selected.
+- Two new fields on `TuiApp`: `line_start: Option<(i16, i16)>`,
+  `saved_buffer: Option<CanvasBuffer>`.
+
+5 tests: horizontal, vertical, diagonal, reverse direction, endpoint clipping.

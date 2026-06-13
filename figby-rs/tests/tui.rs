@@ -15,11 +15,7 @@ fn test_icons_yaml_all_keys_present() {
 
     for (key, value) in &map {
         assert!(!key.is_empty(), "empty key found");
-        assert!(
-            !value.is_empty(),
-            "icon value for '{}' is empty",
-            key,
-        );
+        assert!(!value.is_empty(), "icon value for '{}' is empty", key,);
     }
 }
 
@@ -611,11 +607,14 @@ fn test_palette_render_contains_labels() {
 #[test]
 fn test_status_bar_shows_cursor_position() {
     use crossterm::event::KeyCode;
+    use figby::tui::AppMode;
     use figby::tui::TuiApp;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    // Switch to ImageEditor so arrow keys move canvas cursor
+    app.mode = AppMode::ImageEditor;
     app.handle_key_event(KeyCode::Right);
     app.handle_key_event(KeyCode::Down);
 
@@ -855,4 +854,216 @@ fn test_fill_tool_keyboard() {
         ' ',
         "outside fill should remain space"
     );
+}
+
+// --- Font Editor tests ---
+
+#[test]
+fn test_font_editor_grid_renders_102_chars() {
+    use figby::font::parse_tlf_font;
+    use figby::tui::font_editor::FontEditor;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let content = include_str!("../../fonts/standard.flf");
+    let font = parse_tlf_font(content).expect("standard font should parse");
+    let mut editor = FontEditor::new();
+    editor.load_font(font);
+
+    let backend = TestBackend::new(120, 50);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| editor.render(f, f.area())).unwrap();
+    let buffer = terminal.backend().buffer();
+    let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
+
+    // Verify font loaded at least 102 required chars (95 ASCII + 7 Deutsch)
+    let codes = editor.filtered_codes();
+    assert!(
+        codes.len() >= 102,
+        "should have at least 102 codes loaded, got {}",
+        codes.len()
+    );
+    for code in 32..=126u32 {
+        assert!(
+            codes.contains(&code),
+            "missing ASCII code {} in filtered_codes",
+            code
+        );
+    }
+    for &code in &figby::font::DEUTSCH_CHARS {
+        assert!(
+            codes.contains(&code),
+            "missing Deutsch code {} in filtered_codes",
+            code
+        );
+    }
+
+    // Verify grid renders visible content for first few codes
+    assert!(output.contains("32"), "code 32 should be in visible output");
+    assert!(output.contains("65"), "code 65 should be in visible output");
+    assert!(
+        output.contains("  "),
+        "grid output should contain spaces between cells"
+    );
+}
+
+#[test]
+fn test_font_editor_search_by_code() {
+    use figby::font::parse_tlf_font;
+    use figby::tui::font_editor::FontEditor;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let content = include_str!("../../fonts/standard.flf");
+    let font = parse_tlf_font(content).expect("standard font should parse");
+    let mut editor = FontEditor::new();
+    editor.load_font(font);
+    editor.search_query = "65".to_string();
+
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| editor.render(f, f.area())).unwrap();
+    let buffer = terminal.backend().buffer();
+    let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
+
+    assert!(
+        !output.contains("66"),
+        "code 66 should not appear when searching for '65'"
+    );
+    // '65' should match code 65 which is 'A'
+}
+
+#[test]
+fn test_font_editor_search_by_char_value() {
+    use figby::font::parse_tlf_font;
+    use figby::tui::font_editor::FontEditor;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let content = include_str!("../../fonts/standard.flf");
+    let font = parse_tlf_font(content).expect("standard font should parse");
+    let mut editor = FontEditor::new();
+    editor.load_font(font);
+    editor.search_query = "A".to_string();
+
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| editor.render(f, f.area())).unwrap();
+    let buffer = terminal.backend().buffer();
+    let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
+
+    assert!(
+        output.contains("65"),
+        "code 65 (A) should appear when searching for 'A'"
+    );
+    assert!(
+        !output.contains("66"),
+        "code 66 (B) should not appear when searching for 'A'"
+    );
+}
+
+#[test]
+fn test_font_editor_select_opens_char_in_canvas() {
+    use crossterm::event::KeyCode;
+    use figby::font::parse_tlf_font;
+    use figby::tui::font_editor::{FontEditor, FontEditorView};
+
+    let content = include_str!("../../fonts/standard.flf");
+    let font = parse_tlf_font(content).expect("standard font should parse");
+    let mut editor = FontEditor::new();
+    editor.load_font(font);
+
+    // Press Enter to select first char (space, code 32)
+    editor.handle_key(KeyCode::Enter, 120);
+
+    assert_eq!(
+        editor.view,
+        FontEditorView::CharEditor(32),
+        "should select code 32 (space) on Enter"
+    );
+    assert!(
+        editor.selected_char().is_some(),
+        "selected_char should return Some in CharEditor view"
+    );
+    if let Some((code, ch)) = editor.selected_char() {
+        assert_eq!(code, 32);
+        assert!(!ch.rows().is_empty());
+    }
+}
+
+#[test]
+fn test_font_editor_esc_returns_to_overview() {
+    use crossterm::event::KeyCode;
+    use figby::font::parse_tlf_font;
+    use figby::tui::font_editor::{FontEditor, FontEditorView};
+
+    let content = include_str!("../../fonts/standard.flf");
+    let font = parse_tlf_font(content).expect("standard font should parse");
+    let mut editor = FontEditor::new();
+    editor.load_font(font);
+
+    // Enter CharEditor first
+    editor.handle_key(KeyCode::Enter, 120);
+    assert_eq!(
+        editor.view,
+        FontEditorView::CharEditor(32),
+        "should select code 32 (space) on Enter"
+    );
+
+    // Esc returns to Overview
+    editor.handle_key(KeyCode::Esc, 120);
+    assert_eq!(editor.view, FontEditorView::Overview);
+}
+
+#[test]
+fn test_font_editor_empty_font_no_panic() {
+    use figby::tui::font_editor::FontEditor;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let mut editor = FontEditor::new();
+
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| editor.render(f, f.area())).unwrap();
+    let buffer = terminal.backend().buffer();
+    let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
+    assert!(output.contains("Search"), "search bar should still render");
+}
+
+#[test]
+fn test_font_editor_grid_navigation() {
+    use crossterm::event::KeyCode;
+    use figby::font::parse_tlf_font;
+    use figby::tui::font_editor::FontEditor;
+
+    let content = include_str!("../../fonts/standard.flf");
+    let font = parse_tlf_font(content).expect("standard font should parse");
+    let mut editor = FontEditor::new();
+    editor.load_font(font);
+
+    let initial = editor.selected_index;
+    assert_eq!(initial, 0);
+
+    // Right arrow
+    editor.handle_key(KeyCode::Right, 120);
+    assert_eq!(editor.selected_index, 1);
+
+    // Left arrow
+    editor.handle_key(KeyCode::Left, 120);
+    assert_eq!(editor.selected_index, 0);
+
+    // Down arrow (moves by cols)
+    editor.handle_key(KeyCode::Down, 120);
+    // col count at width 120: cell_w=18 → cols = floor(120/18) = 6
+    assert!(editor.selected_index > 0, "Down should move selection");
+    let down_idx = editor.selected_index;
+
+    // Up arrow returns to original
+    editor.handle_key(KeyCode::Up, 120);
+    assert_eq!(editor.selected_index, 0);
+
+    // Navigate to last item
+    editor.handle_key(KeyCode::Down, 120);
+    assert_eq!(editor.selected_index, down_idx);
 }

@@ -771,3 +771,19 @@ brush tool (2.4.1), eraser tool (2.4.2), line tool (2.4.3), fill/flood fill
 tool (2.4.4), selection tools (2.4.5), eyedropper tool (2.4.6), spray paint
 brush (2.4.7). All 7 subtasks implemented, tested, merged. Phase 2.5
 (Font Editor Mode) is next.
+
+### 2.5.1 — Font mode scaffold: glyph grid overview
+
+Created `figby-rs/src/tui/font_editor.rs` with `FontEditor` struct:
+- `FontEditorView` enum: `Overview` (char grid) or `CharEditor(u32)` (single char editing)
+- Glyph grid renders all 102 required FIGcharacters (32-126 + 7 Deutsch) plus codetagged chars
+- Each cell shows code label + mini FIGcharacter preview (cells sized by `maxlength × charheight+1`)
+- Search/filter by char code or char value via `/` key activator
+- Arrow keys navigate grid, Enter selects char → switches to `CharEditor` view
+- Esc clears search or returns from `CharEditor` to `Overview`
+- Font loaded at `TuiApp::new()` from `fonts/standard.flf` (graceful `None` on failure)
+- `sync_font_char_to_canvas()` populates canvas with FIGcharacter rows on char selection
+- Status bar shows `"Font Editor [U+XXXX]"` when editing a specific char
+- No `.unwrap()` in production — font loading uses `if let Ok(font)`
+- `/` key activates search (avoids conflict with tool shortcuts `b`,`v`,`l`, etc.)
+- 7 integration tests: grid, search by code, search by char, select+open, Esc return, empty font, grid navigation

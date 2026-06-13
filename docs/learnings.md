@@ -590,6 +590,30 @@ Three bugs found in phase merge review:
   - `test_fill_empty_region`: painted spaces on an already-space canvas, so
     flood fill had no boundary and filled the entire 5x5 instead of the 3x3
     center. Fix: fill border with `@` first.
+## 2.5.1 — Font mode scaffold: glyph grid overview
+
+- Search UX in font editor overview conflicts with keyboard shortcuts (tool select `b`/`v`/etc,
+  brush size `[`/`]`, density `;`/`'`, palette `x`/`h`/`z`, mode switch `Tab`, quit `q`, settings `S`).
+  Using `/` as search activator (common in editors like Vim, VS Code) avoids all conflicts:
+  `/` activates search, all subsequent printable chars build the query, Esc clears and deactivates.
+  When search is inactive, all key events fall through to normal handlers (canvas, toolbox, palette).
+- Grid cell sizing: `maxlength + 2` (min 8) for width × `charheight + 1` for height.
+   Standard font (maxlength=16, charheight=6) yields 18×7 cells, giving 6 columns at 120-wide terminal.
+- `FontEditor::render` must take `&mut self` (not `&self`) to allow search-state-dependent rendering
+  (e.g., grid_scroll updates during render if `grid_cols` calculation changes).
+- `TuiApp::render` borrow issue: `self.mode.title()` borrows `self` immutably, while
+  `self.sync_font_char_to_canvas()` borrows `self` mutably. Fix: capture title into a local `String`
+  before creating the `Block`, breaking the borrow chain.
+- Font loading in `TuiApp::new()` uses `if let Ok(font) = load_font(...)` — no `.unwrap()`.
+  When font can't be loaded (wrong CWD, font missing), `font_editor.font` stays `None`
+  and the grid shows empty placeholder text.
+- `FIGcharacter::rows()` returns `&[String]`, `width()` returns `usize` (first row char count).
+  Canvas buffer populated by iterating rows × chars with `canvas.buffer.set(x, y, cell)`.
+- `collect()`ing output from a `ratatui::buffer::Buffer` for test assertions:
+  `buffer.content().iter().map(|c| c.symbol()).collect::<String>()`.
+  This gives a flat string of ALL rendered characters including whitespace, which can
+  be checked with `contains()`.
+
   - `test_fill_orthogonal_not_diagonal`: "diagonal" cells at corner positions
     (0,0), (2,0), (0,2), (2,2) were actually orthogonally adjacent to the cross
     at (1,0) and (0,1), so flood fill correctly filled them. Fix: use 3x3

@@ -355,7 +355,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.5 — Font Editor Mode
 
-- [ ] `2.5.1` Font mode scaffold: glyph grid overview
+- [x] `2.5.1` Font mode scaffold: glyph grid overview
   - **Goal:** Font Editor mode. Main view: grid of all 102 required
     FIGcharacters (32-126 + Deutsch 196,214,220,228,246,252,223) plus
     codetagged chars. Each cell shows mini preview. Click to edit.

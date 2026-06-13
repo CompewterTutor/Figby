@@ -18,8 +18,11 @@ use std::collections::BTreeMap;
 use std::io;
 use std::time::Duration;
 
+use crate::font::load_font;
+
 pub mod brush;
 pub mod canvas;
+pub mod font_editor;
 pub mod palette;
 pub mod status;
 pub mod toolbox;
@@ -64,6 +67,7 @@ pub struct TuiApp {
     pub toolbox: toolbox::Toolbox,
     pub canvas: canvas::CanvasWidget,
     pub palette: palette::Palette,
+    pub font_editor: font_editor::FontEditor,
     pub brush: brush::BrushState,
     pub unsaved: bool,
     pub settings: status::CanvasSettings,
@@ -84,6 +88,12 @@ pub struct TuiApp {
 impl TuiApp {
     pub fn new() -> Self {
         let icons = serde_yaml::from_str(ICONS_YAML).unwrap_or_default();
+
+        let mut fe = font_editor::FontEditor::new();
+        if let Ok(font) = load_font("standard", "fonts") {
+            fe.load_font(font);
+        }
+
         Self {
             mode: AppMode::FontEditor,
             should_quit: false,
@@ -92,6 +102,7 @@ impl TuiApp {
             canvas: canvas::CanvasWidget::default(),
             palette: palette::Palette::new(),
             brush: brush::BrushState::new(),
+            font_editor: fe,
             last_canvas_size: (0, 0),
             canvas_inner_rect: Rect::new(0, 0, 0, 0),
             toolbox_area: Rect::new(0, 0, 0, 0),
@@ -178,44 +189,57 @@ impl TuiApp {
         self.toolbox.render(frame, tool_brush_chunks[0]);
         self.brush.render(frame, tool_brush_chunks[1]);
 
-        let block = Block::default()
-            .title(self.mode.title())
-            .borders(Borders::ALL);
+        let mode_title = self.mode.title().to_string();
+        let block = Block::default().title(mode_title).borders(Borders::ALL);
         let inner = block.inner(main_chunks[1]);
-        let zoom = self.canvas.zoom_level().max(1) as u16;
-        let buf_w = self.canvas.buffer.width() as u16;
-        let buf_h = self.canvas.buffer.height() as u16;
-        let grid_w = (buf_w * zoom).min(inner.width);
-        let grid_h = (buf_h * zoom).min(inner.height);
-        let centered = Rect {
-            x: inner.x + (inner.width.saturating_sub(grid_w) / 2),
-            y: inner.y + (inner.height.saturating_sub(grid_h) / 2),
-            width: grid_w,
-            height: grid_h,
-        };
-        self.last_canvas_size = (buf_w, buf_h);
-        self.canvas_inner_rect = centered;
-        self.canvas.ensure_cursor_visible(centered.width, centered.height);
-        // Update selection perimeter on canvas for overlay rendering
-        if let Some(ref sel) = self.selection {
-            if sel.is_active() {
-                self.canvas.selection_perimeter = Some(sel.perimeter());
+
+        let is_font_overview = self.mode == AppMode::FontEditor
+            && self.font_editor.view == font_editor::FontEditorView::Overview;
+
+        if is_font_overview {
+            frame.render_widget(block, main_chunks[1]);
+            self.font_editor.render(frame, inner);
+        } else {
+            // In CharEditor mode, populate canvas from FIGcharacter if not already set
+            if self.mode == AppMode::FontEditor {
+                self.sync_font_char_to_canvas();
+            }
+            let zoom = self.canvas.zoom_level().max(1) as u16;
+            let buf_w = self.canvas.buffer.width() as u16;
+            let buf_h = self.canvas.buffer.height() as u16;
+            let grid_w = (buf_w * zoom).min(inner.width);
+            let grid_h = (buf_h * zoom).min(inner.height);
+            let centered = Rect {
+                x: inner.x + (inner.width.saturating_sub(grid_w) / 2),
+                y: inner.y + (inner.height.saturating_sub(grid_h) / 2),
+                width: grid_w,
+                height: grid_h,
+            };
+            self.last_canvas_size = (buf_w, buf_h);
+            self.canvas_inner_rect = centered;
+            self.canvas
+                .ensure_cursor_visible(centered.width, centered.height);
+            if let Some(ref sel) = self.selection {
+                if sel.is_active() {
+                    self.canvas.selection_perimeter = Some(sel.perimeter());
+                } else {
+                    self.canvas.selection_perimeter = None;
+                }
             } else {
                 self.canvas.selection_perimeter = None;
             }
-        } else {
-            self.canvas.selection_perimeter = None;
+            self.canvas.polygon_vertices = self.selection_polygon_points.clone();
+            frame.render_widget(block, main_chunks[1]);
+            if centered.width > 1 && centered.height > 1 {
+                let edge = Block::default().borders(Borders::ALL).style(
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::DIM),
+                );
+                frame.render_widget(edge, centered);
+            }
+            frame.render_widget(&self.canvas, centered);
         }
-        self.canvas.polygon_vertices = self.selection_polygon_points.clone();
-        frame.render_widget(block, main_chunks[1]);
-        // Canvas edge border (subtle, to show drawable area boundary)
-        if centered.width > 1 && centered.height > 1 {
-            let edge = Block::default()
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM));
-            frame.render_widget(edge, centered);
-        }
-        frame.render_widget(&self.canvas, centered);
 
         if self.settings.settings_open {
             self.settings.render(frame, main_chunks[2]);
@@ -224,9 +248,15 @@ impl TuiApp {
         }
 
         let mode_name = match self.mode {
-            AppMode::FontEditor => "Font Editor",
-            AppMode::ImageEditor => "Image Editor",
-            AppMode::AsciiPreview => "ASCII Preview",
+            AppMode::ImageEditor => "Image Editor".to_string(),
+            AppMode::AsciiPreview => "ASCII Preview".to_string(),
+            AppMode::FontEditor => {
+                if let font_editor::FontEditorView::CharEditor(code) = self.font_editor.view {
+                    format!("Font Editor [U+{code:04X}]")
+                } else {
+                    "Font Editor".to_string()
+                }
+            }
         };
         status::StatusBar::render(
             frame,
@@ -234,10 +264,36 @@ impl TuiApp {
             self.canvas.cursor(),
             self.canvas.zoom_level(),
             self.toolbox.selected.full_name(),
-            mode_name,
+            &mode_name,
             self.unsaved,
             &self._icons,
         );
+    }
+
+    fn sync_font_char_to_canvas(&mut self) {
+        if let Some((_, ch)) = self.font_editor.selected_char() {
+            let w = ch.width().max(1);
+            let h = ch.rows().len().max(1);
+            if self.canvas.buffer.width() != w || self.canvas.buffer.height() != h {
+                self.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
+            }
+            for y in 0..h {
+                let row = &ch.rows()[y];
+                for (x, c) in row.chars().enumerate() {
+                    if x < w {
+                        self.canvas.buffer.set(
+                            x,
+                            y,
+                            canvas::CanvasCell {
+                                ch: c,
+                                fg: None,
+                                bg: None,
+                            },
+                        );
+                    }
+                }
+            }
+        }
     }
 
     fn screen_to_buffer(&self, col: u16, row: u16) -> Option<(i16, i16)> {
@@ -608,6 +664,17 @@ impl TuiApp {
                 self.settings.settings_open = false;
             }
             return;
+        }
+
+        // Font Editor mode: dispatch to font_editor before canvas/tools
+        if self.mode == AppMode::FontEditor {
+            let area_width = self.canvas_inner_rect.width;
+            if self.font_editor.handle_key(code, area_width) {
+                if self.font_editor.view != font_editor::FontEditorView::Overview {
+                    self.sync_font_char_to_canvas();
+                }
+                return;
+            }
         }
 
         // Selection operations (before canvas cursor movement)

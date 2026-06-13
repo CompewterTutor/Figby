@@ -109,6 +109,26 @@ All subtasks 2.0.1–2.0.10 complete. Phase 2.1 (Image-to-ASCII Pipeline) is nex
 
 ## Phase 2.1 — Image-to-ASCII Pipeline
 
+### 2.1.5 — Image CLI flags integration
+
+Added `ImageOptions` struct, image CLI flags, image mode dispatch, and `run_image()`
+entry point to `main.rs`. Flip helpers (`flip_horizontal`, `flip_vertical`,
+`flip_horizontal_rgb`, `flip_vertical_rgb`) added to `image_input.rs` — necessary
+supporting change since matrix types are defined there.
+
+Flags added to `CliArgs`: `--image`/`-i`, `--map`, `--braille`/`-b`, `--color`,
+`--grayscale`, `--negative`, `--dither`, `--width`, `--height`, `--dimensions`
+(format `WxH`), `--flipX`, `--flipY`. All parse cleanly via clap derive.
+`--width`/`--height` override `--dimensions` values (last-wins semantics).
+
+`main()` dispatches on `is_image_mode()` (non-empty `--image` paths) after
+template rendering but before FIGlet mode — image and FIGlet modes coexist.
+`--width` uses long flag only (`-w` reserved for FIGlet output width).
+URL paths detected but not yet supported (eprintln + skip).
+
+17 flag parse tests + 2 integration tests covering every flag, defaults,
+short aliases, multiple paths, and mode detection. fmt and clippy pass clean.
+
 ### 2.1.1 — Image loading + grayscale conversion via `rascii_art`
 
 Added `image = { version = "0.24", features = ["jpeg", "png", "bmp", "webp"] }` to

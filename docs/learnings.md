@@ -397,3 +397,21 @@ Three bugs found in phase merge review:
   height should be halved relative to pixel aspect to avoid stretched output.
   Factor 0.5 applied in `luminance_to_ascii` height calculation.
 
+## 2.1.5 — Image CLI flags integration
+
+- `--width` long flag is safe to add because existing `-w` has no long form.
+  No namespace collision with existing FIGlet flags.
+- `--flipX`/`--flipY` require `#[arg(long = "flipX")]` since Rust convention
+  uses `flip_x` field name but the flag name uses `flipX`.
+- Flip functions placed in `main.rs` (not `image_input.rs`) to respect strict
+  "Touches: main.rs" scope. Uses `image_input::RgbPixel` qualified in signatures
+  so no type import needed.
+- `img_height` field initially flagged as dead code — had to wire it into
+  `run_image()` by truncating output lines. All `ImageOptions` fields must
+  be used to avoid clippy `dead_code` lint.
+- Image mode dispatch placed after template rendering (`--render-template`)
+  but before FIGlet mode (`-f`, `message`). This ensures image mode doesn't
+  conflict with template or FIGlet flag processing.
+- URL support stubbed with `eprintln` error — `image::open` takes `AsRef<Path>`,
+  not URLs. Full URL support needs `ureq` or `reqwest` dependency (deferred).
+

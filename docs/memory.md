@@ -518,3 +518,13 @@ Added braille art pipeline in `image_input.rs`:
 
 `.expect()` in `pixels_to_braille_char` for `char::from_u32` is a safe invariant (bits=0..255, base=0x2800, code always in valid Unicode range), following existing codebase convention.
 fmt and clippy pass clean.
+
+### 2.1.5 — Image CLI flags integration
+
+Added `ImageOptions` struct, image CLI flags (`--image`/`-i`, `--map`, `--braille`/`-b`,
+`--color`, `--grayscale`, `--negative`, `--dither`, `--width`, `--height`, `--dimensions`,
+`--flipX`, `--flipY`), image mode dispatch, and `run_image()` entry point to `main.rs`.
+Flip helpers for luminance and RGB matrices reside in `main.rs` (private functions).
+17 flag parse tests + 2 integration tests covering every flag, defaults, short aliases,
+multiple paths, and mode detection. No `.unwrap()` in production — all error paths use
+`match`/`continue`. fmt and clippy pass clean.

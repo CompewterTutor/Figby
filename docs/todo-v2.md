@@ -144,7 +144,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Color output escape code correctness.
   - **Difficulty:** Medium
 
-- [ ] `2.1.4` Braille art + dithering
+- [x] `2.1.4` Braille art + dithering
   - **Goal:** Map 2×4 pixel blocks to Unicode braille (U+2800–U+28FF).
     Threshold + optional Floyd-Steinberg dithering.
   - **Touches:** `figby-rs/src/image_input.rs`

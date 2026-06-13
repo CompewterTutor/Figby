@@ -236,3 +236,25 @@ scrollable/zoomable canvas widget (2.3.3), color palette sidebar (2.3.4),
 brush shape picker with size/preview (2.3.5), status bar + canvas settings
 panel (2.3.6). All 6 subtasks implemented, tested, merged.
 Phase 2.4 (Drawing Tools) is next.
+
+## Phase 2.4 — Drawing Tools
+
+### 2.4.2 — Eraser tool
+
+Created `figby-rs/src/tui/tools/eraser.rs` — eraser execution module with two
+public functions:
+- `erase_stamp()` — sets cells to `CanvasCell::default()` (space, no fg/bg)
+  within brush shape area, reusing `stamp_offsets` from `tools::brush` for
+  identical brush geometry. No `unwrap()` — bounds clipping via `get_mut` → `Option`.
+- `erase_line()` — Bresenham line interpolation with per-step `erase_stamp` calls.
+
+Integrated into TUI:
+- Mouse dispatch guard broadened from `Tool::Brush` to `Tool::Brush | Tool::Eraser`
+  using `matches!()` macro.
+- Eraser branch in mouse `Down`/`Drag` handlers calls `erase_stamp`/`erase_line`
+  instead of `paint_stamp`/`paint_line`.
+- Keyboard painting (Space/Enter) also dispatches to Eraser when selected.
+- No new dependencies or `unwrap()` in production — structurally identical to brush.
+
+9 tests: square clearance, circle shape, spray determinism, bounds clipping,
+horizontal/vertical/diagonal/reverse lines.

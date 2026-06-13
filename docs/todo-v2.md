@@ -478,7 +478,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Open known font, verify all glyphs loaded.
   - **Difficulty:** Medium
 
-- [ ] `2.7.3` Copy / duplicate font
+- [x] `2.7.3` Copy / duplicate font
   - **Goal:** Duplicate current font in editor (new untitled copy).
     Copy glyphs between fonts (copy from one FIGfont to current).
     Import glyphs from another `.flf` file.

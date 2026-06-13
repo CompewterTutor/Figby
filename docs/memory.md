@@ -1024,3 +1024,19 @@ overlay widget), `save_font()` function, and `FileOpsMode` enum (Idle/SaveAs
 - 8 unit tests: roundtrip save+reload byte-exact, valid `.flf` generation,
   error handling for invalid paths, dialog state management, path extension
   logic. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 2.7.3 — Copy / duplicate font
+
+Added font duplication and import features to `FontEditor`:
+- `transform_duplicate()` — clones current font into `original_font` field, sets cloned
+  font as active, clears `current_path`, sets `font_storage_name` to `"Untitled Copy"`,
+  resets undo/redo stacks. Enables "edit one, verify other unchanged" workflow.
+- `transform_import_font(name, fontdir)` — loads external `.flf`/`.tlf` via `load_font()`,
+  merges every glyph into current font via `font.chars.insert()` (last-wins for duplicates).
+- `original_font: Option<FIGfont>` field added to `FontEditor` — stores pre-duplicate font
+  state for independence verification.
+- TRANSFORM_LABELS expanded from 6 to 8 entries: added "Duplicate Font" (index 6, immediate
+  action, no input) and "Import Font" (index 7, prompts for font name).
+- Existing tests updated for 8-transform navigation. 7 new unit tests: duplicate font,
+  duplicate independence, import merges glyphs, import overwrites duplicates, duplicate
+  empty font, import nonexistent font. Only `font_editor.rs` touched. fmt and clippy pass clean.

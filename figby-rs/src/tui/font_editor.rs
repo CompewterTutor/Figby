@@ -62,13 +62,15 @@ impl MirrorMode {
     }
 }
 
-const TRANSFORM_LABELS: [&str; 6] = [
+const TRANSFORM_LABELS: [&str; 8] = [
     "Resize Font",
     "Italicize",
     "Bold",
     "Mirror",
     "Copy Glyph",
     "Rename",
+    "Duplicate Font",
+    "Import Font",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,6 +117,7 @@ pub struct FontEditor {
     pub transform_font_name: String,
     pub font_storage_name: String,
     pub current_path: Option<PathBuf>,
+    pub original_font: Option<FIGfont>,
 }
 
 impl FontEditor {
@@ -146,6 +149,7 @@ impl FontEditor {
             transform_font_name: String::new(),
             font_storage_name: String::new(),
             current_path: None,
+            original_font: None,
         }
     }
 
@@ -170,6 +174,7 @@ impl FontEditor {
         self.transform_submode = None;
         self.transform_font_name.clear();
         self.font_storage_name.clear();
+        self.original_font = None;
     }
 
     pub fn enter_header_editor(&mut self) {
@@ -515,6 +520,7 @@ impl FontEditor {
                     }
                 }
                 5 => format!(" New name: {}", self.input_buffer),
+                7 => format!(" Font name: {}", self.input_buffer),
                 _ => String::new(),
             };
             lines.push(Line::from(""));
@@ -837,6 +843,13 @@ impl FontEditor {
                                 self.transform_rename(&buf);
                             }
                         }
+                        7 => {
+                            if buf.is_empty() {
+                                self.error_message = "Font name required".to_string();
+                            } else {
+                                self.transform_import_font(&buf, "fonts");
+                            }
+                        }
                         _ => {}
                     }
                     self.input_active = false;
@@ -904,6 +917,12 @@ impl FontEditor {
                             self.error_message.clear();
                         }
                         5 => {
+                            self.input_active = true;
+                            self.input_buffer.clear();
+                            self.error_message.clear();
+                        }
+                        6 => self.transform_duplicate(),
+                        7 => {
                             self.input_active = true;
                             self.input_buffer.clear();
                             self.error_message.clear();
@@ -1049,6 +1068,36 @@ impl FontEditor {
 
     fn transform_rename(&mut self, new_name: &str) {
         self.font_storage_name = new_name.to_string();
+    }
+
+    fn transform_duplicate(&mut self) {
+        let Some(font) = self.font.as_ref() else {
+            return;
+        };
+        self.original_font = Some(font.clone());
+        self.font = Some(font.clone());
+        self.rebuild_all_codes();
+        self.current_path = None;
+        self.font_storage_name = "Untitled Copy".to_string();
+        self.undo_stack.clear();
+        self.redo_stack.clear();
+    }
+
+    fn transform_import_font(&mut self, name: &str, fontdir: &str) {
+        let external = match load_font(name, fontdir) {
+            Ok(f) => f,
+            Err(_) => {
+                self.error_message = format!("Could not load font: {name}");
+                return;
+            }
+        };
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        for (code, ch) in external.chars {
+            font.chars.insert(code, ch);
+        }
+        self.rebuild_all_codes();
     }
 
     fn start_editing_field(&mut self) {
@@ -1870,9 +1919,9 @@ mod tests {
         editor.enter_transform_editor();
 
         // Down cycles through transforms
-        for i in 0..5 {
+        for i in 0..7 {
             editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
-            assert_eq!(editor.selected_transform, (i + 1) % 6);
+            assert_eq!(editor.selected_transform, (i + 1) % 8);
         }
 
         // Down again wraps to 0
@@ -1881,7 +1930,7 @@ mod tests {
 
         // Up wraps around
         editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
-        assert_eq!(editor.selected_transform, 5);
+        assert_eq!(editor.selected_transform, 7);
     }
 
     #[test]
@@ -2015,6 +2064,95 @@ mod tests {
     fn test_transform_copy_glyph_nonexistent_font() {
         let mut editor = make_editor();
         editor.transform_copy_glyph_from("nonexistent_font_xyz", ".", 65);
+        assert!(
+            !editor.error_message.is_empty(),
+            "should set error for nonexistent font"
+        );
+    }
+
+    // --- Duplicate / Import tests ---
+
+    #[test]
+    fn test_duplicate_font() {
+        let mut editor = make_editor();
+        editor.transform_duplicate();
+        assert!(editor.current_path.is_none());
+        assert!(editor.font_storage_name.contains("Untitled"));
+        assert!(editor.font.is_some());
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&65));
+        assert_eq!(font.chars.get(&65).unwrap().rows()[0], " AA  ");
+    }
+
+    #[test]
+    fn test_duplicate_independence() {
+        let mut editor = make_editor();
+        editor.transform_duplicate();
+
+        let Some(font) = editor.font.as_mut() else {
+            panic!("font should exist");
+        };
+        let rows = vec![
+            "XXXXX".to_string(),
+            "XXXXX".to_string(),
+            "XXXXX".to_string(),
+        ];
+        font.chars.insert(65, rows.clone().into());
+        assert_eq!(font.chars.get(&65).unwrap().rows(), rows.as_slice());
+
+        let orig = editor.original_font.as_ref().unwrap();
+        let orig_ch = orig.chars.get(&65).unwrap();
+        assert_eq!(orig_ch.rows()[0], " AA  ");
+        assert_eq!(orig_ch.rows()[1], "A  A ");
+        assert_eq!(orig_ch.rows()[2], "AAAA ");
+    }
+
+    #[test]
+    fn test_import_font_merges_glyphs() {
+        let mut editor = make_editor();
+        assert_eq!(editor.font.as_ref().unwrap().chars.len(), 3);
+
+        let fontdir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
+        editor.transform_import_font("standard", fontdir);
+        assert!(
+            editor.error_message.is_empty(),
+            "error: {}",
+            editor.error_message
+        );
+
+        let count = editor.font.as_ref().unwrap().chars.len();
+        assert!(
+            count > 100,
+            "should have >100 chars after import, got {count}"
+        );
+
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&65));
+        assert!(font.chars.contains_key(&66));
+    }
+
+    #[test]
+    fn test_import_font_overwrites_duplicates() {
+        let mut editor = make_editor();
+        let fontdir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
+        editor.transform_import_font("standard", fontdir);
+        assert!(editor.error_message.is_empty());
+
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&65));
+        assert!(font.chars.contains_key(&66));
+    }
+
+    #[test]
+    fn test_duplicate_empty_font() {
+        let mut editor = FontEditor::new();
+        editor.transform_duplicate();
+    }
+
+    #[test]
+    fn test_import_font_nonexistent() {
+        let mut editor = make_editor();
+        editor.transform_import_font("nonexistent_font_xyz", ".");
         assert!(
             !editor.error_message.is_empty(),
             "should set error for nonexistent font"

@@ -463,3 +463,7 @@ PHASE_COMPLETE: 2.6 merged to main after review approval.
 ## 2026-06-13 19:06
 
 DONE: 2.7.1 merged into release/2.7.
+
+## 2026-06-13 19:14
+
+DONE: 2.7.2 merged into release/2.7.

@@ -173,3 +173,13 @@ Merge conflicts: docs/ralph-log.md had a conflict between master's post-2.0.10
 log entries and release/2.1's 2.1.x entries. Resolution: kept both sets in
 chronological order. Also committed the 2.1.5 ralph-log entry that was
 previously uncommitted on task-2.1.5/2.1.6.
+
+## Phase 2.2 — System Font → FIGfont Creation
+
+### 2.2.6 — Phase merge: release/2.2 → main
+
+Merged all Phase 2.2 work into default branch (master). Phase 2.2 complete:
+system font enumeration via font-kit (2.2.1), glyph rasterization to FIGcharacter
+rows (2.2.2), FIGfont header generation from font metrics (2.2.3), `--create-font`
+CLI command (2.2.4), TUI iconset YAML file (2.2.5). All 6 subtasks (2.2.1–2.2.6)
+implemented, tested, merged. Phase 2.3 (TUI Core & Canvas) is next.

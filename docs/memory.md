@@ -594,3 +594,11 @@ Added `serde_yaml` dev-dependency and integration test
 - Asserts ≥120 entries
 - Asserts every key non-empty
 - Asserts every value starts with `nf-`
+
+### 2.2.6 — Phase merge: release/2.2 → main
+
+Merged all Phase 2.2 work into default branch (master). Phase 2.2 complete:
+system font enumeration via font-kit (2.2.1), glyph rasterization to FIGcharacter
+rows (2.2.2), FIGfont header generation from font metrics (2.2.3), `--create-font`
+CLI command (2.2.4), TUI iconset YAML file (2.2.5). All 6 subtasks (2.2.1–2.2.6)
+implemented, tested, merged. Phase 2.3 (TUI Core & Canvas) is next.

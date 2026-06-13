@@ -396,3 +396,11 @@ DONE: 2.4.8 merged into master (phase merge).
 All 2.4 tasks complete. Starting phase review.
 
 PHASE_COMPLETE: 2.4 merged to main after review approval.
+
+## 2026-06-13 14:37
+
+DONE: 2.4.8 merged into release/2.4.
+
+## 2026-06-13 14:37
+
+All 2.4 tasks complete. Starting phase review.

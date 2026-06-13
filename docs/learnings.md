@@ -423,3 +423,21 @@ Three bugs found in phase merge review:
 - `Font::is_monospace()` is available directly on the freetype Font — no need for glyph-advance heuristic
 - `fontconfig` must be installed on Linux for `SystemSource` to work. The `yeslogic-fontconfig-sys` crate wraps fontconfig C library.
 
+## 2.2.3 — FIGfont header from font metrics
+
+- `format!` macro is preferred over `write!` with `unwrap()` for infallible string
+  formatting to String — no `unwrap()` needed, pure allocation.
+- `strip_endmarks()` trims trailing whitespace BEFORE identifying endmark. This
+  means trailing spaces before `@` in a row like `" char @"` are preserved:
+  endmark `@` is identified first (whitespace-trimmed string still has `@`), then
+  only consecutive `@` chars are removed. Result: `" char "` with trailing space
+  intact. This is critical for width correctness in FIGfont glyphs.
+- Round-trip header generation works because `generate_figfont_header()` always
+  emits all 9 fields (including explicit `full_layout`). When `parse_header()`
+  sees `tokens.len() > 6`, it reads `full_layout` from the header directly rather
+  than deriving it from `old_layout`. This preserves non-default full_layout
+  values (e.g. 191 for all smushing rules).
+- Placeholder rows for missing required chars use `maxlength` spaces + `@`.
+  After `strip_endmarks`, these become `maxlength` spaces — correct width for
+  empty/space glyphs.
+

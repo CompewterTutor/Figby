@@ -184,7 +184,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Known font→known FIGcharacter output.
   - **Difficulty:** High
 
-- [ ] `2.2.3` FIGfont header from font metrics
+- [x] `2.2.3` FIGfont header from font metrics
   - **Goal:** Build FIGfont header: hardblank, height, baseline, max_length,
     full_layout. Default old_layout=0 (full-size).
   - **Touches:** `figby-rs/src/font_gen.rs`

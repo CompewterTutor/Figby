@@ -539,3 +539,19 @@ Created `font_gen.rs` with system font enumeration using `font-kit` crate:
 - Private helpers: `describe_style()`, `family_is_monospace()`, `load_styles()`
 - 3 unit tests: non-empty font list, monospace filter produces subset, styles are populated
 - `font-kit = "0.14.3"` enabled in Cargo.toml (was commented out)
+
+### 2.2.3 — FIGfont header from font metrics
+
+Added `generate_figfont_header()` and `generate_figfont()` in `font_gen.rs`.
+- `generate_figfont_header(font)` — generates FIGfont header line:
+  `flf2a<hardblank> <height> <baseline> <max_length> 0 0 -1 <full_layout> 0`
+  Always uses old_layout=0 (full-size), comment_lines=0, print_direction=-1,
+  codetag_count=0. Uses `format!` macro (infallible, no unwrap).
+- `generate_figfont(font)` — generates complete `.flf` content: header + 95 ASCII
+  chars (32-126) + 7 Deutsch chars + codetagged chars. Missing required chars use
+  space-padded rows of `maxlength` width. Each row terminated with `@` endmark.
+  Codetagged chars sorted by code for deterministic output.
+- 5 new tests: header round-trip, default full-size layout, smush layout
+  preservation (191), hardblank multi-byte (DEL), full font round-trip with
+  placeholder chars. No test failures from font-kit (tests use `parse_header`
+  and `parse_tlf_font` directly, no system font dependency).

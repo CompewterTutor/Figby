@@ -263,7 +263,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Color selection + apply tests.
   - **Difficulty:** Medium
 
-- [ ] `2.3.5` Brush selection
+- [x] `2.3.5` Brush selection
   - **Goal:** Brush shape picker: square, circle, spray paint, custom
     (user-drawn pattern). Size slider (1-20 chars). Preview of brush
     shape in toolbox.

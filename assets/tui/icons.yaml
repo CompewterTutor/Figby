@@ -3,67 +3,68 @@
 # Loaded at TUI startup; key = element id, value = nf icon name.
 
 # ── Modes ──────────────────────────────────────────
-mode_font_editor: nf-fa-font
-mode_image_editor: nf-fa-picture_o
-mode_ascii_preview: nf-fa-terminal
+mode_font_editor: 󰛖                                 # nf-fa-font changed to nf-md-format_font for now
+mode_image_editor:                                 # nf-fa-picture_o
+mode_ascii_preview:                                # nf-fa-terminal possible alts:  nf-dev-terminal or  nf-cod-terminal or  nf-cod-terminal_bash
 
 # ── Tools ──────────────────────────────────────────
-tool_brush: nf-fa-paint_brush
-tool_eraser: nf-fae-eraser
-tool_line: nf-md-vector_line
-tool_fill: nf-fa-paint_bucket
+tool_brush:                                        # nf-fa-paint_brush  alt:  nf-oct-paintbrush
+tool_eraser:                                       # nf-fa-eraser       󰇾 nf-md-eraser  󰙂 nf-md-eraser_variant
+tool_line: 󰕞                                        # nf-md-vector_line
+tool_fill:                                         # nf-fa-fill alts:  󰁷 nf-md-basket_fill  # nf-fa-paint_bucket alts:  nf-fa-fill  nf-cod-paintcan  nf-fa-fill-drop 󰉦 nd-md-format_color_fill
 tool_flood_fill: nf-fa-paint_bucket
-tool_marquee: nf-fa-arrows
-tool_lasso: nf-fa-crosshairs
-tool_circle: nf-fa-circle_o
-tool_polygon: nf-md-shape-polygon-plus
-tool_eyedropper: nf-fa-eyedropper
-tool_spray: nf-weather-sprinkle
-tool_text: nf-fa-font
-tool_pencil: nf-fa-pencil
+tool_marquee:                                      # nf-fa-arrows alts: 
+tool_lasso: 󰼃                                       # nf-md-lasso alts:  󰆣 nf-fa-crosshairs
+tool_circle:                                       #nf-oct-circle    alts:  nf-fa-circle_o  nf-fa-circle_o  nf-fa-circle_thin    nf-cod-circle_large   nf-cod-circle  nf-cod-circle_filled  nf-cod-circle_small
+tool_polygon: 󰙞                                     # nf-md-shape-polygon-plus ALTS: 󱡖 nf-md-vector_polygon_variant 󰕠 nf-md-vector_polygon    nf-fa-draw_polygon
+tool_eyedropper:                                   # nf-fa-eyedropper  ALTS: 󰈊 nf-md-eyedropper 󰈋 nf-md-eyedropper_variant 󱏜 󱏝  󱏟 
+tool_spray:                                        # nf-fa-spray_can   nf-fa-spray_can_sparkles   alts: nf-weather-sprinkle
+tool_text:                                         # nf-fa-font ALTS:  nf-seti-font  󰛖 nf-md-format_font 󰧳  󰧴 
+tool_pencil:                                       # nf-fa-pencil  ALTS:  nf-fa-pencil_square  󰏫 nf-md-pencil 󰏬 nf-md-pencil_box 󰛿 nf-md-pencil_circle 󰏮 nf-md-pencil_lock 󰏭 nf-md-pencil_box_outline 󰝶 nf-md-pencil_circle_outline 󱅅 nf-md-pencil_box_multiple_outline   nf-oct-pencil 󰙈 nf-md-grease_pencil 󰙏 nf-md-lead_pencil 󱞇 nf-md-progress_pencil 
 
 # ── Cursor / Selection ─────────────────────────────
-cursor_default: nf-fa-arrows
-cursor_crosshair: nf-fa-crosshairs
-cursor_text: nf-fa-i_cursor
-cursor_move: nf-fa-hand_o_up
-cursor_resize_ns: nf-fa-arrows_v
-cursor_resize_ew: nf-fa-arrows_h
+cursor_default:                                    # nf-fa-arrow_pointer alts: 󰆿  nf-fa-arrows  nf-arrows_alt  nf-oct-arrow_up_left  󰇀 nf-md-cursor_default 󰆽 nf-md-cursor_pointer 󰳽 nf-md-cursor_default_click 󰳾 nf-md-cursor_default_click_outline
+cursor_crosshair:                                  # nf-fa-crosshairs 󰆤 nf-md-crosshairs_gps  nf-fa-location_crosshairs 󰆣 nf-md-crosshairs 󰽅 nf-md-crosshairs_off 󱄶 nf-md-crosshairs_question
+cursor_text:                                       # nf-fa-i_cursor  ALTS 󰗧 nf-md-cursor_text 
+cursor_move: 󰆾 # nf-md-cursor_move   nf-fa-hand_o_up  nf-fa-arrows 󰆾
+cursor_resize_ns:                                  # nf-fa-arrows_v
+cursor_resize_ew:                                  # nf-fa-arrows_h
 
 # ── Canvas ─────────────────────────────────────────
-canvas_grid: nf-fa-th
-canvas_zoom_in: nf-fa-search_plus
-canvas_zoom_out: nf-fa-search_minus
-canvas_zoom_reset: nf-fa-search
-canvas_snap_grid: nf-fa-th
-canvas_fullscreen: nf-fa-arrows_alt
+canvas_grid:                                       # nf-fa-th   nf-fa-th_large  󰝘 nf-md-grid_large 󰋁 nf-md-grid
+canvas_grid_off: 󰋂                                  # nf-md-grid_off
+canvas_zoom_in:                                    # nf-fa-search_plus
+canvas_zoom_out:                                   # nf-fa-search_minus
+canvas_zoom_reset:󱎱                                 # fa-md-home_search_outline                                 # nf-fa-search 󰹓 
+canvas_snap_grid: 󰍈                                 #nf-md-magnet_on ALTS 󰍇 nf-md-magnet  nf-fa-magnet  nf-cod-magnet   nf-fa-th
+canvas_fullscreen:                                 #nf-cod-screen_full  ALTS 󰘖 nf-md-arrow_expand   ALTS:󰁌 nf-md-arrow_expand_all   󰘕 nf-md-arrow_collapse 󰁄 nf-md-arrow_collapse_all nf-fa-arrows_alt
 
 # ── Brush ─────────────────────────────────────────
-brush_shape_square: nf-fa-square
-brush_shape_circle: nf-fa-circle
-brush_shape_spray: nf-weather-sprinkle
-brush_shape_custom: nf-fa-pencil
-brush_size_up: nf-fa-plus
-brush_size_down: nf-fa-minus
+brush_shape_square:                                # nf-fa-square 󰝤 
+brush_shape_circle:                                # nf-fa-circle
+brush_shape_spray: 󰂵                                # nf-md-blur  ALTS: 󰂸  nf-weather-sprinkle 󰙥    󱡓 󱡔 󱡕 󰗌 
+brush_shape_custom:                                # nf-fae-makeup_brushes ALTS 󱠓 nf-md-brush_variant   nf-fa-brush 󰃣 nf-md-brush 󱨍 nf-md-brush_outline  nf-fa-pencil
+brush_size_up:                                      #nf-cod-arrow_small_up nf-fa-plus
+brush_size_down:                                      # nf-cod-arrow_small_down nf-fa-minus
 
 # ── Color Palette ─────────────────────────────────
-palette_fg: nf-fa-circle
-palette_bg: nf-fa-circle_o
-palette_custom: nf-fa-eyedropper
-palette_swap: nf-fa-exchange
-palette_reset: nf-fa-undo
-palette_recent: nf-fa-clock_o
-palette_grid_16: nf-fa-th_large
-palette_grid_240: nf-fa-th
+palette_fg:                                        # nf-fa-circle
+palette_bg:                                        # nf-fa-circle_o
+palette_custom:                                    # nf-fa-eyedropper 󱥚 nf-md-palette_swatch_variant 󱍜 nf-md-palette_swatch_outline 󰢵 nf-md-palette_swatch 󰸌 nf-md-palette_outline 󰏙 nf-md-palette_advanced  nf-fae-palette_color 
+palette_swap: 󰓡                                     # nf-md-swap_horizontal  󰯍 nf-fa-exchange
+palette_reset:                                     #nf-fa-undo
+palette_recent:                                    #nf-fa-clock_o
+palette_grid_16:                                   # nf-fa-th_large
+palette_grid_240:                                  # nf-fa-th
 
 # ── Status Bar ────────────────────────────────────
-status_position: nf-fa-crosshairs
-status_zoom: nf-fa-search
-status_tool: nf-fa-wrench
-status_mode: nf-fa-cube
-status_modified: nf-fa-circle
-status_unsaved: nf-fa-exclamation_triangle
-status_saved: nf-fa-check
+status_position:                                     # nf-fa-crosshairs
+status_zoom:                                         # nf-fa-search
+status_tool:                                         # nf-fa-wrench
+status_mode:                                         # nf-fa-cube
+status_modified:                                     #nf-cod-diff_modified  nf-oct-diff_modified nf-fa-circle
+status_unsaved:                                      #nf-fa-exclamation_triangle
+status_saved:                                        # nf-fa-check
 
 # ── File Operations ───────────────────────────────
 file_new: nf-fa-file_o

@@ -480,3 +480,11 @@ Three bugs found in phase merge review:
 - `pub` methods on `pub struct` inside `pub mod` do NOT trigger clippy `dead_code` — they're public API, even when no callers exist yet. This is useful for future-tooling methods like `full_name()`, `icon_key()`, `next()`, `prev()`.
 - `ListState` must be created locally (not stored) and passed by `&mut` to `render_stateful_widget`, even for read-only (no-interaction) rendering. Ratatui's stateful widget pattern requires `&mut` for potential state updates during rendering (scroll, highlight tracking).
 
+## 2.3.3 — Canvas widget
+
+- `Buffer::get_mut(x, y)` is deprecated in ratatui-core 0.1.1 — use `Buffer::cell_mut((x, y))` instead. `cell_mut` returns `Option<&mut Cell>` (non-panicking), satisfying the "no unwrap" invariant when handled with `if let Some`.
+- `Buffer[(x, y)]` indexing panics on OOB — avoid it for invariant compliance. Use `cell_mut` with `if let`.
+- `Style` in ratatui 0.30 has `add_modifier: Modifier` and `sub_modifier: Modifier` fields (not `modifier: Modifier`). Check reversed style with `cell.style().add_modifier.contains(Modifier::REVERSED)`.
+- `(x - area.x) % zoom == 0` triggers `clippy::manual_is_multiple_of` in Rust 1.95 — use `.is_multiple_of(zoom)` instead. Method is safe only when `zoom > 0` (invariant holds for CanvasWidget where zoom ∈ [1,8]).
+- Canvas keys (`+`, `-`, arrows, `G`) placed before toolbox keys in dispatch order prevents `g`-for-Fill conflict since canvas only intercepts uppercase `G`. Lowercase `g` still reaches toolbox for Fill tool.
+

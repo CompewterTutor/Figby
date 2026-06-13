@@ -626,3 +626,19 @@ Created `figby-rs/src/tui/toolbox.rs` — shared toolbar with 10 tool variants:
 - Active tool highlighted via `List` widget with cyan bold style
 - Converted `tui.rs` → `tui/mod.rs` directory module for sub-module organization
 - 3 tests: default tool is Brush, round-trip selection via all shortcuts, tool names appear in rendered output
+
+### 2.3.3 — Canvas widget
+
+Created `figby-rs/src/tui/canvas.rs` — scrollable/zoomable canvas widget:
+- `CanvasCell` struct: `ch: char`, `fg: Option<Color>`, `bg: Option<Color>` with `Default` (space, no color)
+- `CanvasBuffer` struct: 2D grid of `CanvasCell` with bounds-checked `get()`, `get_mut()`, `set()`. No `unwrap()` — all bounds errors return `Option`.
+- `CanvasWidget` struct: owns `CanvasBuffer`, cursor position `(u16, u16)`, scroll offset `(u16, u16)`, zoom level `u8` (1-8), grid toggle `bool`. `impl Widget for &CanvasWidget` renders buffer cells into terminal area:
+  - At zoom=1, each buffer cell = 1 terminal cell
+  - At zoom=N, each buffer cell fills N×N block with its char
+  - Grid overlay with `│`/`─`/`┼` at cell boundaries (dim style)
+  - Cursor highlight via reversed style (rendered last to win over grid)
+- `handle_key()` dispatches arrows (move cursor), `+`/`=` (zoom in), `-`/`_` (zoom out), `G` (toggle grid). Returns `bool` (handled).
+- `ensure_cursor_visible()` auto-scrolls to keep cursor in view.
+- Canvas placed before toolbox in key dispatch order.
+- 6 integration tests: empty render, cell rendering, cursor movement, zoom in/out, cursor highlight style, grid characters at zoom=2.
+- Memory entry on `Buffer::cell_mut` returning `Option<&mut Cell>` (non-panicking, matches invariants).

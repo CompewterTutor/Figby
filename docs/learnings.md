@@ -577,3 +577,21 @@ Three bugs found in phase merge review:
 - `mul_add` is used for `dx*dx + dy*dy` in the circle check to avoid a
   separate multiplication, matching modern Rust idiom for fused multiply-add.
 
+## 2.4.8 — Phase merge: release/2.4 → main
+
+- Merge completed cleanly — no conflicts. All 20 files merged automatically.
+  `docs/todo-v2.md`, `docs/memory.md`, `docs/memory-v2.md`, `docs/learnings.md`,
+  and `docs/ralph-log.md` had additions only on `release/2.4` (no divergent
+  changes on master), so no manual conflict resolution was needed.
+- This aligns with the pattern seen in 2.0.10, 2.1.6, 2.2.6, and 2.3.7 phase
+  merges — documentation files accumulate only on release branches, and master's
+  versions only change during the phase merge commit itself.
+- Two pre-existing test bugs found in phase review of `fill.rs`:
+  - `test_fill_empty_region`: painted spaces on an already-space canvas, so
+    flood fill had no boundary and filled the entire 5x5 instead of the 3x3
+    center. Fix: fill border with `@` first.
+  - `test_fill_orthogonal_not_diagonal`: "diagonal" cells at corner positions
+    (0,0), (2,0), (0,2), (2,2) were actually orthogonally adjacent to the cross
+    at (1,0) and (0,1), so flood fill correctly filled them. Fix: use 3x3
+    canvas where corners are truly diagonal-only to center.
+

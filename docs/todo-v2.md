@@ -348,7 +348,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Spray density distribution check.
   - **Difficulty:** Medium
 
-- [ ] `2.4.8` Phase merge: release/2.4 → main
+- [x] `2.4.8` Phase merge: release/2.4 → main
   - **Difficulty:** Low
 
 ---

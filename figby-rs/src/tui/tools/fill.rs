@@ -251,7 +251,13 @@ mod tests {
     #[test]
     fn test_fill_empty_region() {
         let mut buf = canvas_5x5();
-        // Fill spaces in the center 3x3 block with '#'
+        // Fill border with @ to bound the fill region
+        for y in 0..5 {
+            for x in 0..5 {
+                buf.set(x, y, cell_with('@'));
+            }
+        }
+        // Paint center 3x3 with spaces (target for flood fill)
         paint_region(&mut buf, 1, 1, 3, 3, ' ');
 
         flood_fill(&mut buf, 2, 2, cell_with('#'));
@@ -259,7 +265,7 @@ mod tests {
         for y in 0..5 {
             for x in 0..5 {
                 let in_region = (1..=3).contains(&x) && (1..=3).contains(&y);
-                let expected = if in_region { '#' } else { ' ' };
+                let expected = if in_region { '#' } else { '@' };
                 assert_eq!(
                     buf.get(x, y).unwrap().ch,
                     expected,
@@ -273,35 +279,25 @@ mod tests {
 
     #[test]
     fn test_fill_orthogonal_not_diagonal() {
-        let mut buf = canvas_5x5();
+        let mut buf = CanvasBuffer::new(3, 3);
 
-        // Place @ cells in a cross shape: only orthogonally connected
+        // @ cells at diagonals only (corners of 3x3):
+        //   @ . @
         //   . @ .
-        //   @ @ @
-        //   . @ .
-        buf.set(1, 0, cell_with('@'));
-        buf.set(0, 1, cell_with('@'));
+        //   @ . @
+        buf.set(0, 0, cell_with('@'));
+        buf.set(2, 0, cell_with('@'));
         buf.set(1, 1, cell_with('@'));
-        buf.set(2, 1, cell_with('@'));
-        buf.set(1, 2, cell_with('@'));
+        buf.set(0, 2, cell_with('@'));
+        buf.set(2, 2, cell_with('@'));
 
-        // Place diagonal cells that should NOT be filled
-        buf.set(0, 0, cell_with('@')); // diagonal from (1,0) and (0,1)
-        buf.set(2, 0, cell_with('@')); // diagonal from (1,0)
-        buf.set(0, 2, cell_with('@')); // diagonal from (0,1)
-        buf.set(2, 2, cell_with('@')); // diagonal from (1,1) and (2,1)
-
-        // Fill at center — cross should fill, corners should remain @
+        // Fill at center — only center should become '#'
+        // Corners are diagonally adjacent and must NOT be reached
         flood_fill(&mut buf, 1, 1, cell_with('#'));
 
-        // Cross cells should be #
-        assert_eq!(buf.get(1, 0).unwrap().ch, '#');
-        assert_eq!(buf.get(0, 1).unwrap().ch, '#');
         assert_eq!(buf.get(1, 1).unwrap().ch, '#');
-        assert_eq!(buf.get(2, 1).unwrap().ch, '#');
-        assert_eq!(buf.get(1, 2).unwrap().ch, '#');
 
-        // Diagonal corners should remain @
+        // Diagonal corners should remain @ (not reached via 4-dir flood fill)
         assert_eq!(buf.get(0, 0).unwrap().ch, '@');
         assert_eq!(buf.get(2, 0).unwrap().ch, '@');
         assert_eq!(buf.get(0, 2).unwrap().ch, '@');

@@ -354,3 +354,16 @@ Three bugs found in phase merge review:
   `parse_ftmp`/`render_template` is a prototype; ratatui `Paragraph`/`Canvas`
   widgets can handle styled text natively without the ANSI-in-grid problem.
 
+## 2.0.10 — Phase merge: release/2.0 → master
+
+- Second phase merge (after `10035c9`) to bring 3 post-merge commits from
+  `release/2.0`. No conflicts — `docs/todo-v2.md` auto-merged cleanly because
+  master's change (line 116: `[ ]`→`[x]`) and release/2.0's changes (lines 201-203:
+  2.2.5 renumber + new 2.2.5 iconset task) were on different lines.
+- Both `docs/memory-v2.md` and `docs/learnings.md` had additions only on
+  `release/2.0` — no conflict with master. `docs/memory.md` had additions only
+  on master — no conflict with release/2.0.
+- 4 new files (`assets/templates/*.ftmp`, `assets/tui/icons.yaml`) with no
+  prior history on master — created cleanly.
+- `figby-rs/src/template.rs` was modified only on release/2.0 (no conflict).
+

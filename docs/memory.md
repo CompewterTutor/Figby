@@ -698,3 +698,12 @@ Integrated into `TuiApp`:
 10 integration tests covering all status bar fields (cursor, zoom, tool, mode,
 unsaved indicator) and settings panel (toggle, width change, grid toggle,
 snap-to-grid toggle). fmt and clippy pass clean.
+
+### 2.3.7 — Phase merge: release/2.3 → main
+
+Merged all Phase 2.3 work into default branch (master). Phase 2.3 complete:
+TUI scaffold with ratatui (2.3.1), toolbox bar with tool selection (2.3.2),
+scrollable/zoomable canvas widget (2.3.3), color palette sidebar (2.3.4),
+brush shape picker with size/preview (2.3.5), status bar + canvas settings
+panel (2.3.6). All 6 subtasks (2.3.1–2.3.6) implemented, tested, merged.
+Phase 2.4 (Drawing Tools) is next.

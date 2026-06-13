@@ -227,3 +227,12 @@ Created `figby-rs/src/tui/brush.rs` — brush shape picker and size controls:
 - Status bar updated to show current brush shape and size
 - No `.unwrap()` in production — all paths use proper Option/clamp arithmetic
 - SprayPaint uses fixed seed 42 for deterministic output across test runs
+
+### 2.3.7 — Phase merge: release/2.3 → main
+
+Merged all Phase 2.3 work into default branch (master). Phase 2.3 complete:
+TUI scaffold with ratatui (2.3.1), toolbox bar with tool selection (2.3.2),
+scrollable/zoomable canvas widget (2.3.3), color palette sidebar (2.3.4),
+brush shape picker with size/preview (2.3.5), status bar + canvas settings
+panel (2.3.6). All 6 subtasks implemented, tested, merged.
+Phase 2.4 (Drawing Tools) is next.

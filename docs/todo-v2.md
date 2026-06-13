@@ -282,7 +282,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Status bar update tests.
   - **Difficulty:** Low
 
-- [ ] `2.3.7` Phase merge: release/2.3 → main
+- [x] `2.3.7` Phase merge: release/2.3 → main
   - **Difficulty:** Low
 
 ---

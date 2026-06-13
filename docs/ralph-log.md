@@ -276,3 +276,11 @@ DONE: 2.1.3 merged into release/2.1.
 ## 2026-06-13 07:11
 
 DONE: 2.1.4 merged into release/2.1.
+
+## 2026-06-13 07:24
+
+DONE: 2.1.6 merged into release/2.1.
+
+## 2026-06-13 07:24
+
+All 2.1 tasks complete. Starting phase review.

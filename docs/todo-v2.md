@@ -340,7 +340,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Sample color + char after drawing.
   - **Difficulty:** Low
 
-- [ ] `2.4.7` Spray paint brush
+- [x] `2.4.7` Spray paint brush
   - **Goal:** Stochastic spray within brush radius. Density slider.
     Characters scattered randomly within circle area.
   - **Touches:** `figby-rs/src/tui/tools/spray.rs`

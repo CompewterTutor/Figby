@@ -558,3 +558,22 @@ Three bugs found in phase merge review:
   sequential segment semantics (previous → current). Not combined to avoid
   complicating the simpler brush/eraser drag path.
 
+## 2.4.7 — Spray paint brush
+
+- `StdRng::seed_from_u64(thread_rng().gen())` seeds a fresh RNG from the system's
+  thread-local RNG, avoiding `Result` (and thus `.expect()`) entirely.
+- Using `rand::Rng::gen_bool(prob)` for stochastic selection is cleaner than
+  `rng.gen::<f64>() < prob` — same effect, one function call.
+- Spray tool shortcut `a` (aerosol) instead of `s` to avoid conflict with
+  Settings toggle `S`. The toolbox `handle_key` does `to_ascii_lowercase()` so
+  both `s` and `S` would match `s` — moving Settings check before toolbox
+  resolves this.
+- `'` was previously bound to cycle brush shape. Rebound to `\` to free `'`
+  for density up (adjacent to `;` density down). This creates a contiguous
+  size/density block: `[` size down, `]` size up, `;` density down, `'` density up.
+- The spray stamp uses radius = `brush.size` directly (not `size/2`), making
+  the spray area significantly larger than the circle brush at the same size
+  setting. This is intentional — spray is meant to cover more area diffusely.
+- `mul_add` is used for `dx*dx + dy*dy` in the circle check to avoid a
+  separate multiplication, matching modern Rust idiom for fused multiply-add.
+

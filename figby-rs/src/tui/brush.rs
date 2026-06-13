@@ -43,12 +43,15 @@ impl BrushShape {
 
 const MIN_SIZE: u8 = 1;
 const MAX_SIZE: u8 = 20;
+const MIN_DENSITY: u8 = 1;
+const MAX_DENSITY: u8 = 100;
 
 #[derive(Debug, Clone)]
 pub struct BrushState {
     pub shape: BrushShape,
     pub size: u8,
     pub ch: char,
+    pub density: u8,
 }
 
 impl BrushState {
@@ -57,6 +60,7 @@ impl BrushState {
             shape: BrushShape::Square,
             size: 3,
             ch: '\u{2588}',
+            density: 35,
         }
     }
 
@@ -80,12 +84,28 @@ impl BrushState {
         self.shape = self.shape.cycle();
     }
 
+    pub fn set_density(&mut self, n: u8) {
+        self.density = n.clamp(MIN_DENSITY, MAX_DENSITY);
+    }
+
+    pub fn density_up(&mut self) {
+        if self.density < MAX_DENSITY {
+            self.density += 1;
+        }
+    }
+
+    pub fn density_down(&mut self) {
+        if self.density > MIN_DENSITY {
+            self.density -= 1;
+        }
+    }
+
     pub fn render_preview(&self, max_size: u8) -> Vec<String> {
         let s = self.size.min(max_size) as usize;
         match self.shape {
             BrushShape::Square => render_square_preview(s),
             BrushShape::Circle => render_circle_preview(s),
-            BrushShape::SprayPaint => render_spray_preview(s),
+            BrushShape::SprayPaint => render_spray_preview(s, self.density),
             BrushShape::Custom => render_custom_preview(s),
         }
     }
@@ -111,6 +131,10 @@ impl BrushState {
         lines.push(Line::from(vec![
             Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!(" {}", self.size)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Density:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}%", self.density)),
         ]));
 
         lines.push(Line::from(Span::raw("")));
@@ -164,18 +188,19 @@ fn render_circle_preview(size: usize) -> Vec<String> {
         .collect()
 }
 
-fn render_spray_preview(size: usize) -> Vec<String> {
+fn render_spray_preview(size: usize, density: u8) -> Vec<String> {
     if size == 0 {
         return vec![String::new()];
     }
     let seed: u64 = 42;
+    let d = density as u64;
     (0..size)
         .map(|y| {
             (0..size)
                 .map(|x| {
                     let hash = (x as u64).wrapping_mul(7) + (y as u64).wrapping_mul(31) + seed;
                     let val = hash % 100;
-                    if val < 35 {
+                    if val < d {
                         '@'
                     } else {
                         ' '
@@ -291,6 +316,7 @@ mod tests {
             shape: BrushShape::Circle,
             size: 5,
             ch: '\u{2588}',
+            density: 35,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -307,6 +333,7 @@ mod tests {
             shape: BrushShape::SprayPaint,
             size: 5,
             ch: '\u{2588}',
+            density: 35,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -325,11 +352,13 @@ mod tests {
             shape: BrushShape::SprayPaint,
             size: 7,
             ch: '\u{2588}',
+            density: 35,
         };
         let b = BrushState {
             shape: BrushShape::SprayPaint,
             size: 7,
             ch: '\u{2588}',
+            density: 35,
         };
         assert_eq!(a.render_preview(10), b.render_preview(10));
     }
@@ -340,6 +369,7 @@ mod tests {
             shape: BrushShape::Custom,
             size: 5,
             ch: '\u{2588}',
+            density: 35,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -363,6 +393,7 @@ mod tests {
             shape: BrushShape::Square,
             size: 0,
             ch: '\u{2588}',
+            density: 35,
         };
         let preview = brush.render_preview(5);
         assert!(!preview.is_empty());
@@ -375,6 +406,7 @@ mod tests {
                 shape: *shape,
                 size: 1,
                 ch: '\u{2588}',
+                density: 35,
             };
             let preview = brush.render_preview(5);
             assert_eq!(preview.len(), 1);

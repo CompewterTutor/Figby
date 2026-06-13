@@ -235,6 +235,32 @@ DONE: 2.0.10 merged into release/2.0.
 
 UNTIL_STOP: reached 2.0.10 after 8 tasks.
 
+## 2026-06-13 06:13
+
+DONE: 2.0.10 merged into release/2.0.
+
+## 2026-06-13 06:13
+
+All 2.0 tasks complete. Starting phase review.
+
+## 2026-06-13 06:13
+
+MAJOR_RC_READY: rc/2.0.0-rc.1 + tag 2.0.0-rc.1 created from release/2.0. Awaiting human sign-off before merge to main.
+
+## 2026-06-13 06:37
+
+DONE: 1.7.2 merged into release/1.7.
+
+## 2026-06-13 06:45
+
+Phase 1.6 + 1.7 already complete (checked off). release/1.7 branch deleted.
+PHASE_COMPLETE: 1.6 merged to main after review approval.
+PHASE_COMPLETE: 1.7 merged to main after review approval.
+
+## 2026-06-13 06:42
+
+DONE: 1.7.2 merged into release/1.7.
+
 ## 2026-06-13 06:55
 
 DONE: 2.1.1 merged into release/2.1.

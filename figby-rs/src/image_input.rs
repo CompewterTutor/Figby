@@ -4,6 +4,9 @@ use std::path::Path;
 /// Default ASCII character map (darkest to brightest).
 pub const DEFAULT_CHAR_MAP: &str = " .-:=+*#%@";
 
+/// RGB pixel type alias: (red, green, blue) each 0-255.
+pub type RgbPixel = (u8, u8, u8);
+
 /// Load an image from file and convert to grayscale luminance matrix.
 ///
 /// Returns `Vec<Vec<u8>>` where `matrix[y][x]` is the luminance (0-255)
@@ -24,6 +27,28 @@ pub fn luminance_from_dynamic(img: &DynamicImage) -> Vec<Vec<u8>> {
         let mut row = Vec::with_capacity(width as usize);
         for x in 0..width {
             row.push(luma.get_pixel(x, y).0[0]);
+        }
+        matrix.push(row);
+    }
+    matrix
+}
+
+/// Load an image from file and return RGB pixel matrix preserving original color.
+pub fn load_rgb_matrix<P: AsRef<Path>>(path: P) -> Result<Vec<Vec<RgbPixel>>, ImageError> {
+    let img = image::open(path)?;
+    Ok(rgb_from_dynamic(&img))
+}
+
+/// Convert a `DynamicImage` to an RGB pixel matrix preserving original color.
+pub fn rgb_from_dynamic(img: &DynamicImage) -> Vec<Vec<RgbPixel>> {
+    let rgba = img.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    let mut matrix = Vec::with_capacity(height as usize);
+    for y in 0..height {
+        let mut row = Vec::with_capacity(width as usize);
+        for x in 0..width {
+            let p = rgba.get_pixel(x, y).0;
+            row.push((p[0], p[1], p[2]));
         }
         matrix.push(row);
     }
@@ -53,6 +78,54 @@ fn bilinear_resize(matrix: &[Vec<u8>], new_width: usize, new_height: usize) -> V
             let bottom = matrix[y1][x0] as f64 * (1.0 - x_frac) + matrix[y1][x1] as f64 * x_frac;
             let val = top * (1.0 - y_frac) + bottom * y_frac;
             row.push(val.round() as u8);
+        }
+        result.push(row);
+    }
+    result
+}
+
+/// Bilinear resize an RGB pixel matrix to new dimensions.
+fn bilinear_resize_rgb(
+    matrix: &[Vec<RgbPixel>],
+    new_width: usize,
+    new_height: usize,
+) -> Vec<Vec<RgbPixel>> {
+    if matrix.is_empty() || matrix[0].is_empty() || new_width == 0 || new_height == 0 {
+        return Vec::new();
+    }
+    let src_h = matrix.len();
+    let src_w = matrix[0].len();
+    let mut result = Vec::with_capacity(new_height);
+    for dy in 0..new_height {
+        let mut row = Vec::with_capacity(new_width);
+        let sy = (dy as f64 * src_h as f64 / new_height as f64).min((src_h - 1) as f64);
+        let y0 = sy.floor() as usize;
+        let y1 = (y0 + 1).min(src_h - 1);
+        let y_frac = sy - sy.floor();
+        for dx in 0..new_width {
+            let sx = (dx as f64 * src_w as f64 / new_width as f64).min((src_w - 1) as f64);
+            let x0 = sx.floor() as usize;
+            let x1 = (x0 + 1).min(src_w - 1);
+            let x_frac = sx - sx.floor();
+            let lerp = |a: u8, b: u8, t: f64| -> u8 {
+                (a as f64 * (1.0 - t) + b as f64 * t).round() as u8
+            };
+            let r = lerp(
+                lerp(matrix[y0][x0].0, matrix[y0][x1].0, x_frac),
+                lerp(matrix[y1][x0].0, matrix[y1][x1].0, x_frac),
+                y_frac,
+            );
+            let g = lerp(
+                lerp(matrix[y0][x0].1, matrix[y0][x1].1, x_frac),
+                lerp(matrix[y1][x0].1, matrix[y1][x1].1, x_frac),
+                y_frac,
+            );
+            let b = lerp(
+                lerp(matrix[y0][x0].2, matrix[y0][x1].2, x_frac),
+                lerp(matrix[y1][x0].2, matrix[y1][x1].2, x_frac),
+                y_frac,
+            );
+            row.push((r, g, b));
         }
         result.push(row);
     }
@@ -115,6 +188,127 @@ pub fn image_to_ascii<P: AsRef<Path>>(
             .unwrap_or(80)
     });
     Ok(luminance_to_ascii(&matrix, width, cmap))
+}
+
+/// Apply grayscale in-place to an RGB pixel matrix using BT.709 luminance weights.
+pub fn apply_grayscale(matrix: &mut [Vec<RgbPixel>]) {
+    for row in matrix.iter_mut() {
+        for pixel in row.iter_mut() {
+            let luma = (0.2126 * pixel.0 as f64 + 0.7152 * pixel.1 as f64 + 0.0722 * pixel.2 as f64)
+                .round()
+                .min(255.0) as u8;
+            *pixel = (luma, luma, luma);
+        }
+    }
+}
+
+/// Apply negative/invert in-place to an RGB pixel matrix.
+pub fn apply_negative(matrix: &mut [Vec<RgbPixel>]) {
+    for row in matrix.iter_mut() {
+        for pixel in row.iter_mut() {
+            *pixel = (255 - pixel.0, 255 - pixel.1, 255 - pixel.2);
+        }
+    }
+}
+
+/// Generate 24-bit ANSI foreground color escape code.
+pub fn ansi_color_code(r: u8, g: u8, b: u8) -> String {
+    format!("\x1b[38;2;{r};{g};{b}m")
+}
+
+/// Return the ANSI reset escape code.
+pub fn ansi_reset_code() -> &'static str {
+    "\x1b[0m"
+}
+
+/// Configuration for colored ASCII output.
+pub struct ImageColorConfig<'a> {
+    pub colored: bool,
+    pub grayscale: bool,
+    pub negative: bool,
+    pub char_map: &'a str,
+    pub target_width: Option<usize>,
+}
+
+impl<'a> Default for ImageColorConfig<'a> {
+    fn default() -> Self {
+        Self {
+            colored: false,
+            grayscale: false,
+            negative: false,
+            char_map: DEFAULT_CHAR_MAP,
+            target_width: None,
+        }
+    }
+}
+
+/// Convert RGB pixel matrix to ASCII art string with color/grayscale/negative options.
+///
+/// Image is bilinearly resized to `target_width` (defaults to 80 if None) with
+/// aspect ratio preserved. When `colored=true`, each char is wrapped in 24-bit
+/// ANSI color escape codes preserving the original pixel color. When
+/// `grayscale=true`, RGB values are converted to luminance before char mapping.
+/// When `negative=true`, pixel values are inverted.
+pub fn color_matrix_to_ascii(matrix: &[Vec<RgbPixel>], config: &ImageColorConfig) -> String {
+    if matrix.is_empty() || matrix[0].is_empty() {
+        return String::new();
+    }
+    let width = config.target_width.unwrap_or(80);
+    if width == 0 {
+        return String::new();
+    }
+    let src_h = matrix.len();
+    let src_w = matrix[0].len();
+    let target_height = ((width as f64 * src_h as f64 / src_w as f64) * 0.5)
+        .ceil()
+        .max(1.0) as usize;
+    let mut working = bilinear_resize_rgb(matrix, width, target_height);
+    if config.negative {
+        apply_negative(&mut working);
+    }
+    if config.grayscale {
+        apply_grayscale(&mut working);
+    }
+    let reset = ansi_reset_code();
+    let mut lines = Vec::with_capacity(working.len());
+    if config.colored {
+        for row in &working {
+            let line: String = row
+                .iter()
+                .map(|&(r, g, b)| {
+                    let luma =
+                        (0.2126 * r as f64 + 0.7152 * g as f64 + 0.0722 * b as f64).round() as u8;
+                    let c = luminance_to_char(luma, config.char_map);
+                    format!("{}{}{}", ansi_color_code(r, g, b), c, reset)
+                })
+                .collect();
+            lines.push(line);
+        }
+    } else {
+        for row in &working {
+            let line: String = row
+                .iter()
+                .map(|&(r, g, b)| {
+                    let luma =
+                        (0.2126 * r as f64 + 0.7152 * g as f64 + 0.0722 * b as f64).round() as u8;
+                    luminance_to_char(luma, config.char_map)
+                })
+                .collect();
+            lines.push(line);
+        }
+    }
+    lines.join("\n")
+}
+
+/// Load image from file and convert to ASCII with optional color config.
+///
+/// Convenience wrapper around [`load_rgb_matrix`] + [`color_matrix_to_ascii`].
+pub fn image_to_colored_ascii<P: AsRef<Path>>(
+    path: P,
+    config: &ImageColorConfig,
+) -> Result<String, ImageError> {
+    let matrix = load_rgb_matrix(path)?;
+    Ok(color_matrix_to_ascii(&matrix, config))
 }
 
 #[cfg(test)]
@@ -434,5 +628,178 @@ mod tests {
         let path = encode_temp_image(&dir, "test.png", &pixels, 2, 2);
         let result = image_to_ascii(&path, Some(4), None).expect("failed to convert temp image");
         assert!(!result.is_empty());
+    }
+
+    // -- RGB matrix tests --
+
+    #[test]
+    fn test_rgb_matrix_load() {
+        let matrix = load_rgb_matrix(TEST_PNG).expect("failed to load PNG fixture");
+        assert!(!matrix.is_empty(), "empty matrix");
+        assert!(!matrix[0].is_empty(), "empty row");
+    }
+
+    #[test]
+    fn test_rgb_pixel_preserved() {
+        let mut img = image::RgbImage::new(3, 1);
+        img.put_pixel(0, 0, image::Rgb([255, 0, 0]));
+        img.put_pixel(1, 0, image::Rgb([0, 255, 0]));
+        img.put_pixel(2, 0, image::Rgb([0, 0, 255]));
+        let matrix = rgb_from_dynamic(&image::DynamicImage::ImageRgb8(img));
+        assert_eq!(matrix.len(), 1);
+        assert_eq!(matrix[0].len(), 3);
+        assert_eq!(matrix[0][0], (255, 0, 0));
+        assert_eq!(matrix[0][1], (0, 255, 0));
+        assert_eq!(matrix[0][2], (0, 0, 255));
+    }
+
+    #[test]
+    fn test_apply_grayscale_inplace() {
+        let mut matrix = vec![
+            vec![(100, 150, 200), (10, 20, 30)],
+            vec![(0, 0, 0), (255, 255, 255)],
+        ];
+        apply_grayscale(&mut matrix);
+        for row in &matrix {
+            for &(r, g, b) in row {
+                assert_eq!(r, g, "R should equal G after grayscale");
+                assert_eq!(g, b, "G should equal B after grayscale");
+            }
+        }
+        assert_eq!(matrix[0][0].0, 147, "luminance of (100,150,200)");
+        assert_eq!(matrix[0][1].0, 19, "luminance of (10,20,30)");
+        assert_eq!(matrix[1][0].0, 0, "black pixel stays 0");
+        assert_eq!(matrix[1][1].0, 255, "white pixel stays 255");
+    }
+
+    #[test]
+    fn test_apply_negative_inplace() {
+        let mut matrix = vec![
+            vec![(100, 150, 200), (0, 128, 255)],
+            vec![(255, 255, 255), (0, 0, 0)],
+        ];
+        apply_negative(&mut matrix);
+        assert_eq!(matrix[0][0], (155, 105, 55));
+        assert_eq!(matrix[0][1], (255, 127, 0));
+        assert_eq!(matrix[1][0], (0, 0, 0));
+        assert_eq!(matrix[1][1], (255, 255, 255));
+    }
+
+    #[test]
+    fn test_ansi_color_code_format() {
+        assert_eq!(ansi_color_code(255, 0, 0), "\x1b[38;2;255;0;0m");
+        assert_eq!(ansi_color_code(0, 255, 0), "\x1b[38;2;0;255;0m");
+        assert_eq!(ansi_color_code(0, 0, 255), "\x1b[38;2;0;0;255m");
+        assert_eq!(ansi_color_code(123, 45, 67), "\x1b[38;2;123;45;67m");
+    }
+
+    #[test]
+    fn test_ansi_reset_code() {
+        assert_eq!(ansi_reset_code(), "\x1b[0m");
+    }
+
+    #[test]
+    fn test_colored_ascii_output() {
+        let matrix = vec![
+            vec![(255, 0, 0), (255, 0, 0)],
+            vec![(255, 0, 0), (255, 0, 0)],
+        ];
+        let config = ImageColorConfig {
+            colored: true,
+            target_width: Some(2),
+            ..Default::default()
+        };
+        let result = color_matrix_to_ascii(&matrix, &config);
+        assert!(!result.is_empty(), "output should not be empty");
+        for line in result.lines() {
+            assert!(!line.is_empty());
+            assert!(
+                line.contains("\x1b[38;2;255;0;0m"),
+                "line should contain red ANSI code"
+            );
+            assert!(line.contains("\x1b[0m"), "line should contain reset code");
+            for c in line.chars() {
+                if c != '\n' {
+                    assert!(
+                        DEFAULT_CHAR_MAP.contains(c)
+                            || c == '\x1b'
+                            || c == '['
+                            || c == 'm'
+                            || c == ';'
+                            || c.is_ascii_digit(),
+                        "unexpected char '{c}' in colored output"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_colored_ascii_grayscale_flag() {
+        let matrix = vec![vec![(255, 0, 0), (0, 255, 0)]];
+        let config = ImageColorConfig {
+            grayscale: true,
+            colored: false,
+            target_width: Some(2),
+            ..Default::default()
+        };
+        let result = color_matrix_to_ascii(&matrix, &config);
+        assert!(!result.is_empty());
+        assert!(
+            !result.contains("\x1b"),
+            "output should not contain ANSI codes when colored=false"
+        );
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert!(!lines[0].is_empty());
+    }
+
+    #[test]
+    fn test_colored_ascii_negative_flag() {
+        let matrix = vec![vec![(100, 150, 200), (0, 0, 0)]];
+        let config = ImageColorConfig {
+            negative: true,
+            colored: true,
+            target_width: Some(2),
+            ..Default::default()
+        };
+        let result = color_matrix_to_ascii(&matrix, &config);
+        assert!(!result.is_empty());
+        assert!(
+            result.contains("\x1b[38;2;155;105;55m"),
+            "should contain inverted color (155,105,55)"
+        );
+        assert!(
+            result.contains("\x1b[38;2;255;255;255m"),
+            "should contain inverted black as white"
+        );
+    }
+
+    #[test]
+    fn test_color_bilinear_resize() {
+        let matrix = vec![
+            vec![(255, 0, 0), (0, 255, 0)],
+            vec![(0, 0, 255), (255, 255, 255)],
+        ];
+        let resized = bilinear_resize_rgb(&matrix, 4, 4);
+        assert_eq!(resized.len(), 4);
+        assert_eq!(resized[0].len(), 4);
+        assert_eq!(resized[0][0], (255, 0, 0), "top-left should be original");
+        assert_eq!(
+            resized[3][3],
+            (255, 255, 255),
+            "bottom-right should be original"
+        );
+        let mid = resized[2][2];
+        assert!(
+            mid.0 > 0 && mid.1 > 0 && mid.2 > 0,
+            "interior pixel should have all channels positive"
+        );
+    }
+
+    #[test]
+    fn test_rgb_load_nonexistent() {
+        let result = load_rgb_matrix::<&str>("/nonexistent/path/image.png");
+        assert!(result.is_err(), "expected error for nonexistent path");
     }
 }

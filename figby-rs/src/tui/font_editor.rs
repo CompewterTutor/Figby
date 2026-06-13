@@ -6,6 +6,16 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use crate::font::FIGfont;
+use crate::smush::{smush_horizontal, SmushMode};
+
+const SMUSH_RULE_LABELS: [(&str, u32); 6] = [
+    ("Equal Char", SmushMode::EQUAL_CHARS),
+    ("Underscore", SmushMode::UNDERSCORE),
+    ("Hierarchy", SmushMode::HIERARCHY),
+    ("Pair", SmushMode::PAIR),
+    ("Big X", SmushMode::BIGX),
+    ("Hardblank", SmushMode::HARDBLANK),
+];
 
 const HEADER_FIELD_LABELS: [&str; 7] = [
     "Hardblank",
@@ -22,6 +32,7 @@ pub enum FontEditorView {
     Overview,
     CharEditor(u32),
     HeaderEditor,
+    SmushRuleEditor,
 }
 
 pub struct FontEditor {
@@ -38,6 +49,7 @@ pub struct FontEditor {
     pub editing_field: bool,
     pub edit_buffer: String,
     pub error_message: String,
+    pub smush_selected: usize,
 }
 
 impl FontEditor {
@@ -56,6 +68,7 @@ impl FontEditor {
             editing_field: false,
             edit_buffer: String::new(),
             error_message: String::new(),
+            smush_selected: 0,
         }
     }
 
@@ -70,6 +83,7 @@ impl FontEditor {
         self.view = FontEditorView::Overview;
         self.undo_stack.clear();
         self.redo_stack.clear();
+        self.smush_selected = 0;
     }
 
     pub fn enter_header_editor(&mut self) {
@@ -78,6 +92,11 @@ impl FontEditor {
         self.editing_field = false;
         self.edit_buffer.clear();
         self.error_message.clear();
+    }
+
+    pub fn enter_smush_editor(&mut self) {
+        self.view = FontEditorView::SmushRuleEditor;
+        self.smush_selected = 0;
     }
 
     pub fn filtered_codes(&self) -> Vec<u32> {
@@ -108,6 +127,7 @@ impl FontEditor {
             FontEditorView::Overview => self.render_overview(frame, area),
             FontEditorView::CharEditor(_) => {}
             FontEditorView::HeaderEditor => self.render_header_editor(frame, area),
+            FontEditorView::SmushRuleEditor => self.render_smush_editor(frame, area),
         }
     }
 
@@ -200,6 +220,65 @@ impl FontEditor {
         frame.render_widget(grid, grid_area);
     }
 
+    fn render_smush_editor(&mut self, frame: &mut Frame, area: Rect) {
+        let Some(font) = self.font.as_ref() else {
+            return;
+        };
+
+        let layout = font.full_layout as u32;
+        let mode = SmushMode::new(layout);
+
+        let mut lines: Vec<Line> = Vec::new();
+
+        lines.push(Line::from(Span::styled(
+            " Smushing Rules",
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(""));
+
+        for (i, &(label, bit)) in SMUSH_RULE_LABELS.iter().enumerate() {
+            let is_enabled = layout & bit == bit;
+            let is_selected = i == self.smush_selected;
+            let checkbox = if is_enabled { "[X]" } else { "[ ]" };
+            let prefix = if is_selected { ">" } else { " " };
+            let text = format!("{} {} {}", prefix, checkbox, label);
+            let style = if is_selected {
+                Style::default().add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default()
+            };
+            lines.push(Line::from(Span::styled(text, style)));
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " Preview",
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+
+        let result = smush_horizontal('/', '\\', mode, font.hardblank, false);
+        let preview = match result {
+            Some(ch) => format!("/ + \\ = {}", ch),
+            None => "/ + \\ = (no smush)".to_string(),
+        };
+        lines.push(Line::from(Span::raw(format!(" {}", preview))));
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            format!(" Layout value: {} (0b{:08b})", layout, layout),
+            Style::default().fg(Color::DarkGray),
+        )));
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " \u{2191}\u{2193}: Navigate  Enter/Space: Toggle  Esc: Back",
+            Style::default().fg(Color::DarkGray),
+        )));
+
+        let paragraph = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
+        frame.render_widget(paragraph, area);
+    }
+
     fn render_header_editor(&mut self, frame: &mut Frame, area: Rect) {
         let Some(font) = self.font.as_ref() else {
             return;
@@ -286,6 +365,7 @@ impl FontEditor {
             FontEditorView::Overview => self.handle_key_overview(code, area_width),
             FontEditorView::CharEditor(_) => self.handle_key_char_editor(code, modifiers),
             FontEditorView::HeaderEditor => self.handle_key_header_editor(code),
+            FontEditorView::SmushRuleEditor => self.handle_key_smush_editor(code),
         }
     }
 
@@ -356,6 +436,36 @@ impl FontEditor {
                 }
                 _ => false,
             }
+        }
+    }
+
+    fn handle_key_smush_editor(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Up => {
+                if self.smush_selected > 0 {
+                    self.smush_selected -= 1;
+                } else {
+                    self.smush_selected = SMUSH_RULE_LABELS.len() - 1;
+                }
+                true
+            }
+            KeyCode::Down => {
+                self.smush_selected = (self.smush_selected + 1) % SMUSH_RULE_LABELS.len();
+                true
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                let Some(font) = self.font.as_mut() else {
+                    return true;
+                };
+                let bit = SMUSH_RULE_LABELS[self.smush_selected].1;
+                font.full_layout ^= bit as i32;
+                true
+            }
+            KeyCode::Esc => {
+                self.view = FontEditorView::Overview;
+                true
+            }
+            _ => false,
         }
     }
 
@@ -620,6 +730,10 @@ impl FontEditor {
                 self.enter_header_editor();
                 true
             }
+            KeyCode::Char('S') => {
+                self.enter_smush_editor();
+                true
+            }
             // All other keys fall through to normal handlers
             _ => false,
         }
@@ -640,6 +754,7 @@ impl FontEditor {
                 .map(|ch| (code, ch)),
             FontEditorView::Overview => None,
             FontEditorView::HeaderEditor => None,
+            FontEditorView::SmushRuleEditor => None,
         }
     }
 }

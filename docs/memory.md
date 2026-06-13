@@ -788,6 +788,21 @@ Created `figby-rs/src/tui/font_editor.rs` with `FontEditor` struct:
 - `/` key activates search (avoids conflict with tool shortcuts `b`,`v`,`l`, etc.)
 - 7 integration tests: grid, search by code, search by char, select+open, Esc return, empty font, grid navigation
 
+### 2.5.4 — Smushing rule configuration
+
+Added `FontEditorView::SmushRuleEditor` variant with visual toggle grid for all 6
+horizontal smushing rule bits (EQUAL_CHARS, UNDERSCORE, HIERARCHY, PAIR, BIGX,
+HARDBLANK). `SMUSH_RULE_LABELS` constant maps rule names → `SmushMode` bit constants.
+`smush_selected: usize` tracks cursor position in toggle list (wraps at bounds).
+`render_smush_editor()` — bordered panel showing `[X]`/`[ ]` checkboxes with
+reverse-highlight cursor, live preview of `'/' + '\\'` smush via `smush_horizontal()`,
+and layout value/binary display.
+`handle_key_smush_editor()` — Up/Down wrap-navigate, Enter/Space XOR-toggles rule bit
+in `font.full_layout`, Esc returns to Overview. `'S'` key in overview handler opens
+smush editor (overrides settings panel `'S'` in FontEditor mode because font_editor
+handler runs first in `mod.rs`). 5 integration tests: open/close, single toggle,
+multiple toggles with cumulative bitmask, navigation wrap, preview changes on toggle.
+
 ### 2.5.3 — FIGfont header / layout editor
 
 Added `FontEditorView::HeaderEditor` variant with inline field editor for all 7

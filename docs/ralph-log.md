@@ -398,3 +398,7 @@ DONE: 2.5.1 merged into release/2.5.
 ## 2026-06-13 17:37
 
 DONE: 2.5.2 merged into release/2.5.
+
+## 2026-06-13 17:42
+
+DONE: 2.5.3 merged into release/2.5.

@@ -19,6 +19,7 @@ use std::io;
 use std::time::Duration;
 
 use crate::font::load_font;
+use crate::render::Justification;
 
 pub mod brush;
 pub mod canvas;
@@ -71,6 +72,7 @@ pub struct TuiApp {
     pub font_editor: font_editor::FontEditor,
     pub image_editor: image_editor::ImageEditor,
     pub brush: brush::BrushState,
+    pub text_tool: tools::text::TextToolState,
     pub unsaved: bool,
     pub settings: status::CanvasSettings,
     last_canvas_size: (u16, u16),
@@ -104,6 +106,7 @@ impl TuiApp {
             canvas: canvas::CanvasWidget::default(),
             palette: palette::Palette::new(),
             brush: brush::BrushState::new(),
+            text_tool: tools::text::TextToolState::new("fonts"),
             font_editor: fe,
             image_editor: image_editor::ImageEditor::new(),
             last_canvas_size: (0, 0),
@@ -190,7 +193,11 @@ impl TuiApp {
         self.toolbox_area = tool_brush_chunks[0];
         self.palette_area = main_chunks[2];
         self.toolbox.render(frame, tool_brush_chunks[0]);
-        self.brush.render(frame, tool_brush_chunks[1]);
+        if self.toolbox.selected == Tool::Text {
+            self.text_tool.render_options(frame, tool_brush_chunks[1]);
+        } else {
+            self.brush.render(frame, tool_brush_chunks[1]);
+        }
 
         let mode_title = match self.mode {
             AppMode::ImageEditor => {
@@ -383,6 +390,22 @@ impl TuiApp {
                 self.toolbox.selected = tools[idx];
                 self.selection_polygon_points.clear();
             }
+            return;
+        }
+
+        // Text tool: click to enter text mode at cursor position
+        if self.toolbox.selected == Tool::Text {
+            if let MouseEventKind::Down(_) = mouse.kind {
+                if let Some((bx, by)) = self.screen_to_buffer(mouse.column, mouse.row) {
+                    self.text_tool.cursor_position = (bx, by);
+                    self.text_tool.entering_text = true;
+                    self.text_tool.text_buffer.clear();
+                    self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
+                }
+            }
+            self.prev_mouse_buf = None;
+            self.line_start = None;
+            self.saved_buffer = None;
             return;
         }
 
@@ -735,6 +758,56 @@ impl TuiApp {
             return;
         }
 
+        // Text tool: text entry mode (before canvas, captures all keys)
+        if self.toolbox.selected == Tool::Text && self.text_tool.entering_text {
+            match code {
+                KeyCode::Enter => {
+                    self.text_tool
+                        .render_text_to_buffer(&mut self.canvas.buffer);
+                    self.text_tool.text_buffer.clear();
+                    self.text_tool.entering_text = false;
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Esc => {
+                    self.text_tool.text_buffer.clear();
+                    self.text_tool.entering_text = false;
+                    return;
+                }
+                KeyCode::Backspace => {
+                    self.text_tool.text_buffer.pop();
+                    return;
+                }
+                KeyCode::Char(c) => {
+                    self.text_tool.text_buffer.push(c);
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        // Text tool: font navigation (before canvas so up/down don't move cursor)
+        if self.toolbox.selected == Tool::Text && !self.text_tool.entering_text {
+            match code {
+                KeyCode::Up => {
+                    if !self.text_tool.available_fonts.is_empty() {
+                        self.text_tool.font_index = self.text_tool.font_index.saturating_sub(1);
+                        self.text_tool.load_selected_font();
+                    }
+                    return;
+                }
+                KeyCode::Down => {
+                    if !self.text_tool.available_fonts.is_empty() {
+                        self.text_tool.font_index = (self.text_tool.font_index + 1)
+                            .min(self.text_tool.available_fonts.len() - 1);
+                        self.text_tool.load_selected_font();
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
+
         // Selection operations (before canvas cursor movement)
         let selection_active = self.selection.as_ref().is_some_and(|s| s.is_active());
 
@@ -838,6 +911,39 @@ impl TuiApp {
             .handle_key(code, self.last_canvas_size.0, self.last_canvas_size.1)
         {
             return;
+        }
+        // Text tool settings (not entering text)
+        if self.toolbox.selected == Tool::Text && !self.text_tool.entering_text {
+            match code {
+                KeyCode::Char('j') | KeyCode::Char('J') => {
+                    self.text_tool.justification = match self.text_tool.justification {
+                        Justification::Left => Justification::Center,
+                        Justification::Center => Justification::Right,
+                        Justification::Right => Justification::Left,
+                    };
+                    return;
+                }
+                KeyCode::Char('+') | KeyCode::Char('=') => {
+                    if self.text_tool.scale < 4 {
+                        self.text_tool.scale += 1;
+                    }
+                    return;
+                }
+                KeyCode::Char('-') | KeyCode::Char('_') => {
+                    if self.text_tool.scale > 1 {
+                        self.text_tool.scale -= 1;
+                    }
+                    return;
+                }
+                KeyCode::Char(' ') | KeyCode::Enter => {
+                    let (cx, cy) = self.canvas.cursor();
+                    self.text_tool.cursor_position = (cx as i16, cy as i16);
+                    self.text_tool.entering_text = true;
+                    self.text_tool.text_buffer.clear();
+                    return;
+                }
+                _ => {}
+            }
         }
         // Settings toggle must be before toolbox to avoid 's'/'S' conflict with Spray tool
         if code == KeyCode::Char('S') && !modifiers.contains(KeyModifiers::CONTROL) {

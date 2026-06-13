@@ -427,7 +427,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Load known image, verify canvas output matches CLI output.
   - **Difficulty:** Medium
 
-- [ ] `2.6.2` Text tool with FIGlet font overlay
+- [x] `2.6.2` Text tool with FIGlet font overlay
   - **Goal:** Text tool in toolbox. Click on canvas → type text →
     render that text using selected FIGlet font at cursor position.
     Font preview dropdown in tool options. Text color, size, justification.

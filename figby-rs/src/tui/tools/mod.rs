@@ -5,3 +5,4 @@ pub mod fill;
 pub mod line;
 pub mod selection;
 pub mod spray;
+pub mod text;

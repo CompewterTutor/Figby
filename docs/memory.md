@@ -899,3 +899,22 @@ Made `bilinear_resize`, `bilinear_resize_rgb`, `luminance_to_char` public in
 `image_input.rs`. 8 unit tests in `image_editor.rs`: grayscale load, color load,
 nonexistent path error, mode toggle, CLI output match, canvas render, path entry
 key handling, key mode toggle. fmt and clippy pass clean.
+
+### 2.6.2 — Text tool with FIGlet font overlay
+
+Created `tools/text.rs` with `TextToolState` struct:
+- `TextToolState::new(font_dir)` — scans fonts/ for `.flf`/`.tlf` files, builds list
+- `list_available_fonts(font_dir)` — reads directory, returns sorted deduplicated names
+- `load_selected_font()` — loads FIGfont by name from current `font_index`, stores in `font: Option<FIGfont>`
+- `render_text_to_buffer()` — uses `add_char()` pipeline to render `text_buffer` as FIGlet rows with kerning/smushing (font's `full_layout` mode), stamps non-space cells into `CanvasBuffer` at `cursor_position` with scale and color
+- `render_options()` — Paragraph widget showing font name, justification (L/C/R), scale (1-4), color, text entry status
+
+Integration in `tui/mod.rs`:
+- `text_tool` field on `TuiApp`, initialized in `new("fonts")`
+- Render conditionally swaps brush panel for text options when `Tool::Text` selected
+- Mouse click sets `cursor_position` + enters text entry mode (`entering_text = true`)
+- Key entry mode: letters/space/punctuation → buffer, Enter → render+clear+exit, Esc → cancel, Backspace → pop
+- Non-entry mode: Up/Down → font navigation, j/J → justification cycle, +/- → scale, Space/Enter → enter text mode
+- Font nav handled before canvas (prevents arrow conflicts), tool settings handled after canvas
+
+14 unit tests: single char render, multi char, left/center/right justification, color apply, font switch, scale factor, edge clipping, empty text noop, no-font panic, entering text state, font listing nonempty and nonexistent. fmt and clippy pass clean.

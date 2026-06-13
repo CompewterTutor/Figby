@@ -207,7 +207,7 @@ impl TuiApp {
         if self.settings.settings_open {
             return;
         }
-        if self.toolbox.selected != Tool::Brush {
+        if !matches!(self.toolbox.selected, Tool::Brush | Tool::Eraser) {
             self.prev_mouse_buf = None;
             return;
         }
@@ -219,20 +219,30 @@ impl TuiApp {
                 };
                 self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 self.unsaved = true;
-                let mut cell = canvas::CanvasCell {
-                    ch: '\u{2588}',
-                    fg: None,
-                    bg: None,
-                };
-                self.palette.apply_to_cell(&mut cell);
-                tools::brush::paint_stamp(
-                    &mut self.canvas.buffer,
-                    bx,
-                    by,
-                    self.brush.shape,
-                    self.brush.size,
-                    cell,
-                );
+                if self.toolbox.selected == Tool::Eraser {
+                    tools::eraser::erase_stamp(
+                        &mut self.canvas.buffer,
+                        bx,
+                        by,
+                        self.brush.shape,
+                        self.brush.size,
+                    );
+                } else {
+                    let mut cell = canvas::CanvasCell {
+                        ch: '\u{2588}',
+                        fg: None,
+                        bg: None,
+                    };
+                    self.palette.apply_to_cell(&mut cell);
+                    tools::brush::paint_stamp(
+                        &mut self.canvas.buffer,
+                        bx,
+                        by,
+                        self.brush.shape,
+                        self.brush.size,
+                        cell,
+                    );
+                }
                 self.prev_mouse_buf = Some((bx, by));
             }
             MouseEventKind::Drag(_) => {
@@ -241,23 +251,35 @@ impl TuiApp {
                 };
                 self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 self.unsaved = true;
-                let mut cell = canvas::CanvasCell {
-                    ch: '\u{2588}',
-                    fg: None,
-                    bg: None,
-                };
-                self.palette.apply_to_cell(&mut cell);
                 if let Some((px, py)) = self.prev_mouse_buf {
-                    tools::brush::paint_line(
-                        &mut self.canvas.buffer,
-                        px,
-                        py,
-                        bx,
-                        by,
-                        self.brush.shape,
-                        self.brush.size,
-                        cell,
-                    );
+                    if self.toolbox.selected == Tool::Eraser {
+                        tools::eraser::erase_line(
+                            &mut self.canvas.buffer,
+                            px,
+                            py,
+                            bx,
+                            by,
+                            self.brush.shape,
+                            self.brush.size,
+                        );
+                    } else {
+                        let mut cell = canvas::CanvasCell {
+                            ch: '\u{2588}',
+                            fg: None,
+                            bg: None,
+                        };
+                        self.palette.apply_to_cell(&mut cell);
+                        tools::brush::paint_line(
+                            &mut self.canvas.buffer,
+                            px,
+                            py,
+                            bx,
+                            by,
+                            self.brush.shape,
+                            self.brush.size,
+                            cell,
+                        );
+                    }
                 }
                 self.prev_mouse_buf = Some((bx, by));
             }
@@ -322,25 +344,35 @@ impl TuiApp {
         if self.palette.handle_key(code) {
             return;
         }
-        // Keyboard painting: Space paints at cursor when Brush is selected
-        if self.toolbox.selected == Tool::Brush
+        // Keyboard painting: Space/Enter paints or erases at cursor
+        if matches!(self.toolbox.selected, Tool::Brush | Tool::Eraser)
             && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
         {
             let (cx, cy) = self.canvas.cursor();
-            let mut cell = canvas::CanvasCell {
-                ch: '\u{2588}',
-                fg: None,
-                bg: None,
-            };
-            self.palette.apply_to_cell(&mut cell);
-            tools::brush::paint_stamp(
-                &mut self.canvas.buffer,
-                cx as i16,
-                cy as i16,
-                self.brush.shape,
-                self.brush.size,
-                cell,
-            );
+            if self.toolbox.selected == Tool::Eraser {
+                tools::eraser::erase_stamp(
+                    &mut self.canvas.buffer,
+                    cx as i16,
+                    cy as i16,
+                    self.brush.shape,
+                    self.brush.size,
+                );
+            } else {
+                let mut cell = canvas::CanvasCell {
+                    ch: '\u{2588}',
+                    fg: None,
+                    bg: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                tools::brush::paint_stamp(
+                    &mut self.canvas.buffer,
+                    cx as i16,
+                    cy as i16,
+                    self.brush.shape,
+                    self.brush.size,
+                    cell,
+                );
+            }
             self.unsaved = true;
             return;
         }

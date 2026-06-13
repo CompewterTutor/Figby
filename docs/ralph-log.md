@@ -354,3 +354,7 @@ DONE: 2.3.7 merged into release/2.3.
 ## 2026-06-13 13:42
 
 PHASE_COMPLETE: 2.3 merged to main after review approval.
+
+## 2026-06-13 13:49
+
+DONE: 2.4.1 merged into release/2.4.

@@ -578,3 +578,19 @@ CLI integration in `main.rs`:
 
 5 new tests: roundtrip metrics, parseable output, render known char,
 nonexistent name error, size scaling.
+
+### 2.2.5 — Create TUI iconset YAML file
+
+Verified `assets/tui/icons.yaml` — 201 icon entries across 23 categories
+(modes, tools, cursor, canvas, brush, palette, status, file ops, edit,
+font editor, smushing rules, font transforms, image editor, text tool,
+layers, blending, timeline, keyframes, export, settings, navigation,
+dialogs, misc UI). Every entry uses `nf-*` Nerd Font icon prefix.
+
+Added `serde_yaml` dev-dependency and integration test
+`test_icons_yaml_all_keys_present` in `tests/tui.rs`:
+- Compile-time embedded via `include_str!`
+- Parses as `BTreeMap<String, String>`
+- Asserts ≥120 entries
+- Asserts every key non-empty
+- Asserts every value starts with `nf-`

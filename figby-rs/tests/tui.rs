@@ -500,6 +500,7 @@ fn test_brush_preview_square_integration() {
         shape: figby::tui::brush::BrushShape::Square,
         size: 3,
         ch: '\u{2588}',
+        density: 35,
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview.len(), 3);
@@ -517,6 +518,7 @@ fn test_brush_preview_circle_integration() {
         shape: BrushShape::Circle,
         size: 5,
         ch: '\u{2588}',
+        density: 35,
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview.len(), 5);
@@ -534,11 +536,13 @@ fn test_brush_preview_spray_deterministic() {
         shape: BrushShape::SprayPaint,
         size: 7,
         ch: '\u{2588}',
+        density: 35,
     };
     let b = BrushState {
         shape: BrushShape::SprayPaint,
         size: 7,
         ch: '\u{2588}',
+        density: 35,
     };
     assert_eq!(a.render_preview(10), b.render_preview(10));
 }
@@ -552,6 +556,7 @@ fn test_brush_preview_custom_center() {
         shape: BrushShape::Custom,
         size: 5,
         ch: '\u{2588}',
+        density: 35,
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview[2].as_bytes()[2] as char, '+');

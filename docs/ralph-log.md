@@ -374,3 +374,7 @@ DONE: 2.4.4 merged into release/2.4.
 ## 2026-06-13 14:11
 
 DONE: 2.4.5 merged into release/2.4.
+
+## 2026-06-13 14:17
+
+DONE: 2.4.6 merged into release/2.4.

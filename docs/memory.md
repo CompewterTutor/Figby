@@ -745,3 +745,21 @@ replaced with `self.brush.ch`. `Palette::push_recent` changed from `fn` to `pub 
 to allow external call. Eyedropper excluded from keyboard paint (Space/Enter) and
 mouse early-return. 5 unit tests: cell data, empty defaults, out-of-bounds,
 no-foreground cell, char sampling. fmt and clippy pass clean.
+
+### 2.4.7 — Spray paint brush
+
+Added `tools/spray.rs` with stochastic spray stamp and Bresenham-spray line.
+- `spray_stamp()` — iterates bounding box `[-radius, +radius]`, circle-check with
+  `dx² + dy² ≤ r²`, paints with probability `density / 100.0` via `rand::Rng::gen_bool()`
+- `spray_line()` — Bresenham interpolation calling spray_stamp at each step
+- Uses `StdRng::seed_from_u64(thread_rng().gen())` for fresh randomness per click
+  (different pattern each click); tests pass seeded `StdRng` for determinism
+- `rand = "0.8"` added to Cargo.toml
+- `BrushState` gained `density: u8` field (1–100, default 35), `set_density()`,
+  `density_up()`, `density_down()` methods
+- Density UI: `;` density down, `'` density up, brush shape cycle moved to `\`
+  (was `'`), Settings `S` check moved before toolbox handler to avoid conflict
+  with Spray tool shortcut `a` (aerosol)
+- Spray preview in brush UI now reads `self.density` instead of hardcoded 35
+- 6 tests: within-circle, density distribution (200 stamps @50% ±10%), stochastic
+  different, deterministic seed, bounds clip, density 0/100 extremes

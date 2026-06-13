@@ -6,6 +6,9 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
+use rand::rngs::StdRng;
+use rand::Rng;
+use rand::SeedableRng;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
@@ -241,7 +244,12 @@ impl TuiApp {
         if !is_selection_tool
             && !matches!(
                 self.toolbox.selected,
-                Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Eyedropper
+                Tool::Brush
+                    | Tool::Eraser
+                    | Tool::Line
+                    | Tool::Fill
+                    | Tool::Eyedropper
+                    | Tool::Spray
             )
         {
             self.prev_mouse_buf = None;
@@ -297,6 +305,23 @@ impl TuiApp {
                             self.palette.target = palette::ColorTarget::Foreground;
                         }
                     }
+                } else if self.toolbox.selected == Tool::Spray {
+                    let mut cell = canvas::CanvasCell {
+                        ch: self.brush.ch,
+                        fg: None,
+                        bg: None,
+                    };
+                    self.palette.apply_to_cell(&mut cell);
+                    let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
+                    tools::spray::spray_stamp(
+                        &mut self.canvas.buffer,
+                        bx,
+                        by,
+                        self.brush.size,
+                        self.brush.density,
+                        cell,
+                        &mut rng,
+                    );
                 } else {
                     let mut cell = canvas::CanvasCell {
                         ch: self.brush.ch,
@@ -359,6 +384,25 @@ impl TuiApp {
                             by,
                             self.brush.shape,
                             self.brush.size,
+                        );
+                    } else if self.toolbox.selected == Tool::Spray {
+                        let mut cell = canvas::CanvasCell {
+                            ch: self.brush.ch,
+                            fg: None,
+                            bg: None,
+                        };
+                        self.palette.apply_to_cell(&mut cell);
+                        let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
+                        tools::spray::spray_line(
+                            &mut self.canvas.buffer,
+                            px,
+                            py,
+                            bx,
+                            by,
+                            self.brush.size,
+                            self.brush.density,
+                            cell,
+                            &mut rng,
                         );
                     } else {
                         let mut cell = canvas::CanvasCell {
@@ -618,6 +662,14 @@ impl TuiApp {
         {
             return;
         }
+        // Settings toggle must be before toolbox to avoid 's'/'S' conflict with Spray tool
+        if code == KeyCode::Char('S') && !modifiers.contains(KeyModifiers::CONTROL) {
+            self.settings.canvas_width = self.canvas.buffer.width() as u16;
+            self.settings.canvas_height = self.canvas.buffer.height() as u16;
+            self.settings.show_grid = self.canvas.show_grid();
+            self.settings.settings_open = true;
+            return;
+        }
         if self.toolbox.handle_key(code) {
             // Clear polygon points when switching away from PolygonSelect
             if self.toolbox.selected != Tool::PolygonSelect {
@@ -634,7 +686,15 @@ impl TuiApp {
                 self.brush.size_up();
                 return;
             }
+            KeyCode::Char(';') => {
+                self.brush.density_down();
+                return;
+            }
             KeyCode::Char('\'') => {
+                self.brush.density_up();
+                return;
+            }
+            KeyCode::Char('\\') => {
                 self.brush.cycle_shape();
                 return;
             }
@@ -646,7 +706,7 @@ impl TuiApp {
         // Keyboard painting: Space/Enter paints or erases at cursor
         if matches!(
             self.toolbox.selected,
-            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill
+            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Spray
         ) && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
         {
             let (cx, cy) = self.canvas.cursor();
@@ -665,6 +725,23 @@ impl TuiApp {
                     cy as i16,
                     self.brush.shape,
                     self.brush.size,
+                );
+            } else if self.toolbox.selected == Tool::Spray {
+                let mut cell = canvas::CanvasCell {
+                    ch: self.brush.ch,
+                    fg: None,
+                    bg: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
+                tools::spray::spray_stamp(
+                    &mut self.canvas.buffer,
+                    cx as i16,
+                    cy as i16,
+                    self.brush.size,
+                    self.brush.density,
+                    cell,
+                    &mut rng,
                 );
             } else {
                 let mut cell = canvas::CanvasCell {
@@ -695,12 +772,6 @@ impl TuiApp {
             }
             KeyCode::Esc => {
                 self.should_quit = true;
-            }
-            KeyCode::Char('S') => {
-                self.settings.canvas_width = self.canvas.buffer.width() as u16;
-                self.settings.canvas_height = self.canvas.buffer.height() as u16;
-                self.settings.show_grid = self.canvas.show_grid();
-                self.settings.settings_open = true;
             }
             _ => {}
         }

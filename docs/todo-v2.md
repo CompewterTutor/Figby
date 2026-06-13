@@ -176,7 +176,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Font listing test.
   - **Difficulty:** Low
 
-- [ ] `2.2.2` Glyph rasterization → FIGcharacter rows
+- [x] `2.2.2` Glyph rasterization → FIGcharacter rows
   - **Goal:** Rasterize glyph at target cell size. Convert bitmap to
     FIGcharacter sub-character strings. Variable-width, baseline alignment.
   - **Touches:** `figby-rs/src/font_gen.rs`

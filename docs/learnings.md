@@ -792,3 +792,20 @@ Three bugs found in phase merge review:
   variations with different variable names. For test file refactors with many
   call sites using different variable names, a separate approach (regex or manual
   edit) is needed.
+
+## 2.7.6 — Undo/redo system
+
+- `std::mem::take` requires `Default` impl on the type. `CanvasBuffer` doesn't
+  implement `Default` (needs explicit width/height). Use `std::mem::replace`
+  with a dummy `CanvasBuffer::new(1, 1)` as fallback instead.
+- `clippy::collapsible_if` fires on `if A { if B { ... } }` patterns where the
+  inner `if` body only has `return`. Collapse to `if A && B { return; }`.
+- `clippy::unnecessary_min_or_max` fires on `val.saturating_sub(N).max(0)` when
+  `saturating_sub(N)` never goes below 0 (N ≤ val). Use `saturating_sub(N)` alone.
+- Image editor loads via `load_from_path()` inside `handle_key()` — detecting a new
+  load requires checking `entering_path()` before/after the call, not just clearing
+  undo on every `handle_key` return (which would clear on brightness/contrast
+  adjustments too).
+- Removing per-char undo `undo_stack`/`redo_stack` from `font_editor.rs` is safe
+  because the global undo captures `CanvasBuffer` snapshots before edits and
+  `sync_from_canvas()` on each render frame propagates canvas → FIGcharacter.

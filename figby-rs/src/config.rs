@@ -20,6 +20,7 @@ pub struct CliSection {
 pub struct TuiSection {
     pub theme: Option<String>,
     pub recent_files_max: Option<usize>,
+    pub undo_limit: Option<usize>,
     #[serde(default)]
     pub brush: BrushSection,
 }
@@ -87,6 +88,7 @@ ch = "#"
         assert_eq!(config.cli.color_mode.as_deref(), Some("always"));
         assert_eq!(config.tui.theme.as_deref(), Some("dark"));
         assert_eq!(config.tui.recent_files_max, Some(20));
+        assert_eq!(config.tui.undo_limit, None);
         assert_eq!(config.tui.brush.shape.as_deref(), Some("circle"));
         assert_eq!(config.tui.brush.size, Some(5));
         assert_eq!(config.tui.brush.density, Some(50));
@@ -119,6 +121,16 @@ size = 5
         assert_eq!(config.tui.brush.shape.as_deref(), Some("circle"));
         assert_eq!(config.tui.brush.size, Some(5));
         assert_eq!(config.tui.brush.density, None);
+    }
+
+    #[test]
+    fn test_config_undo_limit() {
+        let toml_str = r#"
+[tui]
+undo_limit = 100
+"#;
+        let config: FigbyConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.tui.undo_limit, Some(100));
     }
 
     #[test]

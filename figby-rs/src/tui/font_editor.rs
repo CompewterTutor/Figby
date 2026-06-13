@@ -98,8 +98,6 @@ pub struct FontEditor {
     pub grid_scroll: u16,
     pub selected_index: usize,
     all_codes: Vec<u32>,
-    undo_stack: Vec<Vec<String>>,
-    redo_stack: Vec<Vec<String>>,
     pub selected_field: usize,
     pub editing_field: bool,
     pub edit_buffer: String,
@@ -130,8 +128,6 @@ impl FontEditor {
             grid_scroll: 0,
             selected_index: 0,
             all_codes: Vec::new(),
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
             selected_field: 0,
             editing_field: false,
             edit_buffer: String::new(),
@@ -162,8 +158,6 @@ impl FontEditor {
         self.grid_scroll = 0;
         self.selected_index = 0;
         self.view = FontEditorView::Overview;
-        self.undo_stack.clear();
-        self.redo_stack.clear();
         self.smush_selected = 0;
         self.code_input_active = false;
         self.code_input_buffer.clear();
@@ -684,14 +678,12 @@ impl FontEditor {
         }
     }
 
-    fn handle_key_char_editor(&mut self, code: KeyCode, modifiers: KeyModifiers) -> bool {
+    fn handle_key_char_editor(&mut self, code: KeyCode, _modifiers: KeyModifiers) -> bool {
         match code {
             KeyCode::Esc => {
                 self.view = FontEditorView::Overview;
                 true
             }
-            KeyCode::Char('z') if modifiers.contains(KeyModifiers::CONTROL) => self.undo_char(),
-            KeyCode::Char('y') if modifiers.contains(KeyModifiers::CONTROL) => self.redo_char(),
             _ => false,
         }
     }
@@ -1079,8 +1071,6 @@ impl FontEditor {
         self.rebuild_all_codes();
         self.current_path = None;
         self.font_storage_name = "Untitled Copy".to_string();
-        self.undo_stack.clear();
-        self.redo_stack.clear();
     }
 
     fn transform_import_font(&mut self, name: &str, fontdir: &str) {
@@ -1215,46 +1205,6 @@ impl FontEditor {
         }
     }
 
-    fn undo_char(&mut self) -> bool {
-        let FontEditorView::CharEditor(code) = self.view else {
-            return false;
-        };
-        let Some(font) = self.font.as_mut() else {
-            return false;
-        };
-        let Some(ch) = font.chars.get_mut(&code) else {
-            return false;
-        };
-
-        if let Some(restored) = self.undo_stack.pop() {
-            self.redo_stack.push(ch.rows().to_vec());
-            ch.set_rows(restored);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn redo_char(&mut self) -> bool {
-        let FontEditorView::CharEditor(code) = self.view else {
-            return false;
-        };
-        let Some(font) = self.font.as_mut() else {
-            return false;
-        };
-        let Some(ch) = font.chars.get_mut(&code) else {
-            return false;
-        };
-
-        if let Some(restored) = self.redo_stack.pop() {
-            self.undo_stack.push(ch.rows().to_vec());
-            ch.set_rows(restored);
-            true
-        } else {
-            false
-        }
-    }
-
     pub fn sync_from_canvas(&mut self, code: u32, buffer: &super::canvas::CanvasBuffer) {
         let Some(font) = self.font.as_mut() else {
             return;
@@ -1276,11 +1226,6 @@ impl FontEditor {
         }
 
         if ch.rows() != new_rows.as_slice() {
-            let old = ch.rows().to_vec();
-            if self.undo_stack.last() != Some(&old) {
-                self.undo_stack.push(old);
-            }
-            self.redo_stack.clear();
             ch.set_rows(new_rows);
         }
     }

@@ -416,7 +416,7 @@ mod tests {
     use ratatui::style::Color;
 
     fn test_font_dir() -> &'static str {
-        "fonts"
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts")
     }
 
     #[test]

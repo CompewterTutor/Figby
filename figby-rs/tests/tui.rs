@@ -1288,3 +1288,176 @@ fn test_font_editor_header_maxlength_edit() {
     assert!(!editor.editing_field);
     assert_eq!(editor.font.as_ref().unwrap().maxlength, 25);
 }
+
+// --- Smush Rule Editor tests ---
+
+#[test]
+fn test_smush_editor_open_close() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::tui::font_editor::FontEditorView;
+
+    let (mut editor, _) = header_editor_setup();
+
+    editor.handle_key(KeyCode::Char('S'), KeyModifiers::NONE, 120);
+    assert_eq!(editor.view, FontEditorView::SmushRuleEditor);
+
+    editor.handle_key(KeyCode::Esc, KeyModifiers::NONE, 120);
+    assert_eq!(editor.view, FontEditorView::Overview);
+}
+
+#[test]
+fn test_smush_rule_toggle() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::smush::SmushMode;
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('S'), KeyModifiers::NONE, 120);
+    assert_eq!(editor.smush_selected, 0);
+
+    // Toggle first rule (EQUAL_CHARS = 1)
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    let layout = editor.font.as_ref().unwrap().full_layout as u32;
+    assert!(
+        layout & SmushMode::EQUAL_CHARS != 0,
+        "EQUAL_CHARS should be set after toggle"
+    );
+
+    // Toggle again to clear
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    let layout = editor.font.as_ref().unwrap().full_layout as u32;
+    assert_eq!(
+        layout & SmushMode::EQUAL_CHARS,
+        0,
+        "EQUAL_CHARS should be cleared after second toggle"
+    );
+}
+
+#[test]
+fn test_smush_rule_multiple_toggles() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::smush::SmushMode;
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('S'), KeyModifiers::NONE, 120);
+
+    // Toggle first rule (EQUAL_CHARS = 1) at index 0
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    // Navigate to BIGX (index 4) and toggle
+    for _ in 0..4 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    let layout = editor.font.as_ref().unwrap().full_layout as u32;
+    let expected = SmushMode::EQUAL_CHARS | SmushMode::BIGX;
+    assert_eq!(
+        layout & expected,
+        expected,
+        "both EQUAL_CHARS and BIGX should be set"
+    );
+
+    // Toggle a third rule (PAIR = 8, index 3)
+    for _ in 0..5 {
+        editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
+    }
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    let layout = editor.font.as_ref().unwrap().full_layout as u32;
+    let expected2 = SmushMode::EQUAL_CHARS | SmushMode::PAIR | SmushMode::BIGX;
+    assert_eq!(
+        layout & expected2,
+        expected2,
+        "EQUAL_CHARS, PAIR, and BIGX should all be set"
+    );
+
+    // Toggle BIGX off
+    for _ in 0..1 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    let layout = editor.font.as_ref().unwrap().full_layout as u32;
+    let expected3 = SmushMode::EQUAL_CHARS | SmushMode::PAIR;
+    assert_eq!(
+        layout & expected3,
+        expected3,
+        "EQUAL_CHARS and PAIR should remain, BIGX should be cleared"
+    );
+    assert_eq!(layout & SmushMode::BIGX, 0, "BIGX should be cleared");
+}
+
+#[test]
+fn test_smush_editor_navigation() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('S'), KeyModifiers::NONE, 120);
+    assert_eq!(editor.smush_selected, 0);
+
+    // Down 5 times wraps to index 5
+    for _ in 0..5 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.smush_selected, 5);
+
+    // Down again wraps to 0
+    editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    assert_eq!(editor.smush_selected, 0);
+
+    // Up from 0 wraps to 5
+    editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
+    assert_eq!(editor.smush_selected, 5);
+}
+
+#[test]
+fn test_smush_preview_changes_on_toggle() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::smush::SmushMode;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('S'), KeyModifiers::NONE, 120);
+
+    // Read initial state — BIGX is NOT set in standard font (full_layout=229 = SMUSH|KERN|HARDBLANK|HIERARCHY|EQUAL_CHARS)
+    let initial_layout = editor.font.as_ref().unwrap().full_layout as u32;
+    let bigx_was_set = initial_layout & SmushMode::BIGX != 0;
+
+    if !bigx_was_set {
+        // BIGX not set: navigate to it (index 4) and toggle ON
+        for _ in 0..4 {
+            editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+        }
+        editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    }
+
+    let layout_after_on = editor.font.as_ref().unwrap().full_layout as u32;
+    assert!(layout_after_on & SmushMode::BIGX != 0, "BIGX should be on");
+
+    // Check preview shows smush result
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| editor.render(f, f.area())).unwrap();
+    let buffer = terminal.backend().buffer();
+    let output_bigx_on: String = buffer.content().iter().map(|c| c.symbol()).collect();
+    assert!(
+        output_bigx_on.contains("= |") || output_bigx_on.contains("= \\"),
+        "preview with BIGX should show smush result, got: {:?}",
+        output_bigx_on
+    );
+
+    // Toggle BIGX off
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    let layout_after_off = editor.font.as_ref().unwrap().full_layout as u32;
+    assert_eq!(layout_after_off & SmushMode::BIGX, 0, "BIGX should be off");
+
+    // Check preview changed
+    let backend2 = TestBackend::new(80, 24);
+    let mut terminal2 = Terminal::new(backend2).unwrap();
+    terminal2.draw(|f| editor.render(f, f.area())).unwrap();
+    let buffer2 = terminal2.backend().buffer();
+    let output_bigx_off: String = buffer2.content().iter().map(|c| c.symbol()).collect();
+
+    assert_ne!(
+        output_bigx_on, output_bigx_off,
+        "preview should change when BIGX is toggled"
+    );
+}

@@ -384,7 +384,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Header edit round-trip.
   - **Difficulty:** Low
 
-- [ ] `2.5.4` Smushing rule configuration
+- [x] `2.5.4` Smushing rule configuration
   - **Goal:** Visual toggle grid for smushing rule bits: equal char,
     underscore, hierarchy, pair, big X, hardblank. Preview: render two
     sample chars with current rules to show effect.

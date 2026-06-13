@@ -234,3 +234,15 @@ DONE: 2.0.10 merged into release/2.0.
 ## 2026-06-12 15:31
 
 UNTIL_STOP: reached 2.0.10 after 8 tasks.
+
+## 2026-06-13 06:13
+
+DONE: 2.0.10 merged into release/2.0.
+
+## 2026-06-13 06:13
+
+All 2.0 tasks complete. Starting phase review.
+
+## 2026-06-13 06:13
+
+MAJOR_RC_READY: rc/2.0.0-rc.1 + tag 2.0.0-rc.1 created from release/2.0. Awaiting human sign-off before merge to main.

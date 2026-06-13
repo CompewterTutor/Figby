@@ -224,7 +224,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.3 — TUI Core & Canvas
 
-- [ ] `2.3.1` TUI scaffold with ratatui
+- [x] `2.3.1` TUI scaffold with ratatui
   - **Goal:** Ratatui app with mode switching: Font Editor, Image Editor,
     ASCII Preview. Shared layout: toolbar top, canvas center, status bar
     bottom, palette sidebar right.

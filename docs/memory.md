@@ -1040,3 +1040,36 @@ Added font duplication and import features to `FontEditor`:
 - Existing tests updated for 8-transform navigation. 7 new unit tests: duplicate font,
   duplicate independence, import merges glyphs, import overwrites duplicates, duplicate
   empty font, import nonexistent font. Only `font_editor.rs` touched. fmt and clippy pass clean.
+
+### 2.7.4 — Export: PNG, TXT, GIF
+
+Created `output.rs` — pure-function output module with:
+- `ExportFormat` enum (Png/Txt/Gif), `ExportError` enum
+- `BITMAP_FONT_8X16` — 95-char × 16-byte VGA 8×16 bitmap font (public domain)
+- `color_to_rgb()` / `xterm_to_rgb()` — ratatui `Color` → (r,g,b) conversion, 256-color xterm palette
+- `rasterize_char()` — renders char to RGBA pixel grid at 1×-4× scale
+- `render_frame()` — full frame rasterization from CanvasCell grid
+- `export_cells_to_png()` — RGBA PNG bytes via `image::codecs::png::PngEncoder`
+- `export_cells_to_txt()` — flat ASCII text, no color codes
+- `export_cells_to_gif()` — animated GIF via `gif` crate, truecolor frames, infinite loop
+
+Created `tui/export.rs` — TUI export dialog:
+- `ExportMode` enum (Png/Txt/Gif) with cycle/label/extension helpers
+- `ExportDialog` struct: active flag, format, path buffer, font size (1-4, default 2)
+- `enter_export(mode)` / `close()` / `handle_key(code)` / `render(frame, area)` methods
+- Keyboard: T cycles format, arrows/Tab navigate directory, Enter exports, Esc cancels
+- `perform_export(cells)` — calls output module, writes to file, sets error on failure
+
+Integration in `tui/mod.rs`:
+- `export_dialog: export::ExportDialog` field on `TuiApp`
+- Ctrl+E opens export dialog (Png for ImageEditor/AsciiPreview, Txt for FontEditor)
+- Dialog overlay rendered at same position as file_ops overlay
+- Key dispatch routes to dialog when active, performs export on Enter finalization
+
+Added `gif = "0.13"` dependency to Cargo.toml. 23 new tests across output.rs + export.rs
+covering PNG/TXT/GIF export, roundtrip, size checks, dialog open/close/format/path entry.
+fmt and clippy pass clean.
+
+Self-review fix: reordered `handle_key()` match arms so `T`/`t` format toggle
+precedes generic `Char(c)` catch-all. Fixed 3 tests with wrong expected values
+(roundtrip pixel coords, path entry account for "export.png" prefix).

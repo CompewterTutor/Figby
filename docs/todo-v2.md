@@ -487,7 +487,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Duplicate, edit one, verify other unchanged.
   - **Difficulty:** Low
 
-- [ ] `2.7.4` Export: PNG, TXT, GIF
+- [x] `2.7.4` Export: PNG, TXT, GIF
   - **Goal:** Export canvas/current preview as PNG (rasterized ASCII),
     TXT (raw ASCII text), GIF (animated if multiple frames). Color
     mode preserved in PNG/GIF. Font selection for export.

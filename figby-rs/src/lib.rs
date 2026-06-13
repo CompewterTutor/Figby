@@ -5,6 +5,7 @@ pub mod font;
 pub mod font_gen;
 pub mod image_input;
 pub mod input;
+pub mod output;
 pub mod render;
 pub mod smush;
 pub mod template;

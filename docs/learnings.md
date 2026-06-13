@@ -467,3 +467,10 @@ Three bugs found in phase merge review:
   overrides this with the requested `point_size` via `FT_Set_Char_Size`.
 - `clippy::repeat_once` lint: `" ".repeat(1)` → `" ".to_string()`.
 
+## 2.3.1 — TUI scaffold with ratatui
+
+- `ratatui-core` 0.1.1 (used by ratatui 0.30.1) has `Frame<'a>` with only a lifetime parameter — no generic backend type. Earlier ratatui versions used `Frame<'a, B: Backend>`. Method signatures must use `Frame<'_>` not `Frame<'_, B>`.
+- `Buffer` from `ratatui-core` 0.1.1 does NOT implement `Display`. To get rendered output as a string (e.g., for test assertions), use `buffer.content().iter().map(|c| c.symbol()).collect::<String>()`.
+- `Cell::symbol` field is private — use the `symbol()` accessor method instead.
+- Dead code on `icons` field is acceptable for now — it's an architectural scaffold for future TUI tasks (2.3.2+). Prefix with `_icons` (Rust idiom) to suppress warning without `#[allow(dead_code)]`.
+

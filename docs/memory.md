@@ -602,3 +602,16 @@ system font enumeration via font-kit (2.2.1), glyph rasterization to FIGcharacte
 rows (2.2.2), FIGfont header generation from font metrics (2.2.3), `--create-font`
 CLI command (2.2.4), TUI iconset YAML file (2.2.5). All 6 subtasks (2.2.1–2.2.6)
 implemented, tested, merged. Phase 2.3 (TUI Core & Canvas) is next.
+
+### 2.3.1 — TUI scaffold with ratatui
+
+Created `figby-rs/src/tui.rs` — TUI scaffold with ratatui + crossterm:
+- `AppMode` enum: `FontEditor`, `ImageEditor`, `AsciiPreview` with `title()` and `next()` cycling
+- `TuiApp` struct: holds mode state, quit flag, icons map (from `icons.yaml`)
+- `run()` — raw mode, alternate screen, event loop with render + event handling
+- `render()` — vertical layout: toolbar (Tabs with 3 modes), main area (canvas + palette sidebar), status bar
+- `handle_event()` / `handle_key_event()` — Tab cycles mode, q/Esc quits
+- `--tui` CLI flag added to `main.rs` dispatches to TUI on startup
+- `ratatui = "0.30.1"`, `crossterm = "0.28"` dependencies added; `serde_yaml` promoted to regular dep
+- 3 smoke tests: all panels render, mode switching cycles correctly, default mode is FontEditor
+- No `.unwrap()` in production — `serde_yaml::from_str` uses `unwrap_or_default()` for graceful fallback

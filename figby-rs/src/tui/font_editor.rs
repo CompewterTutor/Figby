@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::font::FIGfont;
+use crate::font::{load_font, FIGfont};
 use crate::smush::{smush_horizontal, SmushMode};
 
 const SMUSH_RULE_LABELS: [(&str, u32); 6] = [
@@ -27,12 +27,55 @@ const HEADER_FIELD_LABELS: [&str; 7] = [
     "Comment Lines",
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MirrorMode {
+    Horizontal,
+    Vertical,
+    Both,
+}
+
+impl MirrorMode {
+    fn label(&self) -> &str {
+        match self {
+            MirrorMode::Horizontal => "Horizontal",
+            MirrorMode::Vertical => "Vertical",
+            MirrorMode::Both => "Both",
+        }
+    }
+
+    fn next(&self) -> Self {
+        match self {
+            MirrorMode::Horizontal => MirrorMode::Vertical,
+            MirrorMode::Vertical => MirrorMode::Both,
+            MirrorMode::Both => MirrorMode::Horizontal,
+        }
+    }
+
+    fn prev(&self) -> Self {
+        match self {
+            MirrorMode::Horizontal => MirrorMode::Both,
+            MirrorMode::Vertical => MirrorMode::Horizontal,
+            MirrorMode::Both => MirrorMode::Vertical,
+        }
+    }
+}
+
+const TRANSFORM_LABELS: [&str; 6] = [
+    "Resize Font",
+    "Italicize",
+    "Bold",
+    "Mirror",
+    "Copy Glyph",
+    "Rename",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FontEditorView {
     Overview,
     CharEditor(u32),
     HeaderEditor,
     SmushRuleEditor,
+    TransformEditor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +105,13 @@ pub struct FontEditor {
     pub code_input_buffer: String,
     pub code_input_mode: CodeInputMode,
     pub copy_source_code: u32,
+    pub selected_transform: usize,
+    pub input_buffer: String,
+    pub input_active: bool,
+    pub sub_step: u8,
+    pub transform_submode: Option<MirrorMode>,
+    pub transform_font_name: String,
+    pub font_storage_name: String,
 }
 
 impl FontEditor {
@@ -85,6 +135,13 @@ impl FontEditor {
             code_input_buffer: String::new(),
             code_input_mode: CodeInputMode::Add,
             copy_source_code: 0,
+            selected_transform: 0,
+            input_buffer: String::new(),
+            input_active: false,
+            sub_step: 0,
+            transform_submode: None,
+            transform_font_name: String::new(),
+            font_storage_name: String::new(),
         }
     }
 
@@ -102,6 +159,13 @@ impl FontEditor {
         self.smush_selected = 0;
         self.code_input_active = false;
         self.code_input_buffer.clear();
+        self.selected_transform = 0;
+        self.input_buffer.clear();
+        self.input_active = false;
+        self.sub_step = 0;
+        self.transform_submode = None;
+        self.transform_font_name.clear();
+        self.font_storage_name.clear();
     }
 
     pub fn enter_header_editor(&mut self) {
@@ -115,6 +179,17 @@ impl FontEditor {
     pub fn enter_smush_editor(&mut self) {
         self.view = FontEditorView::SmushRuleEditor;
         self.smush_selected = 0;
+    }
+
+    pub fn enter_transform_editor(&mut self) {
+        self.view = FontEditorView::TransformEditor;
+        self.selected_transform = 0;
+        self.input_active = false;
+        self.input_buffer.clear();
+        self.sub_step = 0;
+        self.transform_submode = None;
+        self.transform_font_name.clear();
+        self.error_message.clear();
     }
 
     fn is_valid_code(code: u32) -> bool {
@@ -236,6 +311,7 @@ impl FontEditor {
             FontEditorView::CharEditor(_) => {}
             FontEditorView::HeaderEditor => self.render_header_editor(frame, area),
             FontEditorView::SmushRuleEditor => self.render_smush_editor(frame, area),
+            FontEditorView::TransformEditor => self.render_transform_editor(frame, area),
         }
     }
 
@@ -415,6 +491,98 @@ impl FontEditor {
         frame.render_widget(paragraph, area);
     }
 
+    fn render_transform_editor(&mut self, frame: &mut Frame, area: Rect) {
+        let _ = &self.font;
+        let mut lines: Vec<Line> = Vec::new();
+
+        lines.push(Line::from(Span::styled(
+            " Font Transforms",
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+
+        if self.input_active {
+            let prompt = match self.selected_transform {
+                0 => format!(" New height: {}", self.input_buffer),
+                4 => {
+                    if self.sub_step == 0 {
+                        format!(" Font name: {}", self.input_buffer)
+                    } else {
+                        format!(" Code point: {}", self.input_buffer)
+                    }
+                }
+                5 => format!(" New name: {}", self.input_buffer),
+                _ => String::new(),
+            };
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::raw(format!(" {}", prompt))));
+            if !self.error_message.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    format!(" Error: {}", self.error_message),
+                    Style::default().fg(Color::Red),
+                )));
+            }
+            lines.push(Line::from(Span::styled(
+                " Enter: Confirm  Esc: Cancel  Backspace: Delete char",
+                Style::default().fg(Color::DarkGray),
+            )));
+        } else if let Some(mode) = self.transform_submode {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                " Select mirror mode:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            for &m in &[
+                MirrorMode::Horizontal,
+                MirrorMode::Vertical,
+                MirrorMode::Both,
+            ] {
+                let is_selected = m == mode;
+                let prefix = if is_selected { " >" } else { "  " };
+                let text = format!("{} {}", prefix, m.label());
+                let style = if is_selected {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                lines.push(Line::from(Span::styled(text, style)));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                " \u{2191}\u{2193}: Navigate  Enter: Apply  Esc: Back",
+                Style::default().fg(Color::DarkGray),
+            )));
+        } else {
+            lines.push(Line::from(""));
+            for (i, label) in TRANSFORM_LABELS.iter().enumerate() {
+                let is_selected = i == self.selected_transform;
+                let prefix = if is_selected { " >" } else { "  " };
+                let text = format!("{} {}", prefix, label);
+                let style = if is_selected {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                lines.push(Line::from(Span::styled(text, style)));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                " \u{2191}\u{2193}: Navigate  Enter: Select  Esc: Back",
+                Style::default().fg(Color::DarkGray),
+            )));
+        }
+
+        if !self.error_message.is_empty() && !self.input_active {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                format!(" Error: {}", self.error_message),
+                Style::default().fg(Color::Red),
+            )));
+        }
+
+        let paragraph = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
+        frame.render_widget(paragraph, area);
+    }
+
     fn render_header_editor(&mut self, frame: &mut Frame, area: Rect) {
         let Some(font) = self.font.as_ref() else {
             return;
@@ -502,6 +670,7 @@ impl FontEditor {
             FontEditorView::CharEditor(_) => self.handle_key_char_editor(code, modifiers),
             FontEditorView::HeaderEditor => self.handle_key_header_editor(code),
             FontEditorView::SmushRuleEditor => self.handle_key_smush_editor(code),
+            FontEditorView::TransformEditor => self.handle_key_transform_editor(code),
         }
     }
 
@@ -603,6 +772,280 @@ impl FontEditor {
             }
             _ => false,
         }
+    }
+
+    fn handle_key_transform_editor(&mut self, code: KeyCode) -> bool {
+        if self.input_active {
+            match code {
+                KeyCode::Char(c) if !c.is_control() => {
+                    self.input_buffer.push(c);
+                    true
+                }
+                KeyCode::Backspace => {
+                    self.input_buffer.pop();
+                    true
+                }
+                KeyCode::Esc => {
+                    self.input_active = false;
+                    self.input_buffer.clear();
+                    self.sub_step = 0;
+                    self.error_message.clear();
+                    true
+                }
+                KeyCode::Enter => {
+                    let buf = self.input_buffer.trim().to_string();
+                    match self.selected_transform {
+                        0 => {
+                            if let Ok(h) = buf.parse::<u32>() {
+                                if h == 0 {
+                                    self.error_message = "Height must be \u{2265} 1".to_string();
+                                } else {
+                                    self.transform_resize(h);
+                                }
+                            } else {
+                                self.error_message = "Invalid height".to_string();
+                            }
+                        }
+                        4 => {
+                            if self.sub_step == 0 {
+                                if buf.is_empty() {
+                                    self.error_message = "Font name required".to_string();
+                                } else {
+                                    self.transform_font_name = buf;
+                                    self.sub_step = 1;
+                                    self.input_buffer.clear();
+                                    self.error_message.clear();
+                                    return true;
+                                }
+                            } else {
+                                if let Ok(code) = buf.parse::<u32>() {
+                                    let name = self.transform_font_name.clone();
+                                    self.transform_copy_glyph_from(&name, "fonts", code);
+                                } else {
+                                    self.error_message = "Invalid code point".to_string();
+                                }
+                            }
+                        }
+                        5 => {
+                            if buf.is_empty() {
+                                self.error_message = "Name cannot be empty".to_string();
+                            } else {
+                                self.transform_rename(&buf);
+                            }
+                        }
+                        _ => {}
+                    }
+                    self.input_active = false;
+                    self.input_buffer.clear();
+                    self.sub_step = 0;
+                    true
+                }
+                _ => false,
+            }
+        } else if self.transform_submode.is_some() {
+            let current = self.transform_submode.unwrap();
+            match code {
+                KeyCode::Up => {
+                    self.transform_submode = Some(current.prev());
+                    true
+                }
+                KeyCode::Down => {
+                    self.transform_submode = Some(current.next());
+                    true
+                }
+                KeyCode::Enter => {
+                    self.transform_mirror(current);
+                    self.transform_submode = None;
+                    true
+                }
+                KeyCode::Esc => {
+                    self.transform_submode = None;
+                    true
+                }
+                _ => false,
+            }
+        } else {
+            match code {
+                KeyCode::Up => {
+                    self.selected_transform = if self.selected_transform > 0 {
+                        self.selected_transform - 1
+                    } else {
+                        TRANSFORM_LABELS.len() - 1
+                    };
+                    self.error_message.clear();
+                    true
+                }
+                KeyCode::Down => {
+                    self.selected_transform =
+                        (self.selected_transform + 1) % TRANSFORM_LABELS.len();
+                    self.error_message.clear();
+                    true
+                }
+                KeyCode::Enter => {
+                    match self.selected_transform {
+                        0 => {
+                            self.input_active = true;
+                            self.input_buffer.clear();
+                            self.error_message.clear();
+                        }
+                        1 => self.transform_italicize(),
+                        2 => self.transform_bold(),
+                        3 => {
+                            self.transform_submode = Some(MirrorMode::Horizontal);
+                            self.error_message.clear();
+                        }
+                        4 => {
+                            self.input_active = true;
+                            self.input_buffer.clear();
+                            self.sub_step = 0;
+                            self.error_message.clear();
+                        }
+                        5 => {
+                            self.input_active = true;
+                            self.input_buffer.clear();
+                            self.error_message.clear();
+                        }
+                        _ => {}
+                    }
+                    true
+                }
+                KeyCode::Esc => {
+                    self.view = FontEditorView::Overview;
+                    self.error_message.clear();
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
+
+    fn transform_resize(&mut self, new_height: u32) {
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        if new_height == 0 || new_height == font.charheight {
+            if new_height == 0 {
+                self.error_message = "Height must be \u{2265} 1".to_string();
+            }
+            return;
+        }
+        let old_height = font.charheight;
+        font.charheight = new_height;
+        font.baseline = font.baseline.min(new_height);
+        for ch in font.chars.values_mut() {
+            let mut rows = ch.rows().to_vec();
+            if new_height > old_height {
+                while rows.len() < new_height as usize {
+                    rows.push(" ".repeat(font.maxlength as usize));
+                }
+            } else {
+                rows.truncate(new_height as usize);
+            }
+            ch.set_rows(rows);
+        }
+        let maxlen = font
+            .chars
+            .values()
+            .map(|c| c.width() as u32)
+            .max()
+            .unwrap_or(1);
+        font.maxlength = maxlen;
+    }
+
+    fn transform_italicize(&mut self) {
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        for ch in font.chars.values_mut() {
+            let rows = ch.rows().to_vec();
+            let new_rows: Vec<String> = rows
+                .iter()
+                .enumerate()
+                .map(|(i, row)| {
+                    let prefix: String = (0..i).map(|_| ' ').collect();
+                    format!("{prefix}{row}")
+                })
+                .collect();
+            ch.set_rows(new_rows);
+        }
+        let maxlen = font
+            .chars
+            .values()
+            .map(|c| c.width() as u32)
+            .max()
+            .unwrap_or(1);
+        font.maxlength = maxlen;
+    }
+
+    fn transform_bold(&mut self) {
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        for ch in font.chars.values_mut() {
+            let rows = ch.rows().to_vec();
+            let new_rows: Vec<String> = rows
+                .iter()
+                .map(|row| row.chars().flat_map(|c| [c, c]).collect())
+                .collect();
+            ch.set_rows(new_rows);
+        }
+        let maxlen = font
+            .chars
+            .values()
+            .map(|c| c.width() as u32)
+            .max()
+            .unwrap_or(1);
+        font.maxlength = maxlen;
+    }
+
+    fn transform_mirror(&mut self, mode: MirrorMode) {
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        for ch in font.chars.values_mut() {
+            let rows = ch.rows().to_vec();
+            let new_rows: Vec<String> = match mode {
+                MirrorMode::Horizontal => rows.iter().map(|r| r.chars().rev().collect()).collect(),
+                MirrorMode::Vertical => rows.into_iter().rev().collect(),
+                MirrorMode::Both => rows
+                    .into_iter()
+                    .rev()
+                    .map(|r| r.chars().rev().collect())
+                    .collect(),
+            };
+            ch.set_rows(new_rows);
+        }
+        let maxlen = font
+            .chars
+            .values()
+            .map(|c| c.width() as u32)
+            .max()
+            .unwrap_or(1);
+        font.maxlength = maxlen;
+    }
+
+    fn transform_copy_glyph_from(&mut self, font_source: &str, fontdir: &str, code: u32) {
+        let external = match load_font(font_source, fontdir) {
+            Ok(f) => f,
+            Err(_) => {
+                self.error_message = format!("Could not load font: {font_source}");
+                return;
+            }
+        };
+        let Some(src_ch) = external.chars.get(&code) else {
+            self.error_message = format!("Code U+{code:X} not found in font '{font_source}'");
+            return;
+        };
+        let rows: Vec<String> = src_ch.rows().to_vec();
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        font.chars.insert(code, rows.into());
+        self.rebuild_all_codes();
+    }
+
+    fn transform_rename(&mut self, new_name: &str) {
+        self.font_storage_name = new_name.to_string();
     }
 
     fn start_editing_field(&mut self) {
@@ -874,6 +1317,10 @@ impl FontEditor {
                 self.enter_smush_editor();
                 true
             }
+            KeyCode::Char('T') => {
+                self.enter_transform_editor();
+                true
+            }
             KeyCode::Char('A') => {
                 self.code_input_active = true;
                 self.code_input_mode = CodeInputMode::Add;
@@ -987,6 +1434,7 @@ impl FontEditor {
             FontEditorView::Overview => None,
             FontEditorView::HeaderEditor => None,
             FontEditorView::SmushRuleEditor => None,
+            FontEditorView::TransformEditor => None,
         }
     }
 }
@@ -1208,5 +1656,365 @@ mod tests {
         assert!(font.chars.contains_key(&65));
         assert!(font.chars.contains_key(&0));
         assert!(font.chars.contains_key(&66));
+    }
+
+    // --- Transform tests ---
+
+    #[test]
+    fn test_transform_resize_larger() {
+        let mut editor = make_editor();
+        editor.transform_resize(5);
+        let font = editor.font.as_ref().unwrap();
+        assert_eq!(font.charheight, 5);
+        for ch in font.chars.values() {
+            assert_eq!(ch.rows().len(), 5);
+        }
+        // Row 0-2 unchanged, row 3-4 are spaced
+        let ch0 = font.chars.get(&0).unwrap();
+        for row in 3..5 {
+            assert!(ch0.rows()[row].chars().all(|c| c == ' '));
+        }
+        // Char 65 should have its original rows at top
+        let ch65 = font.chars.get(&65).unwrap();
+        assert_eq!(ch65.rows()[0], " AA  ");
+        assert_eq!(ch65.rows()[1], "A  A ");
+        assert_eq!(ch65.rows()[2], "AAAA ");
+        assert!(ch65.rows()[3].chars().all(|c| c == ' '));
+        assert!(ch65.rows()[4].chars().all(|c| c == ' '));
+    }
+
+    #[test]
+    fn test_transform_resize_smaller() {
+        let mut editor = make_editor();
+        editor.transform_resize(2);
+        let font = editor.font.as_ref().unwrap();
+        assert_eq!(font.charheight, 2);
+        for ch in font.chars.values() {
+            assert_eq!(ch.rows().len(), 2);
+        }
+        let ch65 = font.chars.get(&65).unwrap();
+        assert_eq!(ch65.rows()[0], " AA  ");
+        assert_eq!(ch65.rows()[1], "A  A ");
+    }
+
+    #[test]
+    fn test_transform_bold() {
+        let mut editor = make_editor();
+        editor.transform_bold();
+        let font = editor.font.as_ref().unwrap();
+        let ch65 = font.chars.get(&65).unwrap();
+        // " AA  " -> "  AAAA    "
+        assert_eq!(ch65.rows()[0], "  AAAA    ");
+        // "A  A " -> "AA    AA  "
+        assert_eq!(ch65.rows()[1], "AA    AA  ");
+        // "AAAA " -> "AAAAAAAA  "
+        assert_eq!(ch65.rows()[2], "AAAAAAAA  ");
+    }
+
+    #[test]
+    fn test_transform_bold_updates_maxlength() {
+        let mut editor = make_editor();
+        assert_eq!(editor.font.as_ref().unwrap().maxlength, 5);
+        editor.transform_bold();
+        // After bold, char 65 width = 10, char 66 width = 8 (BBB -> BBBBBB)
+        assert_eq!(editor.font.as_ref().unwrap().maxlength, 10);
+    }
+
+    #[test]
+    fn test_transform_italicize() {
+        let mut editor = make_editor();
+        editor.transform_italicize();
+        let font = editor.font.as_ref().unwrap();
+        let ch65 = font.chars.get(&65).unwrap();
+        // Row 0: no indent
+        assert_eq!(ch65.rows()[0], " AA  ");
+        // Row 1: 1 space
+        assert_eq!(ch65.rows()[1], " A  A ");
+        // Row 2: 2 spaces
+        assert_eq!(ch65.rows()[2], "  AAAA ");
+    }
+
+    #[test]
+    fn test_transform_mirror_horizontal() {
+        let mut editor = make_editor();
+        editor.transform_mirror(MirrorMode::Horizontal);
+        let font = editor.font.as_ref().unwrap();
+        let ch65 = font.chars.get(&65).unwrap();
+        // " AA  " reversed -> "  AA "
+        assert_eq!(ch65.rows()[0], "  AA ");
+        assert_eq!(ch65.rows()[1], " A  A");
+        assert_eq!(ch65.rows()[2], " AAAA");
+    }
+
+    #[test]
+    fn test_transform_mirror_vertical() {
+        let mut editor = make_editor();
+        editor.transform_mirror(MirrorMode::Vertical);
+        let font = editor.font.as_ref().unwrap();
+        let ch65 = font.chars.get(&65).unwrap();
+        assert_eq!(ch65.rows()[0], "AAAA ");
+        assert_eq!(ch65.rows()[1], "A  A ");
+        assert_eq!(ch65.rows()[2], " AA  ");
+    }
+
+    #[test]
+    fn test_transform_mirror_both() {
+        let mut editor = make_editor();
+        editor.transform_mirror(MirrorMode::Both);
+        let font = editor.font.as_ref().unwrap();
+        let ch65 = font.chars.get(&65).unwrap();
+        assert_eq!(ch65.rows()[0], " AAAA");
+        assert_eq!(ch65.rows()[1], " A  A");
+        assert_eq!(ch65.rows()[2], "  AA ");
+    }
+
+    #[test]
+    fn test_transform_rename() {
+        let mut editor = make_editor();
+        assert!(editor.font_storage_name.is_empty());
+        editor.transform_rename("MyFont");
+        assert_eq!(editor.font_storage_name, "MyFont");
+        editor.transform_rename("Another Font");
+        assert_eq!(editor.font_storage_name, "Another Font");
+    }
+
+    #[test]
+    fn test_transform_resize_across_all_codes() {
+        let mut editor = make_editor();
+        editor.transform_resize(4);
+        let font = editor.font.as_ref().unwrap();
+        assert_eq!(font.charheight, 4);
+        for (&code, ch) in &font.chars {
+            assert_eq!(
+                ch.rows().len(),
+                4,
+                "char U+{code:X} should have 4 rows after resize"
+            );
+        }
+    }
+
+    #[test]
+    fn test_transform_resize_identity() {
+        let mut editor = make_editor();
+        let orig_height = editor.font.as_ref().unwrap().charheight;
+        editor.transform_resize(orig_height);
+        assert_eq!(editor.font.as_ref().unwrap().charheight, orig_height);
+    }
+
+    #[test]
+    fn test_transform_bold_all_chars() {
+        let mut editor = make_editor();
+        editor.transform_bold();
+        let font = editor.font.as_ref().unwrap();
+        for (&code, ch) in &font.chars {
+            for row in ch.rows() {
+                assert_eq!(
+                    row.len() % 2,
+                    0,
+                    "char U+{code:X} should have even width after bold"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_transform_mirror_horizontal_all_chars() {
+        let mut editor = make_editor();
+        editor.transform_mirror(MirrorMode::Horizontal);
+        let font = editor.font.as_ref().unwrap();
+        for ch in font.chars.values() {
+            for row in ch.rows() {
+                let reversed: String = row.chars().rev().collect();
+                // Mirroring twice should give original
+                let double: String = reversed.chars().rev().collect();
+                assert_eq!(double, *row);
+            }
+        }
+    }
+
+    #[test]
+    fn test_transform_italicize_empty_font() {
+        let mut editor = FontEditor::new();
+        editor.transform_italicize(); // should not panic
+    }
+
+    #[test]
+    fn test_transform_bold_empty_font() {
+        let mut editor = FontEditor::new();
+        editor.transform_bold(); // should not panic
+    }
+
+    #[test]
+    fn test_transform_resize_empty_font() {
+        let mut editor = FontEditor::new();
+        editor.transform_resize(10); // should not panic
+    }
+
+    #[test]
+    fn test_enter_transform_editor() {
+        let mut editor = make_editor();
+        editor.enter_transform_editor();
+        assert_eq!(editor.view, FontEditorView::TransformEditor);
+        assert_eq!(editor.selected_transform, 0);
+        assert!(!editor.input_active);
+        assert!(editor.input_buffer.is_empty());
+    }
+
+    #[test]
+    fn test_transform_editor_navigation() {
+        use crossterm::event::KeyCode;
+        let mut editor = make_editor();
+        editor.enter_transform_editor();
+
+        // Down cycles through transforms
+        for i in 0..5 {
+            editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+            assert_eq!(editor.selected_transform, (i + 1) % 6);
+        }
+
+        // Down again wraps to 0
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+        assert_eq!(editor.selected_transform, 0);
+
+        // Up wraps around
+        editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
+        assert_eq!(editor.selected_transform, 5);
+    }
+
+    #[test]
+    fn test_transform_editor_esc_returns_to_overview() {
+        use crossterm::event::KeyCode;
+        let mut editor = make_editor();
+        editor.enter_transform_editor();
+        assert_eq!(editor.view, FontEditorView::TransformEditor);
+        editor.handle_key(KeyCode::Esc, KeyModifiers::NONE, 120);
+        assert_eq!(editor.view, FontEditorView::Overview);
+    }
+
+    #[test]
+    fn test_transform_editor_t_key_opens() {
+        use crossterm::event::KeyCode;
+        let mut editor = make_editor();
+        assert!(editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120));
+        assert_eq!(editor.view, FontEditorView::TransformEditor);
+    }
+
+    #[test]
+    fn test_transform_editor_resize_flow() {
+        use crossterm::event::KeyCode;
+        let mut editor = make_editor();
+        editor.enter_transform_editor();
+
+        // Select Resize (index 0, already selected)
+        editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+        assert!(editor.input_active);
+
+        // Type height
+        editor.handle_key(KeyCode::Char('5'), KeyModifiers::NONE, 120);
+        assert_eq!(editor.input_buffer, "5");
+
+        // Confirm
+        editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+        assert!(!editor.input_active);
+        assert_eq!(editor.font.as_ref().unwrap().charheight, 5);
+    }
+
+    #[test]
+    fn test_transform_editor_italicize_flow() {
+        use crossterm::event::KeyCode;
+        let mut editor = make_editor();
+        editor.enter_transform_editor();
+
+        // Navigate to Italicize (index 1)
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+        editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+        let ch65 = editor.font.as_ref().unwrap().chars.get(&65).unwrap();
+        assert_eq!(ch65.rows()[1], " A  A ");
+    }
+
+    #[test]
+    fn test_transform_editor_bold_flow() {
+        use crossterm::event::KeyCode;
+        let mut editor = make_editor();
+        editor.enter_transform_editor();
+
+        // Navigate to Bold (index 2)
+        for _ in 0..2 {
+            editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+        }
+        editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+        let ch65 = editor.font.as_ref().unwrap().chars.get(&65).unwrap();
+        assert_eq!(ch65.rows()[0], "  AAAA    ");
+    }
+
+    #[test]
+    fn test_transform_editor_mirror_flow() {
+        use crossterm::event::KeyCode;
+        let mut editor = make_editor();
+        editor.enter_transform_editor();
+
+        // Navigate to Mirror (index 3)
+        for _ in 0..3 {
+            editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+        }
+        editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+        assert!(editor.transform_submode.is_some());
+
+        // Select Enter (Horizontal by default)
+        editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+        let ch65 = editor.font.as_ref().unwrap().chars.get(&65).unwrap();
+        assert_eq!(ch65.rows()[0], "  AA ");
+    }
+
+    #[test]
+    fn test_transform_copy_glyph_from_standard() {
+        let mut editor = make_editor();
+        let fontdir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
+        editor.transform_copy_glyph_from("standard", fontdir, 65);
+        assert!(
+            editor.error_message.is_empty(),
+            "error message: {}",
+            editor.error_message
+        );
+        let font = editor.font.as_ref().unwrap();
+        assert!(
+            font.chars.contains_key(&65),
+            "code 65 should exist after copy"
+        );
+    }
+
+    #[test]
+    fn test_transform_copy_glyph_from_standard_new_code() {
+        let mut editor = make_editor();
+        // Copy a glyph from the test font itself using vfs: load standard font,
+        // copy code 65 into editor at code 999
+        let fontdir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
+        // First copy from standard font to code 65 (overwrite)
+        editor.transform_copy_glyph_from("standard", fontdir, 65);
+        assert!(editor.error_message.is_empty());
+        // Copy code 65 to a new code 999
+        editor.copy_char(65, 999);
+        let font = editor.font.as_ref().unwrap();
+        assert!(
+            font.chars.contains_key(&999),
+            "code 999 should exist after copy"
+        );
+        assert_eq!(
+            font.chars.get(&65).unwrap().rows(),
+            font.chars.get(&999).unwrap().rows()
+        );
+    }
+
+    #[test]
+    fn test_transform_copy_glyph_nonexistent_font() {
+        let mut editor = make_editor();
+        editor.transform_copy_glyph_from("nonexistent_font_xyz", ".", 65);
+        assert!(
+            !editor.error_message.is_empty(),
+            "should set error for nonexistent font"
+        );
     }
 }

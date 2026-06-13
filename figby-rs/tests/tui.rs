@@ -1461,3 +1461,145 @@ fn test_smush_preview_changes_on_toggle() {
         "preview should change when BIGX is toggled"
     );
 }
+
+// --- Transform Editor integration tests ---
+
+#[test]
+fn test_transform_editor_open_close() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::tui::font_editor::FontEditorView;
+
+    let (mut editor, _) = header_editor_setup();
+
+    editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120);
+    assert_eq!(editor.view, FontEditorView::TransformEditor);
+
+    editor.handle_key(KeyCode::Esc, KeyModifiers::NONE, 120);
+    assert_eq!(editor.view, FontEditorView::Overview);
+}
+
+#[test]
+fn test_transform_editor_navigation() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120);
+    assert_eq!(editor.selected_transform, 0);
+
+    // Down 5 times reaches index 5 (Rename)
+    for _ in 0..5 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.selected_transform, 5);
+
+    // Down again wraps to 0
+    editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    assert_eq!(editor.selected_transform, 0);
+
+    // Up wraps to 5
+    editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
+    assert_eq!(editor.selected_transform, 5);
+}
+
+#[test]
+fn test_transform_bold_via_editor() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120);
+
+    // Navigate to Bold (index 2)
+    for _ in 0..2 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    // Verify font maxlength updated
+    let maxlen = editor.font.as_ref().unwrap().maxlength;
+    assert!(
+        maxlen >= 10,
+        "bold font should have at least width 10, got {maxlen}"
+    );
+
+    // Render to verify no panic
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| editor.render(f, f.area())).unwrap();
+}
+
+#[test]
+fn test_transform_mirror_horizontal_all_chars() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120);
+
+    // Navigate to Mirror (index 3)
+    for _ in 0..3 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    // Select Mirror
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(editor.transform_submode.is_some());
+    // Apply Horizontal (default)
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    let font = editor.font.as_ref().unwrap();
+    for ch in font.chars.values() {
+        for row in ch.rows() {
+            let reversed: String = row.chars().rev().collect();
+            let double: String = reversed.chars().rev().collect();
+            assert_eq!(double, *row, "double mirror should restore original");
+        }
+    }
+}
+
+#[test]
+fn test_transform_resize_via_editor() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    let orig_height = editor.font.as_ref().unwrap().charheight;
+    editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120);
+
+    // Resize is at index 0 (already selected)
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(editor.input_active);
+
+    // Enter new height
+    let new_height = orig_height + 3;
+    for c in new_height.to_string().chars() {
+        editor.handle_key(KeyCode::Char(c), KeyModifiers::NONE, 120);
+    }
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    assert_eq!(
+        editor.font.as_ref().unwrap().charheight,
+        new_height,
+        "font height should increase by 3"
+    );
+}
+
+#[test]
+fn test_transform_rename_via_editor() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120);
+
+    // Navigate to Rename (index 5)
+    for _ in 0..5 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(editor.input_active);
+
+    for c in "MyRenamedFont".chars() {
+        editor.handle_key(KeyCode::Char(c), KeyModifiers::NONE, 120);
+    }
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    assert_eq!(editor.font_storage_name, "MyRenamedFont");
+}

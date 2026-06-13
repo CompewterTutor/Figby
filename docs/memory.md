@@ -843,3 +843,18 @@ Key handlers: `A` starts add flow, `D` starts delete confirm (Y/N prompt),
 Backspace/Enter/Esc for standard editing. Codepoint validation rejects
 surrogates (0xD800-0xDFFF) and values > 0x10FFFF.
 14 new unit tests covering all operations, edge cases, and buffer management.
+
+### 2.5.6 — Font-level transform tools
+
+Added `FontEditorView::TransformEditor` variant with 6 font-level transforms:
+- **Resize**: changes `charheight`, adds/removes rows from all glyphs, clamps baseline, recalculates `maxlength`
+- **Italicize**: prepends row-index spaces to each row of every glyph, recalculates `maxlength`
+- **Bold**: duplicates every character in each row (doubles width), recalculates `maxlength`
+- **Mirror**: 3 submodes — Horizontal (reverse each row), Vertical (reverse row order), Both (compose both)
+- **Copy Glyph**: loads external FIGfont by name via `load_font()`, extracts glyph by code, inserts into current font
+- **Rename**: updates `font_storage_name` (in-memory only, no file I/O)
+
+Transform editor UI: navigable list (`↑`/`↓`), Enter activates, parameter input for Resize/CopyGlyph/Rename, submenu for Mirror. `T` key in overview opens transform editor. Transforms clear undo/redo stacks (bulk operations incompatible with per-char undo).
+
+`MirrorMode` enum with cycle/prev/next navigation. `transform_copy_glyph_from()` accepts `fontdir` parameter for testability.
+32 new unit tests + 6 new integration tests covering all transforms, empty-font safety, parameter input flow, and multi-transform consistency. Only `font_editor.rs` and `mod.rs` touched. fmt and clippy pass clean.

@@ -402,7 +402,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Add + remove + copy char tests.
   - **Difficulty:** Medium
 
-- [ ] `2.5.6` Font-level transform tools
+- [x] `2.5.6` Font-level transform tools
   - **Goal:** Resize entire font (change height, reflow all chars).
     Italicize (shift rows). Bold (duplicate columns). Mirror/flip all
     glyphs. Copy glyph from another font. Rename font.

@@ -258,6 +258,10 @@ impl TuiApp {
                     format!("Font Editor [U+{code:04X}]")
                 } else if self.font_editor.view == font_editor::FontEditorView::HeaderEditor {
                     "Font Editor - Header".to_string()
+                } else if self.font_editor.view == font_editor::FontEditorView::SmushRuleEditor {
+                    "Font Editor - Smushing Rules".to_string()
+                } else if self.font_editor.view == font_editor::FontEditorView::TransformEditor {
+                    "Font Editor - Transforms".to_string()
                 } else {
                     "Font Editor".to_string()
                 }

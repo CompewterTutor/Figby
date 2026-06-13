@@ -629,5 +629,20 @@ Three bugs found in phase merge review:
   list (typically code 0, the missing char). When testing, set `selected_index`
   explicitly or delete via a different path to avoid deleting code 0.
 - Code input flow uses two-step copy (CopySource → CopyDest) with `copy_source_code`
-  stored between steps. This matches the UX pattern: "C → type source → Enter → type dest → Enter".
+   stored between steps. This matches the UX pattern: "C → type source → Enter → type dest → Enter".
+
+## 2.5.6 — Font-level transform tools
+
+- Clippy `for_kv_map` lint: `for (_code, ch) in &font.chars` should be `for ch in font.chars.values()` 
+  when the key is unused. The lint is `-D` by default, so all such patterns must use `.values()`.
+- Borrow checker with `maxlength_from_chars()`: calling `self.maxlength_from_chars()` while
+  `self.font.as_mut()` is borrowed creates a conflict. Fix: inline the maxlength computation
+  after the mutable borrow ends, or compute `maxlen` in a local before assigning to `font.maxlength`.
+- `load_font()` does filesystem I/O depending on CWD. Unit tests that call it must use
+  `concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts")` for a reliable fontdir path.
+  Alternatively, pass fontdir as a parameter (as done with `transform_copy_glyph_from`).
+- For multi-step UI flows (CopyGlyph: font name → code point), store intermediate state
+  in dedicated fields (`transform_font_name`) and use `sub_step` to track which step is active.
+  Clone the stored name before the final mutation step to avoid borrow conflicts.
+
 

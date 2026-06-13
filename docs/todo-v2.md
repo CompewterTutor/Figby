@@ -306,7 +306,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Eraser shape tests.
   - **Difficulty:** Low
 
-- [ ] `2.4.3` Line tool
+- [x] `2.4.3` Line tool
   - **Goal:** Click start point, drag to end point. Draws straight line
     using Bresenham. Uses active brush shape. Preview line while dragging.
   - **Touches:** `figby-rs/src/tui/tools/line.rs`

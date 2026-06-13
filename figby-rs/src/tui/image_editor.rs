@@ -795,10 +795,13 @@ mod tests {
 
         editor.brightness = 50;
         editor.reapply_adjustments();
-        let bright_gray = cells_to_string(editor.cells().unwrap());
+
+        assert!(
+            editor.cells().unwrap()[0].iter().all(|c| c.fg.is_none()),
+            "grayscale mode should not have fg colors"
+        );
 
         editor.toggle_mode();
-        let bright_color = cells_to_string(editor.cells().unwrap());
 
         assert_eq!(
             editor.brightness, 50,
@@ -807,10 +810,6 @@ mod tests {
         assert!(
             editor.cells().unwrap()[0].iter().any(|c| c.fg.is_some()),
             "color mode should have fg colors"
-        );
-        assert_ne!(
-            bright_gray, bright_color,
-            "gray and color output should differ"
         );
     }
 

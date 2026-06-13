@@ -444,3 +444,14 @@ DONE: 2.6.4 merged into release/2.6.
 ## 2026-06-13 18:55
 
 DONE: 2.6.5 merged into master (phase merge).
+<<<<<<< HEAD
+=======
+
+## 2026-06-13 18:56
+
+DONE: 2.6.5 merged into release/2.6.
+
+## 2026-06-13 18:56
+
+All 2.6 tasks complete. Starting phase review.
+>>>>>>> release/2.6

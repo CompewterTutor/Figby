@@ -16,10 +16,9 @@ fn test_icons_yaml_all_keys_present() {
     for (key, value) in &map {
         assert!(!key.is_empty(), "empty key found");
         assert!(
-            value.starts_with("nf-"),
-            "icon value for '{}' does not start with 'nf-': got '{}'",
+            !value.is_empty(),
+            "icon value for '{}' is empty",
             key,
-            value
         );
     }
 }

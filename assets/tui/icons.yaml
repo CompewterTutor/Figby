@@ -35,7 +35,7 @@ canvas_grid:                                       # nf-fa-th   nf-fa-th_l
 canvas_grid_off: 󰋂                                  # nf-md-grid_off
 canvas_zoom_in:                                    # nf-fa-search_plus
 canvas_zoom_out:                                   # nf-fa-search_minus
-canvas_zoom_reset:󱎱                                 # fa-md-home_search_outline                                 # nf-fa-search 󰹓 
+canvas_zoom_reset: 󱎱                                # fa-md-home_search_outline                                 # nf-fa-search 󰹓 
 canvas_snap_grid: 󰍈                                 #nf-md-magnet_on ALTS 󰍇 nf-md-magnet  nf-fa-magnet  nf-cod-magnet   nf-fa-th
 canvas_fullscreen:                                 #nf-cod-screen_full  ALTS 󰘖 nf-md-arrow_expand   ALTS:󰁌 nf-md-arrow_expand_all   󰘕 nf-md-arrow_collapse 󰁄 nf-md-arrow_collapse_all nf-fa-arrows_alt
 
@@ -70,7 +70,7 @@ status_saved:                                        # nf-fa-check
 file_new: 
 file_open: 
 file_save: 
-file_save_as:                                           # nf-fa-floppy_o / nf-fa-floppy_disk
+file_save_as:                                          # nf-fa-floppy_o / nf-fa-floppy_disk
 file_recent: 
 file_export_png: 
 file_export_txt: 

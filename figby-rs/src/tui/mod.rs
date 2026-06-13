@@ -23,6 +23,7 @@ use crate::render::Justification;
 
 pub mod brush;
 pub mod canvas;
+pub mod export;
 pub mod file_ops;
 pub mod font_editor;
 pub mod image_editor;
@@ -32,6 +33,7 @@ pub mod toolbox;
 pub mod tools;
 
 pub use brush::BrushState;
+pub use export::ExportMode;
 pub use palette::Palette;
 pub use status::CanvasSettings;
 pub use toolbox::Tool;
@@ -90,6 +92,7 @@ pub struct TuiApp {
     selection_lasso_points: Vec<(i16, i16)>,
     pub file_ops: file_ops::FileOpsDialog,
     pub recent_files: file_ops::RecentFiles,
+    pub export_dialog: export::ExportDialog,
     auto_save_interval: u64,
     last_save_time: Instant,
 }
@@ -130,6 +133,7 @@ impl TuiApp {
             selection_lasso_points: Vec::new(),
             file_ops: file_ops::FileOpsDialog::new(),
             recent_files: file_ops::RecentFiles::load_from_disk(),
+            export_dialog: export::ExportDialog::new(),
             auto_save_interval: 0,
             last_save_time: Instant::now(),
         }
@@ -362,6 +366,17 @@ impl TuiApp {
             &self._icons,
             self.font_editor.current_path.as_deref(),
         );
+
+        // Render export dialog overlay if active
+        if self.export_dialog.active {
+            let overlay = Rect {
+                x: frame.area().width / 6,
+                y: frame.area().height / 6,
+                width: frame.area().width * 2 / 3,
+                height: frame.area().height * 2 / 3,
+            };
+            self.export_dialog.render(frame, overlay);
+        }
 
         // Render file ops overlay if active
         if self.file_ops.mode != file_ops::FileOpsMode::Idle {
@@ -828,15 +843,20 @@ impl TuiApp {
         // File ops dialog active: dispatch all keys to it
         if self.file_ops.mode != file_ops::FileOpsMode::Idle {
             let prev_mode = self.file_ops.mode;
-            if self.file_ops.handle_key(code) {
-                // If path was finalized (Enter pressed), mode is now Idle
-                if self.file_ops.mode == file_ops::FileOpsMode::Idle {
-                    match prev_mode {
-                        file_ops::FileOpsMode::SaveAs => self.perform_save(),
-                        file_ops::FileOpsMode::Open => self.perform_open(),
-                        _ => {}
-                    }
+            if self.file_ops.handle_key(code) && self.file_ops.mode == file_ops::FileOpsMode::Idle {
+                match prev_mode {
+                    file_ops::FileOpsMode::SaveAs => self.perform_save(),
+                    file_ops::FileOpsMode::Open => self.perform_open(),
+                    _ => {}
                 }
+            }
+            return;
+        }
+
+        // Export dialog active: dispatch all keys to it
+        if self.export_dialog.active {
+            if self.export_dialog.handle_key(code) && !self.export_dialog.active {
+                self.perform_export();
             }
             return;
         }
@@ -1242,6 +1262,16 @@ impl TuiApp {
             return;
         }
 
+        // Ctrl+E: Open export dialog
+        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('e') {
+            let mode = match self.mode {
+                AppMode::FontEditor => export::ExportMode::Txt,
+                _ => export::ExportMode::Png,
+            };
+            self.export_dialog.enter_export(mode);
+            return;
+        }
+
         match code {
             KeyCode::Tab => {
                 self.mode = self.mode.next();
@@ -1349,6 +1379,25 @@ impl TuiApp {
         self.recent_files.push(path);
         self.recent_files.save_to_disk();
         self.file_ops.error_message.clear();
+    }
+
+    fn perform_export(&mut self) {
+        let cells: Vec<Vec<canvas::CanvasCell>> = (0..self.canvas.buffer.height())
+            .map(|y| {
+                (0..self.canvas.buffer.width())
+                    .map(|x| self.canvas.buffer.get(x, y).copied().unwrap_or_default())
+                    .collect()
+            })
+            .collect();
+        match self.export_dialog.perform_export(&cells) {
+            Ok(()) => {
+                self.export_dialog.active = false;
+            }
+            Err(e) => {
+                self.export_dialog.error_message = format!("Export failed: {e}");
+                self.export_dialog.active = true;
+            }
+        }
     }
 
     fn apply_settings(&mut self) {

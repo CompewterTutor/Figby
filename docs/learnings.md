@@ -751,3 +751,25 @@ Three bugs found in phase merge review:
   (`mod.rs`) must check the previous mode to call `perform_open()` vs
   `perform_save()`. Store `prev_mode` before calling `handle_key()` to
   disambiguate.
+
+## 2.7.4 — Export: PNG, TXT, GIF
+
+- `gif::DecodeOptions::read_std` is `read_info` in gif 0.13.3 — method was renamed
+  in the gif crate. Use `decoder.read_info(&bytes[..])` instead of `read_std`.
+- `image::codecs::png::PngEncoder::write_image` takes `image::ColorType` (not
+  `ExtendedColorType`). Use `ColorType::Rgba8` for RGBA output.
+- `gif::Frame::from_rgb()` creates truecolor frames without palette. The gif
+  encoder handles quantization to 256 colors automatically during write. This
+  is lossy but acceptable for rasterized ASCII art.
+- GIF encoder borrow issue: `Encoder::new(&mut buf, ...)` borrows `buf`, so
+  the encoder must be dropped (via block scope) before returning `buf`.
+- `needless_range_loop` in output.rs can be fixed with `result.iter_mut().enumerate().take(n)`.
+- VGA 8×16 bitmap font data (1520 bytes) is public domain and fits in a const
+  `[u8; 1520]` array without integer overflow — entries are indexed by
+  `(char_code - 32) * 16 + row`.
+- xterm 256-color cube formula: `code = 16 + 36*r + 6*g + b` where r,g,b ∈ {0..5},
+  mapping to {0, 95, 135, 175, 215, 255}. Grayscale: `8 + (code - 232) * 10` for
+  code ∈ 232..=255.
+- Format toggle key `T`/`t` must come before generic `Char(c)` match arm in
+  `handle_key()`. Otherwise the catch-all swallows it as path input and format
+  toggle never fires. Same applies to any key that is also a valid path char.

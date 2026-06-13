@@ -411,7 +411,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Resize + bold + mirror across all chars.
   - **Difficulty:** High
 
-- [ ] `2.5.7` Phase merge: release/2.5 → main
+- [x] `2.5.7` Phase merge: release/2.5 → main
   - **Difficulty:** Low
 
 ---

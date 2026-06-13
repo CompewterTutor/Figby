@@ -858,3 +858,11 @@ Transform editor UI: navigable list (`↑`/`↓`), Enter activates, parameter in
 
 `MirrorMode` enum with cycle/prev/next navigation. `transform_copy_glyph_from()` accepts `fontdir` parameter for testability.
 32 new unit tests + 6 new integration tests covering all transforms, empty-font safety, parameter input flow, and multi-transform consistency. Only `font_editor.rs` and `mod.rs` touched. fmt and clippy pass clean.
+
+### 2.5.7 — Phase merge: release/2.5 → main
+
+- **Merge commit `b6d340f`** — release/2.5 merged into main.
+- Phase 2.5 complete: all 7 subtasks (2.5.1–2.5.7) implemented, tested, merged.
+- **Documentation**: `docs/todo-v2.md` task checked off; this memory entry added.
+- **No code changes** — merge was performed externally; only doc state synced.
+- **Next up**: Phase 2.6 — Image Editor Mode.

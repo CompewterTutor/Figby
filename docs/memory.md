@@ -555,3 +555,26 @@ Added `generate_figfont_header()` and `generate_figfont()` in `font_gen.rs`.
   preservation (191), hardblank multi-byte (DEL), full font round-trip with
   placeholder chars. No test failures from font-kit (tests use `parse_header`
   and `parse_tlf_font` directly, no system font dependency).
+
+### 2.2.4 — CLI command: `--create-font`
+
+Added `system_font_to_figfont()` in `font_gen.rs`:
+- Loads system font by name via font-kit, renders all 102 required chars
+  (32–126 + 7 Deutsch) to monochrome bitmaps via `rasterize_glyph()`
+- Converts bitmaps to FIGcharacter rows with correct baseline positioning
+  using raster bounds origin_y for padding calculation
+- Computes charheight/baseline from font metrics (ascent/descent in
+  design units scaled by `point_size / units_per_em`)
+- `FontGenError` gains `GlyphLoading(GlyphLoadingError)`, `FontNotFound(String)`,
+  `NoGlyph(u32)` variants
+- `pathfinder_geometry = "0.5"` added as direct dependency for
+  `Transform2F` (needed by font-kit's `rasterize_glyph` API)
+
+CLI integration in `main.rs`:
+- `--create-font <name>` generates .flf from system font
+- `--font-size <f32>` (default 12.0) controls pixel size
+- `--output <path>` writes to file instead of stdout
+- Handler placed before `-F` check, early return after generation
+
+5 new tests: roundtrip metrics, parseable output, render known char,
+nonexistent name error, size scaling.

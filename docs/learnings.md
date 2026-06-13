@@ -441,3 +441,29 @@ Three bugs found in phase merge review:
   After `strip_endmarks`, these become `maxlength` spaces — correct width for
   empty/space glyphs.
 
+## 2.2.4 — `--create-font` CLI
+
+- `font-kit` uses `pathfinder_geometry` types (`Transform2F`, `Vector2I`,
+  `Vector2F`, `RectI`) throughout its public API (`rasterize_glyph`,
+  `raster_bounds`, `Canvas::new`). These are NOT re-exported — must add
+  `pathfinder_geometry = "0.5"` as a direct dependency to use them.
+- `font_kit::font::Font` is re-exported from `font_kit::loaders::default::Font`.
+  On Linux, default is the freetype backend. `Font` implements the `Loader` trait
+  which provides `glyph_for_char()`, `advance()`, `metrics()`, `raster_bounds()`,
+  `rasterize_glyph()`, `is_monospace()`, etc.
+- `rasterize_glyph()` is the main rendering function: takes a `&mut Canvas`,
+  `glyph_id`, `point_size` (pixels per em), `Transform2F`, `HintingOptions`,
+  `RasterizationOptions`. Renders at the given `point_size` using freetype's
+  `FT_Set_Char_Size` + `FT_Load_Glyph` with `FT_LOAD_RENDER`.
+- `raster_bounds()` computes the pixel bounding box of a glyph at the given
+  `point_size`. The returned `RectI` has origin in "top-left" coordinate system
+  where the glyph origin (baseline) is at (0,0). `origin_y()` is typically
+  negative (above baseline). `origin_y() + height()` gives the descender depth.
+- `Canvas` uses `Format::A8` for single-byte-per-pixel alpha-only rendering.
+  Anti-aliased rendering via `RasterizationOptions::GrayscaleAa` produces
+  0-255 alpha values; threshold at 128 for monochrome conversion.
+- The freetype loader has `reset_freetype_face_char_size()` which is called on
+  load and sets char size to `units_per_em` (design size). `rasterize_glyph()`
+  overrides this with the requested `point_size` via `FT_Set_Char_Size`.
+- `clippy::repeat_once` lint: `" ".repeat(1)` → `" ".to_string()`.
+

@@ -17,6 +17,7 @@ rascii_art = "0.4.5"
 image = { version = "0.24", features = ["jpeg", "png", "bmp", "webp"] }
 toml = "0.8"
 font-kit = "0.14.3"   # system font → FIGfont creation
+pathfinder_geometry = "0.5"
 # ratatui = "0.30.1"    # uncomment for TUI/interactive preview mode
 
 [dev-dependencies]

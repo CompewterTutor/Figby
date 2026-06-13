@@ -193,7 +193,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Round-trip: generate .flf, parse, compare rendered glyphs.
   - **Difficulty:** Medium
 
-- [ ] `2.2.4` CLI command: `figby --create-font`
+- [x] `2.2.4` CLI command: `figby --create-font`
   - **Goal:** `--create-font <name>` generates `.flf` from system font.
     Optional `--font-size`. Output to stdout or `--output` path.
   - **Touches:** `figby-rs/src/main.rs`, `figby-rs/src/font_gen.rs`

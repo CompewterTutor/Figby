@@ -302,3 +302,7 @@ PHASE_COMPLETE: 2.1 merged to main after review approval.
 ## 2026-06-13 07:34
 
 DONE: 2.2.1 merged into release/2.2.
+
+## 2026-06-13 12:23
+
+DONE: 2.2.3 merged into release/2.2.

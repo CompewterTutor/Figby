@@ -1,15 +1,21 @@
-use crate::font::{FIGfont, DEUTSCH_CHARS};
-use font_kit::error::FontLoadingError;
-use font_kit::error::SelectionError;
+use crate::font::{FIGcharacter, FIGfont, FontFormat, DEUTSCH_CHARS};
+use font_kit::canvas::{Canvas, Format, RasterizationOptions};
+use font_kit::error::{FontLoadingError, GlyphLoadingError, SelectionError};
 use font_kit::font::Font;
 use font_kit::handle::Handle;
+use font_kit::hinting::HintingOptions;
 use font_kit::source::SystemSource;
+use pathfinder_geometry::transform2d::Transform2F;
+use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug)]
 pub enum FontGenError {
     Selection(SelectionError),
     FontLoading(FontLoadingError),
+    GlyphLoading(GlyphLoadingError),
+    FontNotFound(String),
+    NoGlyph(u32),
 }
 
 impl fmt::Display for FontGenError {
@@ -17,6 +23,9 @@ impl fmt::Display for FontGenError {
         match self {
             FontGenError::Selection(e) => write!(f, "font selection error: {e}"),
             FontGenError::FontLoading(e) => write!(f, "font loading error: {e}"),
+            FontGenError::GlyphLoading(e) => write!(f, "glyph loading error: {e}"),
+            FontGenError::FontNotFound(name) => write!(f, "font not found: {name}"),
+            FontGenError::NoGlyph(code) => write!(f, "no glyph for char code {code}"),
         }
     }
 }
@@ -26,6 +35,8 @@ impl std::error::Error for FontGenError {
         match self {
             FontGenError::Selection(e) => Some(e),
             FontGenError::FontLoading(e) => Some(e),
+            FontGenError::GlyphLoading(e) => Some(e),
+            _ => None,
         }
     }
 }
@@ -39,6 +50,12 @@ impl From<SelectionError> for FontGenError {
 impl From<FontLoadingError> for FontGenError {
     fn from(e: FontLoadingError) -> Self {
         FontGenError::FontLoading(e)
+    }
+}
+
+impl From<GlyphLoadingError> for FontGenError {
+    fn from(e: GlyphLoadingError) -> Self {
+        FontGenError::GlyphLoading(e)
     }
 }
 
@@ -194,6 +211,157 @@ pub fn generate_figfont(font: &FIGfont) -> String {
     }
 
     result
+}
+
+/// Convert a rendered glyph canvas to a FIGcharacter.
+///
+/// The canvas is sized to the glyph's raster bounds and contains the
+/// rendered monochrome bitmap. This function positions the glyph within
+/// the FIGfont cell based on the raster bounds origin relative to the baseline.
+fn canvas_to_figcharacter(
+    canvas: &Canvas,
+    bounds_origin_y: i32,
+    hardblank: char,
+    charheight: usize,
+    baseline: usize,
+) -> FIGcharacter {
+    let canvas_h = canvas.size.y() as usize;
+    let canvas_w = canvas.size.x() as usize;
+
+    // Determine top padding: how many FIGfont rows above the glyph bitmap.
+    // bounds_origin_y is the y-offset from baseline to top of canvas in
+    // "origin at top-left" coordinates (negative = above baseline).
+    let top_padding = if bounds_origin_y < 0 {
+        let signed = baseline as i32 + bounds_origin_y;
+        if signed < 0 {
+            0
+        } else {
+            signed as usize
+        }
+    } else {
+        baseline + bounds_origin_y as usize
+    };
+
+    let stride = canvas.stride;
+    let threshold: u8 = 128;
+
+    let mut rows = Vec::with_capacity(charheight);
+
+    // Top padding rows
+    for _ in 0..top_padding {
+        rows.push(" ".repeat(canvas_w));
+    }
+
+    // Glyph rows from canvas pixels
+    for r in 0..canvas_h {
+        let row_start = r * stride;
+        let mut row = String::with_capacity(canvas_w);
+        for c in 0..canvas_w {
+            let pixel = canvas.pixels[row_start + c];
+            row.push(if pixel > threshold { hardblank } else { ' ' });
+        }
+        rows.push(row);
+    }
+
+    // Bottom padding
+    while rows.len() < charheight {
+        rows.push(" ".repeat(canvas_w));
+    }
+
+    // Truncate if too tall (glyph exceeds the FIGfont cell)
+    rows.truncate(charheight);
+
+    FIGcharacter::from(rows)
+}
+
+/// Load a system font by name and render it as a FIGfont at the given size.
+///
+/// Returns a populated `FIGfont` with all required ASCII (32–126) and Deutsch
+/// characters rendered from the system font's glyphs. Uses font-kit for
+/// loading and rasterization.
+pub fn system_font_to_figfont(name: &str, point_size: f32) -> Result<FIGfont, FontGenError> {
+    let source = SystemSource::new();
+    let family = source
+        .select_family_by_name(name)
+        .map_err(|_| FontGenError::FontNotFound(name.to_string()))?;
+    let handle = family
+        .fonts()
+        .first()
+        .ok_or_else(|| FontGenError::FontNotFound(name.to_string()))?;
+    let font = handle.load()?;
+
+    let metrics = font.metrics();
+    let upem = metrics.units_per_em as f32;
+    let scale = point_size / upem;
+    let ascent_px = (metrics.ascent * scale).ceil() as u32;
+    let descent_px = ((-metrics.descent) * scale).ceil() as u32;
+    let charheight = (ascent_px + descent_px).max(1);
+    let baseline = ascent_px;
+
+    let hardblank = '$';
+    let mut figchars = HashMap::new();
+    let mut maxlength = 0u32;
+
+    let all_chars: Vec<u32> = (32u32..=126).chain(DEUTSCH_CHARS.iter().copied()).collect();
+
+    let transform = Transform2F::default();
+    let hinting = HintingOptions::None;
+    let raster_opts = RasterizationOptions::GrayscaleAa;
+
+    for &code in &all_chars {
+        let c = char::from_u32(code).ok_or(FontGenError::NoGlyph(code))?;
+        let glyph_id = font.glyph_for_char(c).ok_or(FontGenError::NoGlyph(code))?;
+
+        let bounds = font
+            .raster_bounds(glyph_id, point_size, transform, hinting, raster_opts)
+            .map_err(|_| FontGenError::NoGlyph(code))?;
+
+        let size = bounds.size();
+        if size.x() <= 0 || size.y() <= 0 {
+            // Empty glyph: insert space-padded character
+            let ch = FIGcharacter::from(vec![" ".to_string(); charheight as usize]);
+            figchars.insert(code, ch);
+            continue;
+        }
+
+        let mut canvas = Canvas::new(size, Format::A8);
+        font.rasterize_glyph(
+            &mut canvas,
+            glyph_id,
+            point_size,
+            transform,
+            hinting,
+            raster_opts,
+        )
+        .map_err(|_| FontGenError::NoGlyph(code))?;
+
+        let ch = canvas_to_figcharacter(
+            &canvas,
+            bounds.origin_y(),
+            hardblank,
+            charheight as usize,
+            baseline as usize,
+        );
+        let width = ch.width() as u32;
+        if width > maxlength {
+            maxlength = width;
+        }
+        figchars.insert(code, ch);
+    }
+
+    Ok(FIGfont {
+        format: FontFormat::Figfont,
+        hardblank,
+        charheight,
+        baseline,
+        maxlength,
+        old_layout: 0,
+        full_layout: 64,
+        print_direction: -1,
+        comment_lines: 0,
+        chars: figchars,
+        codetag_count: 0,
+    })
 }
 
 #[cfg(test)]
@@ -402,5 +570,104 @@ mod tests {
         assert_eq!(ch32.rows().len(), 3);
         let ch126 = parsed.chars.get(&126).expect("tilde should exist");
         assert_eq!(ch126.rows().len(), 3);
+    }
+
+    // --- Font generation tests (require system fonts) ---
+
+    #[test]
+    fn test_create_font_roundtrip() {
+        match system_font_to_figfont("Monospace", 12.0) {
+            Ok(font) => {
+                assert!(font.charheight > 0, "charheight should be > 0");
+                assert!(font.baseline > 0, "baseline should be > 0");
+                assert!(font.maxlength > 0, "maxlength should be > 0");
+                assert!(font.charheight >= font.baseline, "charheight >= baseline");
+            }
+            Err(FontGenError::FontNotFound(_)) => {
+                eprintln!("Monospace font not found, skipping test");
+            }
+            Err(e) => panic!("unexpected error: {e}"),
+        }
+    }
+
+    #[test]
+    fn test_create_font_parseable() {
+        match system_font_to_figfont("Monospace", 12.0) {
+            Ok(font) => {
+                let content = generate_figfont(&font);
+                let parsed = parse_tlf_font(&content).expect("generated font should parse");
+                assert_eq!(parsed.chars.len(), 102, "should have 102 required chars");
+                for code in 32..=126u32 {
+                    assert!(
+                        parsed.chars.contains_key(&code),
+                        "missing ASCII char code {code}"
+                    );
+                }
+            }
+            Err(FontGenError::FontNotFound(_)) => {
+                eprintln!("Monospace font not found, skipping test");
+            }
+            Err(e) => panic!("unexpected error: {e}"),
+        }
+    }
+
+    #[test]
+    fn test_create_font_renders_text() {
+        match system_font_to_figfont("Monospace", 12.0) {
+            Ok(font) => {
+                let content = generate_figfont(&font);
+                let parsed = parse_tlf_font(&content).expect("generated font should parse");
+
+                // Try to render a simple character 'H' through the font
+                let ch = parsed
+                    .chars
+                    .get(&72)
+                    .expect("char code 72 (H) should exist");
+                assert!(!ch.rows().is_empty(), "H character should have rows");
+                for row in ch.rows() {
+                    assert_eq!(row.len(), ch.width(), "row width should match");
+                }
+            }
+            Err(FontGenError::FontNotFound(_)) => {
+                eprintln!("Monospace font not found, skipping test");
+            }
+            Err(e) => panic!("unexpected error: {e}"),
+        }
+    }
+
+    #[test]
+    fn test_create_font_nonexistent_name() {
+        let result = system_font_to_figfont("NonexistentFontXYZ_12345", 12.0);
+        assert!(
+            matches!(result, Err(FontGenError::FontNotFound(_))),
+            "expected FontNotFound error, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_create_font_size_changes_metrics() {
+        let small = match system_font_to_figfont("Monospace", 8.0) {
+            Ok(f) => f,
+            Err(FontGenError::FontNotFound(_)) => {
+                eprintln!("Monospace font not found, skipping test");
+                return;
+            }
+            Err(e) => panic!("unexpected error: {e}"),
+        };
+        let large = match system_font_to_figfont("Monospace", 24.0) {
+            Ok(f) => f,
+            Err(FontGenError::FontNotFound(_)) => {
+                eprintln!("Monospace font not found, skipping test");
+                return;
+            }
+            Err(e) => panic!("unexpected error: {e}"),
+        };
+
+        assert!(
+            large.charheight > small.charheight,
+            "larger font size should have greater charheight ({} > {})",
+            large.charheight,
+            small.charheight
+        );
     }
 }

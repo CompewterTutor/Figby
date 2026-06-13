@@ -35,6 +35,14 @@ pub enum FontEditorView {
     SmushRuleEditor,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CodeInputMode {
+    Add,
+    CopySource,
+    CopyDest,
+    DeleteConfirm,
+}
+
 pub struct FontEditor {
     pub font: Option<FIGfont>,
     pub view: FontEditorView,
@@ -50,6 +58,10 @@ pub struct FontEditor {
     pub edit_buffer: String,
     pub error_message: String,
     pub smush_selected: usize,
+    pub code_input_active: bool,
+    pub code_input_buffer: String,
+    pub code_input_mode: CodeInputMode,
+    pub copy_source_code: u32,
 }
 
 impl FontEditor {
@@ -69,6 +81,10 @@ impl FontEditor {
             edit_buffer: String::new(),
             error_message: String::new(),
             smush_selected: 0,
+            code_input_active: false,
+            code_input_buffer: String::new(),
+            code_input_mode: CodeInputMode::Add,
+            copy_source_code: 0,
         }
     }
 
@@ -84,6 +100,8 @@ impl FontEditor {
         self.undo_stack.clear();
         self.redo_stack.clear();
         self.smush_selected = 0;
+        self.code_input_active = false;
+        self.code_input_buffer.clear();
     }
 
     pub fn enter_header_editor(&mut self) {
@@ -97,6 +115,96 @@ impl FontEditor {
     pub fn enter_smush_editor(&mut self) {
         self.view = FontEditorView::SmushRuleEditor;
         self.smush_selected = 0;
+    }
+
+    fn is_valid_code(code: u32) -> bool {
+        code <= 0x10FFFF && !(0xD800..=0xDFFF).contains(&code)
+    }
+
+    fn rebuild_all_codes(&mut self) {
+        let Some(font) = self.font.as_ref() else {
+            self.all_codes.clear();
+            return;
+        };
+        let mut codes: Vec<u32> = font.chars.keys().copied().collect();
+        codes.sort();
+        self.all_codes = codes;
+    }
+
+    fn ensure_missing_char(&mut self) {
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        if !font.chars.contains_key(&0) {
+            let rows: Vec<String> = (0..font.charheight)
+                .map(|_| " ".repeat(font.maxlength as usize))
+                .collect();
+            font.chars.insert(0, rows.into());
+        }
+    }
+
+    pub fn add_char(&mut self, code: u32) {
+        if !Self::is_valid_code(code) {
+            self.error_message = format!("Invalid code point: U+{code:X}");
+            return;
+        }
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        if font.chars.contains_key(&code) {
+            self.error_message = format!("Code U+{code:X} already exists");
+            return;
+        }
+        let rows: Vec<String> = (0..font.charheight)
+            .map(|_| " ".repeat(font.maxlength as usize))
+            .collect();
+        font.chars.insert(code, rows.into());
+        self.rebuild_all_codes();
+        self.view = FontEditorView::Overview;
+        self.selected_index = self.all_codes.iter().position(|&c| c == code).unwrap_or(0);
+        self.error_message.clear();
+    }
+
+    pub fn delete_char(&mut self, code: u32) {
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        if !font.chars.contains_key(&code) {
+            self.error_message = format!("Code U+{code:X} not found");
+            return;
+        }
+        font.chars.remove(&code);
+        self.ensure_missing_char();
+        self.rebuild_all_codes();
+        self.view = FontEditorView::Overview;
+        if self.selected_index >= self.all_codes.len() {
+            self.selected_index = self.all_codes.len().saturating_sub(1);
+        }
+        self.error_message.clear();
+    }
+
+    pub fn copy_char(&mut self, src: u32, dst: u32) {
+        if !Self::is_valid_code(dst) {
+            self.error_message = format!("Invalid destination code point: U+{dst:X}");
+            return;
+        }
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        let src_rows = font
+            .chars
+            .get(&src)
+            .map(|c| c.rows().to_vec())
+            .unwrap_or_else(|| {
+                (0..font.charheight)
+                    .map(|_| " ".repeat(font.maxlength as usize))
+                    .collect()
+            });
+        font.chars.insert(dst, src_rows.into());
+        self.rebuild_all_codes();
+        self.view = FontEditorView::Overview;
+        self.selected_index = self.all_codes.iter().position(|&c| c == dst).unwrap_or(0);
+        self.error_message.clear();
     }
 
     pub fn filtered_codes(&self) -> Vec<u32> {
@@ -132,18 +240,46 @@ impl FontEditor {
     }
 
     fn render_overview(&mut self, frame: &mut Frame, area: Rect) {
+        let prompt_height: u16 = 3;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(0)])
+            .constraints([Constraint::Length(prompt_height), Constraint::Min(0)].as_ref())
             .split(area);
 
-        let search_display = if self.search_active {
-            format!(" Search: {}", self.search_query)
+        if self.code_input_active {
+            let prompt = match self.code_input_mode {
+                CodeInputMode::Add => format!(" Add code: {}", self.code_input_buffer),
+                CodeInputMode::CopySource => {
+                    format!(" Copy from code: {}", self.code_input_buffer)
+                }
+                CodeInputMode::CopyDest => {
+                    format!(" Copy to code: {}", self.code_input_buffer)
+                }
+                CodeInputMode::DeleteConfirm => {
+                    let selected_code = self
+                        .filtered_codes()
+                        .get(self.selected_index)
+                        .copied()
+                        .unwrap_or(0);
+                    format!(
+                        " Delete char U+{code:X} ({code})? (Y/N): {buf}",
+                        code = selected_code,
+                        buf = self.code_input_buffer
+                    )
+                }
+            };
+            let search = Paragraph::new(prompt).block(Block::default().borders(Borders::ALL));
+            frame.render_widget(search, chunks[0]);
         } else {
-            " Search (type to filter by code or char)".to_string()
-        };
-        let search = Paragraph::new(search_display).block(Block::default().borders(Borders::ALL));
-        frame.render_widget(search, chunks[0]);
+            let search_display = if self.search_active {
+                format!(" Search: {}", self.search_query)
+            } else {
+                " Search (type to filter by code or char)".to_string()
+            };
+            let search =
+                Paragraph::new(search_display).block(Block::default().borders(Borders::ALL));
+            frame.render_widget(search, chunks[0]);
+        }
 
         let grid_area = chunks[1];
         let filtered = self.filtered_codes();
@@ -658,6 +794,10 @@ impl FontEditor {
         let filtered = self.filtered_codes();
         let cols = self.compute_cols(area_width);
 
+        if self.code_input_active {
+            return self.handle_key_code_input(code);
+        }
+
         match code {
             // '/' activates search mode
             KeyCode::Char('/') if !self.search_active => {
@@ -734,9 +874,101 @@ impl FontEditor {
                 self.enter_smush_editor();
                 true
             }
+            KeyCode::Char('A') => {
+                self.code_input_active = true;
+                self.code_input_mode = CodeInputMode::Add;
+                self.code_input_buffer.clear();
+                self.error_message.clear();
+                true
+            }
+            KeyCode::Char('D') => {
+                self.code_input_active = true;
+                self.code_input_mode = CodeInputMode::DeleteConfirm;
+                self.code_input_buffer.clear();
+                self.error_message.clear();
+                true
+            }
+            KeyCode::Char('C') => {
+                self.code_input_active = true;
+                self.code_input_mode = CodeInputMode::CopySource;
+                self.code_input_buffer.clear();
+                self.error_message.clear();
+                true
+            }
             // All other keys fall through to normal handlers
             _ => false,
         }
+    }
+
+    fn handle_key_code_input(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Char(c)
+                if c.is_ascii_digit()
+                    || (self.code_input_mode == CodeInputMode::DeleteConfirm
+                        && matches!(c, 'y' | 'Y' | 'n' | 'N')) =>
+            {
+                self.code_input_buffer.push(c);
+                true
+            }
+            KeyCode::Backspace => {
+                self.code_input_buffer.pop();
+                true
+            }
+            KeyCode::Esc => {
+                self.code_input_active = false;
+                self.code_input_buffer.clear();
+                self.error_message.clear();
+                true
+            }
+            KeyCode::Enter => {
+                self.execute_code_input();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn execute_code_input(&mut self) {
+        let buf = self.code_input_buffer.trim().to_string();
+        if buf.is_empty() {
+            self.error_message = "No code entered".to_string();
+            self.code_input_active = false;
+            return;
+        }
+
+        let code = match buf.parse::<u32>() {
+            Ok(v) => v,
+            Err(_) => {
+                self.error_message = format!("Invalid code: {}", buf);
+                self.code_input_active = false;
+                return;
+            }
+        };
+
+        match self.code_input_mode {
+            CodeInputMode::Add => {
+                self.add_char(code);
+            }
+            CodeInputMode::CopySource => {
+                self.copy_source_code = code;
+                self.code_input_mode = CodeInputMode::CopyDest;
+                self.code_input_buffer.clear();
+                return;
+            }
+            CodeInputMode::CopyDest => {
+                let src = self.copy_source_code;
+                self.copy_char(src, code);
+            }
+            CodeInputMode::DeleteConfirm => {
+                let filtered = self.filtered_codes();
+                let selected = filtered.get(self.selected_index).copied().unwrap_or(0);
+                if buf.to_lowercase() == "y" {
+                    self.delete_char(selected);
+                }
+            }
+        }
+        self.code_input_active = false;
+        self.code_input_buffer.clear();
     }
 
     fn compute_cols(&self, area_width: u16) -> usize {
@@ -762,5 +994,219 @@ impl FontEditor {
 impl Default for FontEditor {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::font::{FIGcharacter, FIGfont};
+    use std::collections::HashMap;
+
+    fn make_test_font() -> FIGfont {
+        FIGfont {
+            charheight: 3,
+            maxlength: 5,
+            chars: HashMap::from([
+                (
+                    0,
+                    FIGcharacter::from(vec![
+                        "     ".to_string(),
+                        "     ".to_string(),
+                        "     ".to_string(),
+                    ]),
+                ),
+                (
+                    65,
+                    FIGcharacter::from(vec![
+                        " AA  ".to_string(),
+                        "A  A ".to_string(),
+                        "AAAA ".to_string(),
+                    ]),
+                ),
+                (
+                    66,
+                    FIGcharacter::from(vec![
+                        "BBB  ".to_string(),
+                        "B  B ".to_string(),
+                        "BBB  ".to_string(),
+                    ]),
+                ),
+            ]),
+            ..Default::default()
+        }
+    }
+
+    fn make_editor() -> FontEditor {
+        let mut editor = FontEditor::new();
+        editor.load_font(make_test_font());
+        editor
+    }
+
+    #[test]
+    fn test_add_char() {
+        let mut editor = make_editor();
+        editor.add_char(999);
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&999));
+        let ch = font.chars.get(&999).unwrap();
+        assert_eq!(ch.rows().len(), 3);
+        for row in ch.rows() {
+            assert_eq!(row.len(), 5);
+            assert!(row.chars().all(|c| c == ' '));
+        }
+        assert!(editor.all_codes.contains(&999));
+    }
+
+    #[test]
+    fn test_delete_char() {
+        let mut editor = make_editor();
+        editor.delete_char(65);
+        let font = editor.font.as_ref().unwrap();
+        assert!(!font.chars.contains_key(&65));
+        assert!(!editor.all_codes.contains(&65));
+    }
+
+    #[test]
+    fn test_delete_fallback() {
+        let mut editor = make_editor();
+        editor.delete_char(65);
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&0));
+        assert!(font.chars.contains_key(&66));
+    }
+
+    #[test]
+    fn test_copy_char() {
+        let mut editor = make_editor();
+        editor.copy_char(65, 999);
+        let font = editor.font.as_ref().unwrap();
+        let src = font.chars.get(&65).unwrap();
+        let dst = font.chars.get(&999).unwrap();
+        assert_eq!(src.rows(), dst.rows());
+        assert!(editor.all_codes.contains(&999));
+    }
+
+    #[test]
+    fn test_copy_overwrite() {
+        let mut editor = make_editor();
+        editor.copy_char(65, 66);
+        let font = editor.font.as_ref().unwrap();
+        let src = font.chars.get(&65).unwrap();
+        let dst = font.chars.get(&66).unwrap();
+        assert_eq!(src.rows(), dst.rows());
+    }
+
+    #[test]
+    fn test_add_duplicate_code() {
+        let mut editor = make_editor();
+        editor.add_char(65);
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&65));
+        let ch = font.chars.get(&65).unwrap();
+        assert_eq!(ch.rows()[0], " AA  ");
+    }
+
+    #[test]
+    fn test_ensure_missing_char() {
+        let font = FIGfont {
+            charheight: 3,
+            maxlength: 5,
+            chars: HashMap::new(),
+            ..Default::default()
+        };
+        let mut editor = FontEditor::new();
+        editor.font = Some(font);
+        editor.ensure_missing_char();
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&0));
+        let ch = font.chars.get(&0).unwrap();
+        assert_eq!(ch.rows().len(), 3);
+        for row in ch.rows() {
+            assert_eq!(row.len(), 5);
+        }
+    }
+
+    #[test]
+    fn test_delete_unknown() {
+        let mut editor = make_editor();
+        editor.delete_char(999);
+        let font = editor.font.as_ref().unwrap();
+        assert_eq!(font.chars.len(), 3);
+    }
+
+    #[test]
+    fn test_copy_nonexistent_src() {
+        let mut editor = make_editor();
+        editor.copy_char(999, 888);
+        let font = editor.font.as_ref().unwrap();
+        let dst = font.chars.get(&888).unwrap();
+        assert_eq!(dst.rows().len(), 3);
+        for row in dst.rows() {
+            assert!(row.chars().all(|c| c == ' '));
+        }
+    }
+
+    #[test]
+    fn test_is_valid_code() {
+        assert!(FontEditor::is_valid_code(0));
+        assert!(FontEditor::is_valid_code(65));
+        assert!(FontEditor::is_valid_code(0x10FFFF));
+        assert!(!FontEditor::is_valid_code(0xD800));
+        assert!(!FontEditor::is_valid_code(0xDFFF));
+        assert!(!FontEditor::is_valid_code(0x110000));
+    }
+
+    #[test]
+    fn test_rebuild_all_codes() {
+        let mut editor = make_editor();
+        editor.rebuild_all_codes();
+        assert_eq!(editor.all_codes, vec![0, 65, 66]);
+        let font = editor.font.as_mut().unwrap();
+        font.chars
+            .insert(100, FIGcharacter::from(vec![" ".to_string()]));
+        editor.rebuild_all_codes();
+        assert_eq!(editor.all_codes, vec![0, 65, 66, 100]);
+    }
+
+    #[test]
+    fn test_code_input_flow_add() {
+        let mut editor = make_editor();
+        editor.code_input_active = true;
+        editor.code_input_mode = CodeInputMode::Add;
+        editor.code_input_buffer = "999".to_string();
+        editor.execute_code_input();
+        assert!(!editor.code_input_active);
+        assert!(editor.font.as_ref().unwrap().chars.contains_key(&999));
+    }
+
+    #[test]
+    fn test_code_input_buffer_management() {
+        let mut editor = make_editor();
+        let fe = &mut editor;
+        fe.code_input_active = true;
+        fe.code_input_mode = CodeInputMode::Add;
+        assert!(fe.handle_key_code_input(KeyCode::Char('1')));
+        assert_eq!(fe.code_input_buffer, "1");
+        assert!(fe.handle_key_code_input(KeyCode::Char('2')));
+        assert_eq!(fe.code_input_buffer, "12");
+        assert!(fe.handle_key_code_input(KeyCode::Backspace));
+        assert_eq!(fe.code_input_buffer, "1");
+        assert!(fe.handle_key_code_input(KeyCode::Esc));
+        assert!(!fe.code_input_active);
+        assert!(fe.code_input_buffer.is_empty());
+    }
+
+    #[test]
+    fn test_code_input_delete_confirm() {
+        let mut editor = make_editor();
+        editor.code_input_active = true;
+        editor.code_input_mode = CodeInputMode::DeleteConfirm;
+        editor.code_input_buffer = "y".to_string();
+        editor.execute_code_input();
+        let font = editor.font.as_ref().unwrap();
+        assert!(font.chars.contains_key(&65));
+        assert!(font.chars.contains_key(&0));
+        assert!(font.chars.contains_key(&66));
     }
 }

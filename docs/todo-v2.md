@@ -393,7 +393,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Rule toggle changes output.
   - **Difficulty:** Medium
 
-- [ ] `2.5.5` Add/remove codetagged characters
+- [x] `2.5.5` Add/remove codetagged characters
   - **Goal:** Insert new character by code. Delete existing. Bulk copy
     from one char code to another. Missing char (code 0) fallback editing.
   - **Touches:** `figby-rs/src/tui/font_editor.rs`

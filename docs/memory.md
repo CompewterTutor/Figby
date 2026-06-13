@@ -823,3 +823,23 @@ FIGfont header properties:
 - 10 integration tests: open/close, all 7 field edits (charheight, baseline,
   hardblank, full_layout, print_direction, comment_lines, maxlength),
   rejection of height=0 and baseline>height
+
+### 2.5.5 — Add/remove codetagged characters
+
+Added `CodeInputMode` enum (Add, CopySource, CopyDest, DeleteConfirm) and
+state fields (`code_input_active`, `code_input_buffer`, `copy_source_code`)
+to `FontEditor`. Four core methods:
+- `add_char(code)` — creates space-padded FIGcharacter, inserts into font,
+  rebuilds `all_codes`, selects new char in grid
+- `delete_char(code)` — removes from font, ensures code 0 (missing char)
+  still exists, rebuilds `all_codes`
+- `copy_char(src, dst)` — clones rows from src to dst (or creates space-
+  padded default if src missing), rebuilds `all_codes`
+- `ensure_missing_char()` — creates space-padded code 0 if absent
+
+Rendering: code input prompt shown above grid when `code_input_active`.
+Key handlers: `A` starts add flow, `D` starts delete confirm (Y/N prompt),
+`C` starts two-step copy flow (source → destination). Digit entry for code,
+Backspace/Enter/Esc for standard editing. Codepoint validation rejects
+surrogates (0xD800-0xDFFF) and values > 0x10FFFF.
+14 new unit tests covering all operations, edge cases, and buffer management.

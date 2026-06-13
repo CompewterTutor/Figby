@@ -619,3 +619,15 @@ Three bugs found in phase merge review:
     at (1,0) and (0,1), so flood fill correctly filled them. Fix: use 3x3
     canvas where corners are truly diagonal-only to center.
 
+## 2.5.5 — Add/remove codetagged characters
+
+- `HashMap::from([(k, v), ...])` avoids `field_reassign_with_default` clippy lint
+  compared to `HashMap::new()` + separate `.insert()` calls on a `&mut FIGfont`.
+  Use `..Default::default()` spread in struct literals for the same reason.
+- `filtered_codes()` uses `self.selected_index` to pick which code to delete
+  in DeleteConfirm mode. The index 0 maps to the first code in the filtered
+  list (typically code 0, the missing char). When testing, set `selected_index`
+  explicitly or delete via a different path to avoid deleting code 0.
+- Code input flow uses two-step copy (CopySource → CopyDest) with `copy_source_code`
+  stored between steps. This matches the UX pattern: "C → type source → Enter → type dest → Enter".
+

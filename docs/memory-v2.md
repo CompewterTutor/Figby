@@ -236,3 +236,129 @@ scrollable/zoomable canvas widget (2.3.3), color palette sidebar (2.3.4),
 brush shape picker with size/preview (2.3.5), status bar + canvas settings
 panel (2.3.6). All 6 subtasks implemented, tested, merged.
 Phase 2.4 (Drawing Tools) is next.
+
+## Phase 2.4 — Drawing Tools
+
+### 2.4.2 — Eraser tool
+
+Created `figby-rs/src/tui/tools/eraser.rs` — eraser execution module with two
+public functions:
+- `erase_stamp()` — sets cells to `CanvasCell::default()` (space, no fg/bg)
+  within brush shape area, reusing `stamp_offsets` from `tools::brush` for
+  identical brush geometry. No `unwrap()` — bounds clipping via `get_mut` → `Option`.
+- `erase_line()` — Bresenham line interpolation with per-step `erase_stamp` calls.
+
+Integrated into TUI:
+- Mouse dispatch guard broadened from `Tool::Brush` to `Tool::Brush | Tool::Eraser`
+  using `matches!()` macro.
+- Eraser branch in mouse `Down`/`Drag` handlers calls `erase_stamp`/`erase_line`
+  instead of `paint_stamp`/`paint_line`.
+- Keyboard painting (Space/Enter) also dispatches to Eraser when selected.
+- No new dependencies or `unwrap()` in production — structurally identical to brush.
+
+9 tests: square clearance, circle shape, spray determinism, bounds clipping,
+horizontal/vertical/diagonal/reverse lines.
+
+### 2.4.3 — Line tool
+
+Created `figby-rs/src/tui/tools/line.rs` — line drawing module with one public
+function `draw_line_segment()` that delegates to `brush::paint_line` (shared
+Bresenham implementation). Thin wrapper keeps the door open for future
+line-specific features (arrow heads, dashed styles, etc.) without coupling to
+the brush module.
+
+Integrated into TUI:
+- Mouse dispatch guard broadened from `Tool::Brush | Tool::Eraser` to include
+  `Tool::Line` via `matches!()`.
+- Line tool mouse Down saves `line_start` + clones canvas buffer into
+  `saved_buffer` (no immediate draw).
+- Line tool mouse Drag restores buffer from `saved_buffer`, draws preview line
+  from `line_start` to current position using active brush shape/size/palette color.
+- Line tool mouse Up clears `line_start` and `saved_buffer`.
+- Keyboard painting (Space/Enter) stamps single point when Line tool selected.
+- Two new fields on `TuiApp`: `line_start: Option<(i16, i16)>`,
+  `saved_buffer: Option<CanvasBuffer>`.
+
+5 tests: horizontal, vertical, diagonal, reverse direction, endpoint clipping.
+
+### 2.4.4 — Fill / flood fill tool
+
+Created `figby-rs/src/tui/tools/fill.rs` — flood fill tool with one public
+function `flood_fill()`. Uses iterative BFS with `Vec<(usize, usize)>` stack
+(not recursive, no stack overflow). Orthogonal-only filling (4-directional).
+
+Key behaviors:
+- Bounds-checked at every step via `buffer.get_mut()` → `Option` — no `unwrap()`.
+- Short-circuits if replacement cell's char already matches target char (no-op).
+- Boundary-aware: stops at cells with different characters.
+- Tile correctly reads target char from start cell before mutating any cells.
+
+Integrated into TUI:
+- Mouse dispatch guard includes `Tool::Fill` alongside existing drawing tools.
+- Single-click mouse Down fills at clicked position using active palette color.
+- Keyboard Space/Enter fills at cursor position.
+- No Drag/Up handling — Fill is single-click, like a paint bucket.
+
+10 unit tests: small region, bounded region (X border), unbounded to edge,
+single cell, no-match short-circuit, out-of-bounds safety, boundary crossing
+(X wall between two @ regions), empty region (space fill), orthogonal-only
+(diagonal cells not filled), foreground color preservation.
+
+### 2.4.5 — Selection tools: marquee, lasso, circle, polygon
+
+Created `figby-rs/src/tui/tools/selection.rs` — four selection shapes:
+
+- **Marquee:** click-drag rectangle. Origin on Down, updates on Drag, finalizes
+  on Up. Stores as `(x1,y1)-(x2,y2)` inclusive rectangle mask.
+- **Circle:** click center on Down, Drag computes radius = distance from center,
+  finalizes on Up. Uses horizontal-span fill via `√(r² - dy²)` for each scanline.
+- **Lasso:** click starts path, Drag appends points, Up closes and runs polygon
+  fill. Reuses `polygon()` with freehand points as vertices.
+- **Polygon:** successive clicks add vertices, Enter closes polygon, Esc cancels.
+  Close-on-click when distance < 3px from first vertex.
+
+`Selection` struct owns `Vec<Vec<bool>>` mask (row-major), bounding box, and
+bounds recomputation. Mask operations:
+
+- `marquee(buffer, x1, y1, x2, y2)` — clamping, inclusive rectangle.
+- `circle(buffer, cx, cy, r)` — midpoint scanline fill, handles r≤0 as single cell.
+- `polygon(buffer, vertices)` — even-odd rule scanline fill with floating-point
+  edge intersection.
+- `lasso(buffer, points)` — delegates to `polygon()` with ≥3 guard.
+- `copy_from(buffer)` → `Clipboard` (Vec<Vec<Option<CanvasCell>>>) — bounding-box
+  aligned, None for unselected cells.
+- `cut_from(buffer)` → `Clipboard` — copy then delete.
+- `delete_from(buffer)` — sets all masked cells to default (space).
+- `paste_into(buffer, clipboard, dx, dy)` — writes `Some(cell)` entries at offset.
+- `move_selection(buffer, dx, dy)` — cut from old position, paste at translated
+  bounds, remask at translated position.
+- `perimeter()` → perimeter cells (selected cell with ≥1 unselected 4-neighbor).
+
+Overlay rendering in `CanvasWidget`:
+- `selection_perimeter: Option<Vec<(usize, usize)>>` — buffer-coordinate perimeter
+  cells, rendered with alternating `▒`/space dash pattern at zoom level.
+- `polygon_vertices: Vec<(i16, i16)>` — in-progress polygon vertices shown as `+`
+  markers with cyan bold style.
+
+TUI integration in `tui/mod.rs`:
+- `handle_key_event` changed to accept `impl Into<KeyEvent>` for modifier support.
+- Selection tools bypass the early mouse return guard for drawing tools.
+- Arrow keys move active selection by 1 cell.
+- Ctrl+C copies selection to clipboard, Ctrl+X cuts, Ctrl+V pastes at cursor.
+- Delete/Backspace clears selection. Esc deselects.
+- Polygon: Enter closes, Esc cancels. Switching tools clears polygon points.
+- `CanvasWidget` gains `selection_perimeter` / `polygon_vertices` fields.
+
+Key design decisions:
+- Borrow-checker workaround: `self.selection.take()` instead of clone for
+  mutable buffer access while extracting selection.
+- `Clipboard` is `Vec<Vec<Option<CanvasCell>>>` — `None` = transparent, allows
+  bounding-box storage with non-rectangular selections.
+- Dashed border uses 2-cell alternating pattern along sorted perimeter order.
+- Polygon even-odd fill uses `partial_cmp` fallback for vertical edge ties.
+
+No `unwrap()` in production — all buffer accesses via `buffer.get()`/`set()`.
+
+13 unit tests: marquee mask, reversed coords, circle mask, radius 0, polygon
+triangle, too-few vertices, lasso, copy-paste, cut, delete, move with bounds
+update, clip-to-bounds, perimeter detection, empty/inactive, paste off-canvas.

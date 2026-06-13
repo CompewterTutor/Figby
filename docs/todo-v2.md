@@ -289,7 +289,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.4 — Drawing Tools
 
-- [ ] `2.4.1` Brush tool
+- [x] `2.4.1` Brush tool
   - **Goal:** Paint characters onto canvas at cursor. Uses active brush
     shape and size. Applies active foreground color to each char cell.
     Continuous stroke on click+drag.
@@ -298,7 +298,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Brush stroke pattern tests.
   - **Difficulty:** Medium
 
-- [ ] `2.4.2` Eraser tool
+- [x] `2.4.2` Eraser tool
   - **Goal:** Erases characters (sets to space/transparent). Same brush
     shape/size respect as brush.
   - **Touches:** `figby-rs/src/tui/tools/eraser.rs`
@@ -306,7 +306,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Eraser shape tests.
   - **Difficulty:** Low
 
-- [ ] `2.4.3` Line tool
+- [x] `2.4.3` Line tool
   - **Goal:** Click start point, drag to end point. Draws straight line
     using Bresenham. Uses active brush shape. Preview line while dragging.
   - **Touches:** `figby-rs/src/tui/tools/line.rs`
@@ -314,7 +314,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Horizontal, vertical, diagonal line tests.
   - **Difficulty:** Medium
 
-- [ ] `2.4.4` Fill / flood fill tool
+- [x] `2.4.4` Fill / flood fill tool
   - **Goal:** Click contiguous region of same character → replace all
     with active brush char. Boundary-aware (stops at different chars).
   - **Touches:** `figby-rs/src/tui/tools/fill.rs`
@@ -322,7 +322,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Fill on bounded and unbounded regions.
   - **Difficulty:** Medium
 
-- [ ] `2.4.5` Selection tools: marquee, lasso, circle, polygon
+- [x] `2.4.5` Selection tools: marquee, lasso, circle, polygon
   - **Goal:** Marquee: click-drag rectangle selection. Lasso: freehand
     selection. Circle: click-drag center-to-edge. Polygon: click points,
     enter to close. Dashed border overlay. Selection can be moved, copied,
@@ -332,7 +332,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Selection boundary tests per shape.
   - **Difficulty:** High
 
-- [ ] `2.4.6` Eyedropper tool
+- [x] `2.4.6` Eyedropper tool
   - **Goal:** Click a cell → set active foreground color to that cell's
     color, active brush char to that cell's character.
   - **Touches:** `figby-rs/src/tui/tools/eyedropper.rs`
@@ -340,7 +340,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Sample color + char after drawing.
   - **Difficulty:** Low
 
-- [ ] `2.4.7` Spray paint brush
+- [x] `2.4.7` Spray paint brush
   - **Goal:** Stochastic spray within brush radius. Density slider.
     Characters scattered randomly within circle area.
   - **Touches:** `figby-rs/src/tui/tools/spray.rs`

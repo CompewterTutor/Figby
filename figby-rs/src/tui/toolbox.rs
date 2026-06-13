@@ -15,6 +15,7 @@ pub enum Tool {
     Line,
     Eraser,
     Eyedropper,
+    Spray,
     Text,
 }
 
@@ -30,6 +31,7 @@ impl Tool {
             Tool::Line => "Li",
             Tool::Eraser => "Er",
             Tool::Eyedropper => "Ey",
+            Tool::Spray => "Sp",
             Tool::Text => "Te",
         }
     }
@@ -45,6 +47,7 @@ impl Tool {
             Tool::Line => "Line",
             Tool::Eraser => "Eraser",
             Tool::Eyedropper => "Eyedrop",
+            Tool::Spray => "Spray",
             Tool::Text => "Text",
         }
     }
@@ -60,6 +63,7 @@ impl Tool {
             Tool::Line => KeyCode::Char('i'),
             Tool::Eraser => KeyCode::Char('e'),
             Tool::Eyedropper => KeyCode::Char('d'),
+            Tool::Spray => KeyCode::Char('a'),
             Tool::Text => KeyCode::Char('t'),
         }
     }
@@ -75,6 +79,7 @@ impl Tool {
             Tool::Line => "tool_line",
             Tool::Eraser => "tool_eraser",
             Tool::Eyedropper => "tool_eyedropper",
+            Tool::Spray => "tool_spray",
             Tool::Text => "tool_text",
         }
     }
@@ -90,6 +95,7 @@ impl Tool {
             Tool::Line,
             Tool::Eraser,
             Tool::Eyedropper,
+            Tool::Spray,
             Tool::Text,
         ]
     }

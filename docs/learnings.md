@@ -502,3 +502,78 @@ Three bugs found in phase merge review:
   widget, grid → toggle). This reactive approach ensures settings panel and canvas
   stay in sync without a separate "apply" step.
 
+## 2.4.1 — Brush tool
+
+- `EnableMouseCapture`/`DisableMouseCapture` live in `crossterm::event`, NOT
+  `crossterm::terminal` as one might expect. In crossterm 0.28, mouse capture
+  commands are event-system primitives alongside `EnableBracketedPaste`,
+  not terminal-mode commands like `EnterAlternateScreen`.
+
+## 2.4.5 — Selection tools
+
+- `handle_key_event` signature changed from `KeyCode` to `impl Into<KeyEvent>` to
+  support modifier checks (Ctrl+C/X/V). This is backward-compatible: all existing
+  callers passing `KeyCode` continue to work via crossterm's `From<KeyCode> for KeyEvent`.
+- `self.selection.clone()` fails because `Selection` doesn't derive `Clone` and
+  can't easily (`Vec<Vec<bool>>` is cloneable but the borrow checker needs
+  `Option::take()` to avoid simultaneous `&self` + `&mut self` on `self`).
+- Circle scanline fill: `hw = sqrt(r² - dy²)` gives horizontal half-width at row
+  offset dy. Must use `f64` for sqrt, then cast back to `i16` — this is the
+  standard midpoint circle algorithm variant for filled circles.
+- Polygon even-odd fill: `partial_cmp` fallback (`Ordering::Equal`) needed for
+  `sort_by` on `f64` intersections (IEEE NaN edge case, though NaN should never
+  appear in practice with valid geometry).
+- Dashed perimeter overlay rendered in `CanvasWidget::render` by sorting perimeter
+  cells by row-major order then alternating `▒`/space. At zoom>1, all N×N terminal
+  cells of each perimeter buffer cell get the same dash character, preserving the
+  dash pattern at any zoom level.
+- Polygon close-on-click: check `|bx - fx| + |by - fy| < 3` (Manhattan distance
+  < 3) to detect when user clicks near the first vertex. This matches common
+  image editor behavior where closing requires clicking near the start point.
+
+## 2.4.6 — Eyedropper tool
+
+- `Palette::push_recent` was `fn` (private) because only `Palette` itself pushed
+  recent colors. Eyedropper integration needs to push sampled colors — changed to
+  `pub fn`. This is the first external caller to push_recent, exposing a
+  pre-existing API gap in the palette module's public interface.
+- `BrushState` gained `ch` field, requiring updates to every `BrushState { ... }`
+  struct literal in tests across `brush.rs` and `tests/tui.rs`. This is the cost
+  of using struct literals instead of `..Default::default()` in tests — but using
+  `..Default::default()` would hide the meaningful fields from test readers.
+
+## 2.4.3 — Line tool
+
+- Full-buffer clone/restore for line preview is simple but `O(n)` on every drag
+  event. For small canvases (≤200×100) this is imperceptible. Optimization to
+  region-only save/restore deferred until performance measurements show need.
+- Line tool reuses `brush::paint_line` (Bresenham) — no algorithm duplication
+  vs. eraser which also duplicates the Bresenham loop. The duplication pattern
+  (brush.rs has paint_line, eraser.rs has erase_line) could be refactored into
+  a shared Bresenham iterator, but deferring since each variant needs per-step
+  delegation (paint_stamp vs erase_stamp).
+- Line tool uses `line_start` + `saved_buffer` as separate state fields from
+  `prev_mouse_buf` (brush/eraser drag origin). This separation is deliberate:
+  Line needs two-point semantics (start + current) while brush/eraser use
+  sequential segment semantics (previous → current). Not combined to avoid
+  complicating the simpler brush/eraser drag path.
+
+## 2.4.7 — Spray paint brush
+
+- `StdRng::seed_from_u64(thread_rng().gen())` seeds a fresh RNG from the system's
+  thread-local RNG, avoiding `Result` (and thus `.expect()`) entirely.
+- Using `rand::Rng::gen_bool(prob)` for stochastic selection is cleaner than
+  `rng.gen::<f64>() < prob` — same effect, one function call.
+- Spray tool shortcut `a` (aerosol) instead of `s` to avoid conflict with
+  Settings toggle `S`. The toolbox `handle_key` does `to_ascii_lowercase()` so
+  both `s` and `S` would match `s` — moving Settings check before toolbox
+  resolves this.
+- `'` was previously bound to cycle brush shape. Rebound to `\` to free `'`
+  for density up (adjacent to `;` density down). This creates a contiguous
+  size/density block: `[` size down, `]` size up, `;` density down, `'` density up.
+- The spray stamp uses radius = `brush.size` directly (not `size/2`), making
+  the spray area significantly larger than the circle brush at the same size
+  setting. This is intentional — spray is meant to cover more area diffusely.
+- `mul_add` is used for `dx*dx + dy*dy` in the circle check to avoid a
+  separate multiplication, matching modern Rust idiom for fused multiply-add.
+

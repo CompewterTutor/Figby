@@ -699,6 +699,32 @@ Integrated into `TuiApp`:
 unsaved indicator) and settings panel (toggle, width change, grid toggle,
 snap-to-grid toggle). fmt and clippy pass clean.
 
+### 2.4.1 — Brush tool
+
+Added `tools/` subdirectory under `tui/` with `mod.rs` module root and `brush.rs`
+execution module. Three core functions:
+- `stamp_offsets()` — computes relative (dx, dy) offsets for Square, Circle,
+  SprayPaint, and Custom brush shapes. Square fills N×N block, Circle uses
+  euclidean distance ≤ radius, SprayPaint uses deterministic hash (seed 42, 35%
+  density), Custom stamps only center cell.
+- `paint_stamp()` — applies brush stamp at (cx, cy), clips to buffer bounds,
+  no `unwrap()` in production (uses `get_mut` → `Option`).
+- `paint_line()` — Bresenham line interpolation with per-step stamp calls.
+
+Integrated into TUI:
+- Mouse capture via `EnableMouseCapture`/`DisableMouseCapture` (crossterm `event`
+  module, not `terminal`). Left-click places stamp, drag draws line, release
+  resets drag origin.
+- Keyboard painting: Space/Enter paints stamp at cursor when Brush tool active.
+- `screen_to_buffer()` maps terminal coords to buffer coords using scroll/zoom.
+- `canvas_inner_rect` tracks canvas rendering area for mouse→buffer conversion.
+- `CanvasCell` gained `Copy` derive (all fields are Copy types).
+- `CanvasWidget` gained `set_cursor()` and `scroll_offset()` methods.
+
+14 unit tests: square coverage, circle shape, spray determinism, bounds clipping,
+cell attributes, line directions (horizontal/vertical/diagonal/reverse), endpoint
+clipping, size-1 square, custom-only-center.
+
 ### 2.3.7 — Phase merge: release/2.3 → main
 
 Merged all Phase 2.3 work into default branch (master). Phase 2.3 complete:
@@ -707,3 +733,33 @@ scrollable/zoomable canvas widget (2.3.3), color palette sidebar (2.3.4),
 brush shape picker with size/preview (2.3.5), status bar + canvas settings
 panel (2.3.6). All 6 subtasks (2.3.1–2.3.6) implemented, tested, merged.
 Phase 2.4 (Drawing Tools) is next.
+
+### 2.4.6 — Eyedropper tool
+
+Added `tools/eyedropper.rs` with `sample()` — bounds-checked cell lookup returning
+`Option<CanvasCell>`. Integrated into TUI mouse handler: click samples cell char +
+foreground color, sets `self.brush.ch` and `self.palette.selected_color`, pushes
+color to recent colors, switches target to Foreground. `BrushState` gained `ch: char`
+field (default `'\u{2588}'`) — all 6 hardcoded `ch: '\u{2588}'` in drawing tools
+replaced with `self.brush.ch`. `Palette::push_recent` changed from `fn` to `pub fn`
+to allow external call. Eyedropper excluded from keyboard paint (Space/Enter) and
+mouse early-return. 5 unit tests: cell data, empty defaults, out-of-bounds,
+no-foreground cell, char sampling. fmt and clippy pass clean.
+
+### 2.4.7 — Spray paint brush
+
+Added `tools/spray.rs` with stochastic spray stamp and Bresenham-spray line.
+- `spray_stamp()` — iterates bounding box `[-radius, +radius]`, circle-check with
+  `dx² + dy² ≤ r²`, paints with probability `density / 100.0` via `rand::Rng::gen_bool()`
+- `spray_line()` — Bresenham interpolation calling spray_stamp at each step
+- Uses `StdRng::seed_from_u64(thread_rng().gen())` for fresh randomness per click
+  (different pattern each click); tests pass seeded `StdRng` for determinism
+- `rand = "0.8"` added to Cargo.toml
+- `BrushState` gained `density: u8` field (1–100, default 35), `set_density()`,
+  `density_up()`, `density_down()` methods
+- Density UI: `;` density down, `'` density up, brush shape cycle moved to `\`
+  (was `'`), Settings `S` check moved before toolbox handler to avoid conflict
+  with Spray tool shortcut `a` (aerosol)
+- Spray preview in brush UI now reads `self.density` instead of hardcoded 35
+- 6 tests: within-circle, density distribution (200 stamps @50% ±10%), stochastic
+  different, deterministic seed, bounds clip, density 0/100 extremes

@@ -350,3 +350,31 @@ DONE: 2.3.5 merged into release/2.3.
 ## 2026-06-13 13:37
 
 DONE: 2.3.7 merged into release/2.3.
+
+## 2026-06-13 13:42
+
+PHASE_COMPLETE: 2.3 merged to main after review approval.
+
+## 2026-06-13 13:49
+
+DONE: 2.4.1 merged into release/2.4.
+
+## 2026-06-13 13:53
+
+DONE: 2.4.2 merged into release/2.4.
+
+## 2026-06-13 13:57
+
+DONE: 2.4.3 merged into release/2.4.
+
+## 2026-06-13 14:01
+
+DONE: 2.4.4 merged into release/2.4.
+
+## 2026-06-13 14:11
+
+DONE: 2.4.5 merged into release/2.4.
+
+## 2026-06-13 14:17
+
+DONE: 2.4.6 merged into release/2.4.

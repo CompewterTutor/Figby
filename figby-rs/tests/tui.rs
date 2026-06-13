@@ -499,6 +499,8 @@ fn test_brush_preview_square_integration() {
     let brush = BrushState {
         shape: figby::tui::brush::BrushShape::Square,
         size: 3,
+        ch: '\u{2588}',
+        density: 35,
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview.len(), 3);
@@ -515,6 +517,8 @@ fn test_brush_preview_circle_integration() {
     let brush = BrushState {
         shape: BrushShape::Circle,
         size: 5,
+        ch: '\u{2588}',
+        density: 35,
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview.len(), 5);
@@ -531,10 +535,14 @@ fn test_brush_preview_spray_deterministic() {
     let a = BrushState {
         shape: BrushShape::SprayPaint,
         size: 7,
+        ch: '\u{2588}',
+        density: 35,
     };
     let b = BrushState {
         shape: BrushShape::SprayPaint,
         size: 7,
+        ch: '\u{2588}',
+        density: 35,
     };
     assert_eq!(a.render_preview(10), b.render_preview(10));
 }
@@ -547,6 +555,8 @@ fn test_brush_preview_custom_center() {
     let brush = BrushState {
         shape: BrushShape::Custom,
         size: 5,
+        ch: '\u{2588}',
+        density: 35,
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview[2].as_bytes()[2] as char, '+');
@@ -771,5 +781,79 @@ fn test_settings_toggle_snap_to_grid() {
     assert!(
         app.settings.snap_to_grid,
         "snap-to-grid should be toggled on"
+    );
+}
+
+#[test]
+fn test_fill_tool_keyboard() {
+    use crossterm::event::KeyCode;
+    use figby::tui::canvas::CanvasCell;
+    use figby::tui::{Tool, TuiApp};
+
+    let mut app = TuiApp::new();
+
+    // Select Fill tool via keyboard shortcut
+    app.handle_key_event(KeyCode::Char('g'));
+    assert_eq!(app.toolbox.selected, Tool::Fill);
+
+    // Draw a 2x2 region of @
+    app.canvas.buffer.set(
+        1,
+        1,
+        CanvasCell {
+            ch: '@',
+            fg: None,
+            bg: None,
+        },
+    );
+    app.canvas.buffer.set(
+        1,
+        2,
+        CanvasCell {
+            ch: '@',
+            fg: None,
+            bg: None,
+        },
+    );
+    app.canvas.buffer.set(
+        2,
+        1,
+        CanvasCell {
+            ch: '@',
+            fg: None,
+            bg: None,
+        },
+    );
+    app.canvas.buffer.set(
+        2,
+        2,
+        CanvasCell {
+            ch: '@',
+            fg: None,
+            bg: None,
+        },
+    );
+
+    // Move cursor to (1, 1)
+    app.canvas.set_cursor(1, 1);
+
+    // Press Space to flood fill
+    app.handle_key_event(KeyCode::Char(' '));
+
+    // The filled region should have been replaced with full block
+    assert_eq!(
+        app.canvas.buffer.get(1, 1).unwrap().ch,
+        '\u{2588}',
+        "filled cell (1,1)"
+    );
+    assert_eq!(
+        app.canvas.buffer.get(2, 2).unwrap().ch,
+        '\u{2588}',
+        "filled cell (2,2)"
+    );
+    assert_eq!(
+        app.canvas.buffer.get(0, 0).unwrap().ch,
+        ' ',
+        "outside fill should remain space"
     );
 }

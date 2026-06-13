@@ -152,7 +152,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Known braille patterns match expected.
   - **Difficulty:** Medium
 
-- [ ] `2.1.5` Image CLI flags integration
+- [x] `2.1.5` Image CLI flags integration
   - **Goal:** `--image`/`-i`, `--map`, `--braille`/`-b`, `--color`/`--grayscale`/`--negative`,
     `--dither`, `--width`/`--height`/`--dimensions`, `--flipX`/`--flipY`.
     Multiple paths + URLs. Coexists with FIGlet mode.

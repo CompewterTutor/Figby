@@ -858,3 +858,12 @@ Transform editor UI: navigable list (`↑`/`↓`), Enter activates, parameter in
 
 `MirrorMode` enum with cycle/prev/next navigation. `transform_copy_glyph_from()` accepts `fontdir` parameter for testability.
 32 new unit tests + 6 new integration tests covering all transforms, empty-font safety, parameter input flow, and multi-transform consistency. Only `font_editor.rs` and `mod.rs` touched. fmt and clippy pass clean.
+
+### 2.5.7 — Phase merge: release/2.5 → main
+
+Merged all Phase 2.5 work into default branch (master). Phase 2.5 complete:
+font mode scaffold with glyph grid overview (2.5.1), per-character canvas
+editing with drawing tools + undo/redo (2.5.2), FIGfont header/layout editor
+(2.5.3), smushing rule configuration (2.5.4), add/remove codetagged characters
+(2.5.5), font-level transform tools (2.5.6). All 6 subtasks (2.5.1–2.5.6)
+implemented, tested, merged. Phase 2.6 (Image Editor Mode) is next.

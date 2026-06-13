@@ -161,7 +161,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Flag parse tests.
   - **Difficulty:** Low
 
-- [ ] `2.1.6` Phase merge: release/2.1 → main
+- [x] `2.1.6` Phase merge: release/2.1 → main
   - **Difficulty:** Low
 
 ---

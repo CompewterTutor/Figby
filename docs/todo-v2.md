@@ -298,7 +298,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Brush stroke pattern tests.
   - **Difficulty:** Medium
 
-- [ ] `2.4.2` Eraser tool
+- [x] `2.4.2` Eraser tool
   - **Goal:** Erases characters (sets to space/transparent). Same brush
     shape/size respect as brush.
   - **Touches:** `figby-rs/src/tui/tools/eraser.rs`

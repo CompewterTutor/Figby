@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::io;
 use std::time::{Duration, Instant};
 
+use crate::config;
 use crate::font::load_font;
 use crate::render::Justification;
 
@@ -101,9 +102,38 @@ impl TuiApp {
     pub fn new() -> Self {
         let icons = serde_yaml::from_str(ICONS_YAML).unwrap_or_default();
 
+        let config = config::load_config();
+
+        let mut brush = brush::BrushState::new();
+        if let Some(ref shape) = config.tui.brush.shape {
+            brush.shape = match shape.as_str() {
+                "square" => brush::BrushShape::Square,
+                "circle" => brush::BrushShape::Circle,
+                "spray" => brush::BrushShape::SprayPaint,
+                "custom" => brush::BrushShape::Custom,
+                _ => brush.shape,
+            };
+        }
+        if let Some(size) = config.tui.brush.size {
+            brush.set_size(size);
+        }
+        if let Some(density) = config.tui.brush.density {
+            brush.set_density(density);
+        }
+        if let Some(ref ch_str) = config.tui.brush.ch {
+            if let Some(ch) = ch_str.chars().next() {
+                brush.ch = ch;
+            }
+        }
+
         let mut fe = font_editor::FontEditor::new();
         if let Ok(font) = load_font("standard", "fonts") {
             fe.load_font(font);
+        }
+
+        let mut rf = file_ops::RecentFiles::load_from_disk();
+        if let Some(max) = config.tui.recent_files_max {
+            rf.set_max(max);
         }
 
         Self {
@@ -113,7 +143,7 @@ impl TuiApp {
             toolbox: toolbox::Toolbox::new(),
             canvas: canvas::CanvasWidget::default(),
             palette: palette::Palette::new(),
-            brush: brush::BrushState::new(),
+            brush,
             text_tool: tools::text::TextToolState::new("fonts"),
             font_editor: fe,
             image_editor: image_editor::ImageEditor::new(),
@@ -132,7 +162,7 @@ impl TuiApp {
             selection_polygon_points: Vec::new(),
             selection_lasso_points: Vec::new(),
             file_ops: file_ops::FileOpsDialog::new(),
-            recent_files: file_ops::RecentFiles::load_from_disk(),
+            recent_files: rf,
             export_dialog: export::ExportDialog::new(),
             auto_save_interval: 0,
             last_save_time: Instant::now(),

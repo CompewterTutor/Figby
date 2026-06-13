@@ -471,3 +471,7 @@ DONE: 2.7.2 merged into release/2.7.
 ## 2026-06-13 19:19
 
 DONE: 2.7.3 merged into release/2.7.
+
+## 2026-06-13 19:32
+
+DONE: 2.7.4 merged into release/2.7.

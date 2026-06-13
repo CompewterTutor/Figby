@@ -1073,3 +1073,36 @@ fmt and clippy pass clean.
 Self-review fix: reordered `handle_key()` match arms so `T`/`t` format toggle
 precedes generic `Char(c)` catch-all. Fixed 3 tests with wrong expected values
 (roundtrip pixel coords, path entry account for "export.png" prefix).
+
+### 2.7.5 — Config file
+
+Created `figby-rs/src/config.rs` with `FigbyConfig` struct (`#[derive(Deserialize)]`)
+and TOML parsing. Sections:
+- `[cli]` — `font`, `output_width`, `color_mode` (all `Option<T>`)
+- `[tui]` — `theme`, `recent_files_max` (both `Option`)
+- `[tui.brush]` — `shape`, `size`, `density`, `ch` (all `Option`)
+
+Private helpers `config_file_path()` (respects `XDG_CONFIG_HOME`, fallback
+`~/.config/figby/config.toml`), `config_dir()` (parent dir, shared with
+`RecentFiles`), and public `load_config()` (returns defaults on any error —
+no `unwrap()` in production).
+
+Integration in `main.rs`:
+- `CliConfig` gained `color_mode: Option<String>` field
+- `from_args_with_config(args, config_file)` — applies config values as
+  fallback, then CLI flags override
+- `main()` calls `config::load_config()` before CLI dispatch
+
+Integration in `tui/mod.rs`:
+- `TuiApp::new()` loads config, applies brush defaults (shape/size/density/ch)
+  to `BrushState`, and `recent_files_max` to `RecentFiles`
+
+Integration in `file_ops.rs`:
+- `RecentFiles::storage_path()` now derives from `config_dir()` → `recent_files.json`
+  (was `XDG_DATA_HOME/figby/recent.json` or `~/.figby/recent.json`)
+- Added `set_max()` method to `RecentFiles`
+
+17 unit tests: full config parse, partial (CLI-only, brush-only), empty TOML,
+missing file returns defaults, bad TOML returns defaults, CLI override hierarchy
+(4 tests: CLI wins, config fallback, partial mix, color_mode field), color_mode
+default, recent files roundtrip (updated for new path). fmt and clippy pass clean.

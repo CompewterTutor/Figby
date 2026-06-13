@@ -496,7 +496,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Export → re-import, verify content preserved.
   - **Difficulty:** Medium
 
-- [ ] `2.7.5` Config file
+- [x] `2.7.5` Config file
   - **Goal:** `~/.config/figby/config.toml`: default font, output width,
     color mode, TUI preferences (theme, recent files, brush defaults).
   - **Touches:** `figby-rs/src/config.rs`

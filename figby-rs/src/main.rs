@@ -1,4 +1,5 @@
 use clap::Parser;
+use figby::config::{self, FigbyConfig};
 use figby::control::{self, CharReader};
 use figby::font::{self, FIGfont};
 use figby::image_input;
@@ -172,6 +173,7 @@ struct CliConfig {
     multibyte: u32,
     controlfile: Option<String>,
     to_file: Option<String>,
+    color_mode: Option<String>,
 }
 
 impl Default for CliConfig {
@@ -190,6 +192,7 @@ impl Default for CliConfig {
             multibyte: 0,
             controlfile: None,
             to_file: None,
+            color_mode: None,
         }
     }
 }
@@ -335,8 +338,21 @@ struct CliArgs {
 }
 
 impl CliConfig {
+    #[cfg(test)]
     fn from_args(args: CliArgs) -> Self {
+        Self::from_args_with_config(args, &FigbyConfig::default())
+    }
+
+    fn from_args_with_config(args: CliArgs, config_file: &FigbyConfig) -> Self {
         let mut config = CliConfig::default();
+
+        if let Some(ref font) = config_file.cli.font {
+            config.fontname = font.clone();
+        }
+        if let Some(width) = config_file.cli.output_width {
+            config.outputwidth = width;
+        }
+        config.color_mode = config_file.cli.color_mode.clone();
 
         if !args.message.is_empty() || args.flag_A {
             config.cmdinput = true;
@@ -1123,7 +1139,8 @@ fn main() {
         return;
     }
 
-    let config = CliConfig::from_args(args);
+    let config_file = config::load_config();
+    let config = CliConfig::from_args_with_config(args, &config_file);
 
     if let Some(infocode) = infocode {
         let myname = match std::env::args().next() {
@@ -1153,7 +1170,7 @@ mod tests {
     #[test]
     fn test_default_values() {
         let args = CliArgs::try_parse_from(["figby"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.smushmode, 0);
         assert_eq!(config.smushoverride, SmushOverride::No);
         assert_eq!(config.justification, -1);
@@ -1170,21 +1187,21 @@ mod tests {
     #[test]
     fn test_flag_A_cmdinput() {
         let args = CliArgs::try_parse_from(["figby", "-A"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert!(config.cmdinput);
     }
 
     #[test]
     fn test_flag_D_deutsch() {
         let args = CliArgs::try_parse_from(["figby", "-D"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert!(config.deutschflag);
     }
 
     #[test]
     fn test_flag_E_deutsch() {
         let args = CliArgs::try_parse_from(["figby", "-E"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert!(!config.deutschflag);
     }
 
@@ -1254,7 +1271,7 @@ mod tests {
     #[test]
     fn test_flag_N_multibyte() {
         let args = CliArgs::try_parse_from(["figby", "-N"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.multibyte, 0);
     }
 
@@ -1267,7 +1284,7 @@ mod tests {
     #[test]
     fn test_flag_t_updates_width() {
         let args = CliArgs::try_parse_from(["figby", "-t"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert!(config.outputwidth >= 80);
     }
 
@@ -1281,7 +1298,7 @@ mod tests {
     #[test]
     fn test_flag_t_w_override() {
         let args = CliArgs::try_parse_from(["figby", "-t", "-w", "120"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.outputwidth, 120);
     }
 
@@ -1322,21 +1339,21 @@ mod tests {
     #[test]
     fn test_flag_w_width() {
         let args = CliArgs::try_parse_from(["figby", "-w", "120"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.outputwidth, 120);
     }
 
     #[test]
     fn test_flag_d_fontdir() {
         let args = CliArgs::try_parse_from(["figby", "-d", "/my/fonts"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.fontdirname, "/my/fonts");
     }
 
     #[test]
     fn test_flag_f_fontname() {
         let args = CliArgs::try_parse_from(["figby", "-f", "big"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.fontname, "big");
     }
 
@@ -1349,7 +1366,7 @@ mod tests {
     #[test]
     fn test_flag_to_file() {
         let args = CliArgs::try_parse_from(["figby", "--to-file", "output.txt"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.to_file, Some("output.txt".to_string()));
     }
 
@@ -1362,14 +1379,14 @@ mod tests {
     #[test]
     fn test_positional_args_cmdinput() {
         let args = CliArgs::try_parse_from(["figby", "hello"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert!(config.cmdinput);
     }
 
     #[test]
     fn test_flag_last_wins() {
         let args = CliArgs::try_parse_from(["figby", "-k", "-s"]).unwrap();
-        let config = CliConfig::from_args(args);
+        let config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
         assert_eq!(config.smushoverride, SmushOverride::No);
     }
 
@@ -1759,5 +1776,84 @@ mod tests {
     fn test_image_flag_short_b() {
         let args = CliArgs::try_parse_from(["figby", "-i", "x.png", "-b"]).unwrap();
         assert!(args.braille);
+    }
+
+    // --- Config override hierarchy tests ---
+
+    #[test]
+    fn test_config_cli_override_hierarchy() {
+        let config_file = FigbyConfig {
+            cli: figby::config::CliSection {
+                font: Some("big".to_string()),
+                output_width: Some(100),
+                color_mode: None,
+            },
+            tui: figby::config::TuiSection::default(),
+        };
+
+        let args = CliArgs::try_parse_from(["figby", "-f", "small", "-w", "120"]).unwrap();
+        let cli_config = CliConfig::from_args_with_config(args, &config_file);
+
+        assert_eq!(cli_config.fontname, "small");
+        assert_eq!(cli_config.outputwidth, 120);
+    }
+
+    #[test]
+    fn test_config_cli_fallback_to_config() {
+        let config_file = FigbyConfig {
+            cli: figby::config::CliSection {
+                font: Some("big".to_string()),
+                output_width: Some(100),
+                color_mode: None,
+            },
+            tui: figby::config::TuiSection::default(),
+        };
+
+        let args = CliArgs::try_parse_from(["figby"]).unwrap();
+        let cli_config = CliConfig::from_args_with_config(args, &config_file);
+
+        assert_eq!(cli_config.fontname, "big");
+        assert_eq!(cli_config.outputwidth, 100);
+    }
+
+    #[test]
+    fn test_config_partial_cli_mix() {
+        let config_file = FigbyConfig {
+            cli: figby::config::CliSection {
+                font: None,
+                output_width: Some(100),
+                color_mode: None,
+            },
+            tui: figby::config::TuiSection::default(),
+        };
+
+        let args = CliArgs::try_parse_from(["figby", "-f", "small"]).unwrap();
+        let cli_config = CliConfig::from_args_with_config(args, &config_file);
+
+        assert_eq!(cli_config.fontname, "small");
+        assert_eq!(cli_config.outputwidth, 100);
+    }
+
+    #[test]
+    fn test_config_color_mode_field() {
+        let config_file = FigbyConfig {
+            cli: figby::config::CliSection {
+                font: None,
+                output_width: None,
+                color_mode: Some("always".to_string()),
+            },
+            tui: figby::config::TuiSection::default(),
+        };
+
+        let args = CliArgs::try_parse_from(["figby"]).unwrap();
+        let cli_config = CliConfig::from_args_with_config(args, &config_file);
+        assert_eq!(cli_config.color_mode, Some("always".to_string()));
+    }
+
+    #[test]
+    fn test_config_color_mode_default() {
+        let args = CliArgs::try_parse_from(["figby"]).unwrap();
+        let cli_config = CliConfig::from_args_with_config(args, &FigbyConfig::default());
+        assert_eq!(cli_config.color_mode, None);
     }
 }

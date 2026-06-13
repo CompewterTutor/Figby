@@ -30,6 +30,11 @@ impl RecentFiles {
         }
     }
 
+    pub fn set_max(&mut self, max: usize) {
+        self.max = max.max(1);
+        self.files.truncate(self.max);
+    }
+
     pub fn push(&mut self, path: PathBuf) {
         if let Some(pos) = self.files.iter().position(|p| p == &path) {
             self.files.remove(pos);
@@ -103,18 +108,7 @@ impl RecentFiles {
     }
 
     fn storage_path() -> Option<PathBuf> {
-        if let Ok(data_dir) = std::env::var("XDG_DATA_HOME") {
-            Some(PathBuf::from(data_dir).join("figby/recent.json"))
-        } else if let Ok(home) = std::env::var("HOME") {
-            let xdg = PathBuf::from(&home).join(".local/share/figby/recent.json");
-            if xdg.parent().is_some_and(|p| p.exists()) {
-                Some(xdg)
-            } else {
-                Some(PathBuf::from(&home).join(".figby/recent.json"))
-            }
-        } else {
-            None
-        }
+        crate::config::config_dir().map(|d| d.join("recent_files.json"))
     }
 }
 
@@ -865,9 +859,10 @@ mod tests {
     #[test]
     fn test_recent_files_roundtrip() {
         let dir = std::env::temp_dir();
-        let path = dir.join("test_recent_roundtrip.json");
-        // Override storage path via env
-        std::env::set_var("XDG_DATA_HOME", dir.to_str().unwrap());
+        let subdir = dir.join("figby-test-recent");
+        let _ = std::fs::create_dir_all(&subdir);
+        // Override storage path via XDG_CONFIG_HOME (config_dir derives from it)
+        std::env::set_var("XDG_CONFIG_HOME", dir.to_str().unwrap());
 
         let mut recent = RecentFiles::new();
         recent.push(PathBuf::from("/font_a.flf"));
@@ -879,8 +874,10 @@ mod tests {
         assert_eq!(loaded.get(0), Some(&PathBuf::from("/font_b.flf")));
         assert_eq!(loaded.get(1), Some(&PathBuf::from("/font_a.flf")));
 
-        std::fs::remove_file(&path).ok();
-        std::env::remove_var("XDG_DATA_HOME");
+        let saved_path = dir.join("figby/recent_files.json");
+        let _ = std::fs::remove_file(&saved_path);
+        let _ = std::fs::remove_dir(&subdir);
+        std::env::remove_var("XDG_CONFIG_HOME");
     }
 
     #[test]

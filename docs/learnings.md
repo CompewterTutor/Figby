@@ -773,3 +773,22 @@ Three bugs found in phase merge review:
 - Format toggle key `T`/`t` must come before generic `Char(c)` match arm in
   `handle_key()`. Otherwise the catch-all swallows it as path input and format
   toggle never fires. Same applies to any key that is also a valid path char.
+
+## 2.7.5 — Config file
+
+- `r#"..."#` raw string delimiter conflicts with `"#` sequences in content (e.g.,
+  TOML value `ch = "#"`). Use `r##"..."##` (double hash) when content contains `"#`.
+- `#[derive(Default)]` on all struct fields that are `Option<T>` avoids
+  `clippy::derivable_impls` lint — the compiler can derive Default automatically
+  for structs where all fields implement Default.
+- `#[cfg(test)]` on helper functions used only by tests avoids `dead_code` lint
+  on the binary target while keeping the function available for tests.
+- `toml::from_str` returns `Result<T, Error>` — `unwrap_or_default()` is the
+  safe fallback for malformed config, matching the "silently use defaults" pattern.
+- When `config_dir()` is derived from `config_file_path().parent()`, the parent
+  is `~/.config/figby/` — XDG_CONFIG_HOME is not mutated by the code, only read.
+  `RecentFiles::storage_path()` now writes `recent_files.json` to this directory.
+- `replaceAll` in the edit tool only matches the exact literal string, not
+  variations with different variable names. For test file refactors with many
+  call sites using different variable names, a separate approach (regex or manual
+  edit) is needed.

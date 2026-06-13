@@ -234,3 +234,7 @@ DONE: 2.0.10 merged into release/2.0.
 ## 2026-06-12 15:31
 
 UNTIL_STOP: reached 2.0.10 after 8 tasks.
+
+## 2026-06-13 06:55
+
+DONE: 2.1.1 merged into release/2.1.

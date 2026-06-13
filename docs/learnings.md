@@ -384,3 +384,16 @@ Three bugs found in phase merge review:
 - `rsplit('.').last()` triggers `clippy::double_ended_iterator_last` — use
   `rsplit('.').next_back()` instead for direct O(1) access.
 
+## 2.1.2 — Luminance-to-ASCII character mapping
+
+- `image::codecs::png::PngEncoder::encode` is deprecated in image 0.24.9 —
+  use `write_image` via the `image::ImageEncoder` trait (must be imported).
+  Other encoders (JpegEncoder, BmpEncoder, WebPEncoder) still use their own
+  `encode` methods without deprecation (as of 0.24.9).
+- Bilinear resize: when sampling at the far edge (`dx = new_width - 1`),
+  `sx` may land between the last two source pixels. Clamping `x1` to
+  `(x0 + 1).min(src_w - 1)` handles this correctly. Same for y-boundary.
+- Terminal char aspect ratio (~2:1 height:width) means the ASCII output
+  height should be halved relative to pixel aspect to avoid stretched output.
+  Factor 0.5 applied in `luminance_to_ascii` height calculation.
+

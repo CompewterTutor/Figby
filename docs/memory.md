@@ -465,3 +465,24 @@ implemented, tested, merged. Phase 2.1 (Image-to-ASCII Pipeline) is next.
 Second merge (this commit) brings 3 post-initial-merge commits from `release/2.0`:
 fix broken template tests, redesign `.ftmp` format (YAML frontmatter, defer to TUI),
 add `assets/tui/icons.yaml` for Phase 2.2, renumber 2.2.5→2.2.6.
+
+### 2.1.2 — Luminance-to-ASCII character mapping
+
+Added ASCII art conversion pipeline in `image_input.rs`:
+- `DEFAULT_CHAR_MAP` constant (` .-:=+*#%@`) — darkest to brightest
+- `luminance_to_ascii()` — converts luminance matrix to ASCII string with
+  bilinear resize to target width, auto aspect-ratio correction (0.5× height
+  for terminal char ~2:1 aspect), and configurable char map
+- `image_to_ascii()` — convenience wrapper: loads image, converts to ASCII,
+  defaults to terminal width (80 fallback) and default char map
+- `bilinear_resize()` (private) — bilinear interpolation for arbitrary
+  width/height scaling
+- `luminance_to_char()` (private) — maps u8 luminance to char via linear
+  index into char_map: `idx = luminance * (len - 1) / 255`
+- 22 new tests: luminance→char mapping (black/white/mid/custom/empty/single),
+  bilinear resize (identity/upscale/downscale/empty/single-pixel), ASCII
+  output (all-white/all-black/custom-map/empty/zero-width), image→ASCII
+  integration (PNG/custom-map/width/nonexistent/temp-image)
+
+No `.unwrap()` in production — all fallible paths return `Result` or handle
+edge cases with early returns. Terminal width detection falls back to 80.

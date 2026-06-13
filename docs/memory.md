@@ -999,3 +999,28 @@ image import + canvas display (2.6.1), text tool with FIGlet font overlay
 image adjustments (brightness/contrast/threshold/dither/invert/resize) (2.6.4).
 All 4 subtasks (2.6.1–2.6.4) implemented, tested, merged. Phase 2.7 (File
 Operations & Persistence) is next.
+
+### 2.7.1 — Save / Save As
+
+Created `figby-rs/src/tui/file_ops.rs` with `FileOpsDialog` (file browser
+overlay widget), `save_font()` function, and `FileOpsMode` enum (Idle/SaveAs
+/AutoSaveConfig). Key behaviors:
+- `save_font(font, path)` — generates `.flf` content via `generate_figfont()`,
+  writes to temp file, atomically renames to target path. Returns `io::Result`.
+- `FileOpsDialog` — TUI overlay with path text entry, directory listing
+  (`.flf`/`.tlf` files + subdirectories), keyboard navigation (arrows, Tab
+  to select entry, Enter to confirm, Esc to cancel).
+- Ctrl+S in Font Editor mode: saves directly if `current_path` set, opens
+  Save As dialog otherwise. Ctrl+Shift+S: always opens Save As dialog.
+- Auto-save timer: `auto_save_interval` (seconds, 0=disabled) checked in
+  `handle_event()` loop. Saves current font when timer elapses and `unsaved`
+  is true.
+- `FontEditor` gained `current_path: Option<PathBuf>` field for tracking
+  file location.
+- Status bar shows filename (with `*` prefix if unsaved) and save key hints
+  (`^S Save | ^S+S Save As`).
+- Atomic write via `write()` to `.tmp` file then `fs::rename()` prevents
+  partial save corruption.
+- 8 unit tests: roundtrip save+reload byte-exact, valid `.flf` generation,
+  error handling for invalid paths, dialog state management, path extension
+  logic. No `.unwrap()` in production. fmt and clippy pass clean.

@@ -20,6 +20,7 @@ impl StatusBar {
         mode_name: &str,
         unsaved: bool,
         icons: &BTreeMap<String, String>,
+        current_path: Option<&std::path::Path>,
     ) {
         let pos_icon = icons.get("status_position").map_or("+", |s| s.as_str());
         let zoom_icon = icons.get("status_zoom").map_or("Z", |s| s.as_str());
@@ -34,13 +35,31 @@ impl StatusBar {
             format!(" {} ", saved_icon)
         };
 
+        let filename = current_path
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .map(|n| {
+                if unsaved {
+                    format!("*{n}")
+                } else {
+                    n.to_string()
+                }
+            })
+            .unwrap_or_else(|| {
+                if unsaved {
+                    "*Untitled".to_string()
+                } else {
+                    "Untitled".to_string()
+                }
+            });
+
         let text = format!(
-            " {} X:{} Y:{} | {} Zoom:{}x | {} {} | {} {} | {} | [Tab] Mode | [q] Quit | [S] Settings",
+            " {} X:{} Y:{} | {} Zoom:{}x | {} {} | {} {} | {} [{}] | [Tab] Mode | [q] Quit | [S] Settings | ^S Save | ^S+S Save As",
             pos_icon, cursor.0, cursor.1,
             zoom_icon, zoom,
             tool_icon, tool_name,
             mode_icon, mode_name,
-            indicator,
+            indicator, filename,
         );
 
         let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL));

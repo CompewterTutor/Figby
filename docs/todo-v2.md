@@ -461,7 +461,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.7 — File Operations & Persistence
 
-- [ ] `2.7.1` Save / Save As
+- [x] `2.7.1` Save / Save As
   - **Goal:** Save current font as `.flf` file. Save As dialog (file
     browser widget). Auto-save timer option. Untitled→prompt on first
     save. Unsaved indicator in status bar.

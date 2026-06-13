@@ -314,7 +314,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Horizontal, vertical, diagonal line tests.
   - **Difficulty:** Medium
 
-- [ ] `2.4.4` Fill / flood fill tool
+- [x] `2.4.4` Fill / flood fill tool
   - **Goal:** Click contiguous region of same character → replace all
     with active brush char. Boundary-aware (stops at different chars).
   - **Touches:** `figby-rs/src/tui/tools/fill.rs`

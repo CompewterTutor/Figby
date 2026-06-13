@@ -213,7 +213,7 @@ impl TuiApp {
         }
         if !matches!(
             self.toolbox.selected,
-            Tool::Brush | Tool::Eraser | Tool::Line
+            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill
         ) {
             self.prev_mouse_buf = None;
             self.line_start = None;
@@ -229,6 +229,16 @@ impl TuiApp {
                 };
                 self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 self.unsaved = true;
+                if self.toolbox.selected == Tool::Fill {
+                    let mut cell = canvas::CanvasCell {
+                        ch: '\u{2588}',
+                        fg: None,
+                        bg: None,
+                    };
+                    self.palette.apply_to_cell(&mut cell);
+                    tools::fill::flood_fill(&mut self.canvas.buffer, bx, by, cell);
+                    return;
+                }
                 if self.toolbox.selected == Tool::Line {
                     self.line_start = Some((bx, by));
                     self.saved_buffer = Some(self.canvas.buffer.clone());
@@ -386,11 +396,19 @@ impl TuiApp {
         // Keyboard painting: Space/Enter paints or erases at cursor
         if matches!(
             self.toolbox.selected,
-            Tool::Brush | Tool::Eraser | Tool::Line
+            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill
         ) && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
         {
             let (cx, cy) = self.canvas.cursor();
-            if self.toolbox.selected == Tool::Eraser {
+            if self.toolbox.selected == Tool::Fill {
+                let mut cell = canvas::CanvasCell {
+                    ch: '\u{2588}',
+                    fg: None,
+                    bg: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                tools::fill::flood_fill(&mut self.canvas.buffer, cx as i16, cy as i16, cell);
+            } else if self.toolbox.selected == Tool::Eraser {
                 tools::eraser::erase_stamp(
                     &mut self.canvas.buffer,
                     cx as i16,

@@ -280,3 +280,26 @@ Integrated into TUI:
   `saved_buffer: Option<CanvasBuffer>`.
 
 5 tests: horizontal, vertical, diagonal, reverse direction, endpoint clipping.
+
+### 2.4.4 — Fill / flood fill tool
+
+Created `figby-rs/src/tui/tools/fill.rs` — flood fill tool with one public
+function `flood_fill()`. Uses iterative BFS with `Vec<(usize, usize)>` stack
+(not recursive, no stack overflow). Orthogonal-only filling (4-directional).
+
+Key behaviors:
+- Bounds-checked at every step via `buffer.get_mut()` → `Option` — no `unwrap()`.
+- Short-circuits if replacement cell's char already matches target char (no-op).
+- Boundary-aware: stops at cells with different characters.
+- Tile correctly reads target char from start cell before mutating any cells.
+
+Integrated into TUI:
+- Mouse dispatch guard includes `Tool::Fill` alongside existing drawing tools.
+- Single-click mouse Down fills at clicked position using active palette color.
+- Keyboard Space/Enter fills at cursor position.
+- No Drag/Up handling — Fill is single-click, like a paint bucket.
+
+10 unit tests: small region, bounded region (X border), unbounded to edge,
+single cell, no-match short-circuit, out-of-bounds safety, boundary crossing
+(X wall between two @ regions), empty region (space fill), orthogonal-only
+(diagonal cells not filled), foreground color preservation.

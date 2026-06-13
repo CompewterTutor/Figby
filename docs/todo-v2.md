@@ -233,7 +233,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Smoke test: TUI renders all panels without panic.
   - **Difficulty:** Medium
 
-- [ ] `2.3.2` Toolbox bar
+- [x] `2.3.2` Toolbox bar
   - **Goal:** Vertical/horizontal toolbar with tool icons. Shared tool
     set across all modes: brush, selection tools (marquee, lasso, circle,
     polygon), fill, line, eraser, eyedropper, text tool. Active tool

@@ -84,3 +84,68 @@ fn test_tui_app_default_mode() {
     assert_eq!(app.mode, AppMode::FontEditor);
     assert!(!app.should_quit);
 }
+
+#[test]
+fn test_tool_default_is_brush() {
+    use figby::tui::{Tool, TuiApp};
+    let app = TuiApp::new();
+    assert_eq!(app.toolbox.selected, Tool::Brush);
+}
+
+#[test]
+fn test_tool_selection_roundtrip() {
+    use crossterm::event::KeyCode;
+    use figby::tui::{Tool, TuiApp};
+
+    let mut app = TuiApp::new();
+    assert_eq!(app.toolbox.selected, Tool::Brush);
+
+    app.handle_key_event(KeyCode::Char('v'));
+    assert_eq!(app.toolbox.selected, Tool::Marquee);
+
+    app.handle_key_event(KeyCode::Char('b'));
+    assert_eq!(app.toolbox.selected, Tool::Brush);
+
+    app.handle_key_event(KeyCode::Char('l'));
+    assert_eq!(app.toolbox.selected, Tool::Lasso);
+
+    app.handle_key_event(KeyCode::Char('c'));
+    assert_eq!(app.toolbox.selected, Tool::CircleSelect);
+
+    app.handle_key_event(KeyCode::Char('p'));
+    assert_eq!(app.toolbox.selected, Tool::PolygonSelect);
+
+    app.handle_key_event(KeyCode::Char('g'));
+    assert_eq!(app.toolbox.selected, Tool::Fill);
+
+    app.handle_key_event(KeyCode::Char('i'));
+    assert_eq!(app.toolbox.selected, Tool::Line);
+
+    app.handle_key_event(KeyCode::Char('e'));
+    assert_eq!(app.toolbox.selected, Tool::Eraser);
+
+    app.handle_key_event(KeyCode::Char('d'));
+    assert_eq!(app.toolbox.selected, Tool::Eyedropper);
+
+    app.handle_key_event(KeyCode::Char('t'));
+    assert_eq!(app.toolbox.selected, Tool::Text);
+
+    app.handle_key_event(KeyCode::Char('B'));
+    assert_eq!(app.toolbox.selected, Tool::Brush);
+}
+
+#[test]
+fn test_toolbox_renders_tool_names() {
+    use figby::tui::TuiApp;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let app = TuiApp::new();
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|f| app.render(f)).unwrap();
+    let buffer = terminal.backend().buffer();
+    let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
+    assert!(output.contains(" Br"), "toolbox missing Brush tool");
+    assert!(output.contains(" Er"), "toolbox missing Eraser tool");
+}

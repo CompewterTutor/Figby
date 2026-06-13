@@ -474,3 +474,9 @@ Three bugs found in phase merge review:
 - `Cell::symbol` field is private — use the `symbol()` accessor method instead.
 - Dead code on `icons` field is acceptable for now — it's an architectural scaffold for future TUI tasks (2.3.2+). Prefix with `_icons` (Rust idiom) to suppress warning without `#[allow(dead_code)]`.
 
+## 2.3.2 — Toolbox bar
+
+- Converting a single file module (`tui.rs`) to a directory module (`tui/mod.rs`) requires updating `include_str!` relative paths (+1 `..` level for the subdirectory).
+- `pub` methods on `pub struct` inside `pub mod` do NOT trigger clippy `dead_code` — they're public API, even when no callers exist yet. This is useful for future-tooling methods like `full_name()`, `icon_key()`, `next()`, `prev()`.
+- `ListState` must be created locally (not stored) and passed by `&mut` to `render_stateful_widget`, even for read-only (no-interaction) rendering. Ratatui's stateful widget pattern requires `&mut` for potential state updates during rendering (scroll, highlight tracking).
+

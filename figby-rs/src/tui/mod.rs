@@ -11,7 +11,11 @@ use std::collections::BTreeMap;
 use std::io;
 use std::time::Duration;
 
-const ICONS_YAML: &str = include_str!("../../assets/tui/icons.yaml");
+pub mod toolbox;
+
+pub use toolbox::Tool;
+
+const ICONS_YAML: &str = include_str!("../../../assets/tui/icons.yaml");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
@@ -42,6 +46,7 @@ pub struct TuiApp {
     pub mode: AppMode,
     pub should_quit: bool,
     _icons: BTreeMap<String, String>,
+    pub toolbox: toolbox::Toolbox,
 }
 
 impl TuiApp {
@@ -51,6 +56,7 @@ impl TuiApp {
             mode: AppMode::FontEditor,
             should_quit: false,
             _icons: icons,
+            toolbox: toolbox::Toolbox::new(),
         }
     }
 
@@ -103,16 +109,22 @@ impl TuiApp {
 
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(10), Constraint::Length(20)])
+            .constraints([
+                Constraint::Length(8),
+                Constraint::Min(10),
+                Constraint::Length(20),
+            ])
             .split(chunks[1]);
+
+        self.toolbox.render(frame, main_chunks[0]);
 
         let canvas = Block::default()
             .title(self.mode.title())
             .borders(Borders::ALL);
-        frame.render_widget(canvas, main_chunks[0]);
+        frame.render_widget(canvas, main_chunks[1]);
 
         let palette = Block::default().title(" Palette ").borders(Borders::ALL);
-        frame.render_widget(palette, main_chunks[1]);
+        frame.render_widget(palette, main_chunks[2]);
 
         let mode_name = match self.mode {
             AppMode::FontEditor => "Font Editor",
@@ -136,6 +148,9 @@ impl TuiApp {
     }
 
     pub fn handle_key_event(&mut self, code: KeyCode) {
+        if self.toolbox.handle_key(code) {
+            return;
+        }
         match code {
             KeyCode::Tab => {
                 self.mode = self.mode.next();

@@ -615,3 +615,14 @@ Created `figby-rs/src/tui.rs` — TUI scaffold with ratatui + crossterm:
 - `ratatui = "0.30.1"`, `crossterm = "0.28"` dependencies added; `serde_yaml` promoted to regular dep
 - 3 smoke tests: all panels render, mode switching cycles correctly, default mode is FontEditor
 - No `.unwrap()` in production — `serde_yaml::from_str` uses `unwrap_or_default()` for graceful fallback
+
+### 2.3.2 — Toolbox bar
+
+Created `figby-rs/src/tui/toolbox.rs` — shared toolbar with 10 tool variants:
+- `Tool` enum: Brush, Marquee, Lasso, CircleSelect, PolygonSelect, Fill, Line, Eraser, Eyedropper, Text
+- Each tool has `display_name()` (2-char label), `full_name()`, `key_shortcut()` (KeyCode), `icon_key()` (icons.yaml lookup)
+- `Toolbox` struct wraps `selected: Tool` with `handle_key()`, `next()`, `prev()`, `render()`
+- Keyboard shortcuts: V(select), B(brush), L(lasso), C(circle), P(polygon), G(fill), I(line), E(eraser), D(eyedropper), T(text)
+- Active tool highlighted via `List` widget with cyan bold style
+- Converted `tui.rs` → `tui/mod.rs` directory module for sub-module organization
+- 3 tests: default tool is Brush, round-trip selection via all shortcuts, tool names appear in rendered output

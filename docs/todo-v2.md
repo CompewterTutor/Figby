@@ -436,7 +436,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Place text, verify FIGlet output in canvas buffer.
   - **Difficulty:** High
 
-- [ ] `2.6.3` Text tool advanced: selection + transform
+- [x] `2.6.3` Text tool advanced: selection + transform
   - **Goal:** Placed text blocks are selectable (marquee around block).
     Move, scale, rotate (90° steps). Re-edit text content. Delete block.
     Multiple text blocks on same canvas.

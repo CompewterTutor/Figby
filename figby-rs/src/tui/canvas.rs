@@ -68,6 +68,16 @@ impl CanvasBuffer {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TextOverlay {
+    pub x: i16,
+    pub y: i16,
+    pub rows: Vec<String>,
+    pub color: Option<Color>,
+    pub scale: u8,
+    pub rotation: u16,
+}
+
 pub struct CanvasWidget {
     pub buffer: CanvasBuffer,
     cursor: (u16, u16),
@@ -76,6 +86,8 @@ pub struct CanvasWidget {
     show_grid: bool,
     pub selection_perimeter: Option<Vec<(usize, usize)>>,
     pub polygon_vertices: Vec<(i16, i16)>,
+    pub text_overlays: Vec<TextOverlay>,
+    pub text_block_perimeter: Option<Vec<(usize, usize)>>,
 }
 
 impl CanvasWidget {
@@ -90,6 +102,8 @@ impl CanvasWidget {
             show_grid: false,
             selection_perimeter: None,
             polygon_vertices: Vec::new(),
+            text_overlays: Vec::new(),
+            text_block_perimeter: None,
         }
     }
 
@@ -345,6 +359,95 @@ impl Widget for &CanvasWidget {
                                     cell.set_char(dash_char);
                                 }
                                 cell.set_style(dash_style);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Text block perimeter dashed overlay (marquee around selected block)
+        if let Some(ref perim) = self.text_block_perimeter {
+            let marquee_style = Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .add_modifier(Modifier::BOLD);
+            let mut sorted: Vec<&(usize, usize)> = perim.iter().collect();
+            sorted.sort_by_key(|(x, y)| x + y * 20000);
+            for (i, &&(bx, by)) in sorted.iter().enumerate() {
+                if bx >= sx as usize
+                    && bx < (sx + vis_w) as usize
+                    && by >= sy as usize
+                    && by < (sy + vis_h) as usize
+                {
+                    let dash_char = if i % 2 == 0 { '▒' } else { ' ' };
+                    let cx = area.x + (bx as u16 - sx) * zoom;
+                    let cy = area.y + (by as u16 - sy) * zoom;
+                    for r in cy..(cy + zoom).min(area.y + area.height) {
+                        for c in cx..(cx + zoom).min(area.x + area.width) {
+                            if let Some(cell) = buf.cell_mut((c, r)) {
+                                if dash_char != ' ' {
+                                    cell.set_char(dash_char);
+                                }
+                                cell.set_style(marquee_style);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Text overlays (rendered as FIGlet text on canvas)
+        for overlay in &self.text_overlays {
+            let s = overlay.scale.max(1) as i16;
+            if overlay.rows.is_empty() {
+                continue;
+            }
+            let h = overlay.rows.len() as i16;
+            let w = overlay.rows[0].chars().count() as i16;
+            if w == 0 || h == 0 {
+                continue;
+            }
+            for (r, row) in overlay.rows.iter().enumerate() {
+                for (c, ch) in row.chars().enumerate() {
+                    if ch == ' ' {
+                        continue;
+                    }
+                    let cr = r as i16;
+                    let cc = c as i16;
+                    let (base_x, base_y) = match overlay.rotation {
+                        90 => (overlay.x + cr * s, overlay.y + (h - 1 - cc) * s),
+                        180 => (overlay.x + (w - 1 - cc) * s, overlay.y + (h - 1 - cr) * s),
+                        270 => (overlay.x + (h - 1 - cr) * s, overlay.y + cc * s),
+                        _ => (overlay.x + cc * s, overlay.y + cr * s),
+                    };
+                    let fg_style = overlay.color.map(|c| Style::default().fg(c));
+                    for dy in 0..s {
+                        for dx in 0..s {
+                            let bx = base_x + dx;
+                            let by = base_y + dy;
+                            if bx < sx as i16
+                                || bx >= (sx + vis_w) as i16
+                                || by < sy as i16
+                                || by >= (sy + vis_h) as i16
+                            {
+                                continue;
+                            }
+                            let term_x = area.x + (bx as u16 - sx) * zoom;
+                            let term_y = area.y + (by as u16 - sy) * zoom;
+                            for tdy in 0..zoom {
+                                for tdx in 0..zoom {
+                                    let tx = term_x + tdx;
+                                    let ty = term_y + tdy;
+                                    if tx >= area.x + area.width || ty >= area.y + area.height {
+                                        continue;
+                                    }
+                                    if let Some(cell) = buf.cell_mut((tx, ty)) {
+                                        cell.set_char(ch);
+                                        if let Some(ref s) = fg_style {
+                                            cell.set_style(*s);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

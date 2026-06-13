@@ -255,6 +255,44 @@ impl TuiApp {
                 self.canvas.selection_perimeter = None;
             }
             self.canvas.polygon_vertices = self.selection_polygon_points.clone();
+
+            // Populate text overlays from text tool blocks
+            if self.toolbox.selected == Tool::Text {
+                self.canvas.text_overlays = self
+                    .text_tool
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, _)| self.text_tool.render_block_to_overlay(i))
+                    .collect();
+                self.canvas.text_block_perimeter = self.text_tool.selected_block.and_then(|idx| {
+                    if idx < self.text_tool.blocks.len() {
+                        let (bx, by, bw, bh) = self.text_tool.compute_bounding_box(idx);
+                        if bw == 0 || bh == 0 {
+                            return None;
+                        }
+                        let mut perim = Vec::new();
+                        for x in bx..bx + bw as i16 {
+                            perim.push((x.max(0) as usize, by.max(0) as usize));
+                            perim.push((x.max(0) as usize, (by + bh as i16 - 1).max(0) as usize));
+                        }
+                        for y in (by + 1)..(by + bh as i16 - 1) {
+                            if y < 0 {
+                                continue;
+                            }
+                            perim.push((bx.max(0) as usize, y as usize));
+                            perim.push(((bx + bw as i16 - 1).max(0) as usize, y as usize));
+                        }
+                        Some(perim)
+                    } else {
+                        None
+                    }
+                });
+            } else {
+                self.canvas.text_overlays.clear();
+                self.canvas.text_block_perimeter = None;
+            }
+
             frame.render_widget(block, main_chunks[1]);
             if centered.width > 1 && centered.height > 1 {
                 let edge = Block::default().borders(Borders::ALL).style(
@@ -393,14 +431,26 @@ impl TuiApp {
             return;
         }
 
-        // Text tool: click to enter text mode at cursor position
+        // Text tool: hit-test blocks or enter text mode
         if self.toolbox.selected == Tool::Text {
             if let MouseEventKind::Down(_) = mouse.kind {
                 if let Some((bx, by)) = self.screen_to_buffer(mouse.column, mouse.row) {
-                    self.text_tool.cursor_position = (bx, by);
-                    self.text_tool.entering_text = true;
-                    self.text_tool.text_buffer.clear();
-                    self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
+                    if !self.text_tool.entering_text {
+                        if let Some(idx) = self.text_tool.hit_test(bx, by) {
+                            self.text_tool.selected_block = Some(idx);
+                            self.prev_mouse_buf = None;
+                            self.line_start = None;
+                            self.saved_buffer = None;
+                            return;
+                        }
+                        self.text_tool.cursor_position = (bx, by);
+                        self.text_tool.entering_text = true;
+                        self.text_tool.text_buffer.clear();
+                        self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
+                    } else {
+                        self.text_tool.cursor_position = (bx, by);
+                        self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
+                    }
                 }
             }
             self.prev_mouse_buf = None;
@@ -762,10 +812,7 @@ impl TuiApp {
         if self.toolbox.selected == Tool::Text && self.text_tool.entering_text {
             match code {
                 KeyCode::Enter => {
-                    self.text_tool
-                        .render_text_to_buffer(&mut self.canvas.buffer);
-                    self.text_tool.text_buffer.clear();
-                    self.text_tool.entering_text = false;
+                    self.text_tool.commit_block();
                     self.unsaved = true;
                     return;
                 }
@@ -787,7 +834,11 @@ impl TuiApp {
         }
 
         // Text tool: font navigation (before canvas so up/down don't move cursor)
-        if self.toolbox.selected == Tool::Text && !self.text_tool.entering_text {
+        // Skip font nav when a block is selected (arrows move the block instead)
+        if self.toolbox.selected == Tool::Text
+            && !self.text_tool.entering_text
+            && self.text_tool.selected_block.is_none()
+        {
             match code {
                 KeyCode::Up => {
                     if !self.text_tool.available_fonts.is_empty() {
@@ -802,6 +853,66 @@ impl TuiApp {
                             .min(self.text_tool.available_fonts.len() - 1);
                         self.text_tool.load_selected_font();
                     }
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        // Text tool: block operations (when block selected, not entering text)
+        if self.toolbox.selected == Tool::Text
+            && !self.text_tool.entering_text
+            && self.text_tool.selected_block.is_some()
+        {
+            match code {
+                KeyCode::Up => {
+                    self.text_tool.move_selected_block(0, -1);
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Down => {
+                    self.text_tool.move_selected_block(0, 1);
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Left => {
+                    self.text_tool.move_selected_block(-1, 0);
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Right => {
+                    self.text_tool.move_selected_block(1, 0);
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Char('+') | KeyCode::Char('=') => {
+                    self.text_tool.scale_selected_block(1);
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Char('-') | KeyCode::Char('_') => {
+                    self.text_tool.scale_selected_block(-1);
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Char('r') | KeyCode::Char('R') => {
+                    self.text_tool.rotate_selected_block();
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Delete | KeyCode::Backspace => {
+                    self.text_tool.delete_selected_block();
+                    self.unsaved = true;
+                    return;
+                }
+                KeyCode::Char(' ') | KeyCode::Enter => {
+                    if let Some(idx) = self.text_tool.selected_block {
+                        self.text_tool.re_edit_block(idx);
+                    }
+                    return;
+                }
+                KeyCode::Esc => {
+                    self.text_tool.selected_block = None;
                     return;
                 }
                 _ => {}

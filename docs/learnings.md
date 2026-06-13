@@ -683,3 +683,17 @@ Three bugs found in phase merge review:
 - Text tool options panel replaces the brush options panel in the left sidebar when
   `Tool::Text` is selected — conditional render in `tui/mod.rs:197` swaps between
   `brush.render()` and `text_tool.render_options()`.
+
+## 2.6.3 — Text tool advanced: selection + transform
+
+- `rotation` field must be `u16` (not `u8`) because valid values include 270 and 360
+  (rotation % 360), and `u8` can only hold 0..=255. Using a larger integer type avoids
+  `overflowing_literals` compile error.
+- Font navigation (up/down) must skip when a block is selected — otherwise arrow keys
+  intended to move the block are consumed by font list navigation instead. Added
+  `self.text_tool.selected_block.is_none()` guard to the font-navigation match.
+- Private `render_rows_from_buffer()` helper extracts FIGlet rendering logic from
+  `render_text_to_buffer()` so that `commit_block()` can cache rendered rows without
+  needing a `CanvasBuffer` reference — avoids code duplication.
+- `move_selected_block` uses `wrapping_add` for x/y to prevent arithmetic overflow
+  (defensive — buffer coordinates are bounded but user could move block arbitrarily).

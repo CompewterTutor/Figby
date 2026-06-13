@@ -918,3 +918,43 @@ Integration in `tui/mod.rs`:
 - Font nav handled before canvas (prevents arrow conflicts), tool settings handled after canvas
 
 14 unit tests: single char render, multi char, left/center/right justification, color apply, font switch, scale factor, edge clipping, empty text noop, no-font panic, entering text state, font listing nonempty and nonexistent. fmt and clippy pass clean.
+
+### 2.6.3 — Text tool advanced: selection + transform
+
+Added `TextBlock` struct with fields: `id`, `text`, `font_index`, `x`, `y`, `scale`,
+`justification`, `text_color`, `rotation` (0/90/180/270), `cached_rows`, `width`,
+`height`. Added `blocks: Vec<TextBlock>`, `selected_block: Option<usize>`,
+`next_block_id: usize` to `TextToolState`.
+
+Core methods:
+- `commit_block()` — renders current text through FIGlet pipeline via private
+  `render_rows_from_buffer()`, caches rows/width/height, pushes new `TextBlock`
+- `re_edit_block(idx)` — loads block text/font/scale/justification/color back into
+  current editing fields, removes block from list, enters text mode
+- `hit_test(x, y)` — iterates blocks checking point-in-bounding-box
+- `move_selected_block(dx, dy)` — updates block x/y with `wrapping_add`
+- `scale_selected_block(delta)` — clamps 1..=4, updates block scale
+- `rotate_selected_block()` — cycles 0→90→180→270 via `% 360`
+- `delete_selected_block()` — removes from blocks, clears selection
+- `compute_bounding_box(idx)` — returns rect accounting for rotation (swaps w/h
+  for 90/270) and justification (left/center/right x offset)
+- `render_block_to_overlay(idx)` — returns `TextOverlay` struct for canvas rendering
+
+Added `TextOverlay` struct to `canvas.rs` with `x`, `y`, `rows`, `color`, `scale`,
+`rotation` fields. `CanvasWidget` gained `text_overlays` and `text_block_perimeter`
+fields. `Widget::render` extended with:
+- Text overlay rendering: iterates rows/chars, applies rotation transforms
+  (0° direct, 90° transpose+reverse row, 180° reverse both, 270° transpose+
+  reverse col), stamps char into scaled/zoomed terminal cells with color
+- Text block perimeter: dashed yellow marquee around selected block
+
+Integration in `mod.rs`:
+- `render()` populates `text_overlays` and `text_block_perimeter` from blocks
+  when text tool is active
+- `handle_key_event()`: block ops (arrows/+-/r/Backspace/Enter/Esc) when text
+  tool active with selected block; Enter in entry mode calls `commit_block()`
+- `handle_mouse_event()`: `hit_test` on click when not entering text — select
+  block if hit, enter text mode if miss
+
+9 new unit tests: create, multiple, hit-test, move, scale, rotation, delete,
+re-edit, bounding box. No `.unwrap()` in production. fmt and clippy pass clean.

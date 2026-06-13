@@ -602,3 +602,99 @@ system font enumeration via font-kit (2.2.1), glyph rasterization to FIGcharacte
 rows (2.2.2), FIGfont header generation from font metrics (2.2.3), `--create-font`
 CLI command (2.2.4), TUI iconset YAML file (2.2.5). All 6 subtasks (2.2.1–2.2.6)
 implemented, tested, merged. Phase 2.3 (TUI Core & Canvas) is next.
+
+### 2.3.1 — TUI scaffold with ratatui
+
+Created `figby-rs/src/tui.rs` — TUI scaffold with ratatui + crossterm:
+- `AppMode` enum: `FontEditor`, `ImageEditor`, `AsciiPreview` with `title()` and `next()` cycling
+- `TuiApp` struct: holds mode state, quit flag, icons map (from `icons.yaml`)
+- `run()` — raw mode, alternate screen, event loop with render + event handling
+- `render()` — vertical layout: toolbar (Tabs with 3 modes), main area (canvas + palette sidebar), status bar
+- `handle_event()` / `handle_key_event()` — Tab cycles mode, q/Esc quits
+- `--tui` CLI flag added to `main.rs` dispatches to TUI on startup
+- `ratatui = "0.30.1"`, `crossterm = "0.28"` dependencies added; `serde_yaml` promoted to regular dep
+- 3 smoke tests: all panels render, mode switching cycles correctly, default mode is FontEditor
+- No `.unwrap()` in production — `serde_yaml::from_str` uses `unwrap_or_default()` for graceful fallback
+
+### 2.3.2 — Toolbox bar
+
+Created `figby-rs/src/tui/toolbox.rs` — shared toolbar with 10 tool variants:
+- `Tool` enum: Brush, Marquee, Lasso, CircleSelect, PolygonSelect, Fill, Line, Eraser, Eyedropper, Text
+- Each tool has `display_name()` (2-char label), `full_name()`, `key_shortcut()` (KeyCode), `icon_key()` (icons.yaml lookup)
+- `Toolbox` struct wraps `selected: Tool` with `handle_key()`, `next()`, `prev()`, `render()`
+- Keyboard shortcuts: V(select), B(brush), L(lasso), C(circle), P(polygon), G(fill), I(line), E(eraser), D(eyedropper), T(text)
+- Active tool highlighted via `List` widget with cyan bold style
+- Converted `tui.rs` → `tui/mod.rs` directory module for sub-module organization
+- 3 tests: default tool is Brush, round-trip selection via all shortcuts, tool names appear in rendered output
+
+### 2.3.3 — Canvas widget
+
+Created `figby-rs/src/tui/canvas.rs` — scrollable/zoomable canvas widget:
+- `CanvasCell` struct: `ch: char`, `fg: Option<Color>`, `bg: Option<Color>` with `Default` (space, no color)
+- `CanvasBuffer` struct: 2D grid of `CanvasCell` with bounds-checked `get()`, `get_mut()`, `set()`. No `unwrap()` — all bounds errors return `Option`.
+- `CanvasWidget` struct: owns `CanvasBuffer`, cursor position `(u16, u16)`, scroll offset `(u16, u16)`, zoom level `u8` (1-8), grid toggle `bool`. `impl Widget for &CanvasWidget` renders buffer cells into terminal area:
+  - At zoom=1, each buffer cell = 1 terminal cell
+  - At zoom=N, each buffer cell fills N×N block with its char
+  - Grid overlay with `│`/`─`/`┼` at cell boundaries (dim style)
+  - Cursor highlight via reversed style (rendered last to win over grid)
+- `handle_key()` dispatches arrows (move cursor), `+`/`=` (zoom in), `-`/`_` (zoom out), `G` (toggle grid). Returns `bool` (handled).
+- `ensure_cursor_visible()` auto-scrolls to keep cursor in view.
+- Canvas placed before toolbox in key dispatch order.
+- 6 integration tests: empty render, cell rendering, cursor movement, zoom in/out, cursor highlight style, grid characters at zoom=2.
+- Memory entry on `Buffer::cell_mut` returning `Option<&mut Cell>` (non-panicking, matches invariants).
+
+### 2.3.4 — Color palette
+
+Created `figby-rs/src/tui/palette.rs` — color palette sidebar widget:
+- `ColorTarget` enum: `Foreground`/`Background` with `toggle()` method
+- `ANSI_16_COLORS` constant: 16 standard indexed colors (0-15)
+- `extended_color()` helper: computes 240-color extended grid via page/offset → `Color::Indexed(idx.min(255))`
+- `Palette` struct: owns target, selected_color, recent colors (max 8), selected_index, custom_hex input, extended mode/page state
+- Keyboard: arrows navigate grid, Enter selects, `x`/`X` toggles FG/BG, `f`/`F` sets FG, `h`/`H` enters hex mode, `z`/`Z` toggles extended grid
+- `set_custom_hex()` — parses `#RRGGBB` string via `u8::from_str_radix`, returns `bool` on success
+- `apply_to_cell()` — applies selected color to `CanvasCell.fg` or `.bg` based on target
+- `render()` — renders FG/BG indicator, color swatches (2 rows of 8), hex display, recent colors strip
+- `push_recent()` — deduplicates and rotates recent colors, capped at 8
+- Registered as `palette` module in `tui/mod.rs`, added `palette: Palette` field to `TuiApp`
+- 8 integration tests in `tests/tui.rs`: default target, FG/BG toggle, selection, recent push, hex apply, apply to cell (fg/bg), render labels
+
+### 2.3.5 — Brush selection
+
+Created `figby-rs/src/tui/brush.rs` — brush shape picker and size controls:
+- `BrushShape` enum: Square, Circle, SprayPaint, Custom with `cycle()` method
+- `BrushState` struct: `shape: BrushShape`, `size: u8` (1..=20, clamped), `set_size()`,
+  `size_up()`, `size_down()`, `cycle_shape()`
+- `render_preview(max_size)` returns `Vec<String>` showing brush tip at current size
+- `render()` ratatui widget: shows shape name, size, and preview in toolbox column
+- Integrated into `TuiApp`: `brush` field, key events (`[` size down, `]` size up,
+  `'` cycle shape), preview rendered below toolbox
+- Status bar updated to show current brush shape and size
+- No `.unwrap()` in production — all paths use proper Option/clamp arithmetic
+- SprayPaint uses fixed seed 42 for deterministic output across test runs
+- fmt and clippy pass clean
+
+### 2.3.6 — Status bar + canvas settings
+
+Created `figby-rs/src/tui/status.rs` with two widgets:
+- `StatusBar` — renders cursor X,Y, zoom level, current tool name, mode name,
+  unsaved indicator using Nerd Font icons from `icons.yaml`. Static `render()`
+  method takes all display data as parameters (no stored state).
+- `CanvasSettings` struct — settings panel with canvas width/height, font size,
+  grid toggle, snap-to-grid toggle. `pub settings_open: bool` controls visibility.
+  `handle_key()` navigates fields via ↑/↓/←/→, toggles booleans via Enter, closes
+  via Esc. `render()` shows labeled fields with highlighted selection.
+
+Integrated into `TuiApp`:
+- `unsaved: bool` field (default `false`), `settings: CanvasSettings` field
+- Status bar constraint changed from `Length(1)` to `Length(3)` (needs room for
+  borders + 1 content line)
+- Settings panel replaces palette sidebar when `settings_open` is true
+- `S` key opens/closes settings, loading canvas state on open
+- `apply_settings()` syncs canvas width/height/grid on each settings key event
+- Settings mode blocks all other key handlers (canvas, toolbox, palette)
+- `apply_settings()` — recreates canvas widget when dimensions change, toggles
+  grid to match settings
+
+10 integration tests covering all status bar fields (cursor, zoom, tool, mode,
+unsaved indicator) and settings panel (toggle, width change, grid toggle,
+snap-to-grid toggle). fmt and clippy pass clean.

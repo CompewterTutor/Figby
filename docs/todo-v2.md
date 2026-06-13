@@ -224,7 +224,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.3 — TUI Core & Canvas
 
-- [ ] `2.3.1` TUI scaffold with ratatui
+- [x] `2.3.1` TUI scaffold with ratatui
   - **Goal:** Ratatui app with mode switching: Font Editor, Image Editor,
     ASCII Preview. Shared layout: toolbar top, canvas center, status bar
     bottom, palette sidebar right.
@@ -233,7 +233,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Smoke test: TUI renders all panels without panic.
   - **Difficulty:** Medium
 
-- [ ] `2.3.2` Toolbox bar
+- [x] `2.3.2` Toolbox bar
   - **Goal:** Vertical/horizontal toolbar with tool icons. Shared tool
     set across all modes: brush, selection tools (marquee, lasso, circle,
     polygon), fill, line, eraser, eyedropper, text tool. Active tool
@@ -243,7 +243,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Tool selection round-trip tests.
   - **Difficulty:** Medium
 
-- [ ] `2.3.3` Canvas widget
+- [x] `2.3.3` Canvas widget
   - **Goal:** Scrollable/zoomable canvas widget. Renders the current
     working buffer (font glyph, image, or ASCII preview) as a grid of
     characters with optional color. Grid overlay. Cursor tracking.
@@ -253,7 +253,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Canvas render + cursor movement tests.
   - **Difficulty:** Medium
 
-- [ ] `2.3.4` Color palette
+- [x] `2.3.4` Color palette
   - **Goal:** Color palette sidebar: 16 standard ANSI colors + 240-color
     extended grid. Foreground/background selector. Custom color picker
     (RGB sliders or hex input). Recent colors strip.
@@ -263,7 +263,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Color selection + apply tests.
   - **Difficulty:** Medium
 
-- [ ] `2.3.5` Brush selection
+- [x] `2.3.5` Brush selection
   - **Goal:** Brush shape picker: square, circle, spray paint, custom
     (user-drawn pattern). Size slider (1-20 chars). Preview of brush
     shape in toolbox.
@@ -272,7 +272,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Brush shape + size tests.
   - **Difficulty:** Low
 
-- [ ] `2.3.6` Status bar + canvas settings
+- [x] `2.3.6` Status bar + canvas settings
   - **Goal:** Status bar: cursor position (X,Y), zoom level, current
     tool name, mode, unsaved indicator. Settings panel: canvas width ×
     height, font size, grid toggle, snap-to-grid.

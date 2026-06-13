@@ -467,3 +467,38 @@ Three bugs found in phase merge review:
   overrides this with the requested `point_size` via `FT_Set_Char_Size`.
 - `clippy::repeat_once` lint: `" ".repeat(1)` → `" ".to_string()`.
 
+## 2.3.1 — TUI scaffold with ratatui
+
+- `ratatui-core` 0.1.1 (used by ratatui 0.30.1) has `Frame<'a>` with only a lifetime parameter — no generic backend type. Earlier ratatui versions used `Frame<'a, B: Backend>`. Method signatures must use `Frame<'_>` not `Frame<'_, B>`.
+- `Buffer` from `ratatui-core` 0.1.1 does NOT implement `Display`. To get rendered output as a string (e.g., for test assertions), use `buffer.content().iter().map(|c| c.symbol()).collect::<String>()`.
+- `Cell::symbol` field is private — use the `symbol()` accessor method instead.
+- Dead code on `icons` field is acceptable for now — it's an architectural scaffold for future TUI tasks (2.3.2+). Prefix with `_icons` (Rust idiom) to suppress warning without `#[allow(dead_code)]`.
+
+## 2.3.2 — Toolbox bar
+
+- Converting a single file module (`tui.rs`) to a directory module (`tui/mod.rs`) requires updating `include_str!` relative paths (+1 `..` level for the subdirectory).
+- `pub` methods on `pub struct` inside `pub mod` do NOT trigger clippy `dead_code` — they're public API, even when no callers exist yet. This is useful for future-tooling methods like `full_name()`, `icon_key()`, `next()`, `prev()`.
+- `ListState` must be created locally (not stored) and passed by `&mut` to `render_stateful_widget`, even for read-only (no-interaction) rendering. Ratatui's stateful widget pattern requires `&mut` for potential state updates during rendering (scroll, highlight tracking).
+
+## 2.3.3 — Canvas widget
+
+- `Buffer::get_mut(x, y)` is deprecated in ratatui-core 0.1.1 — use `Buffer::cell_mut((x, y))` instead. `cell_mut` returns `Option<&mut Cell>` (non-panicking), satisfying the "no unwrap" invariant when handled with `if let Some`.
+- `Buffer[(x, y)]` indexing panics on OOB — avoid it for invariant compliance. Use `cell_mut` with `if let`.
+- `Style` in ratatui 0.30 has `add_modifier: Modifier` and `sub_modifier: Modifier` fields (not `modifier: Modifier`). Check reversed style with `cell.style().add_modifier.contains(Modifier::REVERSED)`.
+- `(x - area.x) % zoom == 0` triggers `clippy::manual_is_multiple_of` in Rust 1.95 — use `.is_multiple_of(zoom)` instead. Method is safe only when `zoom > 0` (invariant holds for CanvasWidget where zoom ∈ [1,8]).
+- Canvas keys (`+`, `-`, arrows, `G`) placed before toolbox keys in dispatch order prevents `g`-for-Fill conflict since canvas only intercepts uppercase `G`. Lowercase `g` still reaches toolbox for Fill tool.
+
+## 2.3.6 — Status bar + canvas settings
+
+- `Constraint::Length(1)` with `Block::default().borders(Borders::ALL)` yields 0 rows
+  of content area — the text is effectively invisible. Changed to `Length(3)` for
+  a usable 1-line content area between top/bottom borders. Without this change,
+  status bar text never appears in the rendered buffer.
+- Settings mode must intercept keys BEFORE canvas handler, since arrow keys are
+  used for both canvas cursor movement and settings field navigation. A mode check
+  at the top of `handle_key_event()` ensures settings captures ↑/↓/←/→/Enter/Esc
+  before any other handler.
+- `CanvasSettings` syncs values to canvas on every key event (dimensions → recreate
+  widget, grid → toggle). This reactive approach ensures settings panel and canvas
+  stay in sync without a separate "apply" step.
+

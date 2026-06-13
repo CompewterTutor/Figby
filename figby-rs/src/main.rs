@@ -328,6 +328,8 @@ struct CliArgs {
     flip_x: bool,
     #[arg(long = "flipY", help = "Flip image vertically")]
     flip_y: bool,
+    #[arg(long = "tui", help = "Launch interactive TUI editor")]
+    flag_tui: bool,
     #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
@@ -1019,6 +1021,15 @@ fn run(config: CliConfig, message: Vec<String>) {
 fn main() {
     let args = CliArgs::parse();
     let infocode = args.infocode;
+
+    if args.flag_tui {
+        let mut app = figby::tui::TuiApp::new();
+        if let Err(e) = app.run() {
+            eprintln!("TUI error: {e}");
+            process::exit(1);
+        }
+        return;
+    }
 
     if let Some(ref name) = args.create_font_name {
         let result = figby::font_gen::system_font_to_figfont(name, args.create_font_size);

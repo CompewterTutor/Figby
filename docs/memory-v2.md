@@ -183,3 +183,47 @@ system font enumeration via font-kit (2.2.1), glyph rasterization to FIGcharacte
 rows (2.2.2), FIGfont header generation from font metrics (2.2.3), `--create-font`
 CLI command (2.2.4), TUI iconset YAML file (2.2.5). All 6 subtasks (2.2.1–2.2.6)
 implemented, tested, merged. Phase 2.3 (TUI Core & Canvas) is next.
+
+### 2.3.6 — Status bar + canvas settings
+
+Created `figby-rs/src/tui/status.rs` with two widgets:
+- `StatusBar` — renders cursor X,Y, zoom level, current tool name, mode name,
+  unsaved indicator using Nerd Font icons from `icons.yaml`. Static `render()`
+  method takes all display data as parameters (no stored state).
+- `CanvasSettings` struct — settings panel with canvas width/height, font size,
+  grid toggle, snap-to-grid toggle. `pub settings_open: bool` controls visibility.
+  `handle_key()` navigates fields via ↑/↓/←/→, toggles booleans via Enter, closes
+  via Esc. `render()` shows labeled fields with highlighted selection.
+
+Integrated into `TuiApp`:
+- `unsaved: bool` field (default `false`), `settings: CanvasSettings` field
+- Status bar constraint changed from `Length(1)` to `Length(3)` (needs room for
+  borders + 1 content line)
+- Settings panel replaces palette sidebar when `settings_open` is true
+- `S` key opens/closes settings, loading canvas state on open
+- `apply_settings()` syncs canvas width/height/grid on each settings key event
+- Settings mode blocks all other key handlers (canvas, toolbox, palette)
+- `apply_settings()` — recreates canvas widget when dimensions change, toggles
+  grid to match settings
+
+10 integration tests covering all status bar fields (cursor, zoom, tool, mode,
+unsaved indicator) and settings panel (toggle, width change, grid toggle,
+snap-to-grid toggle). fmt and clippy pass clean.
+
+### 2.3.5 — Brush selection
+
+Created `figby-rs/src/tui/brush.rs` — brush shape picker and size controls:
+- `BrushShape` enum: Square, Circle, SprayPaint, Custom with `cycle()` method
+- `BrushState` struct: `shape: BrushShape`, `size: u8` (1..=20, clamped), `set_size()`,
+  `size_up()`, `size_down()`, `cycle_shape()`
+- `render_preview(max_size)` returns `Vec<String>` showing brush tip at current size:
+  - Square: filled `size×size` block of `@`
+  - Circle: filled circle via distance check within radius `size/2`
+  - SprayPaint: deterministic pseudo-random dots via `(x*7 + y*31 + seed) % 100 < 35`
+  - Custom: single `+` at center, rest spaces
+- `render()` ratatui widget: shows shape name, size, and preview in toolbox column
+- Integrated into `TuiApp`: `brush` field, key events (`[` size down, `]` size up,
+  `'` cycle shape), preview rendered below toolbox
+- Status bar updated to show current brush shape and size
+- No `.unwrap()` in production — all paths use proper Option/clamp arithmetic
+- SprayPaint uses fixed seed 42 for deterministic output across test runs

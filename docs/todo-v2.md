@@ -375,7 +375,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Edit char via brush, verify FIGcharacter data changed.
   - **Difficulty:** Medium
 
-- [ ] `2.5.3` FIGfont header / layout editor
+- [x] `2.5.3` FIGfont header / layout editor
   - **Goal:** Panel for editing font-level properties: hardblank char,
     height, baseline, max_length, full_layout bitflags, print direction,
     comment lines. Validation (height≥1, baseline≤height).

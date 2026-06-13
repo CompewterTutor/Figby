@@ -256,3 +256,7 @@ DONE: 1.7.2 merged into release/1.7.
 Phase 1.6 + 1.7 already complete (checked off). release/1.7 branch deleted.
 PHASE_COMPLETE: 1.6 merged to main after review approval.
 PHASE_COMPLETE: 1.7 merged to main after review approval.
+
+## 2026-06-13 06:42
+
+DONE: 1.7.2 merged into release/1.7.

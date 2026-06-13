@@ -324,7 +324,7 @@ and multi-byte input.
   - **Success:** 100% output compatibility.
   - **Difficulty:** Medium
 
-- [ ] `1.7.2` v1 major milestone RC — human sign-off
+- [x] `1.7.2` v1 major milestone RC — human sign-off
   - **Goal:** Prepare RC for v1.0.0. Ralph halts. Human reviews.
   - **Touches:** RC branch, annotated tag
   - **Success:** `rc/1.0.0-rc.1` created. Human merges.

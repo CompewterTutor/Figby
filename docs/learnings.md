@@ -662,4 +662,24 @@ Three bugs found in phase merge review:
   in dedicated fields (`transform_font_name`) and use `sub_step` to track which step is active.
   Clone the stored name before the final mutation step to avoid borrow conflicts.
 
+## 2.6.2 — Text tool with FIGlet font overlay
 
+- `add_char()` can be reused for both CLI rendering and TUI canvas text tool — the same
+  `Vec<String>` row pipeline works for both, with justification computed as x-offset
+  instead of prepended spaces for canvas placement.
+- Font scanning uses `std::fs::read_dir` on `fonts/` directory — must handle the case
+  where directory doesn't exist (empty list returned gracefully).
+- When using `add_char()` for the text tool, the smush mode should use the font's
+  `full_layout` for FIGlet-compatible rendering, with KERN fallback when `full_layout < 0`.
+- Overlaying FIGlet text on canvas requires skipping space cells (transparent background)
+  to preserve existing canvas content behind the glyph's "holes". Only non-space chars
+  from the FIGlet output are stamped.
+- Mouse click to enter text mode: the text tool intercepts mouse events before the
+  drawing tool early-return check. This cleanly separates text tool interaction from
+  brush/paint interactions.
+- Key dispatch ordering: font navigation (up/down) must be handled before canvas handler
+  to prevent arrow keys from moving the canvas cursor when the intention is font list
+  navigation. Text entry mode captures ALL printable keys before any other handler.
+- Text tool options panel replaces the brush options panel in the left sidebar when
+  `Tool::Text` is selected — conditional render in `tui/mod.rs:197` swaps between
+  `brush.render()` and `text_tool.render_options()`.

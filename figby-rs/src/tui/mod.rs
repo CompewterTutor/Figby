@@ -1,6 +1,6 @@
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
-    KeyModifiers, MouseEvent, MouseEventKind,
+    KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -69,6 +69,8 @@ pub struct TuiApp {
     pub settings: status::CanvasSettings,
     last_canvas_size: (u16, u16),
     canvas_inner_rect: Rect,
+    toolbox_area: Rect,
+    palette_area: Rect,
     prev_mouse_buf: Option<(i16, i16)>,
     line_start: Option<(i16, i16)>,
     saved_buffer: Option<canvas::CanvasBuffer>,
@@ -92,6 +94,8 @@ impl TuiApp {
             brush: brush::BrushState::new(),
             last_canvas_size: (0, 0),
             canvas_inner_rect: Rect::new(0, 0, 0, 0),
+            toolbox_area: Rect::new(0, 0, 0, 0),
+            palette_area: Rect::new(0, 0, 0, 0),
             prev_mouse_buf: None,
             unsaved: false,
             settings: status::CanvasSettings::new(),
@@ -169,6 +173,8 @@ impl TuiApp {
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(10), Constraint::Length(9)])
             .split(main_chunks[0]);
+        self.toolbox_area = tool_brush_chunks[0];
+        self.palette_area = main_chunks[2];
         self.toolbox.render(frame, tool_brush_chunks[0]);
         self.brush.render(frame, tool_brush_chunks[1]);
 
@@ -176,9 +182,20 @@ impl TuiApp {
             .title(self.mode.title())
             .borders(Borders::ALL);
         let inner = block.inner(main_chunks[1]);
-        self.last_canvas_size = (inner.width, inner.height);
-        self.canvas_inner_rect = inner;
-        self.canvas.ensure_cursor_visible(inner.width, inner.height);
+        let zoom = self.canvas.zoom_level().max(1) as u16;
+        let buf_w = self.canvas.buffer.width() as u16;
+        let buf_h = self.canvas.buffer.height() as u16;
+        let grid_w = (buf_w * zoom).min(inner.width);
+        let grid_h = (buf_h * zoom).min(inner.height);
+        let centered = Rect {
+            x: inner.x + (inner.width.saturating_sub(grid_w) / 2),
+            y: inner.y + (inner.height.saturating_sub(grid_h) / 2),
+            width: grid_w,
+            height: grid_h,
+        };
+        self.last_canvas_size = (buf_w, buf_h);
+        self.canvas_inner_rect = centered;
+        self.canvas.ensure_cursor_visible(centered.width, centered.height);
         // Update selection perimeter on canvas for overlay rendering
         if let Some(ref sel) = self.selection {
             if sel.is_active() {
@@ -191,7 +208,14 @@ impl TuiApp {
         }
         self.canvas.polygon_vertices = self.selection_polygon_points.clone();
         frame.render_widget(block, main_chunks[1]);
-        frame.render_widget(&self.canvas, inner);
+        // Canvas edge border (subtle, to show drawable area boundary)
+        if centered.width > 1 && centered.height > 1 {
+            let edge = Block::default()
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM));
+            frame.render_widget(edge, centered);
+        }
+        frame.render_widget(&self.canvas, centered);
 
         if self.settings.settings_open {
             self.settings.render(frame, main_chunks[2]);
@@ -233,6 +257,24 @@ impl TuiApp {
 
     fn handle_mouse_event(&mut self, mouse: MouseEvent) {
         if self.settings.settings_open {
+            return;
+        }
+
+        // Toolbox click: select tool by row
+        let tool_count = Tool::all().len() as u16;
+        let toolbox_inner_y = self.toolbox_area.y + 1;
+        if mouse.kind == MouseEventKind::Down(MouseButton::Left)
+            && mouse.column >= self.toolbox_area.x
+            && mouse.column < self.toolbox_area.x + self.toolbox_area.width
+            && mouse.row >= toolbox_inner_y
+            && mouse.row < toolbox_inner_y + tool_count
+        {
+            let idx = (mouse.row - toolbox_inner_y) as usize;
+            let tools = Tool::all();
+            if idx < tools.len() {
+                self.toolbox.selected = tools[idx];
+                self.selection_polygon_points.clear();
+            }
             return;
         }
 

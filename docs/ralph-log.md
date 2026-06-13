@@ -459,3 +459,7 @@ All 2.6 tasks complete. Starting phase review.
 ## 2026-06-13 18:59
 
 PHASE_COMPLETE: 2.6 merged to main after review approval.
+
+## 2026-06-13 19:06
+
+DONE: 2.7.1 merged into release/2.7.

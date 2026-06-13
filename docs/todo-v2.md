@@ -470,7 +470,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Save then load, verify byte-identical.
   - **Difficulty:** Medium
 
-- [ ] `2.7.2` Open / recent files
+- [x] `2.7.2` Open / recent files
   - **Goal:** Open `.flf` file via file browser. Recent files list in
     menu. Drag-and-drop file path entry. File type filter (`.flf`, `.tlf`).
   - **Touches:** `figby-rs/src/tui/file_ops.rs`

@@ -1,6 +1,6 @@
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
-    KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -89,6 +89,7 @@ pub struct TuiApp {
     selection_polygon_points: Vec<(i16, i16)>,
     selection_lasso_points: Vec<(i16, i16)>,
     pub file_ops: file_ops::FileOpsDialog,
+    pub recent_files: file_ops::RecentFiles,
     auto_save_interval: u64,
     last_save_time: Instant,
 }
@@ -128,6 +129,7 @@ impl TuiApp {
             selection_polygon_points: Vec::new(),
             selection_lasso_points: Vec::new(),
             file_ops: file_ops::FileOpsDialog::new(),
+            recent_files: file_ops::RecentFiles::load_from_disk(),
             auto_save_interval: 0,
             last_save_time: Instant::now(),
         }
@@ -139,7 +141,12 @@ impl TuiApp {
 
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        execute!(
+            stdout,
+            EnterAlternateScreen,
+            EnableMouseCapture,
+            EnableBracketedPaste
+        )?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
@@ -152,6 +159,7 @@ impl TuiApp {
         execute!(
             terminal.backend_mut(),
             DisableMouseCapture,
+            DisableBracketedPaste,
             LeaveAlternateScreen
         )?;
         terminal.show_cursor()?;
@@ -786,6 +794,9 @@ impl TuiApp {
                     Event::Mouse(mouse) => {
                         self.handle_mouse_event(mouse);
                     }
+                    Event::Paste(text) => {
+                        self.handle_paste_event(text);
+                    }
                     _ => {}
                 }
                 if !event::poll(Duration::ZERO)? {
@@ -816,12 +827,15 @@ impl TuiApp {
 
         // File ops dialog active: dispatch all keys to it
         if self.file_ops.mode != file_ops::FileOpsMode::Idle {
+            let prev_mode = self.file_ops.mode;
             if self.file_ops.handle_key(code) {
-                // File ops dialog handled the key.
-                // If path was finalized (Enter pressed while in SaveAs mode),
-                // mode is now Idle — perform the save.
+                // If path was finalized (Enter pressed), mode is now Idle
                 if self.file_ops.mode == file_ops::FileOpsMode::Idle {
-                    self.perform_save();
+                    match prev_mode {
+                        file_ops::FileOpsMode::SaveAs => self.perform_save(),
+                        file_ops::FileOpsMode::Open => self.perform_open(),
+                        _ => {}
+                    }
                 }
             }
             return;
@@ -1204,6 +1218,12 @@ impl TuiApp {
             return;
         }
 
+        // Ctrl+O: Open font
+        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('o') {
+            self.start_open();
+            return;
+        }
+
         // Ctrl+S: Save (or Save As if no path)
         if modifiers.contains(KeyModifiers::CONTROL)
             && !modifiers.contains(KeyModifiers::SHIFT)
@@ -1288,6 +1308,47 @@ impl TuiApp {
                 }
             }
         }
+    }
+
+    fn handle_paste_event(&mut self, text: String) {
+        if self.file_ops.mode != file_ops::FileOpsMode::Idle {
+            self.file_ops.handle_paste(&text);
+        }
+        // TODO: when not active but a font file path is detected, trigger open flow
+        // For now, paste is only handled when dialog is active
+    }
+
+    fn start_open(&mut self) {
+        if self.mode != AppMode::FontEditor {
+            return;
+        }
+        self.file_ops.enter_open(self.recent_files.list());
+    }
+
+    fn perform_open(&mut self) {
+        let path = self.file_ops.selected_path();
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                self.file_ops.error_message = format!("Cannot read file: {e}");
+                self.file_ops.mode = file_ops::FileOpsMode::Open;
+                return;
+            }
+        };
+        let font = match crate::font::parse_tlf_font(&content) {
+            Ok(f) => f,
+            Err(e) => {
+                self.file_ops.error_message = format!("Parse error: {e}");
+                self.file_ops.mode = file_ops::FileOpsMode::Open;
+                return;
+            }
+        };
+        self.unsaved = false;
+        self.font_editor.load_font(font);
+        self.font_editor.current_path = Some(path.clone());
+        self.recent_files.push(path);
+        self.recent_files.save_to_disk();
+        self.file_ops.error_message.clear();
     }
 
     fn apply_settings(&mut self) {

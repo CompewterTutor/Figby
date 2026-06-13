@@ -729,3 +729,25 @@ Three bugs found in phase merge review:
 - `Ctrl+Shift+S` requires checking `modifiers.contains(KeyModifiers::SHIFT)` in
   addition to `CONTROL`. Match arms with `KeyModifiers` bitflag checks should use
   `if` guards rather than nested `match` for clippy `single_match` compliance.
+
+## 2.7.2 — Open / recent files
+
+- `render_save_as()` had a bug: `PathBuf::from(entry).is_dir()` checks if the
+  bare filename (like `"subdir"`) is a directory in CWD, not in the parent
+  directory shown by the dialog. Must use `parent.join(entry).is_dir()` where
+  `parent` is derived from `path_buffer`. Same fix applied in new `render_open()`.
+- `Event::Paste(String)` and `EnableBracketedPaste`/`DisableBracketedPaste` exist
+  in `crossterm::event` module in crossterm 0.28. The `EnableBracketedPaste`
+  command is an `AnsiEvent` that modifies terminal behavior globally — must ensure
+  `DisableBracketedPaste` runs on exit (in the `execute!` cleanup block after the
+  event loop).
+- Recent files can be persisted with a simple newline-separated format — no need
+  for `serde_json` or any serialization crate. Split on `\n`, filter empty lines,
+  map to `PathBuf`. On write: join with `\n` and write. Simple and sufficient for
+  path storage (newlines in filenames are extremely rare).
+- `RecentFiles::load_from_disk()` must handle missing file gracefully (returns
+  empty list). Startup failure is silent — no error message to user.
+- When file ops dialog transitions from `Open` → `Idle` on Enter, the caller
+  (`mod.rs`) must check the previous mode to call `perform_open()` vs
+  `perform_save()`. Store `prev_mode` before calling `handle_key()` to
+  disambiguate.

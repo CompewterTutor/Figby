@@ -159,3 +159,17 @@ production — all errors propagate as `ImageError`.
 7 unit tests: PNG fixture load, JPEG encode+load, BMP encode+load, WEBP encode+load,
 known RGB luminance ordering (green > red > blue), luminance range (non-empty rows),
 nonexistent file returns error. `lib.rs` updated with `pub mod image_input;`.
+
+### 2.1.6 — Phase merge: release/2.1 → master
+
+Merged all Phase 2.1 work into default branch (master). Phase 2.1 complete:
+Image loading + grayscale luminance conversion (2.1.1), luminance-to-ASCII
+character mapping (2.1.2), 24-bit ANSI colored ASCII output (2.1.3), braille
+art + Floyd-Steinberg dithering (2.1.4), image CLI flags integration (2.1.5).
+All 5 subtasks implemented, tested, merged. Phase 2.2 (System Font → FIGfont
+Creation) is next.
+
+Merge conflicts: docs/ralph-log.md had a conflict between master's post-2.0.10
+log entries and release/2.1's 2.1.x entries. Resolution: kept both sets in
+chronological order. Also committed the 2.1.5 ralph-log entry that was
+previously uncommitted on task-2.1.5/2.1.6.

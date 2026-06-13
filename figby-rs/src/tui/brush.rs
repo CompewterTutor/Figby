@@ -48,6 +48,7 @@ const MAX_SIZE: u8 = 20;
 pub struct BrushState {
     pub shape: BrushShape,
     pub size: u8,
+    pub ch: char,
 }
 
 impl BrushState {
@@ -55,6 +56,7 @@ impl BrushState {
         Self {
             shape: BrushShape::Square,
             size: 3,
+            ch: '\u{2588}',
         }
     }
 
@@ -288,6 +290,7 @@ mod tests {
         let brush = BrushState {
             shape: BrushShape::Circle,
             size: 5,
+            ch: '\u{2588}',
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -303,6 +306,7 @@ mod tests {
         let brush = BrushState {
             shape: BrushShape::SprayPaint,
             size: 5,
+            ch: '\u{2588}',
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -320,10 +324,12 @@ mod tests {
         let a = BrushState {
             shape: BrushShape::SprayPaint,
             size: 7,
+            ch: '\u{2588}',
         };
         let b = BrushState {
             shape: BrushShape::SprayPaint,
             size: 7,
+            ch: '\u{2588}',
         };
         assert_eq!(a.render_preview(10), b.render_preview(10));
     }
@@ -333,6 +339,7 @@ mod tests {
         let brush = BrushState {
             shape: BrushShape::Custom,
             size: 5,
+            ch: '\u{2588}',
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -355,6 +362,7 @@ mod tests {
         let brush = BrushState {
             shape: BrushShape::Square,
             size: 0,
+            ch: '\u{2588}',
         };
         let preview = brush.render_preview(5);
         assert!(!preview.is_empty());
@@ -366,6 +374,7 @@ mod tests {
             let brush = BrushState {
                 shape: *shape,
                 size: 1,
+                ch: '\u{2588}',
             };
             let preview = brush.render_preview(5);
             assert_eq!(preview.len(), 1);

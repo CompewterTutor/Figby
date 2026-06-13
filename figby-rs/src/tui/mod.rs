@@ -241,7 +241,7 @@ impl TuiApp {
         if !is_selection_tool
             && !matches!(
                 self.toolbox.selected,
-                Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill
+                Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Eyedropper
             )
         {
             self.prev_mouse_buf = None;
@@ -267,7 +267,7 @@ impl TuiApp {
 
                 if self.toolbox.selected == Tool::Fill {
                     let mut cell = canvas::CanvasCell {
-                        ch: '\u{2588}',
+                        ch: self.brush.ch,
                         fg: None,
                         bg: None,
                     };
@@ -288,9 +288,18 @@ impl TuiApp {
                         self.brush.shape,
                         self.brush.size,
                     );
+                } else if self.toolbox.selected == Tool::Eyedropper {
+                    if let Some(cell) = tools::eyedropper::sample(&self.canvas.buffer, bx, by) {
+                        self.brush.ch = cell.ch;
+                        if let Some(fg) = cell.fg {
+                            self.palette.selected_color = Some(fg);
+                            self.palette.push_recent(fg);
+                            self.palette.target = palette::ColorTarget::Foreground;
+                        }
+                    }
                 } else {
                     let mut cell = canvas::CanvasCell {
-                        ch: '\u{2588}',
+                        ch: self.brush.ch,
                         fg: None,
                         bg: None,
                     };
@@ -322,7 +331,7 @@ impl TuiApp {
                     if let (Some((sx, sy)), Some(saved)) = (self.line_start, &self.saved_buffer) {
                         self.canvas.buffer = saved.clone();
                         let mut cell = canvas::CanvasCell {
-                            ch: '\u{2588}',
+                            ch: self.brush.ch,
                             fg: None,
                             bg: None,
                         };
@@ -353,7 +362,7 @@ impl TuiApp {
                         );
                     } else {
                         let mut cell = canvas::CanvasCell {
-                            ch: '\u{2588}',
+                            ch: self.brush.ch,
                             fg: None,
                             bg: None,
                         };
@@ -643,7 +652,7 @@ impl TuiApp {
             let (cx, cy) = self.canvas.cursor();
             if self.toolbox.selected == Tool::Fill {
                 let mut cell = canvas::CanvasCell {
-                    ch: '\u{2588}',
+                    ch: self.brush.ch,
                     fg: None,
                     bg: None,
                 };
@@ -659,7 +668,7 @@ impl TuiApp {
                 );
             } else {
                 let mut cell = canvas::CanvasCell {
-                    ch: '\u{2588}',
+                    ch: self.brush.ch,
                     fg: None,
                     bg: None,
                 };

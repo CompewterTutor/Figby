@@ -733,3 +733,15 @@ scrollable/zoomable canvas widget (2.3.3), color palette sidebar (2.3.4),
 brush shape picker with size/preview (2.3.5), status bar + canvas settings
 panel (2.3.6). All 6 subtasks (2.3.1–2.3.6) implemented, tested, merged.
 Phase 2.4 (Drawing Tools) is next.
+
+### 2.4.6 — Eyedropper tool
+
+Added `tools/eyedropper.rs` with `sample()` — bounds-checked cell lookup returning
+`Option<CanvasCell>`. Integrated into TUI mouse handler: click samples cell char +
+foreground color, sets `self.brush.ch` and `self.palette.selected_color`, pushes
+color to recent colors, switches target to Foreground. `BrushState` gained `ch: char`
+field (default `'\u{2588}'`) — all 6 hardcoded `ch: '\u{2588}'` in drawing tools
+replaced with `self.brush.ch`. `Palette::push_recent` changed from `fn` to `pub fn`
+to allow external call. Eyedropper excluded from keyboard paint (Space/Enter) and
+mouse early-return. 5 unit tests: cell data, empty defaults, out-of-bounds,
+no-foreground cell, char sampling. fmt and clippy pass clean.

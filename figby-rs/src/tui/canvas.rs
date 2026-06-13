@@ -4,7 +4,7 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::Widget;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CanvasCell {
     pub ch: char,
     pub fg: Option<Color>,
@@ -137,6 +137,16 @@ impl CanvasWidget {
 
     pub fn show_grid(&self) -> bool {
         self.show_grid
+    }
+
+    pub fn set_cursor(&mut self, x: u16, y: u16) {
+        let max_x = self.buffer.width().saturating_sub(1) as u16;
+        let max_y = self.buffer.height().saturating_sub(1) as u16;
+        self.cursor = (x.min(max_x), y.min(max_y));
+    }
+
+    pub fn scroll_offset(&self) -> (u16, u16) {
+        self.scroll
     }
 
     pub fn ensure_cursor_visible(&mut self, inner_width: u16, inner_height: u16) {

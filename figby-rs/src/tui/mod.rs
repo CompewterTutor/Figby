@@ -1,8 +1,12 @@
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseEvent,
+    MouseEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
+use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, Tabs};
@@ -16,6 +20,7 @@ pub mod canvas;
 pub mod palette;
 pub mod status;
 pub mod toolbox;
+pub mod tools;
 
 pub use brush::BrushState;
 pub use palette::Palette;
@@ -60,6 +65,8 @@ pub struct TuiApp {
     pub unsaved: bool,
     pub settings: status::CanvasSettings,
     last_canvas_size: (u16, u16),
+    canvas_inner_rect: Rect,
+    prev_mouse_buf: Option<(i16, i16)>,
 }
 
 impl TuiApp {
@@ -74,6 +81,8 @@ impl TuiApp {
             palette: palette::Palette::new(),
             brush: brush::BrushState::new(),
             last_canvas_size: (0, 0),
+            canvas_inner_rect: Rect::new(0, 0, 0, 0),
+            prev_mouse_buf: None,
             unsaved: false,
             settings: status::CanvasSettings::new(),
         }
@@ -85,7 +94,7 @@ impl TuiApp {
 
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen)?;
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
@@ -95,7 +104,11 @@ impl TuiApp {
         }
 
         disable_raw_mode()?;
-        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+        execute!(
+            terminal.backend_mut(),
+            DisableMouseCapture,
+            LeaveAlternateScreen
+        )?;
         terminal.show_cursor()?;
         Ok(())
     }
@@ -147,6 +160,7 @@ impl TuiApp {
             .borders(Borders::ALL);
         let inner = block.inner(main_chunks[1]);
         self.last_canvas_size = (inner.width, inner.height);
+        self.canvas_inner_rect = inner;
         self.canvas.ensure_cursor_visible(inner.width, inner.height);
         frame.render_widget(block, main_chunks[1]);
         frame.render_widget(&self.canvas, inner);
@@ -174,12 +188,96 @@ impl TuiApp {
         );
     }
 
+    fn screen_to_buffer(&self, col: u16, row: u16) -> Option<(i16, i16)> {
+        let zoom = self.canvas.zoom_level().max(1) as i16;
+        let area = self.canvas_inner_rect;
+        if col < area.x || col >= area.x + area.width {
+            return None;
+        }
+        if row < area.y || row >= area.y + area.height {
+            return None;
+        }
+        let (sx, sy) = self.canvas.scroll_offset();
+        let bx = sx as i16 + (col as i16 - area.x as i16) / zoom;
+        let by = sy as i16 + (row as i16 - area.y as i16) / zoom;
+        Some((bx, by))
+    }
+
+    fn handle_mouse_event(&mut self, mouse: MouseEvent) {
+        if self.settings.settings_open {
+            return;
+        }
+        if self.toolbox.selected != Tool::Brush {
+            self.prev_mouse_buf = None;
+            return;
+        }
+        match mouse.kind {
+            MouseEventKind::Down(_) => {
+                let Some((bx, by)) = self.screen_to_buffer(mouse.column, mouse.row) else {
+                    self.prev_mouse_buf = None;
+                    return;
+                };
+                self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
+                self.unsaved = true;
+                let mut cell = canvas::CanvasCell {
+                    ch: '\u{2588}',
+                    fg: None,
+                    bg: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                tools::brush::paint_stamp(
+                    &mut self.canvas.buffer,
+                    bx,
+                    by,
+                    self.brush.shape,
+                    self.brush.size,
+                    cell,
+                );
+                self.prev_mouse_buf = Some((bx, by));
+            }
+            MouseEventKind::Drag(_) => {
+                let Some((bx, by)) = self.screen_to_buffer(mouse.column, mouse.row) else {
+                    return;
+                };
+                self.canvas.set_cursor(bx.max(0) as u16, by.max(0) as u16);
+                self.unsaved = true;
+                let mut cell = canvas::CanvasCell {
+                    ch: '\u{2588}',
+                    fg: None,
+                    bg: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                if let Some((px, py)) = self.prev_mouse_buf {
+                    tools::brush::paint_line(
+                        &mut self.canvas.buffer,
+                        px,
+                        py,
+                        bx,
+                        by,
+                        self.brush.shape,
+                        self.brush.size,
+                        cell,
+                    );
+                }
+                self.prev_mouse_buf = Some((bx, by));
+            }
+            MouseEventKind::Up(_) => {
+                self.prev_mouse_buf = None;
+            }
+            _ => {}
+        }
+    }
+
     pub fn handle_event(&mut self) -> io::Result<()> {
         if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
                     self.handle_key_event(key.code);
                 }
+                Event::Mouse(mouse) => {
+                    self.handle_mouse_event(mouse);
+                }
+                _ => {}
             }
         }
         Ok(())
@@ -224,6 +322,29 @@ impl TuiApp {
         if self.palette.handle_key(code) {
             return;
         }
+        // Keyboard painting: Space paints at cursor when Brush is selected
+        if self.toolbox.selected == Tool::Brush
+            && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
+        {
+            let (cx, cy) = self.canvas.cursor();
+            let mut cell = canvas::CanvasCell {
+                ch: '\u{2588}',
+                fg: None,
+                bg: None,
+            };
+            self.palette.apply_to_cell(&mut cell);
+            tools::brush::paint_stamp(
+                &mut self.canvas.buffer,
+                cx as i16,
+                cy as i16,
+                self.brush.shape,
+                self.brush.size,
+                cell,
+            );
+            self.unsaved = true;
+            return;
+        }
+
         match code {
             KeyCode::Tab => {
                 self.mode = self.mode.next();

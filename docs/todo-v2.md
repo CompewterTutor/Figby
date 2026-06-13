@@ -289,7 +289,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.4 — Drawing Tools
 
-- [ ] `2.4.1` Brush tool
+- [x] `2.4.1` Brush tool
   - **Goal:** Paint characters onto canvas at cursor. Uses active brush
     shape and size. Applies active foreground color to each char cell.
     Continuous stroke on click+drag.

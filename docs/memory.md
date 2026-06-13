@@ -699,6 +699,32 @@ Integrated into `TuiApp`:
 unsaved indicator) and settings panel (toggle, width change, grid toggle,
 snap-to-grid toggle). fmt and clippy pass clean.
 
+### 2.4.1 — Brush tool
+
+Added `tools/` subdirectory under `tui/` with `mod.rs` module root and `brush.rs`
+execution module. Three core functions:
+- `stamp_offsets()` — computes relative (dx, dy) offsets for Square, Circle,
+  SprayPaint, and Custom brush shapes. Square fills N×N block, Circle uses
+  euclidean distance ≤ radius, SprayPaint uses deterministic hash (seed 42, 35%
+  density), Custom stamps only center cell.
+- `paint_stamp()` — applies brush stamp at (cx, cy), clips to buffer bounds,
+  no `unwrap()` in production (uses `get_mut` → `Option`).
+- `paint_line()` — Bresenham line interpolation with per-step stamp calls.
+
+Integrated into TUI:
+- Mouse capture via `EnableMouseCapture`/`DisableMouseCapture` (crossterm `event`
+  module, not `terminal`). Left-click places stamp, drag draws line, release
+  resets drag origin.
+- Keyboard painting: Space/Enter paints stamp at cursor when Brush tool active.
+- `screen_to_buffer()` maps terminal coords to buffer coords using scroll/zoom.
+- `canvas_inner_rect` tracks canvas rendering area for mouse→buffer conversion.
+- `CanvasCell` gained `Copy` derive (all fields are Copy types).
+- `CanvasWidget` gained `set_cursor()` and `scroll_offset()` methods.
+
+14 unit tests: square coverage, circle shape, spray determinism, bounds clipping,
+cell attributes, line directions (horizontal/vertical/diagonal/reverse), endpoint
+clipping, size-1 square, custom-only-center.
+
 ### 2.3.7 — Phase merge: release/2.3 → main
 
 Merged all Phase 2.3 work into default branch (master). Phase 2.3 complete:

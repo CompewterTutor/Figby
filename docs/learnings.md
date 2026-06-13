@@ -502,3 +502,10 @@ Three bugs found in phase merge review:
   widget, grid → toggle). This reactive approach ensures settings panel and canvas
   stay in sync without a separate "apply" step.
 
+## 2.4.1 — Brush tool
+
+- `EnableMouseCapture`/`DisableMouseCapture` live in `crossterm::event`, NOT
+  `crossterm::terminal` as one might expect. In crossterm 0.28, mouse capture
+  commands are event-system primitives alongside `EnableBracketedPaste`,
+  not terminal-mode commands like `EnterAlternateScreen`.
+

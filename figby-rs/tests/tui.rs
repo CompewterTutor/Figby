@@ -30,7 +30,7 @@ fn test_tui_smoke_all_panels_render() {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    let app = TuiApp::new();
+    let mut app = TuiApp::new();
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -140,7 +140,7 @@ fn test_toolbox_renders_tool_names() {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    let app = TuiApp::new();
+    let mut app = TuiApp::new();
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -148,4 +148,186 @@ fn test_toolbox_renders_tool_names() {
     let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
     assert!(output.contains(" Br"), "toolbox missing Brush tool");
     assert!(output.contains(" Er"), "toolbox missing Eraser tool");
+}
+
+#[test]
+fn test_canvas_render_empty() {
+    use figby::tui::canvas::CanvasWidget;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let canvas = CanvasWidget::new(10, 5);
+    let backend = TestBackend::new(20, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|f| f.render_widget(&canvas, f.area()))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    for cell in buffer.content() {
+        assert_eq!(cell.symbol(), " ");
+    }
+}
+
+#[test]
+fn test_canvas_render_cells() {
+    use figby::tui::canvas::{CanvasCell, CanvasWidget};
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let mut canvas = CanvasWidget::new(10, 5);
+    canvas.buffer.set(
+        0,
+        0,
+        CanvasCell {
+            ch: 'A',
+            fg: None,
+            bg: None,
+        },
+    );
+    canvas.buffer.set(
+        2,
+        1,
+        CanvasCell {
+            ch: 'B',
+            fg: None,
+            bg: None,
+        },
+    );
+
+    let backend = TestBackend::new(20, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|f| f.render_widget(&canvas, f.area()))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
+    assert!(output.contains('A'), "expected 'A' in canvas output");
+    assert!(output.contains('B'), "expected 'B' in canvas output");
+}
+
+#[test]
+fn test_canvas_cursor_movement() {
+    use crossterm::event::KeyCode;
+    use figby::tui::canvas::CanvasWidget;
+
+    let mut canvas = CanvasWidget::new(10, 5);
+    assert_eq!(canvas.cursor(), (0, 0));
+
+    canvas.handle_key(KeyCode::Right, 20, 10);
+    assert_eq!(canvas.cursor(), (1, 0));
+
+    canvas.handle_key(KeyCode::Down, 20, 10);
+    assert_eq!(canvas.cursor(), (1, 1));
+
+    canvas.handle_key(KeyCode::Left, 20, 10);
+    assert_eq!(canvas.cursor(), (0, 1));
+
+    canvas.handle_key(KeyCode::Up, 20, 10);
+    assert_eq!(canvas.cursor(), (0, 0));
+}
+
+#[test]
+fn test_canvas_zoom_in_out() {
+    use crossterm::event::KeyCode;
+    use figby::tui::canvas::CanvasWidget;
+
+    let mut canvas = CanvasWidget::new(10, 5);
+    assert_eq!(canvas.zoom_level(), 1);
+
+    canvas.handle_key(KeyCode::Char('+'), 20, 10);
+    assert_eq!(canvas.zoom_level(), 2);
+
+    canvas.handle_key(KeyCode::Char('='), 20, 10);
+    assert_eq!(canvas.zoom_level(), 4);
+
+    canvas.handle_key(KeyCode::Char('+'), 20, 10);
+    assert_eq!(canvas.zoom_level(), 8);
+
+    canvas.handle_key(KeyCode::Char('+'), 20, 10);
+    assert_eq!(canvas.zoom_level(), 8);
+
+    canvas.handle_key(KeyCode::Char('-'), 20, 10);
+    assert_eq!(canvas.zoom_level(), 4);
+
+    canvas.handle_key(KeyCode::Char('_'), 20, 10);
+    assert_eq!(canvas.zoom_level(), 2);
+
+    canvas.handle_key(KeyCode::Char('-'), 20, 10);
+    assert_eq!(canvas.zoom_level(), 1);
+
+    canvas.handle_key(KeyCode::Char('-'), 20, 10);
+    assert_eq!(canvas.zoom_level(), 1);
+}
+
+#[test]
+fn test_canvas_cursor_visible() {
+    use figby::tui::canvas::{CanvasCell, CanvasWidget};
+    use ratatui::backend::TestBackend;
+    use ratatui::style::Modifier;
+    use ratatui::Terminal;
+
+    let mut canvas = CanvasWidget::new(10, 5);
+    canvas.buffer.set(
+        0,
+        0,
+        CanvasCell {
+            ch: 'X',
+            fg: None,
+            bg: None,
+        },
+    );
+
+    let backend = TestBackend::new(20, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|f| f.render_widget(&canvas, f.area()))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let cell = buffer.cell((0, 0)).expect("cell at (0,0)");
+    assert_eq!(cell.symbol(), "X");
+    assert!(
+        cell.style().add_modifier.contains(Modifier::REVERSED),
+        "cursor cell should have REVERSED modifier"
+    );
+}
+
+#[test]
+fn test_canvas_zoom_shows_grid() {
+    use crossterm::event::KeyCode;
+    use figby::tui::canvas::{CanvasCell, CanvasWidget};
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let mut canvas = CanvasWidget::new(5, 3);
+    canvas.buffer.set(
+        0,
+        0,
+        CanvasCell {
+            ch: 'A',
+            fg: None,
+            bg: None,
+        },
+    );
+    canvas.buffer.set(
+        1,
+        0,
+        CanvasCell {
+            ch: 'B',
+            fg: None,
+            bg: None,
+        },
+    );
+
+    canvas.handle_key(KeyCode::Char('+'), 20, 10);
+    canvas.handle_key(KeyCode::Char('G'), 20, 10);
+
+    let backend = TestBackend::new(20, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal
+        .draw(|f| f.render_widget(&canvas, f.area()))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
+    assert!(output.contains('│'), "expected vertical grid line │");
+    assert!(output.contains('─'), "expected horizontal grid line ─");
 }

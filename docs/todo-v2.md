@@ -243,7 +243,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Tool selection round-trip tests.
   - **Difficulty:** Medium
 
-- [ ] `2.3.3` Canvas widget
+- [x] `2.3.3` Canvas widget
   - **Goal:** Scrollable/zoomable canvas widget. Renders the current
     working buffer (font glyph, image, or ASCII preview) as a grid of
     characters with optional color. Grid overlay. Cursor tracking.

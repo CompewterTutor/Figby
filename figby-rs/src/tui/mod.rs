@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use std::io;
 use std::time::Duration;
 
+pub mod canvas;
 pub mod toolbox;
 
 pub use toolbox::Tool;
@@ -47,6 +48,8 @@ pub struct TuiApp {
     pub should_quit: bool,
     _icons: BTreeMap<String, String>,
     pub toolbox: toolbox::Toolbox,
+    pub canvas: canvas::CanvasWidget,
+    last_canvas_size: (u16, u16),
 }
 
 impl TuiApp {
@@ -57,6 +60,8 @@ impl TuiApp {
             should_quit: false,
             _icons: icons,
             toolbox: toolbox::Toolbox::new(),
+            canvas: canvas::CanvasWidget::default(),
+            last_canvas_size: (0, 0),
         }
     }
 
@@ -81,7 +86,7 @@ impl TuiApp {
         Ok(())
     }
 
-    pub fn render(&self, frame: &mut Frame<'_>) {
+    pub fn render(&mut self, frame: &mut Frame<'_>) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -118,10 +123,14 @@ impl TuiApp {
 
         self.toolbox.render(frame, main_chunks[0]);
 
-        let canvas = Block::default()
+        let block = Block::default()
             .title(self.mode.title())
             .borders(Borders::ALL);
-        frame.render_widget(canvas, main_chunks[1]);
+        let inner = block.inner(main_chunks[1]);
+        self.last_canvas_size = (inner.width, inner.height);
+        self.canvas.ensure_cursor_visible(inner.width, inner.height);
+        frame.render_widget(block, main_chunks[1]);
+        frame.render_widget(&self.canvas, inner);
 
         let palette = Block::default().title(" Palette ").borders(Borders::ALL);
         frame.render_widget(palette, main_chunks[2]);
@@ -148,6 +157,12 @@ impl TuiApp {
     }
 
     pub fn handle_key_event(&mut self, code: KeyCode) {
+        if self
+            .canvas
+            .handle_key(code, self.last_canvas_size.0, self.last_canvas_size.1)
+        {
+            return;
+        }
         if self.toolbox.handle_key(code) {
             return;
         }

@@ -193,10 +193,13 @@ impl TuiApp {
         let block = Block::default().title(mode_title).borders(Borders::ALL);
         let inner = block.inner(main_chunks[1]);
 
-        let is_font_overview = self.mode == AppMode::FontEditor
-            && self.font_editor.view == font_editor::FontEditorView::Overview;
+        let is_font_ui_mode = self.mode == AppMode::FontEditor
+            && !matches!(
+                self.font_editor.view,
+                font_editor::FontEditorView::CharEditor(_)
+            );
 
-        if is_font_overview {
+        if is_font_ui_mode {
             frame.render_widget(block, main_chunks[1]);
             self.font_editor.render(frame, inner);
         } else {
@@ -253,6 +256,8 @@ impl TuiApp {
             AppMode::FontEditor => {
                 if let font_editor::FontEditorView::CharEditor(code) = self.font_editor.view {
                     format!("Font Editor [U+{code:04X}]")
+                } else if self.font_editor.view == font_editor::FontEditorView::HeaderEditor {
+                    "Font Editor - Header".to_string()
                 } else {
                     "Font Editor".to_string()
                 }

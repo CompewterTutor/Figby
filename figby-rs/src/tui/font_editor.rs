@@ -7,10 +7,21 @@ use ratatui::Frame;
 
 use crate::font::FIGfont;
 
+const HEADER_FIELD_LABELS: [&str; 7] = [
+    "Hardblank",
+    "Char Height",
+    "Baseline",
+    "Max Length",
+    "Full Layout",
+    "Print Direction",
+    "Comment Lines",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FontEditorView {
     Overview,
     CharEditor(u32),
+    HeaderEditor,
 }
 
 pub struct FontEditor {
@@ -23,6 +34,10 @@ pub struct FontEditor {
     all_codes: Vec<u32>,
     undo_stack: Vec<Vec<String>>,
     redo_stack: Vec<Vec<String>>,
+    pub selected_field: usize,
+    pub editing_field: bool,
+    pub edit_buffer: String,
+    pub error_message: String,
 }
 
 impl FontEditor {
@@ -37,6 +52,10 @@ impl FontEditor {
             all_codes: Vec::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            selected_field: 0,
+            editing_field: false,
+            edit_buffer: String::new(),
+            error_message: String::new(),
         }
     }
 
@@ -51,6 +70,14 @@ impl FontEditor {
         self.view = FontEditorView::Overview;
         self.undo_stack.clear();
         self.redo_stack.clear();
+    }
+
+    pub fn enter_header_editor(&mut self) {
+        self.view = FontEditorView::HeaderEditor;
+        self.selected_field = 0;
+        self.editing_field = false;
+        self.edit_buffer.clear();
+        self.error_message.clear();
     }
 
     pub fn filtered_codes(&self) -> Vec<u32> {
@@ -80,6 +107,7 @@ impl FontEditor {
         match self.view {
             FontEditorView::Overview => self.render_overview(frame, area),
             FontEditorView::CharEditor(_) => {}
+            FontEditorView::HeaderEditor => self.render_header_editor(frame, area),
         }
     }
 
@@ -172,10 +200,92 @@ impl FontEditor {
         frame.render_widget(grid, grid_area);
     }
 
+    fn render_header_editor(&mut self, frame: &mut Frame, area: Rect) {
+        let Some(font) = self.font.as_ref() else {
+            return;
+        };
+
+        let field_values: [String; 7] = [
+            font.hardblank.to_string(),
+            font.charheight.to_string(),
+            font.baseline.to_string(),
+            font.maxlength.to_string(),
+            font.full_layout.to_string(),
+            font.print_direction.to_string(),
+            font.comment_lines.to_string(),
+        ];
+
+        let labels = HEADER_FIELD_LABELS;
+        let mut lines: Vec<Line> = Vec::new();
+
+        lines.push(Line::from(Span::styled(
+            " FIGfont Header Properties",
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+
+        for (i, &label) in labels.iter().enumerate() {
+            let is_selected = i == self.selected_field;
+            let value = if self.editing_field && i == self.selected_field {
+                self.edit_buffer.clone()
+            } else {
+                field_values[i].clone()
+            };
+
+            let prefix = if is_selected && !self.editing_field {
+                " >"
+            } else if is_selected && self.editing_field {
+                ">>"
+            } else {
+                "  "
+            };
+
+            let text = format!("{} {}: {}", prefix, label, value);
+
+            let style = if is_selected {
+                if self.editing_field {
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                }
+            } else {
+                Style::default()
+            };
+
+            lines.push(Line::from(Span::styled(text, style)));
+        }
+
+        if !self.error_message.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                format!(" Error: {}", self.error_message),
+                Style::default().fg(Color::Red),
+            )));
+        }
+
+        lines.push(Line::from(""));
+        if self.editing_field {
+            lines.push(Line::from(Span::styled(
+                " Enter: Save  Esc: Cancel  Backspace: Delete char",
+                Style::default().fg(Color::DarkGray),
+            )));
+        } else {
+            lines.push(Line::from(Span::styled(
+                " \u{2191}\u{2193}: Navigate  Enter: Edit  Esc: Back",
+                Style::default().fg(Color::DarkGray),
+            )));
+        }
+
+        let paragraph = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
+        frame.render_widget(paragraph, area);
+    }
+
     pub fn handle_key(&mut self, code: KeyCode, modifiers: KeyModifiers, area_width: u16) -> bool {
         match self.view {
             FontEditorView::Overview => self.handle_key_overview(code, area_width),
             FontEditorView::CharEditor(_) => self.handle_key_char_editor(code, modifiers),
+            FontEditorView::HeaderEditor => self.handle_key_header_editor(code),
         }
     }
 
@@ -187,6 +297,179 @@ impl FontEditor {
             }
             KeyCode::Char('z') if modifiers.contains(KeyModifiers::CONTROL) => self.undo_char(),
             KeyCode::Char('y') if modifiers.contains(KeyModifiers::CONTROL) => self.redo_char(),
+            _ => false,
+        }
+    }
+
+    fn handle_key_header_editor(&mut self, code: KeyCode) -> bool {
+        if self.editing_field {
+            match code {
+                KeyCode::Enter => {
+                    self.error_message.clear();
+                    if self.save_current_field() {
+                        self.editing_field = false;
+                    }
+                    true
+                }
+                KeyCode::Esc => {
+                    self.editing_field = false;
+                    self.edit_buffer.clear();
+                    self.error_message.clear();
+                    true
+                }
+                KeyCode::Char(c) if !c.is_control() => {
+                    self.edit_buffer.push(c);
+                    self.error_message.clear();
+                    true
+                }
+                KeyCode::Backspace => {
+                    self.edit_buffer.pop();
+                    self.error_message.clear();
+                    true
+                }
+                _ => false,
+            }
+        } else {
+            match code {
+                KeyCode::Up => {
+                    if self.selected_field > 0 {
+                        self.selected_field -= 1;
+                    }
+                    self.error_message.clear();
+                    true
+                }
+                KeyCode::Down => {
+                    if self.selected_field < 6 {
+                        self.selected_field += 1;
+                    }
+                    self.error_message.clear();
+                    true
+                }
+                KeyCode::Enter => {
+                    self.start_editing_field();
+                    true
+                }
+                KeyCode::Esc => {
+                    self.view = FontEditorView::Overview;
+                    self.error_message.clear();
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
+
+    fn start_editing_field(&mut self) {
+        let Some(font) = &self.font else { return };
+        self.editing_field = true;
+        self.edit_buffer = match self.selected_field {
+            0 => font.hardblank.to_string(),
+            1 => font.charheight.to_string(),
+            2 => font.baseline.to_string(),
+            3 => font.maxlength.to_string(),
+            4 => font.full_layout.to_string(),
+            5 => font.print_direction.to_string(),
+            6 => font.comment_lines.to_string(),
+            _ => String::new(),
+        };
+        self.error_message.clear();
+    }
+
+    fn save_current_field(&mut self) -> bool {
+        let val = self.edit_buffer.trim().to_string();
+        if val.is_empty() {
+            self.error_message = "Value cannot be empty".to_string();
+            return false;
+        }
+
+        let field = self.selected_field;
+        let Some(font) = self.font.as_mut() else {
+            return false;
+        };
+
+        match field {
+            0 => {
+                let chars: Vec<char> = val.chars().collect();
+                if chars.len() == 1 {
+                    font.hardblank = chars[0];
+                    true
+                } else {
+                    self.error_message = "Hardblank must be a single character".to_string();
+                    false
+                }
+            }
+            1 => match val.parse::<u32>() {
+                Ok(v) if v >= 1 => {
+                    font.charheight = v;
+                    true
+                }
+                Ok(_) => {
+                    self.error_message = "Height must be \u{2265} 1".to_string();
+                    false
+                }
+                Err(_) => {
+                    self.error_message = "Invalid number".to_string();
+                    false
+                }
+            },
+            2 => match val.parse::<u32>() {
+                Ok(v) if v <= font.charheight => {
+                    font.baseline = v;
+                    true
+                }
+                Ok(_) => {
+                    self.error_message = "Baseline must be \u{2264} height".to_string();
+                    false
+                }
+                Err(_) => {
+                    self.error_message = "Invalid number".to_string();
+                    false
+                }
+            },
+            3 => match val.parse::<u32>() {
+                Ok(v) => {
+                    font.maxlength = v;
+                    true
+                }
+                Err(_) => {
+                    self.error_message = "Invalid number".to_string();
+                    false
+                }
+            },
+            4 => match val.parse::<i32>() {
+                Ok(v) => {
+                    font.full_layout = v;
+                    true
+                }
+                Err(_) => {
+                    self.error_message = "Invalid number".to_string();
+                    false
+                }
+            },
+            5 => match val.parse::<i32>() {
+                Ok(v) if v == -1 || v == 0 || v == 1 => {
+                    font.print_direction = v;
+                    true
+                }
+                Ok(_) => {
+                    self.error_message = "Print direction must be -1, 0, or 1".to_string();
+                    false
+                }
+                Err(_) => {
+                    self.error_message = "Invalid number".to_string();
+                    false
+                }
+            },
+            6 => match val.parse::<u32>() {
+                Ok(v) => {
+                    font.comment_lines = v;
+                    true
+                }
+                Err(_) => {
+                    self.error_message = "Invalid number".to_string();
+                    false
+                }
+            },
             _ => false,
         }
     }
@@ -333,6 +616,10 @@ impl FontEditor {
                 true
             }
             KeyCode::Esc => false,
+            KeyCode::Char('H') => {
+                self.enter_header_editor();
+                true
+            }
             // All other keys fall through to normal handlers
             _ => false,
         }
@@ -352,6 +639,7 @@ impl FontEditor {
                 .and_then(|f| f.chars.get(&code))
                 .map(|ch| (code, ch)),
             FontEditorView::Overview => None,
+            FontEditorView::HeaderEditor => None,
         }
     }
 }

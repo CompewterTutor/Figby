@@ -128,7 +128,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Load each supported format. Verify luminance values.
   - **Difficulty:** Medium
 
-- [ ] `2.1.2` Luminance-to-ASCII character mapping
+- [x] `2.1.2` Luminance-to-ASCII character mapping
   - **Goal:** Map grayscale pixel grid to ASCII char grid. Configurable char
     map (default: ` .-:=+*#%@`). Bilinear resize to fit terminal width.
   - **Touches:** `figby-rs/src/image_input.rs`

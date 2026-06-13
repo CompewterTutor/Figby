@@ -168,7 +168,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.2 — System Font → FIGfont Creation
 
-- [ ] `2.2.1` System font enumeration via font-kit
+- [x] `2.2.1` System font enumeration via font-kit
   - **Goal:** Enumerate installed system fonts. List families + styles.
     Filter by monospace.
   - **Touches:** `figby-rs/src/font_gen.rs`, `Cargo.toml` (enable `font-kit`)

@@ -528,3 +528,14 @@ Flip helpers for luminance and RGB matrices reside in `main.rs` (private functio
 17 flag parse tests + 2 integration tests covering every flag, defaults, short aliases,
 multiple paths, and mode detection. No `.unwrap()` in production — all error paths use
 `match`/`continue`. fmt and clippy pass clean.
+
+### 2.2.1 — System font enumeration via font-kit
+
+Created `font_gen.rs` with system font enumeration using `font-kit` crate:
+- `FontFamilyInfo` struct with `family: String` and `styles: Vec<String>`
+- `FontGenError` enum wrapping `SelectionError` and `FontLoadingError`
+- `list_system_fonts()` — enumerates all installed font families via `SystemSource::all_families()`, loads first handle per family via `select_family_by_name()`, extracts style descriptions from font properties
+- `list_monospace_fonts()` — filters system fonts using name heuristic ("Mono" substring) + `Font::is_monospace()` check
+- Private helpers: `describe_style()`, `family_is_monospace()`, `load_styles()`
+- 3 unit tests: non-empty font list, monospace filter produces subset, styles are populated
+- `font-kit = "0.14.3"` enabled in Cargo.toml (was commented out)

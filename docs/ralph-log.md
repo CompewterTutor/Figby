@@ -294,3 +294,7 @@ DONE: 2.1.6 merged into release/2.1.
 
 All 2.1 tasks complete. Starting phase review.
 >>>>>>> release/2.1
+
+## 2026-06-13 07:29
+
+PHASE_COMPLETE: 2.1 merged to main after review approval.

@@ -2,6 +2,7 @@
 
 pub mod control;
 pub mod font;
+pub mod font_gen;
 pub mod image_input;
 pub mod input;
 pub mod render;

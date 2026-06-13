@@ -415,3 +415,11 @@ Three bugs found in phase merge review:
 - URL support stubbed with `eprintln` error — `image::open` takes `AsRef<Path>`,
   not URLs. Full URL support needs `ureq` or `reqwest` dependency (deferred).
 
+## 2.2.1 — System font enumeration via font-kit
+
+- `Source::all_families()` returns `Vec<String>` (plain strings), not `Vec<FamilyName>`
+- `Source::select_family_by_name(&str)` returns `FamilyHandle` with `fonts() -> &[Handle]`
+- `Handle::load()` returns `font_kit::font::Font` (the freetype-based cross-platform Font)
+- `Font::is_monospace()` is available directly on the freetype Font — no need for glyph-advance heuristic
+- `fontconfig` must be installed on Linux for `SystemSource` to work. The `yeslogic-fontconfig-sys` crate wraps fontconfig C library.
+

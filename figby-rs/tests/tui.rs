@@ -1067,3 +1067,224 @@ fn test_font_editor_grid_navigation() {
     editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
     assert_eq!(editor.selected_index, down_idx);
 }
+
+// --- Header Editor tests ---
+
+fn header_editor_setup() -> (figby::tui::font_editor::FontEditor, figby::font::FIGfont) {
+    use figby::font::parse_tlf_font;
+    let content = include_str!("../../fonts/standard.flf");
+    let font = parse_tlf_font(content).expect("standard font should parse");
+    let mut editor = figby::tui::font_editor::FontEditor::new();
+    let header_font = font.clone();
+    editor.load_font(font);
+    (editor, header_font)
+}
+
+#[test]
+fn test_font_editor_header_open_close() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::tui::font_editor::FontEditorView;
+
+    let (mut editor, _) = header_editor_setup();
+
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+    assert_eq!(editor.view, FontEditorView::HeaderEditor);
+
+    editor.handle_key(KeyCode::Esc, KeyModifiers::NONE, 120);
+    assert_eq!(editor.view, FontEditorView::Overview);
+}
+
+#[test]
+fn test_font_editor_header_charheight_edit() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..1 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.selected_field, 1);
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(editor.editing_field);
+
+    editor.edit_buffer = "6".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(!editor.editing_field);
+    assert_eq!(editor.font.as_ref().unwrap().charheight, 6);
+}
+
+#[test]
+fn test_font_editor_header_baseline_edit() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..2 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.selected_field, 2);
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(editor.editing_field);
+
+    editor.edit_buffer = "4".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(!editor.editing_field);
+    assert_eq!(editor.font.as_ref().unwrap().baseline, 4);
+}
+
+#[test]
+fn test_font_editor_header_hardblank_edit() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    assert_eq!(editor.selected_field, 0);
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(editor.editing_field);
+
+    editor.edit_buffer = "#".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(!editor.editing_field);
+    assert_eq!(editor.font.as_ref().unwrap().hardblank, '#');
+}
+
+#[test]
+fn test_font_editor_header_rejects_height_zero() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, orig) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..1 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    editor.edit_buffer = "0".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    assert!(
+        editor.editing_field,
+        "should stay in editing mode after reject"
+    );
+    assert!(!editor.error_message.is_empty(), "error should be set");
+    assert_eq!(editor.font.as_ref().unwrap().charheight, orig.charheight);
+}
+
+#[test]
+fn test_font_editor_header_rejects_baseline_exceeds_height() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, orig) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..2 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    editor.edit_buffer = "999".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    assert!(
+        editor.editing_field,
+        "should stay in editing mode after reject"
+    );
+    assert!(!editor.error_message.is_empty(), "error should be set");
+    assert_eq!(editor.font.as_ref().unwrap().baseline, orig.baseline);
+}
+
+#[test]
+fn test_font_editor_header_full_layout_edit() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..4 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.selected_field, 4);
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+
+    editor.edit_buffer = "191".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(!editor.editing_field);
+    assert_eq!(editor.font.as_ref().unwrap().full_layout, 191);
+}
+
+#[test]
+fn test_font_editor_header_print_direction_edit() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..5 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.selected_field, 5);
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    editor.edit_buffer = "1".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(!editor.editing_field);
+    assert_eq!(editor.font.as_ref().unwrap().print_direction, 1);
+
+    // Test -1 is also valid
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    editor.edit_buffer = "-1".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert_eq!(editor.font.as_ref().unwrap().print_direction, -1);
+
+    // Test 0 is also valid
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    editor.edit_buffer = "0".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert_eq!(editor.font.as_ref().unwrap().print_direction, 0);
+}
+
+#[test]
+fn test_font_editor_header_comment_lines_edit() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..6 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.selected_field, 6);
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    editor.edit_buffer = "3".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(!editor.editing_field);
+    assert_eq!(editor.font.as_ref().unwrap().comment_lines, 3);
+}
+
+#[test]
+fn test_font_editor_header_maxlength_edit() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let (mut editor, _) = header_editor_setup();
+    editor.handle_key(KeyCode::Char('H'), KeyModifiers::NONE, 120);
+
+    for _ in 0..3 {
+        editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
+    }
+    assert_eq!(editor.selected_field, 3);
+
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    editor.edit_buffer = "25".to_string();
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
+    assert!(!editor.editing_field);
+    assert_eq!(editor.font.as_ref().unwrap().maxlength, 25);
+}

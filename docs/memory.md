@@ -787,3 +787,24 @@ Created `figby-rs/src/tui/font_editor.rs` with `FontEditor` struct:
 - No `.unwrap()` in production — font loading uses `if let Ok(font)`
 - `/` key activates search (avoids conflict with tool shortcuts `b`,`v`,`l`, etc.)
 - 7 integration tests: grid, search by code, search by char, select+open, Esc return, empty font, grid navigation
+
+### 2.5.3 — FIGfont header / layout editor
+
+Added `FontEditorView::HeaderEditor` variant with inline field editor for all 7
+FIGfont header properties:
+- `HEADER_FIELD_LABELS` constant lists field names: Hardblank, Char Height,
+  Baseline, Max Length, Full Layout, Print Direction, Comment Lines
+- `editing_field` / `edit_buffer` / `error_message` state for inline text input
+- `enter_header_editor()` method switches view, resets cursor to field 0
+- `render_header_editor()` — bordered panel showing all fields with highlight
+  cursor, editing state (green bold), and error messages (red)
+- `handle_key_header_editor()` — Up/Down nav, Enter toggles edit, Esc cancels
+  or returns to Overview, chars/Backspace edit buffer. Validation: height≥1,
+  baseline≤height, hardblank single char, print_direction ∈ {-1,0,1}
+- `save_current_field()` parses and validates via `parse::<u32>()`/`parse::<i32>()`
+- `'H'` key in overview opens header editor
+- `mod.rs` render dispatch changed from `Overview`-only to `!CharEditor` so
+  HeaderEditor routes to font_editor render
+- 10 integration tests: open/close, all 7 field edits (charheight, baseline,
+  hardblank, full_layout, print_direction, comment_lines, maxlength),
+  rejection of height=0 and baseline>height

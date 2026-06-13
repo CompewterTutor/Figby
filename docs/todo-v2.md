@@ -332,7 +332,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Selection boundary tests per shape.
   - **Difficulty:** High
 
-- [ ] `2.4.6` Eyedropper tool
+- [x] `2.4.6` Eyedropper tool
   - **Goal:** Click a cell → set active foreground color to that cell's
     color, active brush char to that cell's character.
   - **Touches:** `figby-rs/src/tui/tools/eyedropper.rs`

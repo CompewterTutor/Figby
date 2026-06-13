@@ -531,6 +531,17 @@ Three bugs found in phase merge review:
   < 3) to detect when user clicks near the first vertex. This matches common
   image editor behavior where closing requires clicking near the start point.
 
+## 2.4.6 — Eyedropper tool
+
+- `Palette::push_recent` was `fn` (private) because only `Palette` itself pushed
+  recent colors. Eyedropper integration needs to push sampled colors — changed to
+  `pub fn`. This is the first external caller to push_recent, exposing a
+  pre-existing API gap in the palette module's public interface.
+- `BrushState` gained `ch` field, requiring updates to every `BrushState { ... }`
+  struct literal in tests across `brush.rs` and `tests/tui.rs`. This is the cost
+  of using struct literals instead of `..Default::default()` in tests — but using
+  `..Default::default()` would hide the meaningful fields from test readers.
+
 ## 2.4.3 — Line tool
 
 - Full-buffer clone/restore for line preview is simple but `O(n)` on every drag

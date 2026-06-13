@@ -102,7 +102,7 @@ impl Palette {
         16
     }
 
-    fn push_recent(&mut self, color: Color) {
+    pub fn push_recent(&mut self, color: Color) {
         self.recent.retain(|c| *c != color);
         self.recent.push(color);
         if self.recent.len() > MAX_RECENT {

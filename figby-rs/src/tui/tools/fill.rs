@@ -251,13 +251,15 @@ mod tests {
     #[test]
     fn test_fill_empty_region() {
         let mut buf = canvas_5x5();
-        // Fill border with @ to bound the fill region
+        // Paint border with @ to bound the flood fill
         for y in 0..5 {
             for x in 0..5 {
-                buf.set(x, y, cell_with('@'));
+                if x == 0 || x == 4 || y == 0 || y == 4 {
+                    buf.set(x, y, cell_with('@'));
+                }
             }
         }
-        // Paint center 3x3 with spaces (target for flood fill)
+        // Fill spaces in the center 3x3 block with '#'
         paint_region(&mut buf, 1, 1, 3, 3, ' ');
 
         flood_fill(&mut buf, 2, 2, cell_with('#'));
@@ -279,25 +281,26 @@ mod tests {
 
     #[test]
     fn test_fill_orthogonal_not_diagonal() {
-        let mut buf = CanvasBuffer::new(3, 3);
-
-        // @ cells at diagonals only (corners of 3x3):
+        // 3x3: center cell (1,1) and corners (0,0),(2,0),(0,2),(2,2) are @
+        // Arms (1,0),(0,1),(2,1),(1,2) remain space — no orthogonal path
+        // from center to corners
         //   @ . @
         //   . @ .
         //   @ . @
+        let mut buf = CanvasBuffer::new(3, 3);
+        buf.set(1, 1, cell_with('@'));
         buf.set(0, 0, cell_with('@'));
         buf.set(2, 0, cell_with('@'));
-        buf.set(1, 1, cell_with('@'));
         buf.set(0, 2, cell_with('@'));
         buf.set(2, 2, cell_with('@'));
 
-        // Fill at center — only center should become '#'
-        // Corners are diagonally adjacent and must NOT be reached
+        // Fill at center — only center should change, corners remain @
         flood_fill(&mut buf, 1, 1, cell_with('#'));
 
+        // Center cell should be #
         assert_eq!(buf.get(1, 1).unwrap().ch, '#');
 
-        // Diagonal corners should remain @ (not reached via 4-dir flood fill)
+        // Diagonal corners should remain @ — only diagonal to center
         assert_eq!(buf.get(0, 0).unwrap().ch, '@');
         assert_eq!(buf.get(2, 0).unwrap().ch, '@');
         assert_eq!(buf.get(0, 2).unwrap().ch, '@');

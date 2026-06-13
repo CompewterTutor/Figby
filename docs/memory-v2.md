@@ -370,3 +370,11 @@ brush tool (2.4.1), eraser tool (2.4.2), line tool (2.4.3), fill/flood fill
 tool (2.4.4), selection tools (marquee/lasso/circle/polygon) (2.4.5),
 eyedropper tool (2.4.6), spray paint brush (2.4.7). All 7 subtasks
 implemented, tested, merged. Phase 2.5 (Font Editor Mode) is next.
+
+**Merge problem resolved:** `release/2.4` was 3 commits ahead of `master`
+with review fixes (`fill.rs` test clarity improvements, docs reordering).
+Merged `release/2.4` → `master`, resolved conflicts in `fill.rs` and
+`ralph-log.md` (took release/2.4 versions). Also cleaned stale conflict
+markers left from release/2.1 merge in `ralph-log.md` and removed
+duplicate 2.4.8 entry in `memory.md`. 413 lib tests + 62 main tests pass,
+clippy/fmt clean.

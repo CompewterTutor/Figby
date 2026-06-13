@@ -746,14 +746,6 @@ to allow external call. Eyedropper excluded from keyboard paint (Space/Enter) an
 mouse early-return. 5 unit tests: cell data, empty defaults, out-of-bounds,
 no-foreground cell, char sampling. fmt and clippy pass clean.
 
-### 2.4.8 — Phase merge: release/2.4 → main
-
-Merged all Phase 2.4 work into default branch (master). Phase 2.4 complete:
-brush tool (2.4.1), eraser tool (2.4.2), line tool (2.4.3), fill/flood fill
-tool (2.4.4), selection tools (2.4.5), eyedropper tool (2.4.6), spray paint
-brush (2.4.7). All 7 subtasks implemented, tested, merged. Phase 2.5
-(Font Editor Mode) is next.
-
 ### 2.4.7 — Spray paint brush
 
 Added `tools/spray.rs` with stochastic spray stamp and Bresenham-spray line.
@@ -771,3 +763,11 @@ Added `tools/spray.rs` with stochastic spray stamp and Bresenham-spray line.
 - Spray preview in brush UI now reads `self.density` instead of hardcoded 35
 - 6 tests: within-circle, density distribution (200 stamps @50% ±10%), stochastic
   different, deterministic seed, bounds clip, density 0/100 extremes
+
+### 2.4.8 — Phase merge: release/2.4 → main
+
+Merged all Phase 2.4 work into default branch (master). Phase 2.4 complete:
+brush tool (2.4.1), eraser tool (2.4.2), line tool (2.4.3), fill/flood fill
+tool (2.4.4), selection tools (2.4.5), eyedropper tool (2.4.6), spray paint
+brush (2.4.7). All 7 subtasks implemented, tested, merged. Phase 2.5
+(Font Editor Mode) is next.

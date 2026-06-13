@@ -277,15 +277,10 @@ DONE: 2.1.3 merged into release/2.1.
 
 DONE: 2.1.4 merged into release/2.1.
 
-<<<<<<< HEAD
 ## 2026-06-13 07:18
 
 DONE: 2.1.5 merged into release/2.1.
 
-## 2026-06-13 07:18
-
-DONE: 2.1.5 merged into release/2.1.
-=======
 ## 2026-06-13 07:24
 
 DONE: 2.1.6 merged into release/2.1.
@@ -293,7 +288,6 @@ DONE: 2.1.6 merged into release/2.1.
 ## 2026-06-13 07:24
 
 All 2.1 tasks complete. Starting phase review.
->>>>>>> release/2.1
 
 ## 2026-06-13 07:29
 
@@ -392,3 +386,4 @@ DONE: 2.4.8 merged into master (phase merge).
 All 2.4 tasks complete. Starting phase review.
 
 PHASE_COMPLETE: 2.4 merged to main after review approval.
+

@@ -67,185 +67,185 @@ status_unsaved:                                      #nf-fa-exclamation_trian
 status_saved:                                        # nf-fa-check
 
 # ── File Operations ───────────────────────────────
-file_new: nf-fa-file_o
-file_open: nf-fa-folder_open_o
-file_save: nf-fa-floppy_o
-file_save_as: nf-fa-floppy
-file_recent: nf-fa-clock_o
-file_export_png: nf-fa-picture_o
-file_export_txt: nf-fa-file_text_o
-file_export_gif: nf-fa-film
-file_import: nf-fa-download
+file_new: 
+file_open: 
+file_save: 
+file_save_as:                                           # nf-fa-floppy_o / nf-fa-floppy_disk
+file_recent: 
+file_export_png: 
+file_export_txt: 
+file_export_gif: 
+file_import: 
 
 # ── Edit ──────────────────────────────────────────
-edit_undo: nf-fa-undo
-edit_redo: nf-fa-repeat
-edit_cut: nf-fa-scissors
-edit_copy: nf-fa-files_o
-edit_paste: nf-fa-clipboard
-edit_delete: nf-fa-trash
-edit_duplicate: nf-fa-copy
-edit_select_all: nf-fa-arrows
+edit_undo: 
+edit_redo: 
+edit_cut: 
+edit_copy: 
+edit_paste: 
+edit_delete: 
+edit_duplicate: 
+edit_select_all: 
 
 # ── Font Editor ───────────────────────────────────
-font_header: nf-fa-font
-font_height: nf-fa-arrows_v
-font_baseline: nf-fa-minus
-font_max_length: nf-fa-arrows_h
-font_hardblank: nf-fa-hashtag
-font_full_layout: nf-fa-sliders
-font_print_direction: nf-fa-exchange
-font_comment: nf-fa-comment_o
-font_search: nf-fa-search
-font_filter: nf-fa-filter
+font_header: 
+font_height: 
+font_baseline: 
+font_max_length: 
+font_hardblank: 
+font_full_layout: 
+font_print_direction: 
+font_comment: 
+font_search: 
+font_filter: 
 
 # ── Smushing Rules ────────────────────────────────
-smush_equal_chars: nf-fa-asterisk
-smush_underscore: nf-fa-minus
-smush_hierarchy: nf-fa-sort
-smush_pair: nf-fa-link
-smush_bigx: nf-fa-close
-smush_hardblank: nf-fa-hashtag
-smush_preview: nf-fa-eye
+smush_equal_chars: 
+smush_underscore: 
+smush_hierarchy: 
+smush_pair: 
+smush_bigx: 
+smush_hardblank: 
+smush_preview: 
 
 # ── Font Transforms ──────────────────────────────
-transform_resize: nf-fa-arrows_alt
-transform_italicize: nf-fa-italic
-transform_bold: nf-fa-bold
-transform_mirror: nf-fa-arrows_h
-transform_flip: nf-fa-arrows_v
-transform_rename: nf-fa-tag
+transform_resize: 
+transform_italicize: 
+transform_bold: 
+transform_mirror: 
+transform_flip: 
+transform_rename: 
 
 # ── Image Editor ──────────────────────────────────
-image_import: nf-fa-picture_o
-image_brightness: nf-fa-sun_o
-image_contrast: nf-fa-adjust
-image_threshold: nf-fa-sliders_h
-image_dither: nf-fa-magic
-image_invert: nf-fa-exchange
-image_grayscale: nf-fa-circle_o
-image_resize: nf-fa-arrows_alt
-image_flip_x: nf-fa-arrows_h
-image_flip_y: nf-fa-arrows_v
-image_reset: nf-fa-undo
+image_import: 
+image_brightness: 
+image_contrast: 
+image_threshold:                                           # nf-fa-sliders
+image_dither: 
+image_invert: 
+image_grayscale: 
+image_resize: 
+image_flip_x: 
+image_flip_y: 
+image_reset: 
 
 # ── Text Tool ─────────────────────────────────────
-text_font_select: nf-fa-font
-text_color: nf-fa-paint_palette
-text_size: nf-fa-text_height
-text_justify_left: nf-fa-align_left
-text_justify_center: nf-fa-align_center
-text_justify_right: nf-fa-align_right
-text_justify_block: nf-fa-align_justify
-text_bold: nf-fa-bold
-text_italic: nf-fa-italic
-text_underline: nf-fa-underline
-text_edit: nf-fa-pencil_square_o
-text_delete: nf-fa-trash
+text_font_select: 
+text_color:                                           # nf-fa-palette
+text_size: 
+text_justify_left: 
+text_justify_center: 
+text_justify_right: 
+text_justify_block: 
+text_bold: 
+text_italic: 
+text_underline: 
+text_edit: 
+text_delete: 
 
 # ── Layers ────────────────────────────────────────
-layer_new: nf-fa-plus
-layer_delete: nf-fa-trash
-layer_duplicate: nf-fa-copy
-layer_merge: nf-fa-compress
-layer_move_up: nf-fa-arrow_up
-layer_move_down: nf-fa-arrow_down
-layer_visibility_on: nf-fa-eye
-layer_visibility_off: nf-fa-eye_slash
-layer_lock: nf-fa-lock
-layer_unlock: nf-fa-unlock_lock
-layer_opacity: nf-fa-adjust
-layer_group: nf-fa-folder
-layer_ungroup: nf-fa-folder_open_o
-layer_mask: nf-fa-eraser
+layer_new: 
+layer_delete: 
+layer_duplicate: 
+layer_merge: 
+layer_move_up: 
+layer_move_down: 
+layer_visibility_on: 
+layer_visibility_off: 
+layer_lock: 
+layer_unlock:                                           # nf-fa-unlock_alt
+layer_opacity: 
+layer_group: 
+layer_ungroup: 
+layer_mask: 
 
 # ── Blending ──────────────────────────────────────
-blend_normal: nf-fa-circle_o
-blend_multiply: nf-fa-close
-blend_overlay: nf-fa-circle
-blend_screen: nf-fa-sun_o
-blend_add: nf-fa-plus
-blend_subtract: nf-fa-minus
+blend_normal: 
+blend_multiply: 
+blend_overlay: 
+blend_screen: 
+blend_add: 
+blend_subtract: 
 
 # ── Timeline ──────────────────────────────────────
-timeline_frame_add: nf-fa-plus
-timeline_frame_delete: nf-fa-trash
-timeline_frame_duplicate: nf-fa-copy
-timeline_frame_reorder: nf-fa-arrows_v
-timeline_onion_skin: nf-fa-eye
-timeline_play: nf-fa-play
-timeline_stop: nf-fa-stop
-timeline_pause: nf-fa-pause
-timeline_next: nf-fa-step_forward
-timeline_prev: nf-fa-step_backward
-timeline_first: nf-fa-fast_backward
-timeline_last: nf-fa-fast_forward
-timeline_loop: nf-fa-repeat
-timeline_fps: nf-fa-clock_o
+timeline_frame_add: 
+timeline_frame_delete: 
+timeline_frame_duplicate: 
+timeline_frame_reorder: 
+timeline_onion_skin: 
+timeline_play: 
+timeline_stop: 
+timeline_pause: 
+timeline_next: 
+timeline_prev: 
+timeline_first: 
+timeline_last: 
+timeline_loop: 
+timeline_fps: 
 
 # ── Keyframes ─────────────────────────────────────
-keyframe_add: nf-fa-plus_circle
-keyframe_delete: nf-fa-minus_circle
-keyframe_prev: nf-fa-arrow_left
-keyframe_next: nf-fa-arrow_right
-keyframe_tween_linear: nf-fa-arrows_h
-keyframe_tween_ease_in: nf-fa-arrow_right
-keyframe_tween_ease_out: nf-fa-arrow_left
-keyframe_tween_bounce: nf-fa-arrows_v
-keyframe_interpolate: nf-fa-magic
+keyframe_add: 
+keyframe_delete: 
+keyframe_prev: 
+keyframe_next: 
+keyframe_tween_linear: 
+keyframe_tween_ease_in: 
+keyframe_tween_ease_out: 
+keyframe_tween_bounce: 
+keyframe_interpolate: 
 
 # ── Export ────────────────────────────────────────
-export_png: nf-fa-picture_o
-export_txt: nf-fa-file_text_o
-export_gif: nf-fa-film
-export_flatten: nf-fa-compress
-export_layers_separate: nf-fa-bars
-export_transparent: nf-fa-eraser
+export_png: 
+export_txt: 
+export_gif: 
+export_flatten: 
+export_layers_separate: 
+export_transparent: 
 
 # ── Settings / Config ─────────────────────────────
-settings_open: nf-fa-gear
-settings_theme: nf-fa-paint_palette
-settings_font: nf-fa-font
-settings_width: nf-fa-arrows_h
-settings_height: nf-fa-arrows_v
-settings_grid: nf-fa-th
-settings_snap: nf-fa-magnet
-settings_autosave: nf-fa-clock_o
-settings_defaults: nf-fa-undo
+settings_open: 
+settings_theme:                                           # nf-fa-palette
+settings_font: 
+settings_width: 
+settings_height: 
+settings_grid: 
+settings_snap: 
+settings_autosave: 
+settings_defaults: 
 
 # ── Navigation ────────────────────────────────────
-nav_home: nf-fa-home
-nav_back: nf-fa-arrow_left
-nav_forward: nf-fa-arrow_right
-nav_up: nf-fa-arrow_up
-nav_down: nf-fa-arrow_down
-nav_refresh: nf-fa-refresh
-nav_close: nf-fa-close
+nav_home: 
+nav_back: 
+nav_forward: 
+nav_up: 
+nav_down: 
+nav_refresh: 
+nav_close: 
 
 # ── Dialogs ───────────────────────────────────────
-dialog_confirm: nf-fa-check
-dialog_cancel: nf-fa-close
-dialog_ok: nf-fa-check
-dialog_yes: nf-fa-check_circle
-dialog_no: nf-fa-times_circle
-dialog_info: nf-fa-info_circle
-dialog_warning: nf-fa-exclamation_triangle
-dialog_error: nf-fa-exclamation_circle
+dialog_confirm: 
+dialog_cancel: 
+dialog_ok: 
+dialog_yes: 
+dialog_no: 
+dialog_info: 
+dialog_warning: 
+dialog_error: 
 
 # ── Misc UI ──────────────────────────────────────
-menu_hamburger: nf-fa-bars
-menu_context: nf-fa-chevron_down
-menu_dropdown: nf-fa-caret_down
-tab_active: nf-fa-square
-tab_inactive: nf-fa-square_o
-checkbox_on: nf-fa-check_square
-checkbox_off: nf-fa-square_o
-radio_on: nf-fa-dot_circle_o
-radio_off: nf-fa-circle_o
-toggle_on: nf-fa-toggle_on
-toggle_off: nf-fa-toggle_off
-progress_empty: nf-fa-circle_o
-progress_filled: nf-fa-circle
-scrollbar_thumb: nf-fa-circle
-splitter_handle: nf-fa-grip_lines
-resize_handle: nf-fa-arrows_alt
+menu_hamburger: 
+menu_context: 
+menu_dropdown: 
+tab_active: 
+tab_inactive: 
+checkbox_on: 
+checkbox_off: 
+radio_on: 
+radio_off: 
+toggle_on: 
+toggle_off: 
+progress_empty: 
+progress_filled: 
+scrollbar_thumb: 
+splitter_handle: 
+resize_handle: 

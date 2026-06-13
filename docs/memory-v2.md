@@ -96,3 +96,13 @@ After review:
   widget with per-cell color metadata. Current TOML-based parser is too
   restrictive and can't handle ANSI color in the text grid.
 - Template file saved as reference design: `assets/templates/figby-30w.ftmp`.
+
+### 2.0.10 — Phase merge: release/2.0 → master
+
+Phase 2.0 merged into master. This merge brings 3 commits that landed on
+`release/2.0` after the initial phase merge (10035c9):
+- Fix broken template tests (TOML quoting, assertion fixes)
+- Redesign `.ftmp` format: YAML frontmatter, defer template rendering to TUI
+- Add `assets/tui/icons.yaml` for Phase 2.2, renumber 2.2.5→2.2.6
+
+All subtasks 2.0.1–2.0.10 complete. Phase 2.1 (Image-to-ASCII Pipeline) is next.

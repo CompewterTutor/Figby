@@ -113,7 +113,7 @@ overlay, layers, and animation timeline.
   - **Tests:** N/A (deferred).
   - **Difficulty:** Low
 
-- [ ] `2.0.10` Phase merge: release/2.0 → main
+- [x] `2.0.10` Phase merge: release/2.0 → main
   - **Difficulty:** Low
 
 ---

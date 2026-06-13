@@ -696,4 +696,21 @@ Three bugs found in phase merge review:
   `render_text_to_buffer()` so that `commit_block()` can cache rendered rows without
   needing a `CanvasBuffer` reference — avoids code duplication.
 - `move_selected_block` uses `wrapping_add` for x/y to prevent arithmetic overflow
-  (defensive — buffer coordinates are bounded but user could move block arbitrarily).
+   (defensive — buffer coordinates are bounded but user could move block arbitrarily).
+
+## 2.6.4 — Image adjustments
+
+- Clippy `collapsible_match` lint: `if cond { match expr { Arm => {} } }` should be
+  `expr if cond => { Arm }` using a match guard on the outer match arm. Three instances
+  in `handle_key()` for `+`, `-`, and `Esc` all collapsed into guard patterns.
+- Clippy `unnecessary_min_or_max` lint: `(u8_val + 8).min(255)` is a no-op because
+  `u8` arithmetic wraps on overflow (debug panics, release wraps). The `.min(255)`
+  is dead code since the result can never exceed `u8::MAX`. Use `saturating_add(8)`
+  instead to correctly handle overflow to 255.
+- `u8` addition of two literal values: `self.threshold + 8` where both are `u8` will
+  overflow at runtime if threshold >= 248. `saturating_add(8)` is correct — it
+  saturates at `u8::MAX (255)`.
+- `rgb_to_luminance_matrix` converts RGB pixels to BT.709 grayscale. This bridges
+  the RGB (24-bit color) and braille (luminance-only) pipelines. The braille pipeline
+  operates on `Vec<Vec<u8>>`, so the conversion happens after all RGB adjustments
+  (brightness, contrast, invert) are applied.

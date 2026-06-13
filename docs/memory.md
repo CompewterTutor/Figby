@@ -958,3 +958,35 @@ Integration in `mod.rs`:
 
 9 new unit tests: create, multiple, hit-test, move, scale, rotation, delete,
 re-edit, bounding box. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 2.6.4 — Image adjustments
+
+Added brightness/contrast/threshold sliders, dither/invert/braille toggles,
+and target width adjustment to `ImageEditor`. Three new public functions in
+`image_input.rs`:
+- `apply_brightness()` — adds i16 delta to each R/G/B channel, clamped 0-255
+- `apply_contrast()` — scales distance from 128 by factor, clamped 0-255
+- `rgb_to_luminance_matrix()` — converts RGB matrix to BT.709 luminance
+
+`ImageEditor` gained 7 new fields (`adjustment_mode`, `brightness`, `contrast`,
+`threshold`, `dither`, `invert`, `braille`) and 3 core methods:
+- `reapply_adjustments()` — clones `original_rgb`, resizes, applies brightness
+  → contrast → invert, then either braille pipeline (luminance → dither →
+  braille chars) or standard `rgb_to_cells()` conversion
+- `reset_adjustments()` — resets all 6 params to defaults, re-renders
+- `adjustment_status()` — returns summary string for title bar
+
+Key bindings (non-path-entry): `b`/`k`/`t`/`w` set adjustment mode,
+`+`/`-` adjust current parameter (step: brightness=5, contrast=0.1,
+threshold=8, width=4), `i` invert toggle, `d` dither toggle, `y` braille
+toggle, `r` reset, `Esc` clears mode.
+
+Status bar and mode title both show active adjustments (e.g. `B:+50 Inv
+Braille Gray` or `Brightness[+50]` when actively adjusting). All adjustments
+re-render canvas in real time via `sync_image_to_canvas()` in `mod.rs`.
+
+16 new unit tests in `image_editor.rs`: brightness inc/dec, contrast,
+invert toggle+restore, threshold change, dither toggle, target width,
+reset, braille range check, adjustment persistence across mode toggle,
+key binding selectors, +/- step tests, direct toggle keys, reset key.
+fmt and clippy pass clean.

@@ -211,6 +211,53 @@ pub fn apply_negative(matrix: &mut [Vec<RgbPixel>]) {
     }
 }
 
+/// Apply brightness adjustment in-place to an RGB pixel matrix.
+///
+/// Adds `delta` to each R/G/B channel, clamped to 0-255.
+/// Positive delta = brighter, negative = darker.
+pub fn apply_brightness(matrix: &mut [Vec<RgbPixel>], delta: i16) {
+    for row in matrix.iter_mut() {
+        for pixel in row.iter_mut() {
+            pixel.0 = (pixel.0 as i16 + delta).clamp(0, 255) as u8;
+            pixel.1 = (pixel.1 as i16 + delta).clamp(0, 255) as u8;
+            pixel.2 = (pixel.2 as i16 + delta).clamp(0, 255) as u8;
+        }
+    }
+}
+
+/// Apply contrast adjustment in-place to an RGB pixel matrix.
+///
+/// Scales distance from 128: `new = 128 + ((val - 128) * factor)`.
+/// factor=1.0 = no change. factor=0.0 = flat 128 (no contrast).
+pub fn apply_contrast(matrix: &mut [Vec<RgbPixel>], factor: f64) {
+    for row in matrix.iter_mut() {
+        for pixel in row.iter_mut() {
+            pixel.0 = (128.0 + (pixel.0 as f64 - 128.0) * factor)
+                .round()
+                .clamp(0.0, 255.0) as u8;
+            pixel.1 = (128.0 + (pixel.1 as f64 - 128.0) * factor)
+                .round()
+                .clamp(0.0, 255.0) as u8;
+            pixel.2 = (128.0 + (pixel.2 as f64 - 128.0) * factor)
+                .round()
+                .clamp(0.0, 255.0) as u8;
+        }
+    }
+}
+
+/// Convert an RGB pixel matrix to a BT.709 luminance matrix.
+pub fn rgb_to_luminance_matrix(rgb: &[Vec<RgbPixel>]) -> Vec<Vec<u8>> {
+    rgb.iter()
+        .map(|row| {
+            row.iter()
+                .map(|&(r, g, b)| {
+                    (0.2126 * r as f64 + 0.7152 * g as f64 + 0.0722 * b as f64).round() as u8
+                })
+                .collect()
+        })
+        .collect()
+}
+
 /// Generate 24-bit ANSI foreground color escape code.
 pub fn ansi_color_code(r: u8, g: u8, b: u8) -> String {
     format!("\x1b[38;2;{r};{g};{b}m")

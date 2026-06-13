@@ -365,7 +365,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Glyph grid renders all required chars.
   - **Difficulty:** Medium
 
-- [ ] `2.5.2` Per-character canvas editing with drawing tools
+- [x] `2.5.2` Per-character canvas editing with drawing tools
   - **Goal:** Selected FIGcharacter opens in canvas. All Phase 2.4
     drawing tools available (brush, eraser, line, fill, selection, etc.).
     Canvas grid = character rows × sub-character columns. Changes update

@@ -964,7 +964,7 @@ fn test_font_editor_search_by_char_value() {
 
 #[test]
 fn test_font_editor_select_opens_char_in_canvas() {
-    use crossterm::event::KeyCode;
+    use crossterm::event::{KeyCode, KeyModifiers};
     use figby::font::parse_tlf_font;
     use figby::tui::font_editor::{FontEditor, FontEditorView};
 
@@ -974,7 +974,7 @@ fn test_font_editor_select_opens_char_in_canvas() {
     editor.load_font(font);
 
     // Press Enter to select first char (space, code 32)
-    editor.handle_key(KeyCode::Enter, 120);
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
 
     assert_eq!(
         editor.view,
@@ -993,7 +993,7 @@ fn test_font_editor_select_opens_char_in_canvas() {
 
 #[test]
 fn test_font_editor_esc_returns_to_overview() {
-    use crossterm::event::KeyCode;
+    use crossterm::event::{KeyCode, KeyModifiers};
     use figby::font::parse_tlf_font;
     use figby::tui::font_editor::{FontEditor, FontEditorView};
 
@@ -1003,7 +1003,7 @@ fn test_font_editor_esc_returns_to_overview() {
     editor.load_font(font);
 
     // Enter CharEditor first
-    editor.handle_key(KeyCode::Enter, 120);
+    editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);
     assert_eq!(
         editor.view,
         FontEditorView::CharEditor(32),
@@ -1011,7 +1011,7 @@ fn test_font_editor_esc_returns_to_overview() {
     );
 
     // Esc returns to Overview
-    editor.handle_key(KeyCode::Esc, 120);
+    editor.handle_key(KeyCode::Esc, KeyModifiers::NONE, 120);
     assert_eq!(editor.view, FontEditorView::Overview);
 }
 
@@ -1033,7 +1033,7 @@ fn test_font_editor_empty_font_no_panic() {
 
 #[test]
 fn test_font_editor_grid_navigation() {
-    use crossterm::event::KeyCode;
+    use crossterm::event::{KeyCode, KeyModifiers};
     use figby::font::parse_tlf_font;
     use figby::tui::font_editor::FontEditor;
 
@@ -1046,24 +1046,24 @@ fn test_font_editor_grid_navigation() {
     assert_eq!(initial, 0);
 
     // Right arrow
-    editor.handle_key(KeyCode::Right, 120);
+    editor.handle_key(KeyCode::Right, KeyModifiers::NONE, 120);
     assert_eq!(editor.selected_index, 1);
 
     // Left arrow
-    editor.handle_key(KeyCode::Left, 120);
+    editor.handle_key(KeyCode::Left, KeyModifiers::NONE, 120);
     assert_eq!(editor.selected_index, 0);
 
     // Down arrow (moves by cols)
-    editor.handle_key(KeyCode::Down, 120);
+    editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
     // col count at width 120: cell_w=18 → cols = floor(120/18) = 6
     assert!(editor.selected_index > 0, "Down should move selection");
     let down_idx = editor.selected_index;
 
     // Up arrow returns to original
-    editor.handle_key(KeyCode::Up, 120);
+    editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
     assert_eq!(editor.selected_index, 0);
 
     // Navigate to last item
-    editor.handle_key(KeyCode::Down, 120);
+    editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
     assert_eq!(editor.selected_index, down_idx);
 }

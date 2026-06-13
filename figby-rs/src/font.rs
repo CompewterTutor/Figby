@@ -25,6 +25,11 @@ impl FIGcharacter {
     pub fn rows(&self) -> &[String] {
         &self.rows
     }
+
+    /// Replace the character's rows.
+    pub fn set_rows(&mut self, rows: Vec<String>) {
+        self.rows = rows;
+    }
 }
 
 impl From<Vec<String>> for FIGcharacter {

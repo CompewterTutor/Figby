@@ -371,6 +371,25 @@ tool (2.4.4), selection tools (marquee/lasso/circle/polygon) (2.4.5),
 eyedropper tool (2.4.6), spray paint brush (2.4.7). All 7 subtasks
 implemented, tested, merged. Phase 2.5 (Font Editor Mode) is next.
 
+### 2.5.2 — Per-character canvas editing with drawing tools
+
+Added real-time canvas→FIGcharacter sync and per-character undo/redo:
+- `FIGcharacter::set_rows()` in `font.rs` — allows mutable row replacement
+- `FontEditor` gained `undo_stack: Vec<Vec<String>>` and `redo_stack: Vec<Vec<String>>` (cleared on `load_font`)
+- `handle_key` signature updated to accept `KeyModifiers`; `Ctrl+Z` → undo, `Ctrl+Y` → redo in CharEditor view
+- `sync_from_canvas()` reads canvas buffer, builds rows, pushes undo snapshot on change, updates FIGcharacter
+- `sync_canvas_to_font_char()` in `TuiApp` called every render frame when in CharEditor mode, pushing canvas edits back to font in real time
+- Undo stack uses dedup check (`last() != Some(&old)`) to avoid flooding during repeated frames; redo cleared on each new edit
+- All fallible paths use `Option` — no `.unwrap()` in production
+
+**Self-review checklist:**
+- Task completeness: all goals met (real-time sync, undo/redo per char)
+- Code quality: clippy passes with `-D warnings`
+- Formatting: `cargo fmt --check` passes clean
+- No scope creep: only `font.rs`, `font_editor.rs`, `mod.rs` touched
+- Security: no path traversal, unsafe writes, or secret exposure
+- Error handling: all fallible paths use `Option`/`Result`
+
 **Merge problem resolved:** `release/2.4` was 3 commits ahead of `master`
 with review fixes (`fill.rs` test clarity improvements, docs reordering).
 Merged `release/2.4` → `master`, resolved conflicts in `fill.rs` and

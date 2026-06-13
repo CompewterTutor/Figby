@@ -200,9 +200,9 @@ impl TuiApp {
             frame.render_widget(block, main_chunks[1]);
             self.font_editor.render(frame, inner);
         } else {
-            // In CharEditor mode, populate canvas from FIGcharacter if not already set
+            // In CharEditor mode, sync canvas edits back to FIGcharacter
             if self.mode == AppMode::FontEditor {
-                self.sync_font_char_to_canvas();
+                self.sync_canvas_to_font_char();
             }
             let zoom = self.canvas.zoom_level().max(1) as u16;
             let buf_w = self.canvas.buffer.width() as u16;
@@ -268,6 +268,12 @@ impl TuiApp {
             self.unsaved,
             &self._icons,
         );
+    }
+
+    fn sync_canvas_to_font_char(&mut self) {
+        if let font_editor::FontEditorView::CharEditor(code) = self.font_editor.view {
+            self.font_editor.sync_from_canvas(code, &self.canvas.buffer);
+        }
     }
 
     fn sync_font_char_to_canvas(&mut self) {
@@ -669,7 +675,7 @@ impl TuiApp {
         // Font Editor mode: dispatch to font_editor before canvas/tools
         if self.mode == AppMode::FontEditor {
             let area_width = self.canvas_inner_rect.width;
-            if self.font_editor.handle_key(code, area_width) {
+            if self.font_editor.handle_key(code, modifiers, area_width) {
                 if self.font_editor.view != font_editor::FontEditorView::Overview {
                     self.sync_font_char_to_canvas();
                 }

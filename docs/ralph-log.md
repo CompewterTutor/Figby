@@ -390,3 +390,7 @@ PHASE_COMPLETE: 2.4 merged to main after review approval.
 
 =======
 >>>>>>> Stashed changes
+
+## 2026-06-13 17:29
+
+DONE: 2.5.1 merged into release/2.5.

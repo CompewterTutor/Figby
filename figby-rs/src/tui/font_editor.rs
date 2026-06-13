@@ -1,4 +1,4 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -21,6 +21,8 @@ pub struct FontEditor {
     pub grid_scroll: u16,
     pub selected_index: usize,
     all_codes: Vec<u32>,
+    undo_stack: Vec<Vec<String>>,
+    redo_stack: Vec<Vec<String>>,
 }
 
 impl FontEditor {
@@ -33,6 +35,8 @@ impl FontEditor {
             grid_scroll: 0,
             selected_index: 0,
             all_codes: Vec::new(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -45,6 +49,8 @@ impl FontEditor {
         self.grid_scroll = 0;
         self.selected_index = 0;
         self.view = FontEditorView::Overview;
+        self.undo_stack.clear();
+        self.redo_stack.clear();
     }
 
     pub fn filtered_codes(&self) -> Vec<u32> {
@@ -166,16 +172,92 @@ impl FontEditor {
         frame.render_widget(grid, grid_area);
     }
 
-    pub fn handle_key(&mut self, code: KeyCode, area_width: u16) -> bool {
+    pub fn handle_key(&mut self, code: KeyCode, modifiers: KeyModifiers, area_width: u16) -> bool {
         match self.view {
             FontEditorView::Overview => self.handle_key_overview(code, area_width),
-            FontEditorView::CharEditor(_) => match code {
-                KeyCode::Esc => {
-                    self.view = FontEditorView::Overview;
-                    true
-                }
-                _ => false,
-            },
+            FontEditorView::CharEditor(_) => self.handle_key_char_editor(code, modifiers),
+        }
+    }
+
+    fn handle_key_char_editor(&mut self, code: KeyCode, modifiers: KeyModifiers) -> bool {
+        match code {
+            KeyCode::Esc => {
+                self.view = FontEditorView::Overview;
+                true
+            }
+            KeyCode::Char('z') if modifiers.contains(KeyModifiers::CONTROL) => self.undo_char(),
+            KeyCode::Char('y') if modifiers.contains(KeyModifiers::CONTROL) => self.redo_char(),
+            _ => false,
+        }
+    }
+
+    fn undo_char(&mut self) -> bool {
+        let FontEditorView::CharEditor(code) = self.view else {
+            return false;
+        };
+        let Some(font) = self.font.as_mut() else {
+            return false;
+        };
+        let Some(ch) = font.chars.get_mut(&code) else {
+            return false;
+        };
+
+        if let Some(restored) = self.undo_stack.pop() {
+            self.redo_stack.push(ch.rows().to_vec());
+            ch.set_rows(restored);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn redo_char(&mut self) -> bool {
+        let FontEditorView::CharEditor(code) = self.view else {
+            return false;
+        };
+        let Some(font) = self.font.as_mut() else {
+            return false;
+        };
+        let Some(ch) = font.chars.get_mut(&code) else {
+            return false;
+        };
+
+        if let Some(restored) = self.redo_stack.pop() {
+            self.undo_stack.push(ch.rows().to_vec());
+            ch.set_rows(restored);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn sync_from_canvas(&mut self, code: u32, buffer: &super::canvas::CanvasBuffer) {
+        let Some(font) = self.font.as_mut() else {
+            return;
+        };
+        let Some(ch) = font.chars.get_mut(&code) else {
+            return;
+        };
+
+        let w = buffer.width();
+        let h = buffer.height();
+        let mut new_rows: Vec<String> = Vec::with_capacity(h);
+        for y in 0..h {
+            let mut row = String::with_capacity(w);
+            for x in 0..w {
+                let c = buffer.get(x, y).map_or(' ', |cell| cell.ch);
+                row.push(c);
+            }
+            new_rows.push(row);
+        }
+
+        if ch.rows() != new_rows.as_slice() {
+            let old = ch.rows().to_vec();
+            if self.undo_stack.last() != Some(&old) {
+                self.undo_stack.push(old);
+            }
+            self.redo_stack.clear();
+            ch.set_rows(new_rows);
         }
     }
 

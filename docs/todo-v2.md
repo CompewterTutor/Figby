@@ -136,7 +136,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Known-image→expected-ASCII output tests.
   - **Difficulty:** Medium
 
-- [ ] `2.1.3` Colored ASCII output (24-bit ANSI)
+- [x] `2.1.3` Colored ASCII output (24-bit ANSI)
   - **Goal:** 24-bit ANSI escape codes per char preserving original pixel
     color. Grayscale flag. Negative invert.
   - **Touches:** `figby-rs/src/image_input.rs`

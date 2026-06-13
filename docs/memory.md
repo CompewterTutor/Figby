@@ -486,3 +486,22 @@ Added ASCII art conversion pipeline in `image_input.rs`:
 
 No `.unwrap()` in production — all fallible paths return `Result` or handle
 edge cases with early returns. Terminal width detection falls back to 80.
+
+### 2.1.3 — Colored ASCII output (24-bit ANSI)
+
+Added 24-bit ANSI color support in `image_input.rs`:
+- `RgbPixel` type alias `(u8, u8, u8)` for RGB triples
+- `load_rgb_matrix()` / `rgb_from_dynamic()` — load image preserving original color via `to_rgba8()`
+- `apply_grayscale()` — in-place BT.709 luminance conversion on RGB matrix
+- `apply_negative()` — in-place invert: `(255-r, 255-g, 255-b)`
+- `bilinear_resize_rgb()` — bilinear interpolation on `&[Vec<RgbPixel>]`
+- `ansi_color_code(r, g, b)` — returns `"\x1b[38;2;{r};{g};{b}m"`
+- `ansi_reset_code()` — returns `"\x1b[0m"`
+- `ImageColorConfig` struct — `colored`, `grayscale`, `negative`, `char_map`, `target_width`
+- `color_matrix_to_ascii()` — resizes, applies transforms, wraps chars in ANSI codes
+- `image_to_colored_ascii()` — convenience wrapper loading image with config
+- 10 new tests: RGB load, pixel preservation, grayscale in-place, negative in-place,
+  ANSI format, reset code, colored output, grayscale flag, negative flag, bilinear resize RGB
+
+No `.unwrap()` in production — all fallible paths return `Result`.
+fmt and clippy pass clean.

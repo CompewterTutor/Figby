@@ -714,3 +714,18 @@ Three bugs found in phase merge review:
   the RGB (24-bit color) and braille (luminance-only) pipelines. The braille pipeline
   operates on `Vec<Vec<u8>>`, so the conversion happens after all RGB adjustments
   (brightness, contrast, invert) are applied.
+
+## 2.7.1 — Save / Save As
+
+- Atomic write pattern: write to `.tmp` file in same directory, then `fs::rename()`
+  for atomic replacement. This prevents partial writes on crash/power loss.
+  The `.tmp` file uses the input stem to avoid name collisions (e.g., `myfont.flf`
+  → `.myfont.tmp`). On Unix, `rename()` is atomic if source and dest are on the
+  same filesystem.
+- `selected_path()` must be `pub` (not private) because it's called from `mod.rs`
+  after the dialog mode transitions to `Idle`. The dialog handles key events
+  internally, switching mode to `Idle` on Enter, and the caller then reads the
+  path buffer and performs the save.
+- `Ctrl+Shift+S` requires checking `modifiers.contains(KeyModifiers::SHIFT)` in
+  addition to `CONTROL`. Match arms with `KeyModifiers` bitflag checks should use
+  `if` guards rather than nested `match` for clippy `single_match` compliance.

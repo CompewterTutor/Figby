@@ -455,3 +455,7 @@ DONE: 2.6.5 merged into release/2.6.
 
 All 2.6 tasks complete. Starting phase review.
 >>>>>>> release/2.6
+
+## 2026-06-13 18:59
+
+PHASE_COMPLETE: 2.6 merged to main after review approval.

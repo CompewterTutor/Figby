@@ -5,6 +5,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use std::path::PathBuf;
+
 use crate::font::{load_font, FIGfont};
 use crate::smush::{smush_horizontal, SmushMode};
 
@@ -112,6 +114,7 @@ pub struct FontEditor {
     pub transform_submode: Option<MirrorMode>,
     pub transform_font_name: String,
     pub font_storage_name: String,
+    pub current_path: Option<PathBuf>,
 }
 
 impl FontEditor {
@@ -142,6 +145,7 @@ impl FontEditor {
             transform_submode: None,
             transform_font_name: String::new(),
             font_storage_name: String::new(),
+            current_path: None,
         }
     }
 

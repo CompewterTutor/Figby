@@ -16,13 +16,14 @@ use ratatui::widgets::{Block, Borders, Tabs};
 use ratatui::Frame;
 use std::collections::BTreeMap;
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::font::load_font;
 use crate::render::Justification;
 
 pub mod brush;
 pub mod canvas;
+pub mod file_ops;
 pub mod font_editor;
 pub mod image_editor;
 pub mod palette;
@@ -87,6 +88,9 @@ pub struct TuiApp {
     selection_drag_origin: Option<(i16, i16)>,
     selection_polygon_points: Vec<(i16, i16)>,
     selection_lasso_points: Vec<(i16, i16)>,
+    pub file_ops: file_ops::FileOpsDialog,
+    auto_save_interval: u64,
+    last_save_time: Instant,
 }
 
 impl TuiApp {
@@ -123,6 +127,9 @@ impl TuiApp {
             selection_drag_origin: None,
             selection_polygon_points: Vec::new(),
             selection_lasso_points: Vec::new(),
+            file_ops: file_ops::FileOpsDialog::new(),
+            auto_save_interval: 0,
+            last_save_time: Instant::now(),
         }
     }
 
@@ -345,7 +352,19 @@ impl TuiApp {
             &mode_name,
             self.unsaved,
             &self._icons,
+            self.font_editor.current_path.as_deref(),
         );
+
+        // Render file ops overlay if active
+        if self.file_ops.mode != file_ops::FileOpsMode::Idle {
+            let overlay = Rect {
+                x: frame.area().width / 6,
+                y: frame.area().height / 6,
+                width: frame.area().width * 2 / 3,
+                height: frame.area().height * 2 / 3,
+            };
+            self.file_ops.render(frame, overlay);
+        }
     }
 
     fn sync_canvas_to_font_char(&mut self) {
@@ -774,6 +793,19 @@ impl TuiApp {
                 }
             }
         }
+
+        // Auto-save check
+        if self.auto_save_interval > 0 && self.unsaved && self.mode == AppMode::FontEditor {
+            if let Some(ref path) = self.font_editor.current_path {
+                if self.last_save_time.elapsed() >= Duration::from_secs(self.auto_save_interval) {
+                    if let Some(ref font) = self.font_editor.font {
+                        let _ = file_ops::save_font(font, path);
+                        self.last_save_time = Instant::now();
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -781,6 +813,19 @@ impl TuiApp {
         let key = key.into();
         let code = key.code;
         let modifiers = key.modifiers;
+
+        // File ops dialog active: dispatch all keys to it
+        if self.file_ops.mode != file_ops::FileOpsMode::Idle {
+            if self.file_ops.handle_key(code) {
+                // File ops dialog handled the key.
+                // If path was finalized (Enter pressed while in SaveAs mode),
+                // mode is now Idle — perform the save.
+                if self.file_ops.mode == file_ops::FileOpsMode::Idle {
+                    self.perform_save();
+                }
+            }
+            return;
+        }
 
         if self.settings.settings_open {
             if self.settings.handle_key(code) {
@@ -1159,6 +1204,24 @@ impl TuiApp {
             return;
         }
 
+        // Ctrl+S: Save (or Save As if no path)
+        if modifiers.contains(KeyModifiers::CONTROL)
+            && !modifiers.contains(KeyModifiers::SHIFT)
+            && code == KeyCode::Char('s')
+        {
+            self.start_save();
+            return;
+        }
+
+        // Ctrl+Shift+S: always Save As
+        if modifiers.contains(KeyModifiers::CONTROL)
+            && modifiers.contains(KeyModifiers::SHIFT)
+            && code == KeyCode::Char('s')
+        {
+            self.start_save_as();
+            return;
+        }
+
         match code {
             KeyCode::Tab => {
                 self.mode = self.mode.next();
@@ -1177,6 +1240,52 @@ impl TuiApp {
         if let Some(ref mut sel) = self.selection {
             if sel.is_active() {
                 sel.move_selection(&mut self.canvas.buffer, dx, dy);
+            }
+        }
+    }
+
+    fn start_save(&mut self) {
+        if self.mode != AppMode::FontEditor {
+            return;
+        }
+        if let Some(ref path) = self.font_editor.current_path {
+            if let Some(ref font) = self.font_editor.font {
+                match file_ops::save_font(font, path) {
+                    Ok(()) => {
+                        self.unsaved = false;
+                        self.last_save_time = Instant::now();
+                    }
+                    Err(e) => {
+                        self.file_ops.error_message = format!("Save failed: {e}");
+                    }
+                }
+            }
+        } else {
+            self.start_save_as();
+        }
+    }
+
+    fn start_save_as(&mut self) {
+        if self.mode != AppMode::FontEditor {
+            return;
+        }
+        self.file_ops
+            .enter_save_as(self.font_editor.current_path.as_deref());
+    }
+
+    fn perform_save(&mut self) {
+        let path = self.file_ops.selected_path();
+        if let Some(ref font) = self.font_editor.font {
+            match file_ops::save_font(font, &path) {
+                Ok(()) => {
+                    self.unsaved = false;
+                    self.font_editor.current_path = Some(path);
+                    self.last_save_time = Instant::now();
+                    self.file_ops.error_message.clear();
+                }
+                Err(e) => {
+                    self.file_ops.error_message = format!("Save failed: {e}");
+                }
             }
         }
     }

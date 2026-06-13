@@ -990,3 +990,12 @@ invert toggle+restore, threshold change, dither toggle, target width,
 reset, braille range check, adjustment persistence across mode toggle,
 key binding selectors, +/- step tests, direct toggle keys, reset key.
 fmt and clippy pass clean.
+
+### 2.6.5 — Phase merge: release/2.6 → main
+
+Merged all Phase 2.6 work into default branch (master). Phase 2.6 complete:
+image import + canvas display (2.6.1), text tool with FIGlet font overlay
+(2.6.2), text blocks selectable/movable/scalable/rotatable/re-editable (2.6.3),
+image adjustments (brightness/contrast/threshold/dither/invert/resize) (2.6.4).
+All 4 subtasks (2.6.1–2.6.4) implemented, tested, merged. Phase 2.7 (File
+Operations & Persistence) is next.

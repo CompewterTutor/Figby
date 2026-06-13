@@ -406,3 +406,12 @@ editing with drawing tools + undo/redo (2.5.2), FIGfont header/layout editor
 (2.5.3), smushing rule configuration (2.5.4), add/remove codetagged characters
 (2.5.5), font-level transform tools (2.5.6). All 6 subtasks (2.5.1–2.5.6)
 implemented, tested, merged. Phase 2.6 (Image Editor Mode) is next.
+
+### 2.6.5 — Phase merge: release/2.6 → main
+
+Merged all Phase 2.6 work into default branch (master). Phase 2.6 complete:
+image import + canvas display (2.6.1), text tool with FIGlet font overlay
+(2.6.2), text blocks selectable/movable/scalable/rotatable/re-editable (2.6.3),
+image adjustments (brightness/contrast/threshold/dither/invert/resize) (2.6.4).
+All 4 subtasks (2.6.1–2.6.4) implemented, tested, merged. Phase 2.7 (File
+Operations & Persistence) is next.

@@ -436,3 +436,11 @@ DONE: 2.6.2 merged into release/2.6.
 ## 2026-06-13 18:41
 
 DONE: 2.6.3 merged into release/2.6.
+
+## 2026-06-13 18:48
+
+DONE: 2.6.4 merged into release/2.6.
+
+## 2026-06-13 18:55
+
+DONE: 2.6.5 merged into master (phase merge).

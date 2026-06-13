@@ -454,7 +454,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Adjust brightness, verify pixel values change.
   - **Difficulty:** Medium
 
-- [ ] `2.6.5` Phase merge: release/2.6 → main
+- [x] `2.6.5` Phase merge: release/2.6 → main
   - **Difficulty:** Low
 
 ---

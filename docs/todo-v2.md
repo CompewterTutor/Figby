@@ -217,7 +217,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Verify YAML parse + all keys present.
   - **Difficulty:** Low
 
-- [ ] `2.2.6` Phase merge: release/2.2 → main
+- [x] `2.2.6` Phase merge: release/2.2 → main
   - **Difficulty:** Low
 
 ---

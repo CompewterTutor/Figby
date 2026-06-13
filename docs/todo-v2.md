@@ -168,7 +168,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.2 — System Font → FIGfont Creation
 
-- [ ] `2.2.1` System font enumeration via font-kit
+- [x] `2.2.1` System font enumeration via font-kit
   - **Goal:** Enumerate installed system fonts. List families + styles.
     Filter by monospace.
   - **Touches:** `figby-rs/src/font_gen.rs`, `Cargo.toml` (enable `font-kit`)
@@ -176,7 +176,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Font listing test.
   - **Difficulty:** Low
 
-- [ ] `2.2.2` Glyph rasterization → FIGcharacter rows
+- [x] `2.2.2` Glyph rasterization → FIGcharacter rows
   - **Goal:** Rasterize glyph at target cell size. Convert bitmap to
     FIGcharacter sub-character strings. Variable-width, baseline alignment.
   - **Touches:** `figby-rs/src/font_gen.rs`
@@ -184,7 +184,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Known font→known FIGcharacter output.
   - **Difficulty:** High
 
-- [ ] `2.2.3` FIGfont header from font metrics
+- [x] `2.2.3` FIGfont header from font metrics
   - **Goal:** Build FIGfont header: hardblank, height, baseline, max_length,
     full_layout. Default old_layout=0 (full-size).
   - **Touches:** `figby-rs/src/font_gen.rs`
@@ -193,7 +193,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Round-trip: generate .flf, parse, compare rendered glyphs.
   - **Difficulty:** Medium
 
-- [ ] `2.2.4` CLI command: `figby --create-font`
+- [x] `2.2.4` CLI command: `figby --create-font`
   - **Goal:** `--create-font <name>` generates `.flf` from system font.
     Optional `--font-size`. Output to stdout or `--output` path.
   - **Touches:** `figby-rs/src/main.rs`, `figby-rs/src/font_gen.rs`
@@ -201,7 +201,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Generate font, load it, render known text. Compare with C.
   - **Difficulty:** Low
 
-- [ ] `2.2.5` Create TUI iconset YAML file
+- [x] `2.2.5` Create TUI iconset YAML file
   - **Goal:** Create `assets/tui/icons.yaml` — plain YAML mapping every UI
     element (tools, panels, modes, buttons, menus) from the todo spec to
     Nerd Font icon names. Covers: tool icons, mode tabs, cursor states,
@@ -217,7 +217,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Verify YAML parse + all keys present.
   - **Difficulty:** Low
 
-- [ ] `2.2.6` Phase merge: release/2.2 → main
+- [x] `2.2.6` Phase merge: release/2.2 → main
   - **Difficulty:** Low
 
 ---

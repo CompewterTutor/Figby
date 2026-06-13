@@ -270,6 +270,19 @@ struct CliArgs {
     #[arg(short = 'C', help = "Path to control file (.flc)")]
     controlfile: Option<String>,
     #[arg(
+        long = "create-font",
+        help = "Generate a FIGfont from a system font by name"
+    )]
+    create_font_name: Option<String>,
+    #[arg(
+        long = "font-size",
+        default_value = "12.0",
+        help = "Font size in pixels for --create-font"
+    )]
+    create_font_size: f32,
+    #[arg(long = "output", help = "Write output to file instead of stdout")]
+    create_font_output: Option<String>,
+    #[arg(
         short = 'T',
         long = "render-template",
         help = "Render a .ftmp template file"
@@ -1006,6 +1019,30 @@ fn run(config: CliConfig, message: Vec<String>) {
 fn main() {
     let args = CliArgs::parse();
     let infocode = args.infocode;
+
+    if let Some(ref name) = args.create_font_name {
+        let result = figby::font_gen::system_font_to_figfont(name, args.create_font_size);
+        let font = match result {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("Error creating font: {e}");
+                process::exit(1);
+            }
+        };
+        let content = figby::font_gen::generate_figfont(&font);
+        match args.create_font_output {
+            Some(path) => {
+                if let Err(e) = std::fs::write(&path, &content) {
+                    eprintln!("Error writing to '{}': {}", path, e);
+                    process::exit(1);
+                }
+            }
+            None => {
+                print!("{}", content);
+            }
+        }
+        return;
+    }
 
     if args.flag_F {
         eprintln!("Error: -F option is not implemented in this version");

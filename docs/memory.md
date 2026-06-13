@@ -528,3 +528,77 @@ Flip helpers for luminance and RGB matrices reside in `main.rs` (private functio
 17 flag parse tests + 2 integration tests covering every flag, defaults, short aliases,
 multiple paths, and mode detection. No `.unwrap()` in production — all error paths use
 `match`/`continue`. fmt and clippy pass clean.
+
+### 2.2.1 — System font enumeration via font-kit
+
+Created `font_gen.rs` with system font enumeration using `font-kit` crate:
+- `FontFamilyInfo` struct with `family: String` and `styles: Vec<String>`
+- `FontGenError` enum wrapping `SelectionError` and `FontLoadingError`
+- `list_system_fonts()` — enumerates all installed font families via `SystemSource::all_families()`, loads first handle per family via `select_family_by_name()`, extracts style descriptions from font properties
+- `list_monospace_fonts()` — filters system fonts using name heuristic ("Mono" substring) + `Font::is_monospace()` check
+- Private helpers: `describe_style()`, `family_is_monospace()`, `load_styles()`
+- 3 unit tests: non-empty font list, monospace filter produces subset, styles are populated
+- `font-kit = "0.14.3"` enabled in Cargo.toml (was commented out)
+
+### 2.2.3 — FIGfont header from font metrics
+
+Added `generate_figfont_header()` and `generate_figfont()` in `font_gen.rs`.
+- `generate_figfont_header(font)` — generates FIGfont header line:
+  `flf2a<hardblank> <height> <baseline> <max_length> 0 0 -1 <full_layout> 0`
+  Always uses old_layout=0 (full-size), comment_lines=0, print_direction=-1,
+  codetag_count=0. Uses `format!` macro (infallible, no unwrap).
+- `generate_figfont(font)` — generates complete `.flf` content: header + 95 ASCII
+  chars (32-126) + 7 Deutsch chars + codetagged chars. Missing required chars use
+  space-padded rows of `maxlength` width. Each row terminated with `@` endmark.
+  Codetagged chars sorted by code for deterministic output.
+- 5 new tests: header round-trip, default full-size layout, smush layout
+  preservation (191), hardblank multi-byte (DEL), full font round-trip with
+  placeholder chars. No test failures from font-kit (tests use `parse_header`
+  and `parse_tlf_font` directly, no system font dependency).
+
+### 2.2.4 — CLI command: `--create-font`
+
+Added `system_font_to_figfont()` in `font_gen.rs`:
+- Loads system font by name via font-kit, renders all 102 required chars
+  (32–126 + 7 Deutsch) to monochrome bitmaps via `rasterize_glyph()`
+- Converts bitmaps to FIGcharacter rows with correct baseline positioning
+  using raster bounds origin_y for padding calculation
+- Computes charheight/baseline from font metrics (ascent/descent in
+  design units scaled by `point_size / units_per_em`)
+- `FontGenError` gains `GlyphLoading(GlyphLoadingError)`, `FontNotFound(String)`,
+  `NoGlyph(u32)` variants
+- `pathfinder_geometry = "0.5"` added as direct dependency for
+  `Transform2F` (needed by font-kit's `rasterize_glyph` API)
+
+CLI integration in `main.rs`:
+- `--create-font <name>` generates .flf from system font
+- `--font-size <f32>` (default 12.0) controls pixel size
+- `--output <path>` writes to file instead of stdout
+- Handler placed before `-F` check, early return after generation
+
+5 new tests: roundtrip metrics, parseable output, render known char,
+nonexistent name error, size scaling.
+
+### 2.2.5 — Create TUI iconset YAML file
+
+Verified `assets/tui/icons.yaml` — 201 icon entries across 23 categories
+(modes, tools, cursor, canvas, brush, palette, status, file ops, edit,
+font editor, smushing rules, font transforms, image editor, text tool,
+layers, blending, timeline, keyframes, export, settings, navigation,
+dialogs, misc UI). Every entry uses `nf-*` Nerd Font icon prefix.
+
+Added `serde_yaml` dev-dependency and integration test
+`test_icons_yaml_all_keys_present` in `tests/tui.rs`:
+- Compile-time embedded via `include_str!`
+- Parses as `BTreeMap<String, String>`
+- Asserts ≥120 entries
+- Asserts every key non-empty
+- Asserts every value starts with `nf-`
+
+### 2.2.6 — Phase merge: release/2.2 → main
+
+Merged all Phase 2.2 work into default branch (master). Phase 2.2 complete:
+system font enumeration via font-kit (2.2.1), glyph rasterization to FIGcharacter
+rows (2.2.2), FIGfont header generation from font metrics (2.2.3), `--create-font`
+CLI command (2.2.4), TUI iconset YAML file (2.2.5). All 6 subtasks (2.2.1–2.2.6)
+implemented, tested, merged. Phase 2.3 (TUI Core & Canvas) is next.

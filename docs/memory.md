@@ -875,3 +875,27 @@ implemented, tested, merged. Phase 2.6 (Image Editor Mode) is next.
 - **No code changes** — merge was performed externally; only doc state synced.
 - **Next up**: Phase 2.6 — Image Editor Mode.
 >>>>>>> release/2.5
+
+### 2.6.1 — Image import + canvas display
+
+Created `figby-rs/src/tui/image_editor.rs` with `ImageEditor` struct and `AsciiMode`
+enum (Color/Grayscale). `ImageEditor` supports:
+- Path entry via keyboard (`o` to open, type path, Enter to load, Esc to cancel)
+- Image loading via `load_from_path()` using `image_input`'s `load_rgb_matrix()`
+  and `bilinear_resize_rgb()` with target_width=80 and aspect-corrected 0.5× height
+- Color mode: per-cell ANSI RGB colors stored in `CanvasCell.fg` via `ratatui::Color::Rgb`
+- Grayscale mode: luminance-only chars with `None` foreground
+- Mode toggle via `c`/`C` key, re-renders from cached `original_rgb` matrix
+- Block title shows path entry buffer and error messages
+- Status bar shows current mode (Color/Grayscale)
+
+Integration in `tui/mod.rs`:
+- `ImageEditor` field on `TuiApp`, initialized in `new()`
+- `sync_image_to_canvas()` resizes `CanvasWidget` to match image cells dimensions
+- Image editor key dispatch placed before canvas/tools in `handle_key_event()`
+- Render sync in canvas rendering block alongside font editor sync
+
+Made `bilinear_resize`, `bilinear_resize_rgb`, `luminance_to_char` public in
+`image_input.rs`. 8 unit tests in `image_editor.rs`: grayscale load, color load,
+nonexistent path error, mode toggle, CLI output match, canvas render, path entry
+key handling, key mode toggle. fmt and clippy pass clean.

@@ -420,3 +420,7 @@ DONE: 2.5.6 merged into release/2.5.
 
 DONE: 2.5.7 merged into release/2.5.
 >>>>>>> release/2.5
+
+## 2026-06-13 18:12
+
+PHASE_COMPLETE: 2.5 merged to main after review approval.

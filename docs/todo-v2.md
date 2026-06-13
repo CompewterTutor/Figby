@@ -418,7 +418,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.6 — Image Editor Mode
 
-- [ ] `2.6.1` Image import + canvas display
+- [x] `2.6.1` Image import + canvas display
   - **Goal:** Image Editor mode. Import image via path or `rascii_art`.
     Display as ASCII char grid on canvas. Color mode renders ANSI colors
     per cell. Grayscale mode renders luminance chars.

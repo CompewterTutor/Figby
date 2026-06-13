@@ -631,6 +631,23 @@ Three bugs found in phase merge review:
 - Code input flow uses two-step copy (CopySource → CopyDest) with `copy_source_code`
    stored between steps. This matches the UX pattern: "C → type source → Enter → type dest → Enter".
 
+## 2.6.1 — Image import + canvas display
+
+- RGB→resize→luma pipeline differs from luma→resize pipeline (bilinear interpolation
+  on 3 channels vs 1). `test_image_editor_matches_cli_output` originally compared
+  `ImageEditor` (resize RGB→luma) against `image_to_ascii` (luma→resize), which
+  never matches exactly due to rounding differences. Fixed: compare against
+  `color_matrix_to_ascii` which uses the same RGB→resize→luma path.
+- `ImageEditor::target_width` is a public field (`pub` not declared — initialized
+  to 80 in `new()`). Tests set it directly before `load_from_path`. Making it
+  settable via constructor parameter would be more idiomatic but adds complexity
+  for a single test use case.
+- Path entry flow: `o` → type path → Enter loads, Esc cancels. The `path_buffer`
+  accumulates typed chars and is taken on Enter via `std::mem::take`. Error from
+  `load_from_path` stored in `error_message` for display in block title.
+- Mode toggle (`c`/`C`) re-renders from cached `original_rgb` with same resize
+  parameters — no re-load needed. This avoids unnecessary filesystem I/O.
+
 ## 2.5.6 — Font-level transform tools
 
 - Clippy `for_kv_map` lint: `for (_code, ch) in &font.chars` should be `for ch in font.chars.values()` 

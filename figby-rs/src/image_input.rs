@@ -56,7 +56,7 @@ pub fn rgb_from_dynamic(img: &DynamicImage) -> Vec<Vec<RgbPixel>> {
 }
 
 /// Bilinear resize a luminance matrix to new dimensions.
-fn bilinear_resize(matrix: &[Vec<u8>], new_width: usize, new_height: usize) -> Vec<Vec<u8>> {
+pub fn bilinear_resize(matrix: &[Vec<u8>], new_width: usize, new_height: usize) -> Vec<Vec<u8>> {
     if matrix.is_empty() || matrix[0].is_empty() || new_width == 0 || new_height == 0 {
         return Vec::new();
     }
@@ -85,7 +85,7 @@ fn bilinear_resize(matrix: &[Vec<u8>], new_width: usize, new_height: usize) -> V
 }
 
 /// Bilinear resize an RGB pixel matrix to new dimensions.
-fn bilinear_resize_rgb(
+pub fn bilinear_resize_rgb(
     matrix: &[Vec<RgbPixel>],
     new_width: usize,
     new_height: usize,
@@ -135,7 +135,7 @@ fn bilinear_resize_rgb(
 /// Map luminance value (0-255) to char from char_map.
 ///
 /// Luminance 0 (darkest) maps to first char, 255 (brightest) maps to last.
-fn luminance_to_char(luminance: u8, char_map: &str) -> char {
+pub fn luminance_to_char(luminance: u8, char_map: &str) -> char {
     if char_map.is_empty() {
         return ' ';
     }

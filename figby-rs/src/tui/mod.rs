@@ -23,6 +23,7 @@ use crate::font::load_font;
 pub mod brush;
 pub mod canvas;
 pub mod font_editor;
+pub mod image_editor;
 pub mod palette;
 pub mod status;
 pub mod toolbox;
@@ -68,6 +69,7 @@ pub struct TuiApp {
     pub canvas: canvas::CanvasWidget,
     pub palette: palette::Palette,
     pub font_editor: font_editor::FontEditor,
+    pub image_editor: image_editor::ImageEditor,
     pub brush: brush::BrushState,
     pub unsaved: bool,
     pub settings: status::CanvasSettings,
@@ -103,6 +105,7 @@ impl TuiApp {
             palette: palette::Palette::new(),
             brush: brush::BrushState::new(),
             font_editor: fe,
+            image_editor: image_editor::ImageEditor::new(),
             last_canvas_size: (0, 0),
             canvas_inner_rect: Rect::new(0, 0, 0, 0),
             toolbox_area: Rect::new(0, 0, 0, 0),
@@ -189,7 +192,18 @@ impl TuiApp {
         self.toolbox.render(frame, tool_brush_chunks[0]);
         self.brush.render(frame, tool_brush_chunks[1]);
 
-        let mode_title = self.mode.title().to_string();
+        let mode_title = match self.mode {
+            AppMode::ImageEditor => {
+                if self.image_editor.entering_path() {
+                    format!(" Image Editor [Path: {}] ", self.image_editor.path_buffer())
+                } else if let Some(err) = self.image_editor.error_message() {
+                    format!(" Image Editor [Error: {err}] ")
+                } else {
+                    self.mode.title().to_string()
+                }
+            }
+            _ => self.mode.title().to_string(),
+        };
         let block = Block::default().title(mode_title).borders(Borders::ALL);
         let inner = block.inner(main_chunks[1]);
 
@@ -203,9 +217,11 @@ impl TuiApp {
             frame.render_widget(block, main_chunks[1]);
             self.font_editor.render(frame, inner);
         } else {
-            // In CharEditor mode, sync canvas edits back to FIGcharacter
             if self.mode == AppMode::FontEditor {
                 self.sync_canvas_to_font_char();
+            }
+            if self.mode == AppMode::ImageEditor {
+                self.sync_image_to_canvas();
             }
             let zoom = self.canvas.zoom_level().max(1) as u16;
             let buf_w = self.canvas.buffer.width() as u16;
@@ -251,7 +267,13 @@ impl TuiApp {
         }
 
         let mode_name = match self.mode {
-            AppMode::ImageEditor => "Image Editor".to_string(),
+            AppMode::ImageEditor => {
+                let mode_str = match self.image_editor.mode() {
+                    image_editor::AsciiMode::Color => "Color",
+                    image_editor::AsciiMode::Grayscale => "Grayscale",
+                };
+                format!("Image Editor [{mode_str}]")
+            }
             AppMode::AsciiPreview => "ASCII Preview".to_string(),
             AppMode::FontEditor => {
                 if let font_editor::FontEditorView::CharEditor(code) = self.font_editor.view {
@@ -306,6 +328,21 @@ impl TuiApp {
                             },
                         );
                     }
+                }
+            }
+        }
+    }
+
+    fn sync_image_to_canvas(&mut self) {
+        if let Some(cells) = self.image_editor.cells() {
+            let h = cells.len();
+            let w = cells[0].len();
+            if self.canvas.buffer.width() != w || self.canvas.buffer.height() != h {
+                self.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
+            }
+            for (y, row) in cells.iter().enumerate() {
+                for (x, cell) in row.iter().enumerate() {
+                    self.canvas.buffer.set(x, y, *cell);
                 }
             }
         }
@@ -690,6 +727,12 @@ impl TuiApp {
                 }
                 return;
             }
+        }
+
+        // Image Editor mode: dispatch to image_editor before canvas/tools
+        if self.mode == AppMode::ImageEditor && self.image_editor.handle_key(code) {
+            self.sync_image_to_canvas();
+            return;
         }
 
         // Selection operations (before canvas cursor movement)

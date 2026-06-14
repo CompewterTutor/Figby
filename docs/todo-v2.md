@@ -563,7 +563,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.9 — UI Polish & Third-Party Widgets
 
-- [ ] `2.9.1` Add `tui-menu` ratatui widget
+- [x] `2.9.1` Add `tui-menu` ratatui widget
   - **Goal:** Add `tui-menu` crate. Replace ad-hoc dialog key handlers with
     proper menu bar: File (Open, Save, Save As, Export, Quit), Edit (Undo,
     Redo, Cut, Copy, Paste), View (Zoom In, Zoom Out, Toggle Grid, Toggle

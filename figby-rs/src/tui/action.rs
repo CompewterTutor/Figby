@@ -1,6 +1,7 @@
 use ratatui::style::Color;
 
 use super::export::ExportMode;
+use super::menu::MenuAction;
 use super::palette::ColorTarget;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,4 +31,5 @@ pub enum Action {
     Message(String),
     FontEditorAction,
     ImageEditorAction,
+    Menu(MenuAction),
 }

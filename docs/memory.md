@@ -1224,3 +1224,25 @@ Status bar integration:
 - `render_string()` called each frame and set on status bar before draw
 
 No `.unwrap()` in production — all thread results handled via `match`. fmt and clippy pass clean.
+
+### 2.9.3 — Prettier status bar (LazyVim/Starship style)
+
+Redesigned `StatusBarComponent` in `components/status_bar.rs` with three-section
+layout (left/center/right) separated by `│`:
+
+- **Left section**: color-coded mode indicator (blue=FontEditor, green=ImageEditor,
+  yellow=ASCIIPreview), tool name with icon, cursor X/Y with crosshair icon, zoom
+  level with search icon
+- **Center section**: filename (with unsaved/saved dot), undo count (if > 0)
+- **Right section**: smoothed FPS counter (EMA with α=0.1), layer/Frame stubs (1/0
+  until Phase 3.x), UTC clock, git branch (if in repo)
+
+New fields added to `StatusBarComponent`: `mode`, `undo_count`, `fps`, `git_branch`,
+`clock_str`, `layer_count`, `animation_frame`.
+
+FPS tracking in `TuiApp`: `last_frame_time: Instant` + `fps: f64` fields. Computed
+as exponential moving average of instant frame rate each render cycle. Clock
+formatted as UTC HH:MM:SS via `SystemTime` (no new deps). Git branch detected
+once at startup via `git rev-parse --abbrev-ref HEAD`.
+
+Memory entry in `memory-v2.md`.

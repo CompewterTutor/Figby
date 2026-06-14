@@ -578,3 +578,11 @@ icon-based mode tabs using Nerd Font glyphs with Ctrl+Tab cycling (2.9.5),
 brush tool 5×5 mini-preview display replacing text description (2.9.6).
 All 6 subtasks (2.9.1–2.9.6) implemented, tested, merged. Phase 2.10
 (Major Release) is next.
+
+### 2.10.2 — v2 major milestone RC — human sign-off
+
+Created `rc/2.0.0-rc.1` branch and annotated tag `2.0.0-rc.1` from
+`release/2.10` tip (af0111f). Stale RC infrastructure (old `rc/2.0.0-rc.1`
+branch and `2.0.0-rc.1` tag from Phase 2.0) deleted and recreated.
+fmt and clippy pass clean on `release/2.10`. Handoff for human sign-off
+and merge to master.

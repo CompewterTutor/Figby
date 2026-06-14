@@ -650,7 +650,7 @@ overlay, layers, and animation timeline.
   - **Success:** 100% FIGlet output compatibility.
   - **Difficulty:** Medium
 
-- [ ] `2.10.2` v2 major milestone RC — human sign-off
+- [x] `2.10.2` v2 major milestone RC — human sign-off
   - **Goal:** RC for v2.0.0. Ralph halts. Human reviews.
   - **Touches:** RC branch, annotated tag
   - **Success:** `rc/2.0.0-rc.1` created. Human merges.

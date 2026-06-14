@@ -1280,11 +1280,13 @@ Merged all Phase 2.9 work into default branch (master). Phase 2.9 complete:
 tui-menu integration with menu bar (2.9.1), throbber widget for async tasks
 (2.9.2), LazyVim/Starship-style status bar redesign (2.9.3), YAML theming
 system with default theme (2.9.4), icon-based mode tabs with Ctrl+Tab cycling
-<<<<<<< HEAD
-(2.9.5), brush tool 5x5 mini-preview display (2.9.6).
-All 6 subtasks (2.9.1-2.9.6) implemented, tested, merged. Phase 2.10 (Major
-=======
 (2.9.5), brush tool 5×5 mini-preview display (2.9.6).
 All 6 subtasks (2.9.1–2.9.6) implemented, tested, merged. Phase 2.10 (Major
->>>>>>> release/2.9
 Release) is next.
+
+### 2.10.2 — v2 major milestone RC — human sign-off
+
+Created `rc/2.0.0-rc.1` branch and annotated tag `2.0.0-rc.1` from
+`release/2.10` tip (af0111f). Stale RC infrastructure (old `rc/2.0.0-rc.1`
+branch and `2.0.0-rc.1` tag from Phase 2.0) deleted and recreated.
+Handoff for human sign-off and merge to master.

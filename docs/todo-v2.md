@@ -517,85 +517,126 @@ overlay, layers, and animation timeline.
 
 ---
 
-## Phase 2.8 — Layers & Blending
+## Phase 2.8 — TUI Architecture & Backend Cleanup
 
-- [ ] `2.8.1` Layer system
-  - **Goal:** Layer panel: list of layers, visibility toggle, lock toggle,
-    opacity slider, drag-to-reorder. New/delete/duplicate/merge layers.
-    Each layer is an independent ASCII buffer.
-  - **Touches:** `figby-rs/src/tui/layers.rs`
-  - **Success:** Layers render stacked. Layer operations work.
-  - **Tests:** Create, delete, reorder, merge layers.
+- [ ] `2.8.1` Migrate to Component Architecture
+  - **Goal:** Extract subsystems into `Component` trait with `handle_events`,
+    `update`, `render` methods. Define an `Action` enum for cross-component
+    communication. Refactor `TuiApp` from monolithic struct with giant
+    match statements into a tree of composable components following the
+    [ratatui component template](https://github.com/ratatui/templates/tree/main/component).
+    Components: toolbox, palette, canvas, brush options, font editor,
+    image editor, status bar, file ops dialog, export dialog, undo panel.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/*.rs`
+  - **Success:** Each component implements `Component` trait. Event dispatch
+    is delegated. `Action` enum handles inter-component messages.
+  - **Tests:** App still launches and all features work identically.
   - **Difficulty:** High
 
-- [ ] `2.8.2` Blending modes
-  - **Goal:** Per-layer blend mode: Normal, Multiply, Overlay, Screen,
-    Add, Subtract. Render composited output in real time. Preview
-    thumbnail per layer showing blend effect.
-  - **Touches:** `figby-rs/src/tui/layers.rs`
-  - **Success:** Blend modes produce correct composed output.
-  - **Tests:** Multiply + Overlay blend with known test patterns.
-  - **Difficulty:** High
-
-- [ ] `2.8.3` Layer groups + masks
-  - **Goal:** Group layers into folders. Layer mask: paint on mask to
-    hide/reveal parts of layer. Mask thumbnail in layer panel.
-  - **Touches:** `figby-rs/src/tui/layers.rs`
-  - **Success:** Groups collapsible. Mask hides painted areas.
-  - **Tests:** Group create, mask paint, verify composited result.
-  - **Difficulty:** Medium
-
-- [ ] `2.8.4` Export with layers
-  - **Goal:** Export flattened composite. Export individual layers as
-    separate files. Export with transparency (space = transparent).
-  - **Touches:** `figby-rs/src/tui/export.rs`
-  - **Success:** Flattened export matches canvas. Layer exports correct.
-  - **Tests:** Export composite vs manual layer merge.
+- [ ] `2.8.2` Remove termion, use crossterm everywhere
+  - **Goal:** Replace `termion::terminal_size()` calls in `main.rs:547` and
+    `image_input.rs:186` with `crossterm::terminal::size()`. Remove `termion`
+    dependency from `Cargo.toml`. Verify no other usage of termion.
+  - **Touches:** `figby-rs/src/main.rs`, `figby-rs/src/image_input.rs`,
+    `figby-rs/Cargo.toml`
+  - **Success:** Project compiles without `termion`. `terminal_size()` still works.
+  - **Tests:** Compile check. `--width` flag without explicit value resolves
+    terminal width correctly.
   - **Difficulty:** Low
 
-- [ ] `2.8.5` Phase merge: release/2.8 → main
+- [ ] `2.8.3` Use ratatui init/run convenience functions
+  - **Goal:** Replace manual `Terminal::new(CrosstermBackend::new(stdout))` +
+    raw mode enable/disable + alternate screen enter/leave with
+    `ratatui::init()` / `ratatui::restore()` or `ratatui::run()`. Add
+    panic hook to restore terminal on crash. Remove manual
+    `enable_raw_mode`/`disable_raw_mode`, `EnterAlternateScreen`/
+    `LeaveAlternateScreen`, `EnableMouseCapture`/`DisableMouseCapture`.
+  - **Touches:** `figby-rs/src/tui/mod.rs`
+  - **Success:** TUI starts and stops cleanly. Panic restores terminal.
+  - **Tests:** Smoke test launch/quit. Force panic, verify terminal restored.
+  - **Difficulty:** Medium
+
+- [ ] `2.8.4` Phase merge: release/2.8 → main
   - **Difficulty:** Low
 
 ---
 
-## Phase 2.9 — Animation Timeline
+## Phase 2.9 — UI Polish & Third-Party Widgets
 
-- [ ] `2.9.1` Frame management
-  - **Goal:** Timeline panel: frame thumbnails, add/delete/duplicate/
-    reorder frames. Each frame stores full layer state. Onion skinning
-    (semi-transparent overlay of prev/next frame).
-  - **Touches:** `figby-rs/src/tui/timeline.rs`
-  - **Success:** Frames addable, reorderable. Onion skin overlay renders.
-  - **Tests:** Create frames, switch between them, verify state isolation.
-  - **Difficulty:** High
-
-- [ ] `2.9.2` Keyframing
-  - **Goal:** Keyframeable properties per layer: position offset, opacity,
-    blend mode. Keyframe markers on timeline. Interpolation between
-    keyframes (linear). Keyframe editor panel.
-  - **Touches:** `figby-rs/src/tui/timeline.rs`
-  - **Success:** Keyframes set. Playback interpolates between them.
-  - **Tests:** Set keyframes, play, verify interpolation.
-  - **Difficulty:** High
-
-- [ ] `2.9.3` Tweening
-  - **Goal:** Auto-tween: select start/end keyframes, generate
-    intermediate frames. Easing functions: linear, ease-in, ease-out,
-    bounce. Preview tween before committing.
-  - **Touches:** `figby-rs/src/tui/timeline.rs`
-  - **Success:** Tween generates intermediate frames with correct easing.
-  - **Tests:** Tween between known keyframes, verify frame sequence.
+- [ ] `2.9.1` Add `tui-menu` ratatui widget
+  - **Goal:** Add `tui-menu` crate. Replace ad-hoc dialog key handlers with
+    proper menu bar: File (Open, Save, Save As, Export, Quit), Edit (Undo,
+    Redo, Cut, Copy, Paste), View (Zoom In, Zoom Out, Toggle Grid, Toggle
+    Undo Panel), Tools (tool shortcuts), Help (About, Keybindings).
+    Menu opens on Alt+key or click. Submenus supported.
+  - **Touches:** `figby-rs/Cargo.toml`, `figby-rs/src/tui/menu.rs`
+  - **Success:** Menu bar renders. Menu items trigger correct actions.
+  - **Tests:** Click each menu item. Keyboard navigation works.
   - **Difficulty:** Medium
 
-- [ ] `2.9.4` GIF export from timeline
-  - **Goal:** Render animation timeline to animated GIF. Frame delay per
-    frame or global FPS setting. Loop count. Preview playback in TUI.
-  - **Touches:** `figby-rs/src/tui/export.rs`
-  - **Success:** GIF matches timeline playback.
-  - **Tests:** Export GIF, verify frame count + timing.
+- [ ] `2.9.2` Add throbber for async tasks
+  - **Goal:** Add `throbber` or build simple spinner widget. Show during:
+    image loading, GIF export, font generation, file I/O operations.
+    Animated spinner (e.g. `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) in status bar or modal
+    overlay. Run async tasks in a separate thread, throbber animates
+    via tick.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/throbber.rs`
+  - **Success:** Throbber spins during long operations. UI remains responsive.
+  - **Tests:** Trigger slow op, verify spinner animation.
   - **Difficulty:** Medium
 
-- [ ] `2.9.5` Phase merge: release/2.9 → main
+- [ ] `2.9.3` Prettier status bar (LazyVim/Starship style)
+  - **Goal:** Redesign status bar with sections: left (mode, tool name,
+    cursor X/Y, zoom), center (file name, unsaved dot, undo count),
+    right (FPS, layer count, animation frame, clock). Use styled
+    separators (`│` or `▎`). Color-coded mode indicator (blue=FontEditor,
+    green=ImageEditor, yellow=ASCIIPreview). Git branch if in repo.
+  - **Touches:** `figby-rs/src/tui/status.rs`
+  - **Success:** Status bar looks modern and informative.
+  - **Tests:** Visual review.
+  - **Difficulty:** Low
+
+- [ ] `2.9.4` Theming system with YAML theme file
+  - **Goal:** Create `assets/tui/themes/` directory with default theme
+    YAML. Theme defines color tokens per UI element: `toolbox.bg`,
+    `toolbox.fg`, `toolbox.selected`, `canvas.grid`, `canvas.cursor`,
+    `canvas.selection`, `palette.border`, `status.mode_font`,
+    `status.mode_image`, `status.mode_ascii`, `status.separator`,
+    `menu.bg`, `menu.fg`, `menu.highlight`, etc. Extend `icons.yaml`
+    pattern: theme file is loaded at startup, merged with config.
+    Config option: `theme = "default"` or path to custom theme.
+  - **Touches:** `assets/tui/themes/default.yaml`, `figby-rs/src/tui/theme.rs`,
+    `figby-rs/src/config.rs`
+  - **Success:** Theme tokens applied across all widgets. Custom theme
+    file overrides colors.
+  - **Tests:** Load default theme, verify colors match. Load custom theme.
+  - **Difficulty:** Medium
+
+- [ ] `2.9.5` Migrate mode tabs to `Tabs` widget (fix existing usage)
+  - **Goal:** Current mode tabs in `render()` use `Tabs::new(titles)` with
+    hardcoded strings. Fix: use icons from `icons.yaml` for tab labels
+    (` Font Editor`, ` Image Editor`, ` ASCII Preview`). Style tabs
+    with theme tokens. Add keyboard nav: Ctrl+Tab / Ctrl+Shift+Tab to
+    cycle modes. Highlight active tab with accent color.
+  - **Touches:** `figby-rs/src/tui/mod.rs`
+  - **Success:** Tabs show icons. Ctrl+Tab cycles modes. Theme colors applied.
+  - **Tests:** Visual review. Keyboard cycle test.
+  - **Difficulty:** Low
+
+- [ ] `2.9.6` Fix brush tool display
+  - **Goal:** Brush preview in toolbox (tool_brush_chunks[1]) currently
+    renders a simple text description. Fix: render a mini ASCII preview
+    of the brush shape (e.g. a 5×5 grid showing which cells the brush
+    paints). Update preview when brush shape/size changes. Show brush
+    character and size label. Ensure brush preview doesn't overlap or
+    clip with toolbox items above.
+  - **Touches:** `figby-rs/src/tui/brush.rs`, `figby-rs/src/tui/mod.rs`
+  - **Success:** Brush preview shows actual shape in 5×5 mini-grid.
+    Updates live on shape/size change. No clipping.
+  - **Tests:** Resize brush from 1–20, verify preview updates. Cycle shapes.
+  - **Difficulty:** Low
+
+- [ ] `2.9.7` Phase merge: release/2.9 → main
   - **Difficulty:** Low
 
 ---

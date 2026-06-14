@@ -461,3 +461,31 @@ Merged v2.7 (file ops, config, undo) into main. Also included:
   ratatui init/run)
 - Replaced v2.9 with UI polish & third-party widgets (tui-menu, throbber, theming,
   tab icons, brush preview)
+
+### 2.8.1 — Migrate to Component Architecture
+
+Defined `Component` trait in `component.rs` with `handle_key_event`, `handle_mouse_event`,
+`update`, and `draw` method signatures. Created `Action` enum in `action.rs` for
+cross-component communication (Tick, Render, Resize, Quit, ToolSelected, ColorChanged,
+BrushChanged, Undo, Redo, ModeChanged, FileOpened, etc.).
+
+Wrapped all TUI subsystems into component structs:
+- `ToolboxComponent` wraps `toolbox::Toolbox` + `brush::BrushState`
+- `CanvasComponent` wraps `canvas::CanvasWidget` + `canvas_inner_rect`
+- `PaletteComponent` wraps `palette::Palette`
+- `FontEditorComponent` wraps `font_editor::FontEditor`
+- `ImageEditorComponent` wraps `image_editor::ImageEditor`
+- `FileOpsComponent` wraps `file_ops::FileOpsDialog` + `RecentFiles`
+- `ExportComponent` wraps `export::ExportDialog`
+- `UndoPanelComponent` wraps `undo_panel::UndoPanel`
+- `StatusBarComponent` wraps status bar rendering logic
+
+All 10 components implement `Component` trait. `process_action()` dispatches
+cross-component actions (Quit, ToolSelected, ColorChanged, SaveAsRequested, etc.).
+`TuiApp` fields renamed with `_comp` suffix for clarity.
+
+`tests/tui.rs` updated to use new component field paths (e.g. `app.toolbox` →
+`app.toolbox_comp.toolbox`).
+
+No `.unwrap()` in production — `serde_yaml::from_str` uses `unwrap_or_default()`.
+fmt and clippy pass clean.

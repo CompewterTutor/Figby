@@ -714,3 +714,10 @@ Three bugs found in phase merge review:
   the RGB (24-bit color) and braille (luminance-only) pipelines. The braille pipeline
   operates on `Vec<Vec<u8>>`, so the conversion happens after all RGB adjustments
   (brightness, contrast, invert) are applied.
+
+## 2.8.1 — Migrate to Component Architecture
+
+- Test file `figby-rs/tests/tui.rs` is outside the "Touches" scope (`figby-rs/src/tui/*.rs`)
+  but field renames in `mod.rs` break its compilation. Tests referencing old field names
+  (`app.toolbox`, `app.canvas`, `app.brush`, `app.palette`) must be updated to match.
+  These changes are a necessary consequence of the refactoring, not scope creep.

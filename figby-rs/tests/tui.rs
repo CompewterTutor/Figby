@@ -84,7 +84,7 @@ fn test_tui_app_default_mode() {
 fn test_tool_default_is_brush() {
     use figby::tui::{Tool, TuiApp};
     let app = TuiApp::new();
-    assert_eq!(app.toolbox.selected, Tool::Brush);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
 }
 
 #[test]
@@ -93,40 +93,40 @@ fn test_tool_selection_roundtrip() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    assert_eq!(app.toolbox.selected, Tool::Brush);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('v'));
-    assert_eq!(app.toolbox.selected, Tool::Marquee);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Marquee);
 
     app.handle_key_event(KeyCode::Char('b'));
-    assert_eq!(app.toolbox.selected, Tool::Brush);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('l'));
-    assert_eq!(app.toolbox.selected, Tool::Lasso);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Lasso);
 
     app.handle_key_event(KeyCode::Char('c'));
-    assert_eq!(app.toolbox.selected, Tool::CircleSelect);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::CircleSelect);
 
     app.handle_key_event(KeyCode::Char('p'));
-    assert_eq!(app.toolbox.selected, Tool::PolygonSelect);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::PolygonSelect);
 
     app.handle_key_event(KeyCode::Char('g'));
-    assert_eq!(app.toolbox.selected, Tool::Fill);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Fill);
 
     app.handle_key_event(KeyCode::Char('i'));
-    assert_eq!(app.toolbox.selected, Tool::Line);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Line);
 
     app.handle_key_event(KeyCode::Char('e'));
-    assert_eq!(app.toolbox.selected, Tool::Eraser);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Eraser);
 
     app.handle_key_event(KeyCode::Char('d'));
-    assert_eq!(app.toolbox.selected, Tool::Eyedropper);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Eyedropper);
 
     app.handle_key_event(KeyCode::Char('t'));
-    assert_eq!(app.toolbox.selected, Tool::Text);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Text);
 
     app.handle_key_event(KeyCode::Char('B'));
-    assert_eq!(app.toolbox.selected, Tool::Brush);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
 }
 
 #[test]
@@ -462,13 +462,13 @@ fn test_brush_size_up_down_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.brush.size, 3);
+    assert_eq!(app.toolbox_comp.brush.size, 3);
 
     app.handle_key_event(KeyCode::Char(']'));
-    assert_eq!(app.brush.size, 4);
+    assert_eq!(app.toolbox_comp.brush.size, 4);
 
     app.handle_key_event(KeyCode::Char('['));
-    assert_eq!(app.brush.size, 3);
+    assert_eq!(app.toolbox_comp.brush.size, 3);
 }
 
 #[test]
@@ -478,13 +478,13 @@ fn test_brush_shape_cycle_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.brush.shape, BrushShape::Square);
+    assert_eq!(app.toolbox_comp.brush.shape, BrushShape::Square);
 
     app.handle_key_event(KeyCode::Char('\''));
-    assert_eq!(app.brush.shape, BrushShape::Circle);
+    assert_eq!(app.toolbox_comp.brush.shape, BrushShape::Circle);
 
     app.handle_key_event(KeyCode::Char('\''));
-    assert_eq!(app.brush.shape, BrushShape::SprayPaint);
+    assert_eq!(app.toolbox_comp.brush.shape, BrushShape::SprayPaint);
 }
 
 #[test]
@@ -593,7 +593,7 @@ fn test_palette_render_contains_labels() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.palette.select_color(0);
+    app.palette_comp.palette.select_color(0);
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -739,12 +739,12 @@ fn test_settings_changes_canvas_width() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.canvas.buffer.width(), 40);
+    assert_eq!(app.canvas_comp.canvas.buffer.width(), 40);
     app.handle_key_event(KeyCode::Char('S'));
     assert!(app.settings.settings_open);
     app.handle_key_event(KeyCode::Right);
     assert_eq!(
-        app.canvas.buffer.width(),
+        app.canvas_comp.canvas.buffer.width(),
         41,
         "canvas width should increase"
     );
@@ -761,7 +761,10 @@ fn test_settings_toggle_grid() {
         app.handle_key_event(KeyCode::Down);
     }
     app.handle_key_event(KeyCode::Enter);
-    assert!(app.canvas.show_grid(), "grid should be toggled on");
+    assert!(
+        app.canvas_comp.canvas.show_grid(),
+        "grid should be toggled on"
+    );
 }
 
 #[test]
@@ -792,10 +795,10 @@ fn test_fill_tool_keyboard() {
 
     // Select Fill tool via keyboard shortcut
     app.handle_key_event(KeyCode::Char('g'));
-    assert_eq!(app.toolbox.selected, Tool::Fill);
+    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Fill);
 
     // Draw a 2x2 region of @
-    app.canvas.buffer.set(
+    app.canvas_comp.canvas.buffer.set(
         1,
         1,
         CanvasCell {
@@ -804,7 +807,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.canvas.buffer.set(
+    app.canvas_comp.canvas.buffer.set(
         1,
         2,
         CanvasCell {
@@ -813,7 +816,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.canvas.buffer.set(
+    app.canvas_comp.canvas.buffer.set(
         2,
         1,
         CanvasCell {
@@ -822,7 +825,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.canvas.buffer.set(
+    app.canvas_comp.canvas.buffer.set(
         2,
         2,
         CanvasCell {
@@ -833,24 +836,24 @@ fn test_fill_tool_keyboard() {
     );
 
     // Move cursor to (1, 1)
-    app.canvas.set_cursor(1, 1);
+    app.canvas_comp.canvas.set_cursor(1, 1);
 
     // Press Space to flood fill
     app.handle_key_event(KeyCode::Char(' '));
 
     // The filled region should have been replaced with full block
     assert_eq!(
-        app.canvas.buffer.get(1, 1).unwrap().ch,
+        app.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch,
         '\u{2588}',
         "filled cell (1,1)"
     );
     assert_eq!(
-        app.canvas.buffer.get(2, 2).unwrap().ch,
+        app.canvas_comp.canvas.buffer.get(2, 2).unwrap().ch,
         '\u{2588}',
         "filled cell (2,2)"
     );
     assert_eq!(
-        app.canvas.buffer.get(0, 0).unwrap().ch,
+        app.canvas_comp.canvas.buffer.get(0, 0).unwrap().ch,
         ' ',
         "outside fill should remain space"
     );

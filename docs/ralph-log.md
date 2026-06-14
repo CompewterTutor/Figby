@@ -514,3 +514,7 @@ PHASE_COMPLETE: 2.7 merged to main after review approval.
 ## 2026-06-13 22:03
 
 DONE: 2.8.1 merged into release/2.8.
+
+## 2026-06-13 22:05
+
+DONE: 2.8.2 merged into release/2.8.

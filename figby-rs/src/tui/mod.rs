@@ -1,11 +1,8 @@
 use crossterm::event::{
-    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use crossterm::execute;
-use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-};
 use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
@@ -184,33 +181,16 @@ impl TuiApp {
     }
 
     pub fn run(&mut self) -> io::Result<()> {
-        use ratatui::backend::CrosstermBackend;
-        use ratatui::Terminal;
-
-        enable_raw_mode()?;
-        let mut stdout = io::stdout();
-        execute!(
-            stdout,
-            EnterAlternateScreen,
-            EnableMouseCapture,
-            EnableBracketedPaste
-        )?;
-        let backend = CrosstermBackend::new(stdout);
-        let mut terminal = Terminal::new(backend)?;
+        let mut terminal = ratatui::init();
+        execute!(io::stdout(), EnableBracketedPaste)?;
 
         while !self.should_quit {
             terminal.draw(|f| self.render(f))?;
             self.handle_event()?;
         }
 
-        disable_raw_mode()?;
-        execute!(
-            terminal.backend_mut(),
-            DisableMouseCapture,
-            DisableBracketedPaste,
-            LeaveAlternateScreen
-        )?;
-        terminal.show_cursor()?;
+        execute!(terminal.backend_mut(), DisableBracketedPaste)?;
+        ratatui::restore();
         Ok(())
     }
 

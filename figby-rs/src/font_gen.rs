@@ -5,8 +5,10 @@ use font_kit::font::Font;
 use font_kit::handle::Handle;
 use font_kit::hinting::HintingOptions;
 use font_kit::source::SystemSource;
+use image::{DynamicImage, GrayImage, Luma};
 use pathfinder_geometry::transform2d::Transform2F;
 use pathfinder_geometry::vector::{Vector2F, Vector2I};
+use rascii_art::{charsets, RenderOptions};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -214,31 +216,59 @@ pub fn generate_figfont(font: &FIGfont) -> String {
     result
 }
 
-/// Convert a cell-sized canvas to a FIGcharacter.
+/// Built-in "smooth" charset: light marks + round chars for smooth antialiased edges.
+/// Avoids `@` (FIGfont endmark) and `$` (hardblank) to prevent output corruption.
+pub const SMOOTH_CHARSET: &[&str] = &[
+    " ", ".", "'", "^", "\"", "~", ":", ";", "i", "r",
+    "o", "O", "0", "Q", "#", "8", "&", "%",
+];
+
+/// Resolve a charset name or custom comma-separated string to a character slice.
+/// Built-in names: `block`, `default`, `slight`, `smooth`.
+pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
+    Some(match name {
+        "block" => charsets::BLOCK,
+        "default" => charsets::DEFAULT,
+        "slight" => charsets::SLIGHT,
+        "smooth" => SMOOTH_CHARSET,
+        _ => return None,
+    })
+}
+
+/// Convert a cell-sized canvas to a FIGcharacter using rascii_art.
 ///
 /// The canvas is already sized to the FIGfont cell (charheight × glyph_width).
-/// The glyph was rendered at the correct baseline position within the canvas.
-/// Each canvas row maps directly to a FIGcharacter row.
+/// Uses the given `charset` for luminance-to-character mapping.
 fn canvas_to_figcharacter_cell(
     canvas: &Canvas,
-    fill_char: char,
     charheight: usize,
+    charset: &[&str],
 ) -> FIGcharacter {
     let canvas_h = canvas.size.y() as usize;
     let canvas_w = canvas.size.x() as usize;
     let stride = canvas.stride;
-    let threshold: u8 = 128;
 
-    let mut rows = Vec::with_capacity(charheight);
+    let mut img = GrayImage::new(canvas_w as u32, canvas_h as u32);
     for r in 0..canvas_h.min(charheight) {
         let row_start = r * stride;
-        let mut row = String::with_capacity(canvas_w);
         for c in 0..canvas_w {
-            let pixel = canvas.pixels[row_start + c];
-            row.push(if pixel > threshold { fill_char } else { ' ' });
+            let alpha = canvas.pixels[row_start + c];
+            img.put_pixel(c as u32, r as u32, Luma([alpha]));
         }
-        rows.push(row);
     }
+
+    let options = RenderOptions::new()
+        .width(canvas_w as u32)
+        .height(canvas_h as u32)
+        .charset(charset);
+
+    let mut buf = String::new();
+    if rascii_art::render_image_to(&DynamicImage::ImageLuma8(img), &mut buf, &options).is_err() {
+        let rows = vec![" ".repeat(canvas_w); charheight];
+        return FIGcharacter::from(rows);
+    }
+
+    let mut rows: Vec<String> = buf.lines().map(|s| s.to_string()).collect();
     while rows.len() < charheight {
         rows.push(" ".repeat(canvas_w));
     }
@@ -249,8 +279,15 @@ fn canvas_to_figcharacter_cell(
 ///
 /// Returns a populated `FIGfont` with all required ASCII (32–126) and Deutsch
 /// characters rendered from the system font's glyphs. Uses font-kit for
-/// loading and rasterization.
-pub fn system_font_to_figfont(name: &str, point_size: f32) -> Result<FIGfont, FontGenError> {
+/// loading and rasterization and `rascii_art` for glyph-to-ASCII mapping.
+///
+/// `charset` controls the character gradient for antialiased edges.
+/// Use `SMOOTH_CHARSET` or `resolve_charset()` for built-in options.
+pub fn system_font_to_figfont(
+    name: &str,
+    point_size: f32,
+    charset: &[&str],
+) -> Result<FIGfont, FontGenError> {
     let source = SystemSource::new();
     let family = source
         .select_family_by_name(name)
@@ -282,30 +319,41 @@ pub fn system_font_to_figfont(name: &str, point_size: f32) -> Result<FIGfont, Fo
         let c = char::from_u32(code).ok_or(FontGenError::NoGlyph(code))?;
         let glyph_id = font.glyph_for_char(c).ok_or(FontGenError::NoGlyph(code))?;
 
-        // Use raster_bounds to check if glyph is non-empty.
+        // Use raster_bounds to check bounds, then get advance for cell width.
+        // advance() returns font units (font-kit sets char size to upem during
+        // font init). Scale by point_size / upem to get pixel advance.
         let bounds = font
             .raster_bounds(glyph_id, point_size, Transform2F::default(), hinting, raster_opts)
             .map_err(|_| FontGenError::NoGlyph(code))?;
 
+        let advance_v = font.advance(glyph_id)?;
+        // advance() returns font units (char size set to upem during font init).
+        // Scale by point_size / upem to get pixel advance.
+        let advance_px = advance_v.x() * point_size / upem;
+        let cell_w = (advance_px.ceil() as i32).max(1);
+
         let size = bounds.size();
         if size.x() <= 0 || size.y() <= 0 {
-            let ch = FIGcharacter::from(vec![" ".to_string(); charheight as usize]);
+            let blank_row = " ".repeat(cell_w as usize);
+            let ch = FIGcharacter::from(vec![blank_row; charheight as usize]);
             figchars.insert(code, ch);
             continue;
         }
 
-        // Allocate canvas at cell height so the FreeType bitmap always fits.
+        // Allocate canvas at advance width so all characters have consistent
+        // cell dimensions matching the font's horizontal advance metric.
         // The transform shifts the baseline down by `baseline` pixels so the
         // rendered bitmap lands at the correct vertical position within the cell.
-        let cell_w = size.x().max(1);
         let canvas_size = Vector2I::new(cell_w, charheight as i32);
         let mut canvas = Canvas::new(canvas_size, Format::A8);
 
         // Shift baseline to row `baseline` in the cell-sized canvas.
         // font-kit converts pathfinder +y=down to FreeType +y=up internally,
         // so a positive y shift here moves the render downward in the canvas.
-        let mut shifted_transform = Transform2F::default();
-        shifted_transform.vector = Vector2F::new(0.0, baseline as f32);
+        let shifted_transform = Transform2F {
+            vector: Vector2F::new(0.0, baseline as f32),
+            ..Default::default()
+        };
 
         font.rasterize_glyph(
             &mut canvas,
@@ -319,8 +367,8 @@ pub fn system_font_to_figfont(name: &str, point_size: f32) -> Result<FIGfont, Fo
 
         let ch = canvas_to_figcharacter_cell(
             &canvas,
-            '@',
             charheight as usize,
+            charset,
         );
         let width = ch.width() as u32;
         if width > maxlength {
@@ -554,9 +602,13 @@ mod tests {
 
     // --- Font generation tests (require system fonts) ---
 
+    fn test_charset() -> &'static [&'static str] {
+        SMOOTH_CHARSET
+    }
+
     #[test]
     fn test_create_font_roundtrip() {
-        match system_font_to_figfont("Monospace", 12.0) {
+        match system_font_to_figfont("Monospace", 12.0, test_charset()) {
             Ok(font) => {
                 assert!(font.charheight > 0, "charheight should be > 0");
                 assert!(font.baseline > 0, "baseline should be > 0");
@@ -572,7 +624,7 @@ mod tests {
 
     #[test]
     fn test_create_font_parseable() {
-        match system_font_to_figfont("Monospace", 12.0) {
+        match system_font_to_figfont("Monospace", 12.0, test_charset()) {
             Ok(font) => {
                 let content = generate_figfont(&font);
                 let parsed = parse_tlf_font(&content).expect("generated font should parse");
@@ -593,7 +645,7 @@ mod tests {
 
     #[test]
     fn test_create_font_renders_text() {
-        match system_font_to_figfont("Monospace", 12.0) {
+        match system_font_to_figfont("Monospace", 12.0, test_charset()) {
             Ok(font) => {
                 let content = generate_figfont(&font);
                 let parsed = parse_tlf_font(&content).expect("generated font should parse");
@@ -617,7 +669,7 @@ mod tests {
 
     #[test]
     fn test_create_font_nonexistent_name() {
-        let result = system_font_to_figfont("NonexistentFontXYZ_12345", 12.0);
+        let result = system_font_to_figfont("NonexistentFontXYZ_12345", 12.0, test_charset());
         assert!(
             matches!(result, Err(FontGenError::FontNotFound(_))),
             "expected FontNotFound error, got: {result:?}"
@@ -626,7 +678,7 @@ mod tests {
 
     #[test]
     fn test_create_font_size_changes_metrics() {
-        let small = match system_font_to_figfont("Monospace", 8.0) {
+        let small = match system_font_to_figfont("Monospace", 8.0, test_charset()) {
             Ok(f) => f,
             Err(FontGenError::FontNotFound(_)) => {
                 eprintln!("Monospace font not found, skipping test");
@@ -634,7 +686,7 @@ mod tests {
             }
             Err(e) => panic!("unexpected error: {e}"),
         };
-        let large = match system_font_to_figfont("Monospace", 24.0) {
+        let large = match system_font_to_figfont("Monospace", 24.0, test_charset()) {
             Ok(f) => f,
             Err(FontGenError::FontNotFound(_)) => {
                 eprintln!("Monospace font not found, skipping test");

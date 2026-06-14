@@ -486,6 +486,27 @@ Three bugs found in phase merge review:
   load and sets char size to `units_per_em` (design size). `rasterize_glyph()`
   overrides this with the requested `point_size` via `FT_Set_Char_Size`.
 - `clippy::repeat_once` lint: `" ".repeat(1)` → `" ".to_string()`.
+- `font.advance(glyph_id)?.x()` returns advance in **font units** (font-kit FreeType
+  backend sets char size to `units_per_em` during `reset_freetype_face_char_size`).
+  Must scale by `point_size / upem` to get pixel advance. NOT the same as
+  `raster_bounds.size().x()` which gives ink bounding box width.
+- For `--create-font`: character cell width must use **advance width**, not ink
+  bounding box width. `raster_bounds.size().x()` gives per-glyph ink width
+  (varies: space=1, `!`=4, `W`=9) → terrible output. Advance width gives the
+  font's proper horizontal metric (uniform for monospace, ~7px for 12pt).
+- Space character (code 32) has no visible ink → `raster_bounds` returns (0,0).
+  Old code created FIGcharacter with 1-wide rows (`" ".to_string()`). Fix: compute
+  advance width even for empty glyphs and create blank FIGcharacter at full width.
+- `rascii_art::render_image_to` formula: `char_index = (grayscale * (N-1)) as usize`.
+  With N=2 charset, only grayscale=1.0 (alpha=255) maps to the second char due to
+  integer truncation. Use N≥3 for any threshold below 255.
+- `@` is FIGfont endmark — `strip_endmarks()` removes all trailing `@` from each row.
+  If glyph fill uses `@` and it appears at end of row, it gets stripped → corrupted glyph.
+  Never use `@` as a fill character in generated fonts.
+- `$` is hardblank — renderer replaces with space in output (`render.rs:334`).
+  Never use in glyph fill content. Only 1 occurrence in font file (header).
+- For FIGfont charset design: avoid `@` (endmark) and the hardblank char. Everything
+  else is safe as fill characters.
 
 ## 2.3.1 — TUI scaffold with ratatui
 

@@ -280,11 +280,17 @@ struct CliArgs {
     #[arg(
         long = "font-size",
         default_value = "12.0",
-        help = "Font size in pixels for --create-font"
+        help = "Font size in points for --create-font"
     )]
     create_font_size: f32,
     #[arg(long = "output", help = "Write output to file instead of stdout")]
     create_font_output: Option<String>,
+    #[arg(
+        long = "create-font-charset",
+        default_value = "smooth",
+        help = "Charset for --create-font: block, default, slight, smooth, or comma-separated"
+    )]
+    create_font_charset: String,
     #[arg(
         short = 'T',
         long = "render-template",
@@ -1048,7 +1054,18 @@ fn main() {
     }
 
     if let Some(ref name) = args.create_font_name {
-        let result = figby::font_gen::system_font_to_figfont(name, args.create_font_size);
+        let charset = figby::font_gen::resolve_charset(&args.create_font_charset).unwrap_or_else(|| {
+            // Treat as comma-separated custom list; leak for &'static lifetime
+            let leaked: &'static [&'static str] = Box::leak(
+                args.create_font_charset
+                    .split(',')
+                    .map(|s| Box::leak(s.trim().to_string().into_boxed_str()) as &'static str)
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            );
+            leaked
+        });
+        let result = figby::font_gen::system_font_to_figfont(name, args.create_font_size, charset);
         let font = match result {
             Ok(f) => f,
             Err(e) => {

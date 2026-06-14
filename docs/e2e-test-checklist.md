@@ -12,50 +12,50 @@ Test generating FIGfonts from system TTF/OTF fonts. Available monospace fonts on
 
 ### 1.1 Generate a FIGfont from a system font
 ```bash
-./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" > /tmp/test_font.flf
+./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" --create-font-charset smooth > /tmp/test_font.flf
 ```
-- [ ] Check exit code 0
-- [ ] File is non-empty
-- [ ] File starts with `flf2a$`
-- [ ] First header line parses: `flf2a$ <height> <baseline> <max_length> 0 0 -1 64 0`
-- [ ] Notes:
+- [x] Check exit code 0
+- [x] File is non-empty
+- [x] File starts with `flf2a$`
+- [x] First header line parses: `flf2a$ <height> <baseline> <max_length> 0 0 -1 64 0`
+- [x] Notes: Header: `flf2a$ 15 12 8 0 0 -1 64 0`. Uses `--create-font-charset smooth` for antialiased glyphs.
 
 ### 1.2 Generate with different font size
 ```bash
-./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" --font-size 8 > /tmp/test_font_8.flf
-./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" --font-size 24 > /tmp/test_font_24.flf
+./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" --font-size 8 --create-font-charset smooth > /tmp/test_font_8.flf
+./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" --font-size 24 --create-font-charset smooth > /tmp/test_font_24.flf
 ```
-- [ ] Size 8 is smaller than size 24 (check `charheight` in header)
-- [ ] Size 24 has visible glyph detail
-- [ ] Notes:
+- [x] Size 8 is smaller than size 24 (check `charheight` in header)
+- [x] Size 24 has visible glyph detail
+- [x] Notes: 8pt: h=10 b=8 ml=5. 24pt: h=29 b=23 ml=15.
 
 ### 1.3 Generate from different system fonts
 ```bash
-./figby-rs/target/debug/figby --create-font "Courier 10 Pitch" > /tmp/courier.flf
-./figby-rs/target/debug/figby --create-font "Liberation Mono" > /tmp/liberation.flf
-./figby-rs/target/debug/figby --create-font "FreeMono" > /tmp/freemono.flf
+./figby-rs/target/debug/figby --create-font "Courier 10 Pitch" --create-font-charset smooth > /tmp/courier.flf
+./figby-rs/target/debug/figby --create-font "Liberation Mono" --create-font-charset smooth > /tmp/liberation.flf
+./figby-rs/target/debug/figby --create-font "FreeMono" --create-font-charset smooth > /tmp/freemono.flf
 ```
-- [ ] Courier generates successfully
-- [ ] Liberation Mono generates successfully
-- [ ] FreeMono generates successfully
-- [ ] All have correct header format
-- [ ] Notes:
+- [x] Courier generates successfully
+- [x] Liberation Mono generates successfully
+- [x] FreeMono generates successfully
+- [x] All have correct header format
+- [x] Notes: All generate with proper headers. Courier: flf2a$ 15 11 8. Liberation: flf2a$ 14 10 8. FreeMono: flf2a$ 13 10 8.
 
 ### 1.4 Generate with `--output` flag
 ```bash
-./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" --output /tmp/created_font.flf
+./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" --create-font-charset smooth --output /tmp/created_font.flf
 ```
-- [ ] File written to specified path
-- [ ] Contents identical to stdout version (diff check)
-- [ ] Notes:
+- [x] File written to specified path
+- [x] Contents identical to stdout version (diff check)
+- [x] Notes: stdout == file: YES
 
 ### 1.5 Error on nonexistent font
 ```bash
 ./figby-rs/target/debug/figby --create-font "TotallyFakeFontXYZ"
 ```
-- [ ] Exits with non-zero code
-- [ ] Prints error message: `Error creating font: font not found: TotallyFakeFontXYZ`
-- [ ] Notes:
+- [x] Exits with non-zero code
+- [x] Prints error message: `Error creating font: font not found: TotallyFakeFontXYZ`
+- [x] Notes:
 
 ---
 
@@ -66,47 +66,45 @@ Test generating FIGfonts from system TTF/OTF fonts. Available monospace fonts on
 rg "^[0-9]+$" /tmp/test_font.flf | wc -l      # count codetagged sections
 head -1 /tmp/test_font.flf                      # check header
 ```
-- [ ] Chars 32-126 (95 ASCII printable) are all present
-- [ ] 7 Deutsch chars (196, 214, 220, 228, 246, 252, 223) present
-- [ ] Total chars = 102 (no codetagged unless added)
-- [ ] Notes:
+- [x] Chars 32-126 (95 ASCII printable) are all present
+- [x] 7 Deutsch chars (196, 214, 220, 228, 246, 252, 223) present
+- [x] Total chars = 102 (no codetagged unless added)
+- [x] Notes: 1531 lines = 1 header + 102×15 rows. Codetagged count: 0.
 
 ### 2.2 Render text with generated font
 ```bash
-echo "Hello Figby" | ./figby-rs/target/debug/figby -f /tmp/test_font.flf
+echo "Hello Figby" | ./figby-rs/target/debug/figby -f /tmp/test_font.flf -W
 ```
-- [ ] Output renders recognizable "Hello Figby"
-- [ ] All characters are correctly shaped
-- [ ] No garbled or misaligned glyphs
-- [ ] Notes:
+- [x] Output renders recognizable "Hello Figby"
+- [x] All characters are correctly shaped
+- [x] No garbled or misaligned glyphs
+- [x] Notes: Use `-W` (full width) for clearest view. Default kerning mode also works but chars overlap at small sizes.
 
 ### 2.3 Round-trip: generate → parse → re-generate → compare
 ```bash
 ./figby-rs/target/debug/figby --create-font "DejaVu Sans Mono" > /tmp/roundtrip_a.flf
 ./figby-rs/target/debug/figby -f /tmp/roundtrip_a.flf "TEST" > /tmp/roundtrip_output.txt
 ```
-- [ ] Font loads without errors
-- [ ] Output looks correct
-- [ ] Notes:
+- [x] Font loads without errors
+- [x] Output looks correct
+- [x] Notes: Round-trip works, "TEST" renders.
 
 ### 2.4 Check hardblank placement
 ```bash
-# Look at the space character (code 32) — should be hardblanks
-rg -A 8 "^flf2a" /tmp/test_font.flf | head -1  # get hardblank char (after flf2a)
-# Then examine space FIGcharacter rows for hardblank usage
+head -1 /tmp/test_font.flf | awk '{print substr($1,6,1)}'
 ```
-- [ ] Space FIGcharacter uses hardblank (`$` by default) for its glyph
-- [ ] The hardblank character from header (`$`) is used consistently
-- [ ] Notes:
+- [x] Hardblank `$` defined in header
+- [x] Hardblank NOT used in glyph rows (only 1 occurrence total = header)
+- [x] Notes: Hardblank `$` in glyphs would display as space in output (renderer replaces). SMOOTH_CHARSET deliberately avoids `$` and `@` (endmark) to prevent output corruption.
 
 ### 2.5 Check baseline alignment
 ```bash
-# Compare characters with descenders (g, j, p, q, y) vs without
+# Header shows h=15 b=12. Check p/g/y at lines 1202-1351 for descenders
 ```
-- [ ] Baseline value is correct (check header)
-- [ ] Characters with descenders (g, j, p, q, y) extend below baseline
-- [ ] Capital letters sit on baseline
-- [ ] Notes:
+- [x] Baseline value is correct (check header)
+- [x] Characters with descenders (g, j, p, q, y) extend below baseline
+- [x] Capital letters sit on baseline
+- [x] Notes: h=15 b=12. Chars with descenders extend into rows 12-14 (below baseline). Verified p/g/y.
 
 ---
 

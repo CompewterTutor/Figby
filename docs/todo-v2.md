@@ -533,7 +533,7 @@ overlay, layers, and animation timeline.
   - **Tests:** App still launches and all features work identically.
   - **Difficulty:** High
 
-- [ ] `2.8.2` Remove termion, use crossterm everywhere
+- [x] `2.8.2` Remove termion, use crossterm everywhere
   - **Goal:** Replace `termion::terminal_size()` calls in `main.rs:547` and
     `image_input.rs:186` with `crossterm::terminal::size()`. Remove `termion`
     dependency from `Cargo.toml`. Verify no other usage of termion.

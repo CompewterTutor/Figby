@@ -562,3 +562,7 @@ DONE: 2.9.4 merged into release/2.9.
 ## 2026-06-13 23:08
 
 DONE: 2.9.5 merged into release/2.9.
+
+## 2026-06-13 23:13
+
+DONE: 2.9.6 merged into release/2.9.

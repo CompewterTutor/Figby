@@ -636,7 +636,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Resize brush from 1–20, verify preview updates. Cycle shapes.
   - **Difficulty:** Low
 
-- [ ] `2.9.7` Phase merge: release/2.9 → main
+- [x] `2.9.7` Phase merge: release/2.9 → main
   - **Difficulty:** Low
 
 ---

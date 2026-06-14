@@ -556,7 +556,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Smoke test launch/quit. Force panic, verify terminal restored.
   - **Difficulty:** Medium
 
-- [ ] `2.8.4` Phase merge: release/2.8 → main
+- [x] `2.8.4` Phase merge: release/2.8 → master
   - **Difficulty:** Low
 
 ---

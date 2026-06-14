@@ -1141,3 +1141,14 @@ code, no limit in config means default).
 (60→50), clear, batch first-pushes-rest-discarded, two batches independent,
 empty undo/redo returns None, history entries order, redo label. fmt and clippy
 pass clean.
+
+### 2.8.2 — Remove termion, use crossterm everywhere
+
+Replaced `termion::terminal_size()` with `crossterm::terminal::size()` in:
+- `main.rs:547` (`get_columns()`)
+- `image_input.rs:186` (image→ASCII fallback width)
+
+Removed `termion = "4"` dependency from `Cargo.toml`. Both functions share
+identical return type `Result<(u16, u16), io::Error>` — drop-in replacement.
+No import changes needed (fully-qualified paths used at both sites).
+No other `termion` usage found in codebase. fmt and clippy pass clean.

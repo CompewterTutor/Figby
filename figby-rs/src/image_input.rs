@@ -183,7 +183,7 @@ pub fn image_to_ascii<P: AsRef<Path>>(
     let matrix = luminance_from_dynamic(&img);
     let cmap = char_map.unwrap_or(DEFAULT_CHAR_MAP);
     let width = target_width.unwrap_or_else(|| {
-        termion::terminal_size()
+        crossterm::terminal::size()
             .map(|(w, _)| w as usize)
             .unwrap_or(80)
     });

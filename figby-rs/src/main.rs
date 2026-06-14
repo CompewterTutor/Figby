@@ -544,7 +544,7 @@ fn printinfo(
 }
 
 fn get_columns() -> Option<u16> {
-    termion::terminal_size().ok().map(|(cols, _)| cols)
+    crossterm::terminal::size().ok().map(|(cols, _)| cols)
 }
 
 impl ImageOptions {

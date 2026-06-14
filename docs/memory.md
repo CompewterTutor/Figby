@@ -1169,3 +1169,13 @@ Replaced manual terminal setup/teardown in `figby-rs/src/tui/mod.rs`:
 - Bracketed paste (`EnableBracketedPaste`/`DisableBracketedPaste`) kept as-is
   (not managed by init/restore)
 - Only `figby-rs/src/tui/mod.rs` modified. fmt and clippy pass clean.
+
+### 2.8.4 — Phase merge: release/2.8 → master
+
+Merged all Phase 2.8 work into default branch (master). Phase 2.8 complete:
+Component architecture with `Component` trait + `Action` enum for cross-component
+communication (2.8.1), removed termion dependency in favor of crossterm-only
+terminal size detection (2.8.2), replaced manual TUI init/teardown with ratatui
+convenience functions `ratatui::init()`/`ratatui::restore()` (2.8.3).
+All 3 subtasks (2.8.1–2.8.3) implemented, tested, merged. Phase 2.9 (UI Polish
+& Third-Party Widgets) is next.

@@ -518,3 +518,11 @@ DONE: 2.8.1 merged into release/2.8.
 ## 2026-06-13 22:05
 
 DONE: 2.8.2 merged into release/2.8.
+
+## 2026-06-13 22:18
+
+DONE: 2.8.4 merged into release/2.8.
+
+## 2026-06-13 22:25
+
+PHASE_COMPLETE: 2.8 merged to master after review approval.

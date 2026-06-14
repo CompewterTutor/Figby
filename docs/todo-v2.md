@@ -643,7 +643,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.10 — Major Release
 
-- [ ] `2.10.1` Full regression against C FIGlet 2.2.5
+- [x] `2.10.1` Full regression against C FIGlet 2.2.5
   - **Goal:** All FIGlet features produce identical output. Image/TUI/
     animation verified via manual review.
   - **Touches:** Test infrastructure

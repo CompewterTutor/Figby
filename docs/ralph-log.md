@@ -572,3 +572,7 @@ DONE: 2.9.6 merged into release/2.9.
 
 DONE: 2.9.7 merged into release/2.9.
 >>>>>>> release/2.9
+
+## 2026-06-13 23:30
+
+PHASE_COMPLETE: 2.9 merged to main after review approval.

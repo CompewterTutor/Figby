@@ -393,8 +393,11 @@ pub fn load_custom(path: &str) -> Theme {
         Ok(c) => c,
         Err(_) => return load_default(),
     };
-    let yaml: ThemeYaml = serde_yaml::from_str(&content).unwrap_or_default();
-    Theme::from(yaml)
+    let yaml: Result<ThemeYaml, _> = serde_yaml::from_str(&content);
+    match yaml {
+        Ok(y) => Theme::from(y),
+        Err(_) => load_default(),
+    }
 }
 
 pub fn load_theme(theme_opt: &Option<String>) -> Theme {

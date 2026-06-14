@@ -466,7 +466,7 @@ mod tests {
         let preview = brush.render_mini_preview();
         assert_eq!(preview.len(), 5);
         for row in &preview {
-            assert_eq!(row.len(), 5);
+            assert_eq!(row.chars().count(), 5);
         }
         assert!(preview.iter().all(|r| r.chars().all(|c| c == '\u{2588}')));
     }
@@ -495,7 +495,7 @@ mod tests {
         use std::collections::HashSet;
         let mut brush = BrushState {
             shape: BrushShape::Square,
-            size: 3,
+            size: 5,
             ch: '#',
             density: 35,
         };

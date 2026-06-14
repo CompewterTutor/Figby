@@ -1199,3 +1199,28 @@ Integration in `mod.rs`:
 
 `tui-menu` does not handle mouse clicks on dropdown items — only menu bar labels.
 Keyboard navigation works for submenus via Enter/arrows. fmt and clippy pass clean.
+
+### 2.9.2 — Add throbber for async tasks
+
+Created `figby-rs/src/tui/throbber.rs` with `ThrobberState` struct:
+- Braille spinner sequence (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) as frames
+- `tick()` advances frame index, wraps at `frames.len()`
+- `start(msg)` / `stop()` control active flag + optional message
+- `is_active() -> bool` getter
+- `render_string()` returns spinner char + message when active, empty string when inactive
+- 7 unit tests: tick cycle, start/stop, render active/inactive, frame change, inactive tick noop, multiple start/stop
+
+Async thread spawning in `mod.rs`:
+- `AsyncResult` enum with `SaveComplete`, `OpenComplete`, `ExportComplete`, `AutoSaveComplete` variants
+- Long operations (`perform_save`, `perform_open`, `perform_export`, `start_save`, auto-save) spawn `std::thread::spawn` with cloned data
+- `mpsc::channel` sends results back to main thread
+- `check_async_completion()` polls channel via `try_recv()` during each render frame with `&mut self`
+- `Double-spawn guard`: `throbber.is_active()` checked before spawning any new thread
+- Auto-save also guards on `throbber.is_active()` and spawns asynchronously
+
+Status bar integration:
+- `throbber_text: String` field on `StatusBarComponent`
+- Throbber string appended to status bar line when active (e.g. `⠋ Saving...`)
+- `render_string()` called each frame and set on status bar before draw
+
+No `.unwrap()` in production — all thread results handled via `match`. fmt and clippy pass clean.

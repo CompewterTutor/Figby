@@ -1486,19 +1486,19 @@ fn test_transform_editor_navigation() {
     editor.handle_key(KeyCode::Char('T'), KeyModifiers::NONE, 120);
     assert_eq!(editor.selected_transform, 0);
 
-    // Down 5 times reaches index 5 (Rename)
-    for _ in 0..5 {
+    // Down 7 times reaches index 7 (Import Font)
+    for _ in 0..7 {
         editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
     }
-    assert_eq!(editor.selected_transform, 5);
+    assert_eq!(editor.selected_transform, 7);
 
     // Down again wraps to 0
     editor.handle_key(KeyCode::Down, KeyModifiers::NONE, 120);
     assert_eq!(editor.selected_transform, 0);
 
-    // Up wraps to 5
+    // Up wraps to 7
     editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
-    assert_eq!(editor.selected_transform, 5);
+    assert_eq!(editor.selected_transform, 7);
 }
 
 #[test]

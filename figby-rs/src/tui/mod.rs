@@ -13,6 +13,7 @@ use ratatui::widgets::{Block, Borders, Tabs};
 use ratatui::Frame;
 use std::collections::BTreeMap;
 use std::io;
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::config;
@@ -29,6 +30,7 @@ pub mod image_editor;
 pub mod menu;
 pub mod palette;
 pub mod status;
+pub mod throbber;
 pub mod toolbox;
 pub mod tools;
 pub mod undo;
@@ -41,6 +43,7 @@ pub use export::ExportMode;
 pub use menu::MenuBar;
 pub use palette::Palette;
 pub use status::CanvasSettings;
+pub use throbber::ThrobberState;
 pub use toolbox::Tool;
 
 pub use components::canvas::CanvasComponent;
@@ -110,6 +113,8 @@ pub struct TuiApp {
     selection_lasso_points: Vec<(i16, i16)>,
     auto_save_interval: u64,
     last_save_time: Instant,
+    pub throbber: ThrobberState,
+    async_rx: Option<mpsc::Receiver<AsyncResult>>,
 }
 
 impl TuiApp {
@@ -181,6 +186,8 @@ impl TuiApp {
             undo: undo::UndoSystem::new(config.tui.undo_limit.unwrap_or(50)),
             undo_panel_comp: UndoPanelComponent::new(),
             status_bar_comp,
+            throbber: ThrobberState::new(),
+            async_rx: None,
         }
     }
 
@@ -225,6 +232,9 @@ impl TuiApp {
     }
 
     pub fn render(&mut self, frame: &mut Frame<'_>) {
+        self.check_async_completion();
+        self.throbber.tick();
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -446,6 +456,7 @@ impl TuiApp {
             .current_path
             .as_ref()
             .map(|p| p.to_string_lossy().to_string());
+        self.status_bar_comp.throbber_text = self.throbber.render_string();
         let _ = self.status_bar_comp.draw(frame, chunks[3]);
 
         // Export dialog overlay
@@ -938,6 +949,62 @@ impl TuiApp {
             .push_snapshot(self.canvas_comp.canvas.buffer.clone(), label.to_string());
     }
 
+    fn check_async_completion(&mut self) {
+        let rx = match self.async_rx.take() {
+            Some(rx) => rx,
+            None => return,
+        };
+        match rx.try_recv() {
+            Ok(result) => {
+                self.throbber.stop();
+                match result {
+                    AsyncResult::SaveComplete(r) => match r {
+                        Ok(path) => {
+                            self.unsaved = false;
+                            self.font_editor_comp.editor.current_path = Some(path);
+                            self.last_save_time = Instant::now();
+                            self.file_ops_comp.dialog.error_message.clear();
+                        }
+                        Err(e) => {
+                            self.file_ops_comp.dialog.error_message = format!("Save failed: {e}");
+                        }
+                    },
+                    AsyncResult::OpenComplete(r) => match r {
+                        Ok((font, path)) => {
+                            self.unsaved = false;
+                            self.undo.clear();
+                            self.font_editor_comp.editor.load_font(font);
+                            self.font_editor_comp.editor.current_path = Some(path.clone());
+                            self.file_ops_comp.recent_files.push(path);
+                            self.file_ops_comp.recent_files.save_to_disk();
+                            self.file_ops_comp.dialog.error_message.clear();
+                        }
+                        Err(e) => {
+                            self.file_ops_comp.dialog.error_message = e;
+                            self.file_ops_comp.dialog.mode = file_ops::FileOpsMode::Open;
+                        }
+                    },
+                    AsyncResult::ExportComplete(r) => match r {
+                        Ok(()) => {
+                            self.export_comp.dialog.active = false;
+                        }
+                        Err(e) => {
+                            self.export_comp.dialog.error_message = e;
+                            self.export_comp.dialog.active = true;
+                        }
+                    },
+                    AsyncResult::AutoSaveComplete => {}
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {
+                self.async_rx = Some(rx);
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.throbber.stop();
+            }
+        }
+    }
+
     pub fn handle_event(&mut self) -> io::Result<()> {
         if event::poll(Duration::from_millis(100))? {
             loop {
@@ -963,12 +1030,24 @@ impl TuiApp {
         }
 
         // Auto-save check
-        if self.auto_save_interval > 0 && self.unsaved && self.mode == AppMode::FontEditor {
+        if self.auto_save_interval > 0
+            && self.unsaved
+            && self.mode == AppMode::FontEditor
+            && !self.throbber.is_active()
+        {
             if let Some(ref path) = self.font_editor_comp.editor.current_path {
                 if self.last_save_time.elapsed() >= Duration::from_secs(self.auto_save_interval) {
                     if let Some(ref font) = self.font_editor_comp.editor.font {
-                        let _ = file_ops::save_font(font, path);
                         self.last_save_time = Instant::now();
+                        let font = font.clone();
+                        let path = path.clone();
+                        let (tx, rx) = mpsc::channel();
+                        self.async_rx = Some(rx);
+                        self.throbber.start("Auto-saving...");
+                        std::thread::spawn(move || {
+                            let _ = file_ops::save_font(&font, &path);
+                            let _ = tx.send(AsyncResult::AutoSaveComplete);
+                        });
                     }
                 }
             }
@@ -1531,19 +1610,24 @@ impl TuiApp {
         }
         if let Some(ref path) = self.font_editor_comp.editor.current_path {
             if let Some(ref font) = self.font_editor_comp.editor.font {
-                match file_ops::save_font(font, path) {
-                    Ok(()) => {
-                        self.unsaved = false;
-                        self.last_save_time = Instant::now();
-                    }
-                    Err(e) => {
-                        self.file_ops_comp.dialog.error_message = format!("Save failed: {e}");
-                    }
+                if self.throbber.is_active() {
+                    return;
                 }
+                let font = font.clone();
+                let path = path.clone();
+                let (tx, rx) = mpsc::channel();
+                self.async_rx = Some(rx);
+                self.throbber.start("Saving...");
+                std::thread::spawn(move || {
+                    let result = file_ops::save_font(&font, &path)
+                        .map(|_| path)
+                        .map_err(|e| e.to_string());
+                    let _ = tx.send(AsyncResult::SaveComplete(result));
+                });
+                return;
             }
-        } else {
-            self.start_save_as();
         }
+        self.start_save_as();
     }
 
     fn start_save_as(&mut self) {
@@ -1556,20 +1640,24 @@ impl TuiApp {
     }
 
     fn perform_save(&mut self) {
-        let path = self.file_ops_comp.dialog.selected_path();
-        if let Some(ref font) = self.font_editor_comp.editor.font {
-            match file_ops::save_font(font, &path) {
-                Ok(()) => {
-                    self.unsaved = false;
-                    self.font_editor_comp.editor.current_path = Some(path);
-                    self.last_save_time = Instant::now();
-                    self.file_ops_comp.dialog.error_message.clear();
-                }
-                Err(e) => {
-                    self.file_ops_comp.dialog.error_message = format!("Save failed: {e}");
-                }
-            }
+        if self.throbber.is_active() {
+            return;
         }
+        let path = self.file_ops_comp.dialog.selected_path();
+        let font = match &self.font_editor_comp.editor.font {
+            Some(f) => f.clone(),
+            None => return,
+        };
+        let result_path = path.clone();
+        let (tx, rx) = mpsc::channel();
+        self.async_rx = Some(rx);
+        self.throbber.start("Saving...");
+        std::thread::spawn(move || {
+            let result = file_ops::save_font(&font, &result_path)
+                .map(|_| result_path)
+                .map_err(|e| e.to_string());
+            let _ = tx.send(AsyncResult::SaveComplete(result));
+        });
     }
 
     fn handle_paste_event(&mut self, text: String) {
@@ -1588,33 +1676,30 @@ impl TuiApp {
     }
 
     fn perform_open(&mut self) {
+        if self.throbber.is_active() {
+            return;
+        }
         let path = self.file_ops_comp.dialog.selected_path();
-        let content = match std::fs::read_to_string(&path) {
-            Ok(c) => c,
-            Err(e) => {
-                self.file_ops_comp.dialog.error_message = format!("Cannot read file: {e}");
-                self.file_ops_comp.dialog.mode = file_ops::FileOpsMode::Open;
-                return;
-            }
-        };
-        let font = match crate::font::parse_tlf_font(&content) {
-            Ok(f) => f,
-            Err(e) => {
-                self.file_ops_comp.dialog.error_message = format!("Parse error: {e}");
-                self.file_ops_comp.dialog.mode = file_ops::FileOpsMode::Open;
-                return;
-            }
-        };
-        self.unsaved = false;
-        self.undo.clear();
-        self.font_editor_comp.editor.load_font(font);
-        self.font_editor_comp.editor.current_path = Some(path.clone());
-        self.file_ops_comp.recent_files.push(path);
-        self.file_ops_comp.recent_files.save_to_disk();
-        self.file_ops_comp.dialog.error_message.clear();
+        let path_clone = path.clone();
+        let (tx, rx) = mpsc::channel();
+        self.async_rx = Some(rx);
+        self.throbber.start("Loading...");
+        std::thread::spawn(move || {
+            let result = (|| -> Result<(crate::font::FIGfont, std::path::PathBuf), String> {
+                let content = std::fs::read_to_string(&path_clone)
+                    .map_err(|e| format!("Cannot read file: {e}"))?;
+                let font = crate::font::parse_tlf_font(&content)
+                    .map_err(|e| format!("Parse error: {e}"))?;
+                Ok((font, path_clone))
+            })();
+            let _ = tx.send(AsyncResult::OpenComplete(result));
+        });
     }
 
     fn perform_export(&mut self) {
+        if self.throbber.is_active() {
+            return;
+        }
         let cells: Vec<Vec<canvas::CanvasCell>> = (0..self.canvas_comp.canvas.buffer.height())
             .map(|y| {
                 (0..self.canvas_comp.canvas.buffer.width())
@@ -1629,15 +1714,35 @@ impl TuiApp {
                     .collect()
             })
             .collect();
-        match self.export_comp.dialog.perform_export(&cells) {
-            Ok(()) => {
-                self.export_comp.dialog.active = false;
-            }
-            Err(e) => {
-                self.export_comp.dialog.error_message = format!("Export failed: {e}");
-                self.export_comp.dialog.active = true;
-            }
-        }
+        let format = self.export_comp.dialog.format;
+        let font_size = self.export_comp.dialog.font_size;
+        let path_buf = std::path::PathBuf::from(&self.export_comp.dialog.path_buffer);
+        let (tx, rx) = mpsc::channel();
+        self.async_rx = Some(rx);
+        self.throbber.start("Exporting...");
+        std::thread::spawn(move || {
+            let result = (|| -> Result<(), String> {
+                if path_buf.as_os_str().is_empty() {
+                    return Err("no path specified".to_string());
+                }
+                let bytes: Vec<u8> = match format {
+                    crate::tui::export::ExportMode::Png => {
+                        crate::output::export_cells_to_png(&cells, font_size)
+                            .map_err(|e| e.to_string())?
+                    }
+                    crate::tui::export::ExportMode::Txt => {
+                        crate::output::export_cells_to_txt(&cells).into_bytes()
+                    }
+                    crate::tui::export::ExportMode::Gif => {
+                        crate::output::export_cells_to_gif(&[cells], &[10], font_size)
+                            .map_err(|e| e.to_string())?
+                    }
+                };
+                std::fs::write(&path_buf, &bytes).map_err(|e| format!("IoError({e})"))?;
+                Ok(())
+            })();
+            let _ = tx.send(AsyncResult::ExportComplete(result));
+        });
     }
 
     fn handle_menu_action(&mut self, action: menu::MenuAction) {
@@ -1777,6 +1882,13 @@ impl TuiApp {
             self.canvas_comp.canvas.toggle_grid();
         }
     }
+}
+
+pub enum AsyncResult {
+    SaveComplete(Result<std::path::PathBuf, String>),
+    OpenComplete(Result<(crate::font::FIGfont, std::path::PathBuf), String>),
+    ExportComplete(Result<(), String>),
+    AutoSaveComplete,
 }
 
 impl Default for TuiApp {

@@ -542,3 +542,7 @@ All 2.8 tasks complete. Starting phase review.
 ## 2026-06-13 22:24
 
 PHASE_COMPLETE: 2.8 merged to main after review approval.
+
+## 2026-06-13 22:33
+
+DONE: 2.9.1 merged into release/2.9.

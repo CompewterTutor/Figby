@@ -574,7 +574,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Click each menu item. Keyboard navigation works.
   - **Difficulty:** Medium
 
-- [ ] `2.9.2` Add throbber for async tasks
+- [x] `2.9.2` Add throbber for async tasks
   - **Goal:** Add `throbber` or build simple spinner widget. Show during:
     image loading, GIF export, font generation, file I/O operations.
     Animated spinner (e.g. `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) in status bar or modal

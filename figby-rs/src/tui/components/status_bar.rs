@@ -16,6 +16,7 @@ pub struct StatusBarComponent {
     pub unsaved: bool,
     pub icons: BTreeMap<String, String>,
     pub current_path: Option<String>,
+    pub throbber_text: String,
 }
 
 impl StatusBarComponent {
@@ -28,6 +29,7 @@ impl StatusBarComponent {
             unsaved: false,
             icons,
             current_path: None,
+            throbber_text: String::new(),
         }
     }
 }
@@ -83,8 +85,14 @@ impl Component for StatusBarComponent {
                 }
             });
 
+        let throbber_part = if self.throbber_text.is_empty() {
+            String::new()
+        } else {
+            format!(" | {}", self.throbber_text)
+        };
+
         let text = format!(
-            " {} X:{} Y:{} | {} Zoom:{}x | {} {} | {} {} | {} [{}] | [Tab] Mode | [q] Quit | [S] Settings | ^S Save | ^S+S Save As",
+            " {} X:{} Y:{} | {} Zoom:{}x | {} {} | {} {} | {} [{}] | [Tab] Mode | [q] Quit | [S] Settings | ^S Save | ^S+S Save As{}",
             pos_icon,
             self.cursor.0,
             self.cursor.1,
@@ -96,6 +104,7 @@ impl Component for StatusBarComponent {
             self.mode_name,
             indicator,
             filename,
+            throbber_part,
         );
 
         let paragraph = Paragraph::new(text).block(Block::default().borders(Borders::ALL));

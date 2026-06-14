@@ -612,7 +612,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Load default theme, verify colors match. Load custom theme.
   - **Difficulty:** Medium
 
-- [ ] `2.9.5` Migrate mode tabs to `Tabs` widget (fix existing usage)
+- [x] `2.9.5` Migrate mode tabs to `Tabs` widget (fix existing usage)
   - **Goal:** Current mode tabs in `render()` use `Tabs::new(titles)` with
     hardcoded strings. Fix: use icons from `icons.yaml` for tab labels
     (` Font Editor`, ` Image Editor`, ` ASCII Preview`). Style tabs

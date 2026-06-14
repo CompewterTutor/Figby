@@ -82,12 +82,20 @@ impl AppMode {
             AppMode::AsciiPreview => AppMode::FontEditor,
         }
     }
+
+    fn prev(&self) -> Self {
+        match self {
+            AppMode::FontEditor => AppMode::AsciiPreview,
+            AppMode::AsciiPreview => AppMode::ImageEditor,
+            AppMode::ImageEditor => AppMode::FontEditor,
+        }
+    }
 }
 
 pub struct TuiApp {
     pub mode: AppMode,
     pub should_quit: bool,
-    _icons: BTreeMap<String, String>,
+    pub icons: BTreeMap<String, String>,
     pub menu_bar: MenuBar,
     pub toolbox_comp: ToolboxComponent,
     pub canvas_comp: CanvasComponent,
@@ -197,7 +205,7 @@ impl TuiApp {
         Self {
             mode: AppMode::FontEditor,
             should_quit: false,
-            _icons: icons,
+            icons,
             menu_bar,
             toolbox_comp,
             canvas_comp,
@@ -289,17 +297,29 @@ impl TuiApp {
 
         self.menu_bar.draw(frame, chunks[0]);
 
-        let titles = vec![" Font Editor ", " Image Editor ", " ASCII Preview "];
+        let mode_labels = [
+            ("mode_font_editor", "Font Editor"),
+            ("mode_image_editor", "Image Editor"),
+            ("mode_ascii_preview", "ASCII Preview"),
+        ];
+        let titles: Vec<String> = mode_labels
+            .iter()
+            .map(|(key, name)| {
+                let icon = self.icons.get(*key).map(|s| s.as_str()).unwrap_or("");
+                format!("{icon}  {name}")
+            })
+            .collect();
         let selected = match self.mode {
             AppMode::FontEditor => 0,
             AppMode::ImageEditor => 1,
             AppMode::AsciiPreview => 2,
         };
-        let tabs = Tabs::new(titles)
-            .block(Block::default().title("Mode").borders(Borders::ALL))
+        let titles_refs: Vec<&str> = titles.iter().map(|s| s.as_str()).collect();
+        let tabs = Tabs::new(titles_refs)
+            .style(Style::default().fg(self.theme.general.secondary))
             .highlight_style(
                 Style::default()
-                    .fg(self.theme.general.warning)
+                    .fg(self.theme.general.primary)
                     .add_modifier(Modifier::BOLD),
             )
             .select(selected);
@@ -1638,12 +1658,19 @@ impl TuiApp {
             return None;
         }
 
+        // Ctrl+Tab / Ctrl+Shift+Tab: cycle modes
+        if code == KeyCode::Tab && modifiers.contains(KeyModifiers::CONTROL) {
+            let new_mode = if modifiers.contains(KeyModifiers::SHIFT) {
+                self.mode.prev()
+            } else {
+                self.mode.next()
+            };
+            self.mode = new_mode;
+            self.undo.clear();
+            return Some(Action::ModeChanged);
+        }
+
         match code {
-            KeyCode::Tab => {
-                self.mode = self.mode.next();
-                self.undo.clear();
-                Some(Action::ModeChanged)
-            }
             KeyCode::Char('q') if !modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
                 Some(Action::Quit)

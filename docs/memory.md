@@ -1245,4 +1245,14 @@ as exponential moving average of instant frame rate each render cycle. Clock
 formatted as UTC HH:MM:SS via `SystemTime` (no new deps). Git branch detected
 once at startup via `git rev-parse --abbrev-ref HEAD`.
 
-Memory entry in `memory-v2.md`.
+### 2.9.5 — Migrate mode tabs to `Tabs` widget
+
+Changed `_icons` field to `pub icons` on `TuiApp` so tab rendering can read
+icon glyphs. Added `prev()` method to `AppMode` for Ctrl+Shift+Tab backward
+cycle. Rebuilt tab labels in `render()` using icons from `icons.yaml`
+(`mode_font_editor`, `mode_image_editor`, `mode_ascii_preview`) with fallback
+to plain labels. Removed `Block` with `"Mode"` title border wrapping tabs.
+Set inactive tab style to `theme.general.secondary` and active tab highlight
+to `theme.general.primary` (was `warning`/yellow). Replaced bare `KeyCode::Tab`
+handler with Ctrl+Tab (forward) and Ctrl+Shift+Tab (backward) mode cycling,
+both with `undo.clear()`. Only `figby-rs/src/tui/mod.rs` modified.

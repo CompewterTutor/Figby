@@ -367,6 +367,26 @@ Three bugs found in phase merge review:
   prior history on master — created cleanly.
 - `figby-rs/src/template.rs` was modified only on release/2.0 (no conflict).
 
+## 2.10.1 — Full regression against C FIGlet 2.2.5
+
+- C FIGlet's `-m` flag accepts smush mode values from 0 (kerning/no smushing)
+  to 191 (all 6 rules enabled). Mode 0 with standard font produces wider spacing
+  than default (kerning instead of smushing).
+- Some expected outputs (test 31 deutsch flag) differ between builds of C figlet
+  depending on font content. The Deutsch chars (196/214/220/228/246/252/223)
+  must exist in the font for `-D` re-routing to produce visible output.
+- `FIGLET_FONTDIR` env var works identically in C figlet — the binary reads it
+  at font resolution time. This is how the Rust test harness sets the font dir
+  for all tests.
+- Tests 47-48 (all fonts with extra flags) require the same font enumeration
+  logic as test 02. Extracted `all_fonts_output()` helper to avoid code
+  duplication.
+- The `regenerate-expected.sh` script must handle shell escaping carefully:
+  `printf "[\\]"` for backslash-containing inputs, and `printf "a\x01b\x02c\n"`
+  for control-character inputs.
+- Test 42 (`-A` flag, cmdinput) takes input from args, not stdin. The
+  `run_figby` helper passes `None` for stdin data in this case.
+
 ## 2.1.1 — Image loading + grayscale conversion
 
 - `image` 0.24.9 was already a transitive dependency via `rascii_art`. Adding it

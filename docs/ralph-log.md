@@ -563,12 +563,22 @@ DONE: 2.9.4 merged into release/2.9.
 
 DONE: 2.9.5 merged into release/2.9.
 
-<<<<<<< HEAD
-## 2026-06-13 23:13
-
-DONE: 2.9.6 merged into release/2.9.
-=======
 ## 2026-06-13 23:21
 
 DONE: 2.9.7 merged into release/2.9.
->>>>>>> release/2.9
+
+## 2026-06-13 23:30
+
+PHASE_COMPLETE: 2.9 merged to main after review approval.
+
+## 2026-06-13 23:41
+
+DONE: 2.10.2 merged into release/2.10.
+
+## 2026-06-13 23:41
+
+All 2.10 tasks complete. Starting phase review.
+
+## 2026-06-13 23:48
+
+PHASE_BLOCKED: 2.10 review failed after 3 auto-fix attempts. See /tmp/ralph-phase-review-2.10-3.log for the last reviewer output. Fix manually then re-run ralph.

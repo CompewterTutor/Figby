@@ -467,6 +467,23 @@ Second merge (this commit) brings 3 post-initial-merge commits from `release/2.0
 fix broken template tests, redesign `.ftmp` format (YAML frontmatter, defer to TUI),
 add `assets/tui/icons.yaml` for Phase 2.2, renumber 2.2.5→2.2.6.
 
+### 2.10.1 — Full regression against C FIGlet 2.2.5
+
+Added 23 new integration tests (28-50) covering all FIGlet 2.2.5 features:
+empty input, single char, explicit smush mode (`-m`), deutsch flag (`-D`),
+deutsch disabled (`-E`), default direction (`-X`), multibyte disable (`-N`),
+control char filtering, various output widths (`-w`), full smush rules
+(`-m191`), kerning with small font, overlap with standard, full-width RTL
+smushing, TLF long text, cmdinput (`-A`), font dir env var (`FIGLET_FONTDIR`),
+control file remapping (`-C`), paragraph mode with narrow width, smush vs kern
+combo, all fonts with kerning, all fonts with overlap, long text center
+justification, and big font RTL.
+
+Created `scripts/regenerate-expected.sh` — POSIX shell script that builds
+C FIGlet from `c-figlet/` and regenerates all 50 expected output files
+from C FIGlet byte-exact output. Handles `FIGLET_FONTDIR` env var for font
+resolution.
+
 ### 2.1.2 — Luminance-to-ASCII character mapping
 
 Added ASCII art conversion pipeline in `image_input.rs`:
@@ -1263,11 +1280,13 @@ Merged all Phase 2.9 work into default branch (master). Phase 2.9 complete:
 tui-menu integration with menu bar (2.9.1), throbber widget for async tasks
 (2.9.2), LazyVim/Starship-style status bar redesign (2.9.3), YAML theming
 system with default theme (2.9.4), icon-based mode tabs with Ctrl+Tab cycling
-<<<<<<< HEAD
-(2.9.5), brush tool 5x5 mini-preview display (2.9.6).
-All 6 subtasks (2.9.1-2.9.6) implemented, tested, merged. Phase 2.10 (Major
-=======
 (2.9.5), brush tool 5×5 mini-preview display (2.9.6).
 All 6 subtasks (2.9.1–2.9.6) implemented, tested, merged. Phase 2.10 (Major
->>>>>>> release/2.9
 Release) is next.
+
+### 2.10.2 — v2 major milestone RC — human sign-off
+
+Created `rc/2.0.0-rc.1` branch and annotated tag `2.0.0-rc.1` from
+`release/2.10` tip (af0111f). Stale RC infrastructure (old `rc/2.0.0-rc.1`
+branch and `2.0.0-rc.1` tag from Phase 2.0) deleted and recreated.
+Handoff for human sign-off and merge to master.

@@ -1,14 +1,16 @@
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use super::theme::Theme;
 use super::undo::UndoEntry;
 
 pub struct UndoPanel {
     pub open: bool,
     pub scroll_offset: u16,
+    pub theme: Theme,
 }
 
 impl UndoPanel {
@@ -16,6 +18,7 @@ impl UndoPanel {
         Self {
             open: false,
             scroll_offset: 0,
+            theme: Theme::default(),
         }
     }
 
@@ -65,7 +68,7 @@ impl UndoPanel {
         if show_entries.is_empty() {
             lines.push(Line::from(Span::styled(
                 " No undo history",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
             for (i, entry) in show_entries.iter().enumerate() {
@@ -73,7 +76,7 @@ impl UndoPanel {
                 let prefix = if is_current { ">" } else { " " };
                 let style = if is_current {
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(self.theme.dialog.highlight)
                         .add_modifier(Modifier::REVERSED)
                 } else {
                     Style::default()
@@ -88,7 +91,7 @@ impl UndoPanel {
         if start + show_entries.len() < history.len() {
             lines.push(Line::from(Span::styled(
                 " ... more ...",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         }
 

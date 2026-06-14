@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use super::canvas::CanvasCell;
+use super::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorTarget {
@@ -57,6 +58,7 @@ pub struct Palette {
     custom_mode: bool,
     show_extended: bool,
     extended_page: u8,
+    pub theme: Theme,
 }
 
 impl Palette {
@@ -70,6 +72,7 @@ impl Palette {
             custom_mode: false,
             show_extended: false,
             extended_page: 0,
+            theme: Theme::default(),
         }
     }
 
@@ -228,7 +231,9 @@ impl Palette {
 
         let mut lines: Vec<Line<'_>> = Vec::new();
 
-        let active_style = Style::default().fg(Color::Yellow).bg(Color::DarkGray);
+        let active_style = Style::default()
+            .fg(self.theme.palette.active_target)
+            .bg(self.theme.palette.cell_bg);
         let fg_label = if self.target == ColorTarget::Foreground {
             Span::styled(" [FG]", active_style)
         } else {
@@ -254,7 +259,12 @@ impl Palette {
                     if idx < 16 {
                         let color = extended_color(self.extended_page, idx as u8);
                         let swatch = if idx == self.selected_index {
-                            Span::styled("██", Style::default().bg(color).fg(Color::White))
+                            Span::styled(
+                                "██",
+                                Style::default()
+                                    .bg(color)
+                                    .fg(self.theme.palette.swatch_indicator),
+                            )
                         } else {
                             Span::styled("  ", Style::default().bg(color))
                         };
@@ -268,7 +278,12 @@ impl Palette {
             let mut row1 = Vec::new();
             for (col, color) in ANSI_16_COLORS.iter().enumerate().take(8) {
                 let swatch = if col == self.selected_index {
-                    Span::styled("██", Style::default().bg(*color).fg(Color::White))
+                    Span::styled(
+                        "██",
+                        Style::default()
+                            .bg(*color)
+                            .fg(self.theme.palette.swatch_indicator),
+                    )
                 } else {
                     Span::styled("  ", Style::default().bg(*color))
                 };
@@ -279,7 +294,12 @@ impl Palette {
             let mut row2 = Vec::new();
             for (col, color) in ANSI_16_COLORS.iter().enumerate().skip(8) {
                 let swatch = if col == self.selected_index {
-                    Span::styled("██", Style::default().bg(*color).fg(Color::White))
+                    Span::styled(
+                        "██",
+                        Style::default()
+                            .bg(*color)
+                            .fg(self.theme.palette.swatch_indicator),
+                    )
                 } else {
                     Span::styled("  ", Style::default().bg(*color))
                 };

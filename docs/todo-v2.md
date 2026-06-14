@@ -596,7 +596,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Visual review.
   - **Difficulty:** Low
 
-- [ ] `2.9.4` Theming system with YAML theme file
+- [x] `2.9.4` Theming system with YAML theme file
   - **Goal:** Create `assets/tui/themes/` directory with default theme
     YAML. Theme defines color tokens per UI element: `toolbox.bg`,
     `toolbox.fg`, `toolbox.selected`, `canvas.grid`, `canvas.cursor`,

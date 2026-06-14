@@ -2,10 +2,12 @@ use std::collections::BTreeMap;
 
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+
+use super::theme::Theme;
 
 pub struct StatusBar;
 
@@ -76,6 +78,7 @@ pub struct CanvasSettings {
     pub show_grid: bool,
     pub snap_to_grid: bool,
     selected_field: usize,
+    pub theme: Theme,
 }
 
 impl CanvasSettings {
@@ -88,6 +91,7 @@ impl CanvasSettings {
             show_grid: false,
             snap_to_grid: false,
             selected_field: 0,
+            theme: Theme::default(),
         }
     }
 
@@ -180,7 +184,7 @@ impl CanvasSettings {
         for (i, (label, value)) in fields.iter().enumerate() {
             let line = if i == self.selected_field {
                 let style = Style::default()
-                    .fg(Color::Yellow)
+                    .fg(self.theme.dialog.highlight)
                     .add_modifier(Modifier::REVERSED);
                 Line::from(Span::styled(format!(" {}: {} ", label, value), style))
             } else {

@@ -4,6 +4,8 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::Widget;
 
+use super::theme::Theme;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CanvasCell {
     pub ch: char,
@@ -88,6 +90,7 @@ pub struct CanvasWidget {
     pub polygon_vertices: Vec<(i16, i16)>,
     pub text_overlays: Vec<TextOverlay>,
     pub text_block_perimeter: Option<Vec<(usize, usize)>>,
+    pub theme: Theme,
 }
 
 impl CanvasWidget {
@@ -104,6 +107,7 @@ impl CanvasWidget {
             polygon_vertices: Vec::new(),
             text_overlays: Vec::new(),
             text_block_perimeter: None,
+            theme: Theme::default(),
         }
     }
 
@@ -322,7 +326,7 @@ impl Widget for &CanvasWidget {
                         if let Some(cell) = buf.cell_mut((c, r)) {
                             cell.set_style(
                                 cell.style()
-                                    .fg(ratatui::style::Color::Cyan)
+                                    .fg(self.theme.canvas.selection)
                                     .add_modifier(Modifier::BOLD),
                             );
                             let existing = cell.symbol().chars().next().unwrap_or(' ');
@@ -338,7 +342,7 @@ impl Widget for &CanvasWidget {
         // Selection perimeter dashed overlay
         if let Some(ref perim) = self.selection_perimeter {
             let dash_style = Style::default()
-                .fg(ratatui::style::Color::Cyan)
+                .fg(self.theme.canvas.selection)
                 .add_modifier(Modifier::BOLD);
             let mut sorted: Vec<&(usize, usize)> = perim.iter().collect();
             sorted.sort_by_key(|(x, y)| x + y * (self.buffer.width() + 1));
@@ -369,7 +373,7 @@ impl Widget for &CanvasWidget {
         // Text block perimeter dashed overlay (marquee around selected block)
         if let Some(ref perim) = self.text_block_perimeter {
             let marquee_style = Style::default()
-                .fg(ratatui::style::Color::Yellow)
+                .fg(self.theme.canvas.text_block)
                 .add_modifier(Modifier::BOLD);
             let mut sorted: Vec<&(usize, usize)> = perim.iter().collect();
             sorted.sort_by_key(|(x, y)| x + y * 20000);

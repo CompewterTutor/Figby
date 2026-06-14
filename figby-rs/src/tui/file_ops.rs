@@ -1,11 +1,12 @@
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 use std::path::{Path, PathBuf};
 
+use super::theme::Theme;
 use crate::font::FIGfont;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,6 +126,7 @@ pub struct FileOpsDialog {
     pub selected_entry: usize,
     pub error_message: String,
     pub hide_dotfiles: bool,
+    pub theme: Theme,
     recent_files_for_display: Vec<String>,
 }
 
@@ -137,6 +139,7 @@ impl FileOpsDialog {
             selected_entry: 0,
             error_message: String::new(),
             hide_dotfiles: true,
+            theme: Theme::default(),
             recent_files_for_display: Vec::new(),
         }
     }
@@ -385,7 +388,7 @@ impl FileOpsDialog {
         let block = Block::default()
             .title(" Open Font ")
             .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Cyan));
+            .style(Style::default().fg(self.theme.dialog.border_path));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -407,13 +410,13 @@ impl FileOpsDialog {
         };
         lines.push(Line::from(Span::styled(
             format!(" {}", path_display),
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.dialog.border_path),
         )));
 
         if !self.error_message.is_empty() {
             lines.push(Line::from(Span::styled(
                 format!(" Error: {}", self.error_message),
-                Style::default().fg(Color::Red),
+                Style::default().fg(self.theme.dialog.error),
             )));
         }
 
@@ -422,7 +425,7 @@ impl FileOpsDialog {
         if self.directory_entries.is_empty() {
             lines.push(Line::from(Span::styled(
                 " (no .flf/.tlf files in directory)",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
             lines.push(Line::from(Span::styled(
@@ -451,7 +454,7 @@ impl FileOpsDialog {
                 let is_dir = parent.join(entry).is_dir();
                 let prefix = if is_selected { " >" } else { "  " };
                 let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{}{}{}", prefix, entry, suffix);
+                let text = format!("{prefix}{entry}{suffix}");
                 let style = if is_selected {
                     Style::default().add_modifier(Modifier::REVERSED)
                 } else {
@@ -479,7 +482,7 @@ impl FileOpsDialog {
                 let text = format!("  {num}. {display}");
                 lines.push(Line::from(Span::styled(
                     text,
-                    Style::default().fg(Color::DarkGray),
+                    Style::default().fg(self.theme.dialog.meta),
                 )));
             }
         }
@@ -487,7 +490,7 @@ impl FileOpsDialog {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             " Tab: select  Enter: open  Esc: cancel  1-9: recent  \u{2191}\u{2193}: navigate",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(self.theme.dialog.meta),
         )));
 
         let paragraph = Paragraph::new(lines);
@@ -498,7 +501,7 @@ impl FileOpsDialog {
         let block = Block::default()
             .title(" Save Font As ")
             .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Yellow));
+            .style(Style::default().fg(self.theme.dialog.highlight));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -520,13 +523,13 @@ impl FileOpsDialog {
         };
         lines.push(Line::from(Span::styled(
             format!(" {}", path_display),
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.dialog.border_path),
         )));
 
         if !self.error_message.is_empty() {
             lines.push(Line::from(Span::styled(
                 format!(" Error: {}", self.error_message),
-                Style::default().fg(Color::Red),
+                Style::default().fg(self.theme.dialog.error),
             )));
         }
 
@@ -535,7 +538,7 @@ impl FileOpsDialog {
         if self.directory_entries.is_empty() {
             lines.push(Line::from(Span::styled(
                 " (no .flf/.tlf files in directory)",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
             lines.push(Line::from(Span::styled(
@@ -564,7 +567,7 @@ impl FileOpsDialog {
                 let is_dir = parent.join(entry).is_dir();
                 let prefix = if is_selected { " >" } else { "  " };
                 let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{}{}{}", prefix, entry, suffix);
+                let text = format!("{prefix}{entry}{suffix}");
                 let style = if is_selected {
                     Style::default().add_modifier(Modifier::REVERSED)
                 } else {
@@ -577,7 +580,7 @@ impl FileOpsDialog {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             " Tab: select entry  Enter: save  Esc: cancel  \u{2191}\u{2193}: navigate",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(self.theme.dialog.meta),
         )));
 
         let paragraph = Paragraph::new(lines);

@@ -8,7 +8,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, Tabs};
 use ratatui::Frame;
 use std::collections::BTreeMap;
@@ -30,6 +30,7 @@ pub mod image_editor;
 pub mod menu;
 pub mod palette;
 pub mod status;
+pub mod theme;
 pub mod throbber;
 pub mod toolbox;
 pub mod tools;
@@ -118,14 +119,17 @@ pub struct TuiApp {
     last_frame_time: Instant,
     fps: f64,
     git_branch: Option<String>,
+    pub theme: theme::Theme,
 }
 
 impl TuiApp {
     pub fn new() -> Self {
         let icons: BTreeMap<String, String> = serde_yaml::from_str(ICONS_YAML).unwrap_or_default();
         let config = config::load_config();
+        let theme = theme::load_theme(&config.tui.theme);
 
         let mut toolbox_comp = ToolboxComponent::new();
+        toolbox_comp.toolbox.theme = theme.clone();
         if let Some(ref shape) = config.tui.brush.shape {
             toolbox_comp.brush.shape = match shape.as_str() {
                 "square" => brush::BrushShape::Square,
@@ -148,16 +152,19 @@ impl TuiApp {
         }
 
         let mut font_editor_comp = FontEditorComponent::new();
+        font_editor_comp.editor.theme = theme.clone();
         if let Ok(font) = crate::font::load_font("standard", "fonts") {
             font_editor_comp.editor.load_font(font);
         }
 
         let mut file_ops_comp = FileOpsComponent::new();
+        file_ops_comp.dialog.theme = theme.clone();
         if let Some(max) = config.tui.recent_files_max {
             file_ops_comp.recent_files.set_max(max);
         }
 
-        let status_bar_comp = StatusBarComponent::new(icons.clone());
+        let mut status_bar_comp = StatusBarComponent::new(icons.clone());
+        status_bar_comp.theme = theme.clone();
 
         let git_branch = std::process::Command::new("git")
             .args(["rev-parse", "--abbrev-ref", "HEAD"])
@@ -173,14 +180,28 @@ impl TuiApp {
                 }
             });
 
+        let mut menu_bar = MenuBar::new();
+        menu_bar.theme = theme.clone();
+        let mut canvas_comp = CanvasComponent::new();
+        canvas_comp.theme = theme.clone();
+        canvas_comp.canvas.theme = theme.clone();
+        let mut palette_comp = PaletteComponent::new();
+        palette_comp.palette.theme = theme.clone();
+        let mut export_comp = ExportComponent::new();
+        export_comp.dialog.theme = theme.clone();
+        let mut undo_panel_comp = UndoPanelComponent::new();
+        undo_panel_comp.panel.theme = theme.clone();
+        let mut settings = status::CanvasSettings::new();
+        settings.theme = theme.clone();
+
         Self {
             mode: AppMode::FontEditor,
             should_quit: false,
             _icons: icons,
-            menu_bar: MenuBar::new(),
+            menu_bar,
             toolbox_comp,
-            canvas_comp: CanvasComponent::new(),
-            palette_comp: PaletteComponent::new(),
+            canvas_comp,
+            palette_comp,
             text_tool: tools::text::TextToolState::new("fonts"),
             font_editor_comp,
             image_editor_comp: ImageEditorComponent::new(),
@@ -188,7 +209,7 @@ impl TuiApp {
             palette_area: Rect::new(0, 0, 0, 0),
             prev_mouse_buf: None,
             unsaved: false,
-            settings: status::CanvasSettings::new(),
+            settings,
             line_start: None,
             saved_buffer: None,
             selection: None,
@@ -197,17 +218,18 @@ impl TuiApp {
             selection_polygon_points: Vec::new(),
             selection_lasso_points: Vec::new(),
             file_ops_comp,
-            export_comp: ExportComponent::new(),
+            export_comp,
             auto_save_interval: 0,
             last_save_time: Instant::now(),
             undo: undo::UndoSystem::new(config.tui.undo_limit.unwrap_or(50)),
-            undo_panel_comp: UndoPanelComponent::new(),
+            undo_panel_comp,
             status_bar_comp,
             throbber: ThrobberState::new(),
             async_rx: None,
             last_frame_time: Instant::now(),
             fps: 0.0,
             git_branch,
+            theme: theme.clone(),
         }
     }
 
@@ -277,7 +299,7 @@ impl TuiApp {
             .block(Block::default().title("Mode").borders(Borders::ALL))
             .highlight_style(
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(self.theme.general.warning)
                     .add_modifier(Modifier::BOLD),
             )
             .select(selected);
@@ -415,7 +437,7 @@ impl TuiApp {
             {
                 let edge = Block::default().borders(Borders::ALL).style(
                     Style::default()
-                        .fg(Color::DarkGray)
+                        .fg(self.theme.canvas.edge)
                         .add_modifier(Modifier::DIM),
                 );
                 frame.render_widget(edge, self.canvas_comp.canvas_inner_rect);

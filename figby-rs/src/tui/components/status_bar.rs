@@ -2,13 +2,14 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use crate::tui::action::Action;
 use crate::tui::component::Component;
+use crate::tui::theme::Theme;
 use crate::tui::AppMode;
 
 pub struct StatusBarComponent {
@@ -27,6 +28,7 @@ pub struct StatusBarComponent {
     pub clock_str: String,
     pub layer_count: u8,
     pub animation_frame: u8,
+    pub theme: Theme,
 }
 
 impl StatusBarComponent {
@@ -47,6 +49,7 @@ impl StatusBarComponent {
             clock_str: String::new(),
             layer_count: 1,
             animation_frame: 0,
+            theme: Theme::default(),
         }
     }
 }
@@ -84,9 +87,9 @@ impl Component for StatusBarComponent {
         let saved_icon = self.icons.get("status_saved").map_or("*", |s| s.as_str());
 
         let mode_color = match self.mode {
-            AppMode::FontEditor => Color::Blue,
-            AppMode::ImageEditor => Color::Green,
-            AppMode::AsciiPreview => Color::Yellow,
+            AppMode::FontEditor => self.theme.statusbar.mode_font,
+            AppMode::ImageEditor => self.theme.statusbar.mode_image,
+            AppMode::AsciiPreview => self.theme.statusbar.mode_ascii,
         };
 
         let unsaved_dot = if self.unsaved {

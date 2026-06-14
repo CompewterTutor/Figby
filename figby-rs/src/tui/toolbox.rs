@@ -1,8 +1,10 @@
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
 use ratatui::Frame;
+
+use super::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
@@ -103,12 +105,14 @@ impl Tool {
 
 pub struct Toolbox {
     pub selected: Tool,
+    pub theme: Theme,
 }
 
 impl Toolbox {
     pub fn new() -> Self {
         Self {
             selected: Tool::Brush,
+            theme: Theme::default(),
         }
     }
 
@@ -156,7 +160,7 @@ impl Toolbox {
             .block(Block::default().title(" Tools ").borders(Borders::ALL))
             .highlight_style(
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(self.theme.toolbox.selected)
                     .add_modifier(Modifier::BOLD),
             );
 

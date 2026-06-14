@@ -522,3 +522,26 @@ once at startup via `git rev-parse --abbrev-ref HEAD`.
 
 No new dependencies (clock uses `SystemTime` directly, avoids `chrono`). fmt and
 clippy pass clean. Status bar area stays at `Constraint::Length(3)` with borders.
+
+### 2.9.4 — Theming system with YAML theme file
+
+Created `assets/tui/themes/default.yaml` — Tokyo Night-inspired dark theme with
+7 sections (toolbox, canvas, palette, statusbar, menu, dialog, general), each
+with hex RGB color tokens. Created `figby-rs/src/tui/theme.rs` with `Theme`
+struct, `load_default()` (embedded via `include_str!`), `load_custom(path)` (reads
+filesystem, falls back to default), `load_theme(&Option<String>)` dispatcher,
+and `color_from_hex()` helper. Intermediate YAML structs (`ThemeYaml`, `*Yaml`)
+with `Option<String>` fields convert to `Color::Rgb` via `From<ThemeYaml>` impl.
+
+Theme field added to: `StatusBarComponent`, `CanvasComponent`, `CanvasWidget`,
+`MenuBar`, `ExportDialog`, `FileOpsDialog`, `UndoPanel`, `Palette`, `Toolbox`,
+`FontEditor`, `CanvasSettings`. All hardcoded `Color::X` references in widget
+rendering replaced with `self.theme.section.token`. Theme stored as `Theme`
+on `TuiApp`, cloned to each component in `TuiApp::new()`.
+
+Config already had `theme: Option<String>` in `[tui]` section — no config.rs
+struct changes needed.
+
+6 unit tests: default theme load (Rgb verification), custom theme partial override,
+invalid path fallback, bad YAML fallback, dispatcher (None/"default"/custom path),
+hex parsing (valid/empty/invalid).

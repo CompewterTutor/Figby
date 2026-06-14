@@ -1,0 +1,51 @@
+# Default Figby TUI theme (Tokyo Night-inspired dark theme)
+# Each value is a 6-digit RGB hex color with # prefix.
+# Omitted fields fall back to built-in defaults.
+
+toolbox:
+  bg: "#1a1b26"
+  fg: "#c0caf5"
+  selected: "#7aa2f7"
+
+canvas:
+  grid: "#3b4261"
+  cursor: "#c0caf5"
+  selection: "#7aa2f7"
+  edge: "#3b4261"
+  text_block: "#e0af68"
+
+palette:
+  border: "#3b4261"
+  active_target: "#e0af68"
+  swatch_indicator: "#c0caf5"
+  cell_bg: "#3b4261"
+
+statusbar:
+  mode_font: "#7aa2f7"
+  mode_image: "#9ece6a"
+  mode_ascii: "#e0af68"
+  separator: "#3b4261"
+  label: "#c0caf5"
+
+menu:
+  bg: "#1a1b26"
+  fg: "#c0caf5"
+  highlight: "#7aa2f7"
+  dim: "#3b4261"
+  dropdown_bg: "#1a1b26"
+
+dialog:
+  border_success: "#9ece6a"
+  border_path: "#7aa2f7"
+  label: "#c0caf5"
+  meta: "#3b4261"
+  error: "#f7768e"
+  highlight: "#e0af68"
+  selected_bg: "#3b4261"
+
+general:
+  primary: "#7aa2f7"
+  secondary: "#c0caf5"
+  success: "#9ece6a"
+  error: "#f7768e"
+  warning: "#e0af68"

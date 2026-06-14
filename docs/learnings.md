@@ -748,6 +748,22 @@ Three bugs found in phase merge review:
   subprocess overhead. The result is cached in `TuiApp.git_branch` for the
   lifetime of the application session.
 - FPS EMa smoothing (α=0.1) provides stable display without flickering: the
-  instant FPS can vary wildly between frames (0-60+), but the smoothed value
-  converges within ~10 frames. This matches common game engine FPS counter
-  implementations.
+   instant FPS can vary wildly between frames (0-60+), but the smoothed value
+   converges within ~10 frames. This matches common game engine FPS counter
+   implementations.
+
+## 2.9.4 — Theming system with YAML theme file
+
+- Raw string literals `r#"..."#` in Rust terminate at `"#` — a YAML hex color
+  `"#ff0000"` contains `"#` which prematurely closes the raw string. Use `r##"..."##`
+  (double-hash delimiter) when the content contains `"#` sequences.
+- Deserializing `ratatui::style::Color` from YAML hex strings requires an intermediate
+  struct with `Option<String>` fields, then manual conversion to `Color::Rgb`. Using
+  `#[serde(deserialize_with)]` on each field is too verbose for 40+ tokens; the
+  intermediate struct + `From<ThemeYaml>` approach is cleaner.
+- Theme field on `CanvasWidget` (which implements `Widget for &CanvasWidget`) must be
+  a `pub` field accessed in `render(self, area, buf)`. The `Widget` trait has no
+  parameter for passing extra state — all context must be in `&self`.
+- When removing `Color` from a module's `use` statement, verify no remaining `Color::`
+  references exist in the file. grep for `Color::` to confirm zero matches across
+  production and test code.

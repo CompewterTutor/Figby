@@ -5,11 +5,13 @@ use ratatui::Frame;
 use crate::tui::action::Action;
 use crate::tui::canvas::CanvasWidget;
 use crate::tui::component::Component;
+use crate::tui::theme::Theme;
 
 pub struct CanvasComponent {
     pub canvas: CanvasWidget,
     pub canvas_inner_rect: Rect,
     pub last_canvas_size: (u16, u16),
+    pub theme: Theme,
 }
 
 impl CanvasComponent {
@@ -18,6 +20,7 @@ impl CanvasComponent {
             canvas: CanvasWidget::default(),
             canvas_inner_rect: Rect::new(0, 0, 0, 0),
             last_canvas_size: (0, 0),
+            theme: Theme::default(),
         }
     }
 
@@ -81,7 +84,7 @@ impl Component for CanvasComponent {
                 .borders(ratatui::widgets::Borders::ALL)
                 .style(
                     ratatui::style::Style::default()
-                        .fg(ratatui::style::Color::DarkGray)
+                        .fg(self.theme.canvas.edge)
                         .add_modifier(ratatui::style::Modifier::DIM),
                 );
             frame.render_widget(edge, centered);

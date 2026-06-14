@@ -1,6 +1,6 @@
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
@@ -10,6 +10,7 @@ use crate::output::{
 };
 
 use super::canvas::CanvasCell;
+use super::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportMode {
@@ -60,6 +61,7 @@ pub struct ExportDialog {
     pub error_message: String,
     pub selected_entry: usize,
     pub directory_entries: Vec<String>,
+    pub theme: Theme,
 }
 
 impl ExportDialog {
@@ -72,6 +74,7 @@ impl ExportDialog {
             error_message: String::new(),
             selected_entry: 0,
             directory_entries: Vec::new(),
+            theme: Theme::default(),
         }
     }
 
@@ -232,7 +235,7 @@ impl ExportDialog {
         let block = Block::default()
             .title(" Export ")
             .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Green));
+            .style(Style::default().fg(self.theme.dialog.border_success));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -253,7 +256,7 @@ impl ExportDialog {
                 self.font_size,
                 8 * self.font_size as u16 * 16 * self.font_size as u16
             ),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(self.theme.dialog.meta),
         )));
 
         lines.push(Line::from(Span::styled(
@@ -268,13 +271,13 @@ impl ExportDialog {
         };
         lines.push(Line::from(Span::styled(
             format!(" {}", path_display),
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(self.theme.dialog.border_path),
         )));
 
         if !self.error_message.is_empty() {
             lines.push(Line::from(Span::styled(
                 format!(" Error: {}", self.error_message),
-                Style::default().fg(Color::Red),
+                Style::default().fg(self.theme.dialog.error),
             )));
         }
 
@@ -283,7 +286,7 @@ impl ExportDialog {
         if self.directory_entries.is_empty() {
             lines.push(Line::from(Span::styled(
                 " (empty directory)",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
             lines.push(Line::from(Span::styled(
@@ -325,7 +328,7 @@ impl ExportDialog {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             " T: format  Enter: export  Esc: cancel  \u{2191}\u{2193}: navigate  Tab: select",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(self.theme.dialog.meta),
         )));
 
         let paragraph = Paragraph::new(lines);

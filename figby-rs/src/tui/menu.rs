@@ -1,9 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::Frame;
 use tui_menu::{Menu, MenuItem, MenuState};
 
+use super::theme::Theme;
 use super::toolbox::Tool;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,6 +31,7 @@ pub enum MenuAction {
 pub struct MenuBar {
     state: MenuState<MenuAction>,
     menu_area: Rect,
+    pub theme: Theme,
 }
 
 impl MenuBar {
@@ -39,6 +41,7 @@ impl MenuBar {
         Self {
             state,
             menu_area: Rect::new(0, 0, 0, 0),
+            theme: Theme::default(),
         }
     }
 
@@ -194,14 +197,18 @@ impl MenuBar {
     pub fn draw(&mut self, frame: &mut Frame, area: Rect) {
         self.menu_area = area;
         let menu_widget = Menu::<MenuAction>::new()
-            .default_style(Style::default().fg(Color::White).bg(Color::Reset))
+            .default_style(
+                Style::default()
+                    .fg(self.theme.menu.fg)
+                    .bg(self.theme.menu.bg),
+            )
             .highlight(
                 Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
+                    .fg(self.theme.menu.fg)
+                    .bg(self.theme.menu.highlight)
                     .add_modifier(Modifier::BOLD),
             )
-            .dropdown_style(Style::default().bg(Color::DarkGray))
+            .dropdown_style(Style::default().bg(self.theme.menu.dropdown_bg))
             .dropdown_width(22);
         frame.render_stateful_widget(menu_widget, area, &mut self.state);
     }

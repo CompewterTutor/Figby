@@ -1,12 +1,13 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use std::path::PathBuf;
 
+use super::theme::Theme;
 use crate::font::{load_font, FIGfont};
 use crate::smush::{smush_horizontal, SmushMode};
 
@@ -116,6 +117,7 @@ pub struct FontEditor {
     pub font_storage_name: String,
     pub current_path: Option<PathBuf>,
     pub original_font: Option<FIGfont>,
+    pub theme: Theme,
 }
 
 impl FontEditor {
@@ -146,6 +148,7 @@ impl FontEditor {
             font_storage_name: String::new(),
             current_path: None,
             original_font: None,
+            theme: Theme::default(),
         }
     }
 
@@ -392,7 +395,7 @@ impl FontEditor {
                 let label = format!("{:>4}", code);
                 let style = if is_selected {
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(self.theme.dialog.highlight)
                         .add_modifier(Modifier::REVERSED)
                 } else {
                     Style::default()
@@ -481,13 +484,13 @@ impl FontEditor {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             format!(" Layout value: {} (0b{:08b})", layout, layout),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(self.theme.dialog.meta),
         )));
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             " \u{2191}\u{2193}: Navigate  Enter/Space: Toggle  Esc: Back",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(self.theme.dialog.meta),
         )));
 
         let paragraph = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
@@ -522,12 +525,12 @@ impl FontEditor {
             if !self.error_message.is_empty() {
                 lines.push(Line::from(Span::styled(
                     format!(" Error: {}", self.error_message),
-                    Style::default().fg(Color::Red),
+                    Style::default().fg(self.theme.dialog.error),
                 )));
             }
             lines.push(Line::from(Span::styled(
                 " Enter: Confirm  Esc: Cancel  Backspace: Delete char",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         } else if let Some(mode) = self.transform_submode {
             lines.push(Line::from(""));
@@ -553,7 +556,7 @@ impl FontEditor {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 " \u{2191}\u{2193}: Navigate  Enter: Apply  Esc: Back",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
             lines.push(Line::from(""));
@@ -571,7 +574,7 @@ impl FontEditor {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 " \u{2191}\u{2193}: Navigate  Enter: Select  Esc: Back",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         }
 
@@ -579,7 +582,7 @@ impl FontEditor {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 format!(" Error: {}", self.error_message),
-                Style::default().fg(Color::Red),
+                Style::default().fg(self.theme.dialog.error),
             )));
         }
 
@@ -631,7 +634,7 @@ impl FontEditor {
             let style = if is_selected {
                 if self.editing_field {
                     Style::default()
-                        .fg(Color::Green)
+                        .fg(self.theme.dialog.border_success)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().add_modifier(Modifier::REVERSED)
@@ -647,7 +650,7 @@ impl FontEditor {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 format!(" Error: {}", self.error_message),
-                Style::default().fg(Color::Red),
+                Style::default().fg(self.theme.dialog.error),
             )));
         }
 
@@ -655,12 +658,12 @@ impl FontEditor {
         if self.editing_field {
             lines.push(Line::from(Span::styled(
                 " Enter: Save  Esc: Cancel  Backspace: Delete char",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
             lines.push(Line::from(Span::styled(
                 " \u{2191}\u{2193}: Navigate  Enter: Edit  Esc: Back",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(self.theme.dialog.meta),
             )));
         }
 

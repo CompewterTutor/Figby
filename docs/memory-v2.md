@@ -566,3 +566,15 @@ grid) with a fixed 5×5 mini-ASCII grid showing actual brush shape:
 
 Old `render_preview()` and its preview functions (`render_square_preview`, etc.)
 kept unchanged for backward compatibility. fmt and clippy pass clean.
+
+### 2.9.7 — Phase merge: release/2.9 → main
+
+Phase 2.9 merged into default branch (master). Phase 2.9 complete:
+tui-menu integration with MenuBar and 5-category menu bar (2.9.1),
+throbber widget with braille spinner for async I/O operations (2.9.2),
+prettified three-section status bar with LazyVim/Starship style (2.9.3),
+YAML-driven theming system with Tokyo Night default theme (2.9.4),
+icon-based mode tabs using Nerd Font glyphs with Ctrl+Tab cycling (2.9.5),
+brush tool 5×5 mini-preview display replacing text description (2.9.6).
+All 6 subtasks (2.9.1–2.9.6) implemented, tested, merged. Phase 2.10
+(Major Release) is next.

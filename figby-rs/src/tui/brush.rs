@@ -110,6 +110,52 @@ impl BrushState {
         }
     }
 
+    pub fn render_mini_preview(&self) -> Vec<String> {
+        const GRID: usize = 5;
+        let size = self.size as usize;
+
+        let full = match self.shape {
+            BrushShape::Square => render_square_preview(size),
+            BrushShape::Circle => render_circle_preview(size),
+            BrushShape::SprayPaint => render_spray_preview(size, self.density),
+            BrushShape::Custom => render_custom_preview(size),
+        };
+
+        let map_cell = |c: char| -> char {
+            if c != ' ' {
+                self.ch
+            } else {
+                ' '
+            }
+        };
+
+        if size >= GRID {
+            let offset = (size - GRID) / 2;
+            full.iter()
+                .skip(offset)
+                .take(GRID)
+                .map(|row| row.chars().skip(offset).take(GRID).map(map_cell).collect())
+                .collect()
+        } else {
+            let offset = (GRID - size) / 2;
+            let mut result: Vec<String> = Vec::with_capacity(GRID);
+            for _ in 0..offset {
+                result.push(" ".repeat(GRID));
+            }
+            for row in &full {
+                let mut line = String::with_capacity(GRID);
+                line.push_str(&" ".repeat(offset));
+                line.push_str(&row.chars().map(map_cell).collect::<String>());
+                line.push_str(&" ".repeat(GRID - offset - row.len()));
+                result.push(line);
+            }
+            while result.len() < GRID {
+                result.push(" ".repeat(GRID));
+            }
+            result
+        }
+    }
+
     pub fn render(&self, frame: &mut Frame<'_>, area: Rect) {
         let block = Block::default()
             .title(" Brush ")
@@ -125,22 +171,17 @@ impl BrushState {
         let mut lines: Vec<Line<'_>> = Vec::new();
 
         lines.push(Line::from(vec![
-            Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", self.shape.name())),
+            Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", self.ch)),
         ]));
         lines.push(Line::from(vec![
             Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!(" {}", self.size)),
         ]));
-        lines.push(Line::from(vec![
-            Span::styled("Density:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}%", self.density)),
-        ]));
 
         lines.push(Line::from(Span::raw("")));
 
-        let preview_max = inner.width.saturating_sub(2);
-        let preview = self.render_preview(preview_max as u8);
+        let preview = self.render_mini_preview();
         let visible_height = inner.height.saturating_sub(lines.len() as u16 + 1);
         for row in preview.iter().take(visible_height as usize) {
             lines.push(Line::from(Span::raw(format!(" {}", row))));
@@ -411,6 +452,97 @@ mod tests {
             let preview = brush.render_preview(5);
             assert_eq!(preview.len(), 1);
             assert_eq!(preview[0].len(), 1);
+        }
+    }
+
+    #[test]
+    fn test_mini_preview_size_5() {
+        let brush = BrushState {
+            shape: BrushShape::Square,
+            size: 5,
+            ch: '\u{2588}',
+            density: 35,
+        };
+        let preview = brush.render_mini_preview();
+        assert_eq!(preview.len(), 5);
+        for row in &preview {
+            assert_eq!(row.len(), 5);
+        }
+        assert!(preview.iter().all(|r| r.chars().all(|c| c == '\u{2588}')));
+    }
+
+    #[test]
+    fn test_mini_preview_resize_1_to_20() {
+        for size in 1..=20 {
+            for shape in BrushShape::all() {
+                let brush = BrushState {
+                    shape: *shape,
+                    size,
+                    ch: '#',
+                    density: 35,
+                };
+                let preview = brush.render_mini_preview();
+                assert_eq!(preview.len(), 5, "size={size} shape={:?}", shape);
+                for row in &preview {
+                    assert_eq!(row.len(), 5, "size={size} shape={:?}", shape);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_mini_preview_shape_cycle() {
+        use std::collections::HashSet;
+        let mut brush = BrushState {
+            shape: BrushShape::Square,
+            size: 3,
+            ch: '#',
+            density: 35,
+        };
+        let mut outputs = HashSet::new();
+        for _ in 0..4 {
+            let preview = brush.render_mini_preview();
+            outputs.insert(preview.join("\n"));
+            brush.cycle_shape();
+        }
+        assert_eq!(outputs.len(), 4);
+    }
+
+    #[test]
+    fn test_mini_preview_uses_brush_char() {
+        let brush = BrushState {
+            shape: BrushShape::Square,
+            size: 3,
+            ch: '#',
+            density: 35,
+        };
+        let preview = brush.render_mini_preview();
+        for row in &preview {
+            for c in row.chars() {
+                if c != ' ' {
+                    assert_eq!(c, '#');
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_mini_preview_center_small_size() {
+        let brush = BrushState {
+            shape: BrushShape::Square,
+            size: 1,
+            ch: '#',
+            density: 35,
+        };
+        let preview = brush.render_mini_preview();
+        assert_eq!(preview.len(), 5);
+        assert_eq!(preview[2].chars().nth(2), Some('#'));
+        for (y, row) in preview.iter().enumerate() {
+            for (x, c) in row.chars().enumerate() {
+                if y != 2 || x != 2 {
+                    assert_eq!(c, ' ');
+                }
+            }
         }
     }
 }

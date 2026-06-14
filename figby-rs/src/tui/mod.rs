@@ -336,7 +336,7 @@ impl TuiApp {
 
         let tool_brush_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(10), Constraint::Length(9)])
+            .constraints([Constraint::Min(10), Constraint::Length(10)])
             .split(main_chunks[0]);
         self.toolbox_area = tool_brush_chunks[0];
         self.palette_area = main_chunks[2];

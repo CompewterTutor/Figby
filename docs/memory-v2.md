@@ -545,3 +545,24 @@ struct changes needed.
 6 unit tests: default theme load (Rgb verification), custom theme partial override,
 invalid path fallback, bad YAML fallback, dispatcher (None/"default"/custom path),
 hex parsing (valid/empty/invalid).
+
+### 2.9.6 — Fix brush tool display
+
+Replaced text-based brush preview (Shape/Size/Density labels + variable-size
+grid) with a fixed 5×5 mini-ASCII grid showing actual brush shape:
+
+- Added `BrushState::render_mini_preview()` — always returns 5×5 grid, centers
+  patterns smaller than 5, crops center for patterns larger than 5. Uses
+  `self.ch` (user's brush character) for filled cells.
+- Rewrote `BrushState::render()` to show `Char: {ch}` and `Size: {n}` labels
+  followed by 5×5 mini grid. Removed Shape/Density labels (redundant — shape
+  shown in toolbox, density only relevant for Spray).
+- Increased `tool_brush_chunks` constraint from `Constraint::Length(9)` to
+  `Constraint::Length(10)` for breathing room (2 labels + 1 blank + 5 grid = 8
+  inner lines with 10-char block).
+- 5 new unit tests: 5×5 grid size assertion, all sizes 1-20 across all shapes,
+  shape cycle produces unique output, brush char used for filled cells, size-1
+  square centered at (2,2).
+
+Old `render_preview()` and its preview functions (`render_square_preview`, etc.)
+kept unchanged for backward compatibility. fmt and clippy pass clean.

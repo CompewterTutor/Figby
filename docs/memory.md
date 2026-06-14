@@ -1152,3 +1152,20 @@ Removed `termion = "4"` dependency from `Cargo.toml`. Both functions share
 identical return type `Result<(u16, u16), io::Error>` — drop-in replacement.
 No import changes needed (fully-qualified paths used at both sites).
 No other `termion` usage found in codebase. fmt and clippy pass clean.
+
+### 2.8.3 — Use ratatui init/restore convenience functions
+
+Replaced manual terminal setup/teardown in `figby-rs/src/tui/mod.rs`:
+- `enable_raw_mode()` + `EnterAlternateScreen` + `Terminal::new(CrosstermBackend::new(...))` → `ratatui::init()`
+- `disable_raw_mode()` + `LeaveAlternateScreen` + `show_cursor()` → `ratatui::restore()`
+- Removed `EnableMouseCapture`/`DisableMouseCapture` (per task spec)
+- Removed all crossterm terminal imports (`disable_raw_mode`, `enable_raw_mode`,
+  `EnterAlternateScreen`, `LeaveAlternateScreen`) and crossterm event imports
+  (`EnableMouseCapture`, `DisableMouseCapture`)
+- `ratatui::init()` installs panic hook that restores terminal on crash (handles
+  `disable_raw_mode` + `LeaveAlternateScreen` automatically)
+- Removed local `use ratatui::backend::CrosstermBackend` / `use ratatui::Terminal`
+  in `run()` — `init()` returns `DefaultTerminal` with correct type
+- Bracketed paste (`EnableBracketedPaste`/`DisableBracketedPaste`) kept as-is
+  (not managed by init/restore)
+- Only `figby-rs/src/tui/mod.rs` modified. fmt and clippy pass clean.

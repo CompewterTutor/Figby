@@ -544,7 +544,7 @@ overlay, layers, and animation timeline.
     terminal width correctly.
   - **Difficulty:** Low
 
-- [ ] `2.8.3` Use ratatui init/run convenience functions
+- [x] `2.8.3` Use ratatui init/run convenience functions
   - **Goal:** Replace manual `Terminal::new(CrosstermBackend::new(stdout))` +
     raw mode enable/disable + alternate screen enter/leave with
     `ratatui::init()` / `ratatui::restore()` or `ratatui::run()`. Add

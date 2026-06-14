@@ -115,6 +115,9 @@ pub struct TuiApp {
     last_save_time: Instant,
     pub throbber: ThrobberState,
     async_rx: Option<mpsc::Receiver<AsyncResult>>,
+    last_frame_time: Instant,
+    fps: f64,
+    git_branch: Option<String>,
 }
 
 impl TuiApp {
@@ -156,6 +159,20 @@ impl TuiApp {
 
         let status_bar_comp = StatusBarComponent::new(icons.clone());
 
+        let git_branch = std::process::Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    String::from_utf8(o.stdout)
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                } else {
+                    None
+                }
+            });
+
         Self {
             mode: AppMode::FontEditor,
             should_quit: false,
@@ -188,6 +205,9 @@ impl TuiApp {
             status_bar_comp,
             throbber: ThrobberState::new(),
             async_rx: None,
+            last_frame_time: Instant::now(),
+            fps: 0.0,
+            git_branch,
         }
     }
 
@@ -410,6 +430,17 @@ impl TuiApp {
             let _ = self.palette_comp.draw(frame, main_chunks[2]);
         }
 
+        // FPS tracking
+        let now = Instant::now();
+        let elapsed = now - self.last_frame_time;
+        self.last_frame_time = now;
+        let instant_fps = if elapsed.as_secs_f64() > 0.0 {
+            1.0 / elapsed.as_secs_f64()
+        } else {
+            0.0
+        };
+        self.fps = self.fps * 0.9 + instant_fps * 0.1;
+
         // Status bar
         let mode_name = match self.mode {
             AppMode::ImageEditor => {
@@ -457,6 +488,13 @@ impl TuiApp {
             .as_ref()
             .map(|p| p.to_string_lossy().to_string());
         self.status_bar_comp.throbber_text = self.throbber.render_string();
+        self.status_bar_comp.mode = self.mode;
+        self.status_bar_comp.undo_count = self.undo.history_len();
+        self.status_bar_comp.fps = self.fps;
+        self.status_bar_comp.git_branch = self.git_branch.clone();
+        self.status_bar_comp.clock_str = format_clock();
+        self.status_bar_comp.layer_count = 1;
+        self.status_bar_comp.animation_frame = 0;
         let _ = self.status_bar_comp.draw(frame, chunks[3]);
 
         // Export dialog overlay
@@ -1895,4 +1933,15 @@ impl Default for TuiApp {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn format_clock() -> String {
+    let since_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let total_secs = since_epoch.as_secs();
+    let h = (total_secs / 3600) % 24;
+    let m = (total_secs / 60) % 60;
+    let s = total_secs % 60;
+    format!("{h:02}:{m:02}:{s:02}")
 }

@@ -585,7 +585,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Trigger slow op, verify spinner animation.
   - **Difficulty:** Medium
 
-- [ ] `2.9.3` Prettier status bar (LazyVim/Starship style)
+- [x] `2.9.3` Prettier status bar (LazyVim/Starship style)
   - **Goal:** Redesign status bar with sections: left (mode, tool name,
     cursor X/Y, zoom), center (file name, unsaved dot, undo count),
     right (FPS, layer count, animation frame, clock). Use styled

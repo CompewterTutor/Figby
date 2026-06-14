@@ -733,3 +733,21 @@ Three bugs found in phase merge review:
   clippy `never_loop` and `irrefutable_let_patterns` warnings.
 - Layout changed from 3 chunks `[3, Min, 3]` to 4 chunks `[1, 3, Min, 3]` for menu bar.
 - Mouse clicks only work on menu bar labels, not dropdown items (tui-menu limitation).
+
+## 2.9.3 — Prettier status bar
+
+- Ratatui `Line` does not support mixed left/right alignment within a single
+  line. To implement LazyVim/Starship-style status bars with left/center/right
+  sections, compute left and right section widths via `chars().count()`, then
+  pad the center section with spaces to fill remaining terminal width. This is
+  the same approach used by vim/neovim statusline plugins.
+- `SystemTime::duration_since(UNIX_EPOCH)` returns `Result` (can fail if system
+  clock is before epoch). Using `unwrap_or_default()` safely falls back to
+  `Duration::ZERO` in edge cases, avoiding `unwrap()` in production.
+- Git branch detection via `std::process::Command` at startup avoids per-frame
+  subprocess overhead. The result is cached in `TuiApp.git_branch` for the
+  lifetime of the application session.
+- FPS EMa smoothing (α=0.1) provides stable display without flickering: the
+  instant FPS can vary wildly between frames (0-60+), but the smoothed value
+  converges within ~10 frames. This matches common game engine FPS counter
+  implementations.

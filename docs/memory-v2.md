@@ -447,3 +447,17 @@ serialization avoids `serde_json`.
 17 unit tests: open dialog state management (enter/exit/type/paste/finalize),
 recent files (push/max/dedup/roundtrip/missing/remove), known font verification
 (95 ASCII + 7 Deutsch chars in standard.flf), recent file selection by digit key.
+
+### 2.7.7 — Phase merge: release/2.7 → main
+
+Merged v2.7 (file ops, config, undo) into main. Also included:
+- `run_tests.rs` fix: set `FIGLET_FONTDIR` env var so integration tests find fonts
+- Renamed `fonts-external/` submodule → `figby-fonts/`, repointed to fork at
+  `github.com:CompewterTutor/figby-fonts.git`
+- Standard FIGlet fonts (18 `.flf`) copied into `figby-fonts/fonts/`
+- Created `docs/todo-v3.md` and `docs/memory-v3.md` for v3 milestone
+- Moved layers/timeline tasks from v2.8/v2.9 → v3.1/v3.2
+- Replaced v2.8 with TUI architecture & backend cleanup (Component arch, crossterm,
+  ratatui init/run)
+- Replaced v2.9 with UI polish & third-party widgets (tui-menu, throbber, theming,
+  tab icons, brush preview)

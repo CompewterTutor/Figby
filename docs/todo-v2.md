@@ -512,7 +512,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Multiple undo/redo cycles, verify state consistency.
   - **Difficulty:** Medium
 
-- [ ] `2.7.7` Phase merge: release/2.7 → main
+- [x] `2.7.7` Phase merge: release/2.7 → main
   - **Difficulty:** Low
 
 ---

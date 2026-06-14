@@ -519,7 +519,7 @@ overlay, layers, and animation timeline.
 
 ## Phase 2.8 — TUI Architecture & Backend Cleanup
 
-- [ ] `2.8.1` Migrate to Component Architecture
+- [x] `2.8.1` Migrate to Component Architecture
   - **Goal:** Extract subsystems into `Component` trait with `handle_events`,
     `update`, `render` methods. Define an `Action` enum for cross-component
     communication. Refactor `TuiApp` from monolithic struct with giant

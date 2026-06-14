@@ -275,29 +275,12 @@ fn canvas_to_figcharacter_cell(
     FIGcharacter::from(rows)
 }
 
-/// Load a system font by name and render it as a FIGfont at the given size.
-///
-/// Returns a populated `FIGfont` with all required ASCII (32–126) and Deutsch
-/// characters rendered from the system font's glyphs. Uses font-kit for
-/// loading and rasterization and `rascii_art` for glyph-to-ASCII mapping.
-///
-/// `charset` controls the character gradient for antialiased edges.
-/// Use `SMOOTH_CHARSET` or `resolve_charset()` for built-in options.
-pub fn system_font_to_figfont(
-    name: &str,
+/// Shared glyph rendering: rasterize all required chars from a loaded font-kit `Font`.
+fn render_font_glyphs(
+    font: &Font,
     point_size: f32,
     charset: &[&str],
-) -> Result<FIGfont, FontGenError> {
-    let source = SystemSource::new();
-    let family = source
-        .select_family_by_name(name)
-        .map_err(|_| FontGenError::FontNotFound(name.to_string()))?;
-    let handle = family
-        .fonts()
-        .first()
-        .ok_or_else(|| FontGenError::FontNotFound(name.to_string()))?;
-    let font = handle.load()?;
-
+) -> Result<(FIGfont, u32), FontGenError> {
     let metrics = font.metrics();
     let upem = metrics.units_per_em as f32;
     let scale = point_size / upem;
@@ -306,7 +289,6 @@ pub fn system_font_to_figfont(
     let charheight = (ascent_px + descent_px).max(1);
     let baseline = ascent_px;
 
-    let hardblank = '$';
     let mut figchars = HashMap::new();
     let mut maxlength = 0u32;
 
@@ -316,17 +298,46 @@ pub fn system_font_to_figfont(
     let raster_opts = RasterizationOptions::GrayscaleAa;
 
     for &code in &all_chars {
-        let c = char::from_u32(code).ok_or(FontGenError::NoGlyph(code))?;
-        let glyph_id = font.glyph_for_char(c).ok_or(FontGenError::NoGlyph(code))?;
+        let make_blank = |figchars: &mut HashMap<u32, FIGcharacter>, code: u32| {
+            let blank_row = " ".to_string();
+            figchars.insert(code, FIGcharacter::from(vec![blank_row; charheight as usize]));
+        };
+
+        let c = match char::from_u32(code) {
+            Some(c) => c,
+            None => {
+                make_blank(&mut figchars, code);
+                continue;
+            }
+        };
+        let glyph_id = match font.glyph_for_char(c) {
+            Some(id) => id,
+            None => {
+                make_blank(&mut figchars, code);
+                continue;
+            }
+        };
 
         // Use raster_bounds to check bounds, then get advance for cell width.
         // advance() returns font units (font-kit sets char size to upem during
         // font init). Scale by point_size / upem to get pixel advance.
-        let bounds = font
+        let bounds = match font
             .raster_bounds(glyph_id, point_size, Transform2F::default(), hinting, raster_opts)
-            .map_err(|_| FontGenError::NoGlyph(code))?;
+        {
+            Ok(b) => b,
+            Err(_) => {
+                make_blank(&mut figchars, code);
+                continue;
+            }
+        };
 
-        let advance_v = font.advance(glyph_id)?;
+        let advance_v = match font.advance(glyph_id) {
+            Ok(v) => v,
+            Err(_) => {
+                make_blank(&mut figchars, code);
+                continue;
+            }
+        };
         // advance() returns font units (char size set to upem during font init).
         // Scale by point_size / upem to get pixel advance.
         let advance_px = advance_v.x() * point_size / upem;
@@ -377,7 +388,8 @@ pub fn system_font_to_figfont(
         figchars.insert(code, ch);
     }
 
-    Ok(FIGfont {
+    let hardblank = '$';
+    Ok((FIGfont {
         format: FontFormat::Figfont,
         hardblank,
         charheight,
@@ -389,7 +401,43 @@ pub fn system_font_to_figfont(
         comment_lines: 0,
         chars: figchars,
         codetag_count: 0,
-    })
+    }, maxlength))
+}
+
+/// Load a system font by **family name** and render as a FIGfont.
+///
+/// Searches system-installed fonts via font-kit's `SystemSource`.
+/// For font files (.ttf/.otf), use [`font_file_to_figfont`].
+pub fn system_font_to_figfont(
+    name: &str,
+    point_size: f32,
+    charset: &[&str],
+) -> Result<FIGfont, FontGenError> {
+    let source = SystemSource::new();
+    let family = source
+        .select_family_by_name(name)
+        .map_err(|_| FontGenError::FontNotFound(name.to_string()))?;
+    let handle = family
+        .fonts()
+        .first()
+        .ok_or_else(|| FontGenError::FontNotFound(name.to_string()))?;
+    let font = handle.load()?;
+    let (figfont, _maxlength) = render_font_glyphs(&font, point_size, charset)?;
+    Ok(figfont)
+}
+
+/// Load a font from a **file path** (.ttf, .otf) and render as a FIGfont.
+pub fn font_file_to_figfont(
+    path: &std::path::Path,
+    point_size: f32,
+    charset: &[&str],
+) -> Result<FIGfont, FontGenError> {
+    use std::sync::Arc;
+    let data = std::fs::read(path).map_err(|e| FontGenError::FontNotFound(format!("{e}")))?;
+    let handle = font_kit::handle::Handle::from_memory(Arc::new(data), 0);
+    let font = handle.load()?;
+    let (figfont, _maxlength) = render_font_glyphs(&font, point_size, charset)?;
+    Ok(figfont)
 }
 
 #[cfg(test)]

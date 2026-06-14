@@ -1179,3 +1179,23 @@ terminal size detection (2.8.2), replaced manual TUI init/teardown with ratatui
 convenience functions `ratatui::init()`/`ratatui::restore()` (2.8.3).
 All 3 subtasks (2.8.1–2.8.3) implemented, tested, merged. Phase 2.9 (UI Polish
 & Third-Party Widgets) is next.
+
+### 2.9.1 — Add `tui-menu` ratatui widget
+
+Added `tui-menu = "0.3.1"` dependency to `Cargo.toml`. Created `figby-rs/src/tui/menu.rs`
+with `MenuAction` enum (17 variants for File/Edit/View/Tools/Help) and `MenuBar` struct
+wrapping `MenuState<MenuAction>`. `MenuBar` handles keyboard (Alt+F/E/V/T/H to open,
+Enter/arrows to navigate, Esc to close) and mouse (click menu labels). `handle_menu_action()`
+delegates to existing methods: `start_open/save/save_as()`, undo/redo, zoom, tool selection,
+clipboard ops, grid toggle, undo panel toggle, export dialog, quit.
+
+Integration in `mod.rs`:
+- Layout changed from 3 chunks to 4: menu bar (1 line), tabs (3 lines), main (min), status (3)
+- `menu_bar` field on `TuiApp`, initialized in `new()`
+- `handle_key_event()`: menu active guard before undo/redo; Alt+key activation before normal flow
+- `handle_mouse_event()`: menu bar click intercepted first
+- `drain_actions()` called after menu key events in both keyboard and mouse paths
+- `Action::Menu(MenuAction)` variant added to `Action` enum
+
+`tui-menu` does not handle mouse clicks on dropdown items — only menu bar labels.
+Keyboard navigation works for submenus via Enter/arrows. fmt and clippy pass clean.

@@ -26,6 +26,7 @@ pub mod export;
 pub mod file_ops;
 pub mod font_editor;
 pub mod image_editor;
+pub mod menu;
 pub mod palette;
 pub mod status;
 pub mod toolbox;
@@ -37,6 +38,7 @@ pub use action::Action;
 pub use brush::BrushState;
 pub use component::Component;
 pub use export::ExportMode;
+pub use menu::MenuBar;
 pub use palette::Palette;
 pub use status::CanvasSettings;
 pub use toolbox::Tool;
@@ -82,6 +84,7 @@ pub struct TuiApp {
     pub mode: AppMode,
     pub should_quit: bool,
     _icons: BTreeMap<String, String>,
+    pub menu_bar: MenuBar,
     pub toolbox_comp: ToolboxComponent,
     pub canvas_comp: CanvasComponent,
     pub palette_comp: PaletteComponent,
@@ -152,6 +155,7 @@ impl TuiApp {
             mode: AppMode::FontEditor,
             should_quit: false,
             _icons: icons,
+            menu_bar: MenuBar::new(),
             toolbox_comp,
             canvas_comp: CanvasComponent::new(),
             palette_comp: PaletteComponent::new(),
@@ -215,6 +219,7 @@ impl TuiApp {
             Action::SaveAsRequested => self.perform_save(),
             Action::OpenRequested => self.perform_open(),
             Action::ExportRequested(_) => self.perform_export(),
+            Action::Menu(action) => self.handle_menu_action(action.clone()),
             _ => {}
         }
     }
@@ -223,11 +228,14 @@ impl TuiApp {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
+                Constraint::Length(1),
                 Constraint::Length(3),
                 Constraint::Min(0),
                 Constraint::Length(3),
             ])
             .split(frame.area());
+
+        self.menu_bar.draw(frame, chunks[0]);
 
         let titles = vec![" Font Editor ", " Image Editor ", " ASCII Preview "];
         let selected = match self.mode {
@@ -243,7 +251,7 @@ impl TuiApp {
                     .add_modifier(Modifier::BOLD),
             )
             .select(selected);
-        frame.render_widget(tabs, chunks[0]);
+        frame.render_widget(tabs, chunks[1]);
 
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -252,7 +260,7 @@ impl TuiApp {
                 Constraint::Min(10),
                 Constraint::Length(20),
             ])
-            .split(chunks[1]);
+            .split(chunks[2]);
 
         let tool_brush_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -438,7 +446,7 @@ impl TuiApp {
             .current_path
             .as_ref()
             .map(|p| p.to_string_lossy().to_string());
-        let _ = self.status_bar_comp.draw(frame, chunks[2]);
+        let _ = self.status_bar_comp.draw(frame, chunks[3]);
 
         // Export dialog overlay
         if self.export_comp.dialog.active {
@@ -552,6 +560,17 @@ impl TuiApp {
     }
 
     fn handle_mouse_event(&mut self, mouse: MouseEvent) {
+        // Menu bar mouse event
+        if self
+            .menu_bar
+            .handle_mouse_event(mouse.column, mouse.row, mouse.kind)
+        {
+            if let Some(action) = self.menu_bar.drain_actions() {
+                self.process_action(&Action::Menu(action));
+            }
+            return;
+        }
+
         if self.settings.settings_open {
             return;
         }
@@ -995,6 +1014,20 @@ impl TuiApp {
         // Undo history panel open: dispatch to it first
         if self.undo_panel_comp.panel.open {
             self.undo_panel_comp.panel.handle_key(code);
+            return None;
+        }
+
+        // Menu bar active: dispatch all keys to it
+        if self.menu_bar.is_active() {
+            self.menu_bar.handle_key_event(key);
+            if let Some(action) = self.menu_bar.drain_actions() {
+                return Some(Action::Menu(action));
+            }
+            return None;
+        }
+
+        // Alt+key: open menu bar
+        if modifiers == KeyModifiers::ALT && self.menu_bar.handle_key_event(key) {
             return None;
         }
 
@@ -1603,6 +1636,130 @@ impl TuiApp {
             Err(e) => {
                 self.export_comp.dialog.error_message = format!("Export failed: {e}");
                 self.export_comp.dialog.active = true;
+            }
+        }
+    }
+
+    fn handle_menu_action(&mut self, action: menu::MenuAction) {
+        match action {
+            menu::MenuAction::FileOpen => {
+                self.start_open();
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::FileSave => {
+                self.start_save();
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::FileSaveAs => {
+                self.start_save_as();
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::FileExport => {
+                let mode = match self.mode {
+                    AppMode::FontEditor => export::ExportMode::Txt,
+                    _ => export::ExportMode::Png,
+                };
+                self.export_comp.dialog.enter_export(mode);
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::FileQuit => {
+                self.should_quit = true;
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::EditUndo => {
+                if self.undo.can_undo() {
+                    let empty = canvas::CanvasBuffer::new(1, 1);
+                    let cur = std::mem::replace(&mut self.canvas_comp.canvas.buffer, empty);
+                    if let Some((buf, _)) = self.undo.undo(cur) {
+                        self.canvas_comp.canvas.buffer = buf;
+                        self.unsaved = true;
+                    }
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::EditRedo => {
+                if self.undo.can_redo() {
+                    let empty = canvas::CanvasBuffer::new(1, 1);
+                    let cur = std::mem::replace(&mut self.canvas_comp.canvas.buffer, empty);
+                    if let Some((buf, _)) = self.undo.redo(cur) {
+                        self.canvas_comp.canvas.buffer = buf;
+                        self.unsaved = true;
+                    }
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::EditCut => {
+                if let Some(ref sel) = self.selection {
+                    if sel.is_active() {
+                        self.push_undo_snapshot("Cut selection");
+                        if let Some(sel_owned) = self.selection.take() {
+                            self.clipboard =
+                                Some(sel_owned.cut_from(&mut self.canvas_comp.canvas.buffer));
+                            self.unsaved = true;
+                        }
+                    }
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::EditCopy => {
+                if let Some(ref sel) = self.selection {
+                    if sel.is_active() {
+                        self.clipboard = Some(sel.copy_from(&self.canvas_comp.canvas.buffer));
+                    }
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::EditPaste => {
+                if self.clipboard.is_some() {
+                    self.push_undo_snapshot("Paste");
+                    let clip = self.clipboard.clone();
+                    if let Some(ref clip_data) = clip {
+                        let (cx, cy) = self.canvas_comp.canvas.cursor();
+                        tools::selection::Selection::paste_into(
+                            &mut self.canvas_comp.canvas.buffer,
+                            clip_data,
+                            cx as i16,
+                            cy as i16,
+                        );
+                        self.unsaved = true;
+                    }
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::ViewZoomIn => {
+                if self.canvas_comp.canvas.zoom_level() < 8 {
+                    self.canvas_comp.canvas.zoom_in();
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::ViewZoomOut => {
+                if self.canvas_comp.canvas.zoom_level() > 1 {
+                    self.canvas_comp.canvas.zoom_out();
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::ViewToggleGrid => {
+                self.canvas_comp.canvas.toggle_grid();
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::ViewToggleUndoPanel => {
+                self.undo_panel_comp.panel.toggle();
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::ToolsSelect(tool) => {
+                self.toolbox_comp.toolbox.selected = tool;
+                if tool != toolbox::Tool::PolygonSelect {
+                    self.selection_polygon_points.clear();
+                }
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::HelpAbout => {
+                // Show simple about message - deferred to proper dialog
+                self.menu_bar.reset();
+            }
+            menu::MenuAction::HelpKeybindings => {
+                // Show keybindings - deferred to proper dialog
+                self.menu_bar.reset();
             }
         }
     }

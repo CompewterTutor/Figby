@@ -721,3 +721,15 @@ Three bugs found in phase merge review:
   but field renames in `mod.rs` break its compilation. Tests referencing old field names
   (`app.toolbox`, `app.canvas`, `app.brush`, `app.palette`) must be updated to match.
   These changes are a necessary consequence of the refactoring, not scope creep.
+
+## 2.9.1 — tui-menu integration
+
+- `tui-menu` 0.3.1 depends on `ratatui-core ^0.1.0` and `ratatui-widgets ^0.3.0` (part of
+  ratatui 0.30.x ecosystem) — compatible with existing ratatui 0.30.1.
+- `tui-menu` does NOT handle keyboard or mouse events internally. Caller must map key events
+  to `up/down/left/right/select/reset` calls on `MenuState`.
+- `MenuEvent` is a single-variant enum (`Selected(T)`), so `drain_events()` produces
+  irrefutable patterns. Use `drain_events().next()` with `let` destructuring to avoid
+  clippy `never_loop` and `irrefutable_let_patterns` warnings.
+- Layout changed from 3 chunks `[3, Min, 3]` to 4 chunks `[1, 3, Min, 3]` for menu bar.
+- Mouse clicks only work on menu bar labels, not dropdown items (tui-menu limitation).

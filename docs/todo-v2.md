@@ -623,7 +623,7 @@ overlay, layers, and animation timeline.
   - **Tests:** Visual review. Keyboard cycle test.
   - **Difficulty:** Low
 
-- [ ] `2.9.6` Fix brush tool display
+- [x] `2.9.6` Fix brush tool display
   - **Goal:** Brush preview in toolbox (tool_brush_chunks[1]) currently
     renders a simple text description. Fix: render a mini ASCII preview
     of the brush shape (e.g. a 5×5 grid showing which cells the brush

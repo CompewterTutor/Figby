@@ -808,3 +808,16 @@ Three bugs found in phase merge review:
 - When removing `Color` from a module's `use` statement, verify no remaining `Color::`
   references exist in the file. grep for `Color::` to confirm zero matches across
   production and test code.
+
+## 2.10.2 — Dirty render mode coverage gaps
+
+- `dirty` flag pattern: one flag covers ALL UI changes. Every mutation path must set it,
+  including paths that aren't triggered by user input (async completion, auto-save timers).
+- `check_async_completion` lived only in `render()`, creating a circular dependency: render
+  needs dirty=true, but dirty could only be set by events. Moving it to `handle_event()`
+  breaks the cycle — now async results are processed every iteration regardless of render state.
+- When the `dirty` flag is set at the top of `handle_event()` for incoming events, it covers
+  ALL event-driven state changes. The gaps are non-event-driven paths: auto-save timers,
+  async completions, and programmatic state transitions (dialog opens, settings apply, menu actions).
+- Each `perform_*` method that starts an async operation should set `dirty = true` to show the
+  throbber immediately. Without it, the throbber only appears after a user event + render cycle.

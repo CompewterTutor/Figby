@@ -62,6 +62,20 @@ char, else space), producing blocky un-antialiased glyphs.
 ### E2E test checklists created
 - 9 checklist files in `docs/e2e-*.md` covering `--create-font`, CLI info codes, template system, image pipeline, and all TUI editor features (~275 test cases).
 
+### Fix: Dirty render mode — missing redraws for overlays, async ops, auto-save
+
+Three classes of stale-display bugs fixed in `figby-rs/src/tui/mod.rs`:
+
+1. **Async completion not checked between events**: `check_async_completion()` only ran inside `render()`. If dirty=false, render never fired, async results (save/open/export) piled up unseen. Fix: moved `check_async_completion()` into `handle_event()` so it runs every iteration regardless of render state.
+
+2. **Auto-save + async-start paths never set dirty**: `perform_open`, `perform_save`, `perform_export`, `start_save`, auto-save trigger all started throbber + async ops without setting `self.dirty`. Fix: added `self.dirty = true` to each.
+
+3. **State-change paths missing dirty flag**: Menu actions, dialog opens (`start_save_as`, `start_open`, settings toggle, Ctrl+E export), `apply_settings` — all changed visible UI state without triggering redraw. Fix: added `self.dirty = true` in every path.
+
+Also added `self.dirty = true` in `check_async_completion()` itself when a result is processed, so UI updates from async completions are visible immediately.
+
+**Tests**: Build, clippy, and all 590 lib tests pass. 17 pre-existing TUI test failures (unrelated to this change, confirmed by `git stash`).
+
 ### E2E testing: All 11 sections complete
 - **Section 1** (Basic Font Creation): all 5 pass ✓
 - **Section 2** (Generated Font Quality): all 5 pass ✓

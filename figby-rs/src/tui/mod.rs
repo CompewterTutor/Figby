@@ -19,7 +19,6 @@ use std::time::{Duration, Instant};
 use crate::config;
 
 pub mod action;
-pub mod render_mode;
 pub mod brush;
 pub mod canvas;
 pub mod component;
@@ -30,6 +29,7 @@ pub mod font_editor;
 pub mod image_editor;
 pub mod menu;
 pub mod palette;
+pub mod render_mode;
 pub mod status;
 pub mod theme;
 pub mod throbber;
@@ -40,11 +40,11 @@ pub mod undo_panel;
 
 pub use action::Action;
 pub use brush::BrushState;
-pub use render_mode::RenderMode;
 pub use component::Component;
 pub use export::ExportMode;
 pub use menu::MenuBar;
 pub use palette::Palette;
+pub use render_mode::RenderMode;
 pub use status::CanvasSettings;
 pub use throbber::ThrobberState;
 pub use toolbox::Tool;
@@ -1075,6 +1075,7 @@ impl TuiApp {
         match rx.try_recv() {
             Ok(result) => {
                 self.throbber.stop();
+                self.dirty = true;
                 match result {
                     AsyncResult::SaveComplete(r) => match r {
                         Ok(path) => {
@@ -1119,6 +1120,7 @@ impl TuiApp {
             }
             Err(mpsc::TryRecvError::Disconnected) => {
                 self.throbber.stop();
+                self.dirty = true;
             }
         }
     }
@@ -1148,6 +1150,8 @@ impl TuiApp {
             }
         }
 
+        self.check_async_completion();
+
         // Auto-save check
         if self.auto_save_interval > 0
             && self.unsaved
@@ -1163,6 +1167,7 @@ impl TuiApp {
                         let (tx, rx) = mpsc::channel();
                         self.async_rx = Some(rx);
                         self.throbber.start("Auto-saving...");
+                        self.dirty = true;
                         std::thread::spawn(move || {
                             let _ = file_ops::save_font(&font, &path);
                             let _ = tx.send(AsyncResult::AutoSaveComplete);
@@ -1581,6 +1586,7 @@ impl TuiApp {
             self.settings.canvas_height = self.canvas_comp.canvas.buffer.height() as u16;
             self.settings.show_grid = self.canvas_comp.canvas.show_grid();
             self.settings.settings_open = true;
+            self.dirty = true;
             return None;
         }
 
@@ -1694,6 +1700,7 @@ impl TuiApp {
                 _ => export::ExportMode::Png,
             };
             self.export_comp.dialog.enter_export(mode);
+            self.dirty = true;
             return None;
         }
 
@@ -1751,6 +1758,7 @@ impl TuiApp {
                 let (tx, rx) = mpsc::channel();
                 self.async_rx = Some(rx);
                 self.throbber.start("Saving...");
+                self.dirty = true;
                 std::thread::spawn(move || {
                     let result = file_ops::save_font(&font, &path)
                         .map(|_| path)
@@ -1770,6 +1778,7 @@ impl TuiApp {
         self.file_ops_comp
             .dialog
             .enter_save_as(self.font_editor_comp.editor.current_path.as_deref());
+        self.dirty = true;
     }
 
     fn perform_save(&mut self) {
@@ -1785,6 +1794,7 @@ impl TuiApp {
         let (tx, rx) = mpsc::channel();
         self.async_rx = Some(rx);
         self.throbber.start("Saving...");
+        self.dirty = true;
         std::thread::spawn(move || {
             let result = file_ops::save_font(&font, &result_path)
                 .map(|_| result_path)
@@ -1806,6 +1816,7 @@ impl TuiApp {
         self.file_ops_comp
             .dialog
             .enter_open(self.file_ops_comp.recent_files.list());
+        self.dirty = true;
     }
 
     fn perform_open(&mut self) {
@@ -1817,6 +1828,7 @@ impl TuiApp {
         let (tx, rx) = mpsc::channel();
         self.async_rx = Some(rx);
         self.throbber.start("Loading...");
+        self.dirty = true;
         std::thread::spawn(move || {
             let result = (|| -> Result<(crate::font::FIGfont, std::path::PathBuf), String> {
                 let content = std::fs::read_to_string(&path_clone)
@@ -1853,6 +1865,7 @@ impl TuiApp {
         let (tx, rx) = mpsc::channel();
         self.async_rx = Some(rx);
         self.throbber.start("Exporting...");
+        self.dirty = true;
         std::thread::spawn(move || {
             let result = (|| -> Result<(), String> {
                 if path_buf.as_os_str().is_empty() {
@@ -1879,6 +1892,7 @@ impl TuiApp {
     }
 
     fn handle_menu_action(&mut self, action: menu::MenuAction) {
+        self.dirty = true;
         match action {
             menu::MenuAction::FileOpen => {
                 self.start_open();
@@ -1992,11 +2006,9 @@ impl TuiApp {
                 self.menu_bar.reset();
             }
             menu::MenuAction::HelpAbout => {
-                // Show simple about message - deferred to proper dialog
                 self.menu_bar.reset();
             }
             menu::MenuAction::HelpKeybindings => {
-                // Show keybindings - deferred to proper dialog
                 self.menu_bar.reset();
             }
         }
@@ -2014,6 +2026,7 @@ impl TuiApp {
         if self.settings.show_grid != self.canvas_comp.canvas.show_grid() {
             self.canvas_comp.canvas.toggle_grid();
         }
+        self.dirty = true;
     }
 }
 

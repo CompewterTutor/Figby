@@ -1083,17 +1083,15 @@ fn main() {
             leaked
         })
     };
-    let write_font_output = |content: &str| {
-        match args.create_font_output {
-            Some(ref path) => {
-                if let Err(e) = std::fs::write(path, content) {
-                    eprintln!("Error writing to '{}': {}", path, e);
-                    process::exit(1);
-                }
+    let write_font_output = |content: &str| match args.create_font_output {
+        Some(ref path) => {
+            if let Err(e) = std::fs::write(path, content) {
+                eprintln!("Error writing to '{}': {}", path, e);
+                process::exit(1);
             }
-            None => {
-                print!("{}", content);
-            }
+        }
+        None => {
+            print!("{}", content);
         }
     };
 

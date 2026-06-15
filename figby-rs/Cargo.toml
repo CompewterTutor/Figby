@@ -22,7 +22,6 @@ crossterm = "0.28"
 serde_yaml = "0.9"
 rand = "0.8"
 gif = "0.13"
-tui-menu = "0.3.1"
 
 [dev-dependencies]
 serde_json = "1"

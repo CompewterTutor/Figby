@@ -11,6 +11,7 @@ use pathfinder_geometry::vector::{Vector2F, Vector2I};
 use rascii_art::{charsets, RenderOptions};
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::OnceLock;
 
 #[derive(Debug)]
 pub enum FontGenError {
@@ -219,18 +220,103 @@ pub fn generate_figfont(font: &FIGfont) -> String {
 /// Built-in "smooth" charset: light marks + round chars for smooth antialiased edges.
 /// Avoids `@` (FIGfont endmark) and `$` (hardblank) to prevent output corruption.
 pub const SMOOTH_CHARSET: &[&str] = &[
-    " ", ".", "'", "^", "\"", "~", ":", ";", "i", "r",
-    "o", "O", "0", "Q", "#", "8", "&", "%",
+    " ", ".", "'", "^", "\"", "~", ":", ";", "i", "r", "o", "O", "0", "Q", "#", "8", "&", "%",
 ];
 
-/// Resolve a charset name or custom comma-separated string to a character slice.
-/// Built-in names: `block`, `default`, `slight`, `smooth`.
+// ── Extended charsets (Unicode) ────────────────────────────────────────────
+
+/// Leak a `String` into a `&'static str`. Used once per char during init.
+fn leak(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+fn make_charset_vec(codepoints: impl Iterator<Item = u32>) -> Vec<&'static str> {
+    codepoints
+        .filter_map(char::from_u32)
+        .map(|c| leak(c.to_string()))
+        .collect()
+}
+
+/// U+2800–U+28FF sorted by number of dots (bits set in the low byte), then code point.
+fn braille_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let mut cps: Vec<u32> = (0x2800u32..=0x28FFu32).collect();
+        cps.sort_by_key(|&cp| ((cp & 0xFF).count_ones(), cp));
+        make_charset_vec(cps.into_iter())
+    })
+}
+
+/// Block elements + shade chars + vertical eighths.
+fn blocks_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        // Ordered light → dark for luminance mapping
+        let cps: Vec<u32> = vec![
+            // Space (blank)
+            0x0020,
+            // Shade chars (light → dark)
+            0x2591, 0x2592, 0x2593,
+            // Vertical eighths ▁▂▃▄▅▆▇
+            0x2581, 0x2582, 0x2583, 0x2584, 0x2585, 0x2586, 0x2587,
+            // Half-blocks
+            0x2596, 0x2597, 0x2598, 0x259A, 0x259D, 0x2599, 0x259B, 0x259C, 0x259E, 0x259F,
+            0x258F, 0x258E, 0x258D, 0x258C, 0x258B, 0x258A, 0x2589,
+            0x2580, 0x2584,
+            0x258C, 0x2590,
+            // Full block
+            0x2588,
+        ];
+        make_charset_vec(cps.into_iter())
+    })
+}
+
+/// Box drawing + selected geometric shapes.
+fn box_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let mut cps: Vec<u32> = (0x2500u32..=0x257Fu32).collect();
+        // Add selected geometric shapes
+        cps.extend([0x25A0u32, 0x25A1, 0x25AA, 0x25AB, 0x25B2, 0x25B3, 0x25C6, 0x25C7]);
+        make_charset_vec(cps.into_iter())
+    })
+}
+
+/// Ogham script block U+1680–U+169F.
+fn ogham_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| make_charset_vec(0x1680u32..=0x169Fu32))
+}
+
+/// Deluxe: ASCII printable + blocks + box + braille + ogham.
+fn deluxe_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let mut v: Vec<&'static str> = Vec::new();
+        // ASCII printable (space through ~)
+        v.extend(make_charset_vec(0x0020u32..=0x007Eu32));
+        v.extend_from_slice(blocks_charset());
+        v.extend_from_slice(box_charset());
+        v.extend_from_slice(braille_charset());
+        v.extend_from_slice(ogham_charset());
+        v
+    })
+}
+
+/// Resolve a charset name to a character slice for font generation.
+/// Built-in names: `block`, `default`, `slight`, `smooth`,
+/// `braille`, `blocks`, `box`, `ogham`, `deluxe`.
 pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
     Some(match name {
         "block" => charsets::BLOCK,
         "default" => charsets::DEFAULT,
         "slight" => charsets::SLIGHT,
         "smooth" => SMOOTH_CHARSET,
+        "braille" => braille_charset(),
+        "blocks" => blocks_charset(),
+        "box" => box_charset(),
+        "ogham" => ogham_charset(),
+        "deluxe" => deluxe_charset(),
         _ => return None,
     })
 }
@@ -300,7 +386,10 @@ fn render_font_glyphs(
     for &code in &all_chars {
         let make_blank = |figchars: &mut HashMap<u32, FIGcharacter>, code: u32| {
             let blank_row = " ".to_string();
-            figchars.insert(code, FIGcharacter::from(vec![blank_row; charheight as usize]));
+            figchars.insert(
+                code,
+                FIGcharacter::from(vec![blank_row; charheight as usize]),
+            );
         };
 
         let c = match char::from_u32(code) {
@@ -321,9 +410,13 @@ fn render_font_glyphs(
         // Use raster_bounds to check bounds, then get advance for cell width.
         // advance() returns font units (font-kit sets char size to upem during
         // font init). Scale by point_size / upem to get pixel advance.
-        let bounds = match font
-            .raster_bounds(glyph_id, point_size, Transform2F::default(), hinting, raster_opts)
-        {
+        let bounds = match font.raster_bounds(
+            glyph_id,
+            point_size,
+            Transform2F::default(),
+            hinting,
+            raster_opts,
+        ) {
             Ok(b) => b,
             Err(_) => {
                 make_blank(&mut figchars, code);
@@ -376,11 +469,7 @@ fn render_font_glyphs(
         )
         .map_err(|_| FontGenError::NoGlyph(code))?;
 
-        let ch = canvas_to_figcharacter_cell(
-            &canvas,
-            charheight as usize,
-            charset,
-        );
+        let ch = canvas_to_figcharacter_cell(&canvas, charheight as usize, charset);
         let width = ch.width() as u32;
         if width > maxlength {
             maxlength = width;
@@ -389,19 +478,22 @@ fn render_font_glyphs(
     }
 
     let hardblank = '$';
-    Ok((FIGfont {
-        format: FontFormat::Figfont,
-        hardblank,
-        charheight,
-        baseline,
+    Ok((
+        FIGfont {
+            format: FontFormat::Figfont,
+            hardblank,
+            charheight,
+            baseline,
+            maxlength,
+            old_layout: 0,
+            full_layout: 64,
+            print_direction: -1,
+            comment_lines: 0,
+            chars: figchars,
+            codetag_count: 0,
+        },
         maxlength,
-        old_layout: 0,
-        full_layout: 64,
-        print_direction: -1,
-        comment_lines: 0,
-        chars: figchars,
-        codetag_count: 0,
-    }, maxlength))
+    ))
 }
 
 /// Load a system font by **family name** and render as a FIGfont.

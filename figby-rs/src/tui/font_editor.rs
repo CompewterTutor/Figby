@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use std::path::PathBuf;
+use std::time::Instant;
 
 use super::theme::Theme;
 use crate::font::{load_font, FIGfont};
@@ -118,6 +119,10 @@ pub struct FontEditor {
     pub current_path: Option<PathBuf>,
     pub original_font: Option<FIGfont>,
     pub theme: Theme,
+    /// (code_point, screen_rect) for each visible glyph cell — populated during render
+    pub cell_rects: Vec<(u32, Rect)>,
+    /// Last click: (code_point, time) for double-click detection
+    last_click: Option<(u32, Instant)>,
 }
 
 impl FontEditor {
@@ -149,6 +154,8 @@ impl FontEditor {
             current_path: None,
             original_font: None,
             theme: Theme::default(),
+            cell_rects: Vec::new(),
+            last_click: None,
         }
     }
 
@@ -158,6 +165,7 @@ impl FontEditor {
         self.all_codes = codes;
         self.font = Some(font);
         self.search_active = false;
+        self.search_query.clear();
         self.grid_scroll = 0;
         self.selected_index = 0;
         self.view = FontEditorView::Overview;
@@ -325,17 +333,24 @@ impl FontEditor {
         let prompt_height: u16 = 3;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(prompt_height), Constraint::Min(0)].as_ref())
+            .constraints(
+                [
+                    Constraint::Length(prompt_height),
+                    Constraint::Min(0),
+                    Constraint::Length(1),
+                ]
+                .as_ref(),
+            )
             .split(area);
 
         if self.code_input_active {
             let prompt = match self.code_input_mode {
-                CodeInputMode::Add => format!(" Add code: {}", self.code_input_buffer),
+                CodeInputMode::Add => format!(" Add code: {}|", self.code_input_buffer),
                 CodeInputMode::CopySource => {
-                    format!(" Copy from code: {}", self.code_input_buffer)
+                    format!(" Copy from code: {}|", self.code_input_buffer)
                 }
                 CodeInputMode::CopyDest => {
-                    format!(" Copy to code: {}", self.code_input_buffer)
+                    format!(" Copy to code: {}|", self.code_input_buffer)
                 }
                 CodeInputMode::DeleteConfirm => {
                     let selected_code = self
@@ -354,14 +369,21 @@ impl FontEditor {
             frame.render_widget(search, chunks[0]);
         } else {
             let search_display = if self.search_active {
-                format!(" Search: {}", self.search_query)
+                format!(" Search: {}|", self.search_query)
             } else {
-                " Search (type to filter by code or char)".to_string()
+                " Search: (type to filter)".to_string()
             };
             let search =
                 Paragraph::new(search_display).block(Block::default().borders(Borders::ALL));
             frame.render_widget(search, chunks[0]);
         }
+
+        // Key hint footer
+        let hint = Paragraph::new(
+            " \u{2191}\u{2193}\u{2190}\u{2192} Navigate  Type Search  Enter Edit  A Add  D Del  C Copy  H Header  S Smush  T Transform  Esc Close",
+        )
+        .style(Style::default().fg(self.theme.menu.dim));
+        frame.render_widget(hint, chunks[2]);
 
         let grid_area = chunks[1];
         let filtered = self.filtered_codes();
@@ -381,12 +403,25 @@ impl FontEditor {
 
         let start_cell = self.grid_scroll as usize * cols;
 
+        self.cell_rects.clear();
         let mut lines: Vec<Line> = Vec::new();
         let mut cell_idx = start_cell;
 
         while cell_idx < filtered.len() && lines.len() + cell_h <= grid_area.height as usize {
             let end = (cell_idx + cols).min(filtered.len());
             let chunk = &filtered[cell_idx..end];
+
+            // Record cell rects before building this row's lines
+            let cell_row_y = grid_area.y + lines.len() as u16;
+            for (ci, &code) in chunk.iter().enumerate() {
+                let cell_rect = Rect::new(
+                    grid_area.x + (ci * cell_w) as u16,
+                    cell_row_y,
+                    cell_w as u16,
+                    cell_h as u16,
+                );
+                self.cell_rects.push((code, cell_rect));
+            }
 
             let mut code_spans = Vec::new();
             for (ci, &code) in chunk.iter().enumerate() {
@@ -1242,14 +1277,15 @@ impl FontEditor {
         }
 
         match code {
-            // '/' activates search mode
-            KeyCode::Char('/') if !self.search_active => {
+            // Any printable char (except action keys) activates search and appends in one keystroke
+            KeyCode::Char(c) if !c.is_control() && !self.search_active && !matches!(c, 'H' | 'S' | 'T' | 'A' | 'D' | 'C') => {
                 self.search_active = true;
+                self.search_query.push(c);
                 self.grid_scroll = 0;
                 self.selected_index = 0;
                 true
             }
-            // When search active: all printable chars build the query
+            // When search active: printable chars build the query
             KeyCode::Char(c) if !c.is_control() && self.search_active => {
                 self.search_query.push(c);
                 self.grid_scroll = 0;
@@ -1345,6 +1381,48 @@ impl FontEditor {
             // All other keys fall through to normal handlers
             _ => false,
         }
+    }
+
+    /// Handle a mouse click on the glyph overview grid.
+    /// Returns true if the click was inside a cell. Single-click moves selection;
+    /// double-click (same cell within 400ms) opens the CharEditor.
+    pub fn handle_mouse_click_overview(&mut self, col: u16, row: u16) -> bool {
+        if self.view != FontEditorView::Overview {
+            return false;
+        }
+        let hit = self
+            .cell_rects
+            .iter()
+            .find(|(_, rect)| {
+                col >= rect.x
+                    && col < rect.x + rect.width
+                    && row >= rect.y
+                    && row < rect.y + rect.height
+            })
+            .map(|(code, _)| *code);
+
+        let Some(code) = hit else {
+            return false;
+        };
+
+        // Update selected_index to match clicked code
+        let filtered = self.filtered_codes();
+        if let Some(idx) = filtered.iter().position(|&c| c == code) {
+            self.selected_index = idx;
+        }
+
+        // Double-click detection: same code within 400ms
+        let now = Instant::now();
+        let is_double = self
+            .last_click
+            .map(|(c, t)| c == code && now.duration_since(t).as_millis() < 400)
+            .unwrap_or(false);
+        self.last_click = Some((code, now));
+
+        if is_double {
+            self.view = FontEditorView::CharEditor(code);
+        }
+        true
     }
 
     fn handle_key_code_input(&mut self, code: KeyCode) -> bool {

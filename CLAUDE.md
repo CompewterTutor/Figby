@@ -27,4 +27,5 @@ cargo run --manifest-path figby-rs/Cargo.toml -- --tui
 
 ## Current milestone
 
-v3 — TUI Refinement & Animation. See `docs/todo-v3.md`.
+v3 — Ratatui Refactor & UX Fixes. See `docs/todo-v3.md`.
+Animation/layers/particles milestone moved to `docs/todo-v4.md`.

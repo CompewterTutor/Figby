@@ -10,7 +10,8 @@ use rand::SeedableRng;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Borders, Clear, Tabs};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
 use std::collections::BTreeMap;
 use std::io;
@@ -28,6 +29,7 @@ pub mod export;
 pub mod file_ops;
 pub mod font_editor;
 pub mod image_editor;
+pub mod keymap;
 pub mod menu;
 pub mod palette;
 pub mod render_mode;
@@ -134,6 +136,7 @@ pub struct TuiApp {
     pub render_mode: RenderMode,
     dirty: bool,
     last_draw_time: Instant,
+    pub show_keybindings: bool,
 }
 
 impl TuiApp {
@@ -249,6 +252,7 @@ impl TuiApp {
             render_mode,
             dirty: true,
             last_draw_time: Instant::now(),
+            show_keybindings: false,
         }
     }
 
@@ -600,6 +604,44 @@ impl TuiApp {
             self.file_ops_comp.dialog.render(frame, overlay);
         }
 
+        // Keybindings overlay
+        if self.show_keybindings {
+            let area = frame.area();
+            let overlay = Rect {
+                x: area.width / 8,
+                y: area.height / 8,
+                width: area.width * 3 / 4,
+                height: area.height * 3 / 4,
+            };
+            frame.render_widget(Clear, overlay);
+            let block = Block::default()
+                .title(" Keybindings (Esc to close) ")
+                .borders(Borders::ALL)
+                .style(Style::default().bg(self.theme.menu.dropdown_bg).fg(self.theme.menu.fg));
+            let inner = block.inner(overlay);
+            frame.render_widget(block, overlay);
+
+            let mut lines: Vec<Line> = Vec::new();
+            let mut last_scope: Option<keymap::Scope> = None;
+            for binding in keymap::KEYMAP {
+                if last_scope != Some(binding.scope) {
+                    if last_scope.is_some() {
+                        lines.push(Line::from(""));
+                    }
+                    lines.push(Line::from(Span::styled(
+                        format!(" {}", binding.scope.label()),
+                        Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                    )));
+                    last_scope = Some(binding.scope);
+                }
+                lines.push(Line::from(format!(
+                    "  {:<22} {}",
+                    binding.keys, binding.description
+                )));
+            }
+            frame.render_widget(Paragraph::new(lines), inner);
+        }
+
         // Undo history panel overlay
         if self.undo_panel_comp.panel.open {
             frame.render_widget(Clear, frame.area());
@@ -712,6 +754,20 @@ impl TuiApp {
 
         if self.export_comp.dialog.active {
             return;
+        }
+
+        // Font editor overview: glyph grid mouse click
+        if self.mode == AppMode::FontEditor
+            && self.font_editor_comp.editor.view == font_editor::FontEditorView::Overview
+            && mouse.kind == MouseEventKind::Down(MouseButton::Left)
+        {
+            if self
+                .font_editor_comp
+                .editor
+                .handle_mouse_click_overview(mouse.column, mouse.row)
+            {
+                return;
+            }
         }
 
         // Toolbox click: select tool by row
@@ -1195,6 +1251,15 @@ impl TuiApp {
         let code = key.code;
         let modifiers = key.modifiers;
 
+        // Keybindings overlay: Esc closes it, swallow all other keys
+        if self.show_keybindings {
+            if code == KeyCode::Esc {
+                self.show_keybindings = false;
+                self.dirty = true;
+            }
+            return None;
+        }
+
         // File ops dialog active: dispatch all keys to it
         if self.file_ops_comp.dialog.mode != file_ops::FileOpsMode::Idle {
             let prev_mode = self.file_ops_comp.dialog.mode;
@@ -1315,19 +1380,6 @@ impl TuiApp {
                     self.sync_font_char_to_canvas();
                 }
                 return Some(action);
-            }
-            // Re-create key for font editor (it consumes it)
-            let fe_key = key;
-            let area_width = self.canvas_comp.canvas_inner_rect.width;
-            if self
-                .font_editor_comp
-                .editor
-                .handle_key(fe_key.code, fe_key.modifiers, area_width)
-            {
-                if self.font_editor_comp.editor.view != font_editor::FontEditorView::Overview {
-                    self.sync_font_char_to_canvas();
-                }
-                return Some(Action::FontEditorAction);
             }
         }
 
@@ -2036,6 +2088,8 @@ impl TuiApp {
             }
             menu::MenuAction::HelpKeybindings => {
                 self.menu_bar.reset();
+                self.show_keybindings = true;
+                self.dirty = true;
             }
         }
     }

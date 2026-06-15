@@ -194,7 +194,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
 
 > Idiomatic ratatui patterns throughout. Prerequisite: 3.0 bugs fixed.
 
-- [ ] `3.1.1` Audit: map all Widget / StatefulWidget usage vs ratatui best practices
+- [x] `3.1.1` Audit: map all Widget / StatefulWidget usage vs ratatui best practices
   - **Goal:** Read every `impl Widget` and every `frame.render_widget` call in
     `figby-rs/src/tui/`. Document every deviation from the ratatui authoring
     guide:
@@ -208,7 +208,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Output:** `docs/tui-arch-audit.md` with file:line findings and severity.
   - **Difficulty:** Medium
 
-- [ ] `3.1.2` Split `TuiApp` god-struct into focused components
+- [x] `3.1.2` Split `TuiApp` god-struct into focused components
   - **Goal:** `mod.rs:TuiApp` is 2000+ lines with state from every subsystem.
     Extract into composable top-level component structs:
     - `AppState` — mode, theme, render_mode, dirty, fps, git_branch

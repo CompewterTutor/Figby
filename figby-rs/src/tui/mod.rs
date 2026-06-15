@@ -166,9 +166,6 @@ impl TuiApp {
 
         let mut font_editor_comp = FontEditorComponent::new();
         font_editor_comp.editor.theme = theme.clone();
-        if let Ok(font) = crate::font::load_font("standard", "fonts") {
-            font_editor_comp.editor.load_font(font);
-        }
 
         let mut file_ops_comp = FileOpsComponent::new();
         file_ops_comp.dialog.theme = theme.clone();
@@ -704,6 +701,14 @@ impl TuiApp {
             return;
         }
 
+        if self.file_ops_comp.dialog.mode != file_ops::FileOpsMode::Idle {
+            return;
+        }
+
+        if self.export_comp.dialog.active {
+            return;
+        }
+
         // Toolbox click: select tool by row
         let tool_count = Tool::all().len() as u16;
         let toolbox_inner_y = self.toolbox_area.y + 1;
@@ -1196,6 +1201,22 @@ impl TuiApp {
                         return Some(Action::SaveAsRequested);
                     }
                     file_ops::FileOpsMode::Open => {
+                        if self.file_ops_comp.dialog.path_buffer.trim().is_empty() {
+                            return None;
+                        }
+                        let path = self.file_ops_comp.dialog.selected_path();
+                        if !path.exists() {
+                            self.file_ops_comp.dialog.error_message =
+                                format!("File not found: {}", path.display());
+                            self.file_ops_comp.dialog.mode = file_ops::FileOpsMode::Open;
+                            return None;
+                        }
+                        if path.is_dir() {
+                            self.file_ops_comp.dialog.error_message =
+                                "Select a .flf or .tlf file, not a directory".to_string();
+                            self.file_ops_comp.dialog.mode = file_ops::FileOpsMode::Open;
+                            return None;
+                        }
                         self.perform_open();
                         return Some(Action::OpenRequested);
                     }

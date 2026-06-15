@@ -9,7 +9,7 @@ use rand::SeedableRng;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Borders, Tabs};
+use ratatui::widgets::{Block, Borders, Clear, Tabs};
 use ratatui::Frame;
 use std::collections::BTreeMap;
 use std::io;
@@ -327,8 +327,7 @@ impl TuiApp {
             ])
             .split(frame.area());
 
-        self.menu_bar.draw(frame, chunks[0]);
-
+        // Menu rendered at end of pipeline for proper dropdown z-order
         let mode_labels = [
             ("mode_font_editor", "Font Editor"),
             ("mode_image_editor", "Image Editor"),
@@ -572,6 +571,9 @@ impl TuiApp {
         self.status_bar_comp.animation_frame = 0;
         let _ = self.status_bar_comp.draw(frame, chunks[3]);
 
+        // Menu bar (rendered last so dropdown overlays main content when active)
+        self.menu_bar.draw(frame, chunks[0]);
+
         // Export dialog overlay
         if self.export_comp.dialog.active {
             let overlay = Rect {
@@ -580,6 +582,7 @@ impl TuiApp {
                 width: frame.area().width * 2 / 3,
                 height: frame.area().height * 2 / 3,
             };
+            frame.render_widget(Clear, overlay);
             self.export_comp.dialog.render(frame, overlay);
         }
 
@@ -591,11 +594,13 @@ impl TuiApp {
                 width: frame.area().width * 2 / 3,
                 height: frame.area().height * 2 / 3,
             };
+            frame.render_widget(Clear, overlay);
             self.file_ops_comp.dialog.render(frame, overlay);
         }
 
         // Undo history panel overlay
         if self.undo_panel_comp.panel.open {
+            frame.render_widget(Clear, frame.area());
             self.undo_panel_comp
                 .panel
                 .render(frame, frame.area(), self.undo.history_entries());

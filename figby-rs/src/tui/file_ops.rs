@@ -2,7 +2,7 @@ use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use std::path::{Path, PathBuf};
 
@@ -385,6 +385,7 @@ impl FileOpsDialog {
     }
 
     fn render_open(&mut self, frame: &mut Frame, area: Rect) {
+        frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Open Font ")
             .borders(Borders::ALL)
@@ -498,6 +499,7 @@ impl FileOpsDialog {
     }
 
     fn render_save_as(&mut self, frame: &mut Frame, area: Rect) {
+        frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Save Font As ")
             .borders(Borders::ALL)

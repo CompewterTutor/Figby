@@ -2,7 +2,7 @@ use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::output::{
@@ -232,6 +232,7 @@ impl ExportDialog {
             return;
         }
 
+        frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Export ")
             .borders(Borders::ALL)

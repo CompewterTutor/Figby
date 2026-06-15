@@ -4,7 +4,7 @@ use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use super::theme::Theme;
@@ -149,6 +149,7 @@ impl CanvasSettings {
             return;
         }
 
+        frame.render_widget(Clear, area);
         let block = Block::default().title(" Settings ").borders(Borders::ALL);
         let inner = block.inner(area);
         frame.render_widget(block, area);

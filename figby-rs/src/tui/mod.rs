@@ -2,6 +2,7 @@ use crossterm::event::{
     self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent, KeyEventKind,
     KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
 use rand::rngs::StdRng;
 use rand::Rng;
@@ -253,7 +254,7 @@ impl TuiApp {
 
     pub fn run(&mut self) -> io::Result<()> {
         let mut terminal = ratatui::init();
-        execute!(io::stdout(), EnableBracketedPaste)?;
+        execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture)?;
 
         while !self.should_quit {
             self.handle_event()?;
@@ -278,7 +279,11 @@ impl TuiApp {
             }
         }
 
-        execute!(terminal.backend_mut(), DisableBracketedPaste)?;
+        execute!(
+            terminal.backend_mut(),
+            DisableBracketedPaste,
+            DisableMouseCapture
+        )?;
         ratatui::restore();
         Ok(())
     }

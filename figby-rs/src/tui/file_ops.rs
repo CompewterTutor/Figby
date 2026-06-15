@@ -320,7 +320,21 @@ impl FileOpsDialog {
                 true
             }
             KeyCode::Enter => {
-                self.mode = FileOpsMode::Idle;
+                if !self.path_buffer.trim().is_empty() {
+                    let p = std::path::PathBuf::from(self.path_buffer.trim());
+                    if p.is_file() {
+                        self.mode = FileOpsMode::Idle;
+                        return true;
+                    }
+                }
+                if !self.directory_entries.is_empty() {
+                    let entry = &self.directory_entries[self.selected_entry];
+                    let is_font = entry.ends_with(".flf") || entry.ends_with(".tlf");
+                    self.select_entry();
+                    if is_font {
+                        self.mode = FileOpsMode::Idle;
+                    }
+                }
                 true
             }
             KeyCode::Esc => {

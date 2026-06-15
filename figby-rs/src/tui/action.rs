@@ -32,4 +32,5 @@ pub enum Action {
     FontEditorAction,
     ImageEditorAction,
     Menu(MenuAction),
+    RenderModeChanged,
 }

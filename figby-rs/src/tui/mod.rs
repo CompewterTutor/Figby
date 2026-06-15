@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 use crate::config;
 
 pub mod action;
+pub mod render_mode;
 pub mod brush;
 pub mod canvas;
 pub mod component;
@@ -39,6 +40,7 @@ pub mod undo_panel;
 
 pub use action::Action;
 pub use brush::BrushState;
+pub use render_mode::RenderMode;
 pub use component::Component;
 pub use export::ExportMode;
 pub use menu::MenuBar;
@@ -128,6 +130,9 @@ pub struct TuiApp {
     fps: f64,
     git_branch: Option<String>,
     pub theme: theme::Theme,
+    pub render_mode: RenderMode,
+    dirty: bool,
+    last_draw_time: Instant,
 }
 
 impl TuiApp {
@@ -188,6 +193,11 @@ impl TuiApp {
                 }
             });
 
+        let render_mode = match config.tui.render_mode.as_deref() {
+            Some("fast") | Some("Fast") => RenderMode::Fast,
+            _ => RenderMode::Dirty,
+        };
+
         let mut menu_bar = MenuBar::new();
         menu_bar.theme = theme.clone();
         let mut canvas_comp = CanvasComponent::new();
@@ -238,6 +248,9 @@ impl TuiApp {
             fps: 0.0,
             git_branch,
             theme: theme.clone(),
+            render_mode,
+            dirty: true,
+            last_draw_time: Instant::now(),
         }
     }
 
@@ -246,8 +259,26 @@ impl TuiApp {
         execute!(io::stdout(), EnableBracketedPaste)?;
 
         while !self.should_quit {
-            terminal.draw(|f| self.render(f))?;
             self.handle_event()?;
+
+            let now = Instant::now();
+            let needs_redraw = match self.render_mode {
+                RenderMode::Fast => true,
+                RenderMode::Dirty => {
+                    self.dirty
+                        || (self.throbber.is_active()
+                            && now.saturating_duration_since(self.last_draw_time)
+                                >= Duration::from_millis(100))
+                }
+            };
+
+            if needs_redraw {
+                terminal.draw(|f| self.render(f))?;
+                self.dirty = false;
+                self.last_draw_time = now;
+            } else {
+                std::thread::sleep(Duration::from_millis(5));
+            }
         }
 
         execute!(terminal.backend_mut(), DisableBracketedPaste)?;
@@ -272,7 +303,8 @@ impl TuiApp {
                     }
                 }
             }
-            Action::ModeChanged => {}
+            Action::ModeChanged => self.dirty = true,
+            Action::RenderModeChanged => self.dirty = true,
             Action::SaveAsRequested => self.perform_save(),
             Action::OpenRequested => self.perform_open(),
             Action::ExportRequested(_) => self.perform_export(),
@@ -533,6 +565,7 @@ impl TuiApp {
         self.status_bar_comp.mode = self.mode;
         self.status_bar_comp.undo_count = self.undo.history_len();
         self.status_bar_comp.fps = self.fps;
+        self.status_bar_comp.render_mode = self.render_mode.label();
         self.status_bar_comp.git_branch = self.git_branch.clone();
         self.status_bar_comp.clock_str = format_clock();
         self.status_bar_comp.layer_count = 1;
@@ -1086,7 +1119,8 @@ impl TuiApp {
     }
 
     pub fn handle_event(&mut self) -> io::Result<()> {
-        if event::poll(Duration::from_millis(100))? {
+        if event::poll(Duration::from_millis(self.render_mode.poll_ms()))? {
+            self.dirty = true;
             loop {
                 match event::read()? {
                     Event::Key(key) if key.kind == KeyEventKind::Press => {
@@ -1656,6 +1690,13 @@ impl TuiApp {
             };
             self.export_comp.dialog.enter_export(mode);
             return None;
+        }
+
+        // F5: toggle render mode
+        if code == KeyCode::F(5) {
+            self.render_mode = self.render_mode.toggle();
+            self.dirty = true;
+            return Some(Action::RenderModeChanged);
         }
 
         // Ctrl+Tab / Ctrl+Shift+Tab: cycle modes

@@ -21,6 +21,7 @@ pub struct TuiSection {
     pub theme: Option<String>,
     pub recent_files_max: Option<usize>,
     pub undo_limit: Option<usize>,
+    pub render_mode: Option<String>,
     #[serde(default)]
     pub brush: BrushSection,
 }

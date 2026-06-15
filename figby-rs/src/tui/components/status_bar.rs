@@ -24,6 +24,7 @@ pub struct StatusBarComponent {
     pub throbber_text: String,
     pub undo_count: usize,
     pub fps: f64,
+    pub render_mode: &'static str,
     pub git_branch: Option<String>,
     pub clock_str: String,
     pub layer_count: u8,
@@ -45,6 +46,7 @@ impl StatusBarComponent {
             throbber_text: String::new(),
             undo_count: 0,
             fps: 0.0,
+            render_mode: "",
             git_branch: None,
             clock_str: String::new(),
             layer_count: 1,
@@ -113,6 +115,11 @@ impl Component for StatusBarComponent {
         };
 
         let fps_str = format!("FPS:{:.0}", self.fps);
+        let render_str = if self.render_mode.is_empty() {
+            String::new()
+        } else {
+            format!(" Rnd:{}", self.render_mode)
+        };
         let branch_str = match &self.git_branch {
             Some(b) => format!(" ⎇ {}", b),
             None => String::new(),
@@ -129,8 +136,9 @@ impl Component for StatusBarComponent {
         let tool_label = format!(" {}{} ", tool_icon, self.tool_name);
         let center_str = format!(" {} {}{}", unsaved_dot, filename, undo_str);
         let right_str = format!(
-            "{} │ L:{} │ F:{} │ {}{}{}",
+            "{}{} │ L:{} │ F:{} │ {}{}{}",
             fps_str,
+            render_str,
             self.layer_count,
             self.animation_frame,
             self.clock_str,

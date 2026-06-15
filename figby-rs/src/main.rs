@@ -344,6 +344,11 @@ struct CliArgs {
     flip_y: bool,
     #[arg(long = "tui", help = "Launch interactive TUI editor")]
     flag_tui: bool,
+    #[arg(
+        long = "tui-render-mode",
+        help = "TUI render mode: fast (always redraw) or dirty (only on change) [default: dirty]"
+    )]
+    tui_render_mode: Option<String>,
     #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
@@ -1051,6 +1056,13 @@ fn main() {
 
     if args.flag_tui {
         let mut app = figby::tui::TuiApp::new();
+        if let Some(mode) = args.tui_render_mode.as_deref() {
+            match mode {
+                "fast" | "Fast" => app.render_mode = figby::tui::RenderMode::Fast,
+                "dirty" | "Dirty" => app.render_mode = figby::tui::RenderMode::Dirty,
+                other => eprintln!("Unknown render mode '{other}', using default"),
+            }
+        }
         if let Err(e) = app.run() {
             eprintln!("TUI error: {e}");
             process::exit(1);

@@ -473,7 +473,7 @@ impl FontEditor {
         frame.render_widget(grid, grid_area);
     }
 
-    fn render_smush_editor(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_smush_editor(&self, frame: &mut Frame, area: Rect) {
         let Some(font) = self.font.as_ref() else {
             return;
         };
@@ -532,7 +532,7 @@ impl FontEditor {
         frame.render_widget(paragraph, area);
     }
 
-    fn render_transform_editor(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_transform_editor(&self, frame: &mut Frame, area: Rect) {
         let _ = &self.font;
         let mut lines: Vec<Line> = Vec::new();
 
@@ -625,7 +625,7 @@ impl FontEditor {
         frame.render_widget(paragraph, area);
     }
 
-    fn render_header_editor(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_header_editor(&self, frame: &mut Frame, area: Rect) {
         let Some(font) = self.font.as_ref() else {
             return;
         };

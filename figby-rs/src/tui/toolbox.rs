@@ -1,7 +1,8 @@
 use crossterm::event::KeyCode;
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState};
+use ratatui::widgets::{Block, Borders, List, ListItem, ListState, StatefulWidget, Widget};
 use ratatui::Frame;
 
 use super::theme::Theme;
@@ -145,13 +146,16 @@ impl Toolbox {
     }
 
     pub fn render(&self, frame: &mut Frame<'_>, area: Rect) {
+        frame.render_widget(self, area);
+    }
+}
+
+impl Widget for &Toolbox {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let tools = Tool::all();
         let items: Vec<ListItem<'_>> = tools
             .iter()
-            .map(|t| {
-                let name = t.display_name();
-                ListItem::new(format!(" {}", name))
-            })
+            .map(|t| ListItem::new(format!(" {}", t.display_name())))
             .collect();
 
         let selected_idx = tools.iter().position(|t| *t == self.selected).unwrap_or(0);
@@ -166,8 +170,11 @@ impl Toolbox {
 
         let mut state = ListState::default();
         state.select(Some(selected_idx));
-        frame.render_stateful_widget(list, area, &mut state);
+        StatefulWidget::render(list, area, buf, &mut state);
     }
+}
+
+impl Toolbox {
 }
 
 impl Default for Toolbox {

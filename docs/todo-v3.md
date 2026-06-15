@@ -220,7 +220,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Depends:** `3.1.1`
   - **Difficulty:** High
 
-- [ ] `3.1.3` Convert all widgets to `Widget for &T` (non-consuming)
+- [x] `3.1.3` Convert all widgets to `Widget for &T` (non-consuming)
   - **Goal:** Widgets currently consumed or behind `&mut self` in render should
     implement `Widget for &WidgetType`. Stateful widgets should split into
     `Widget` (render, borrows &State) and a `*State` struct passed via

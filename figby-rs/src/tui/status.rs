@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
 use crossterm::event::KeyCode;
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 use ratatui::Frame;
 
 use super::theme::Theme;
@@ -145,14 +146,20 @@ impl CanvasSettings {
     }
 
     pub fn render(&self, frame: &mut Frame<'_>, area: Rect) {
+        frame.render_widget(self, area);
+    }
+}
+
+impl Widget for &CanvasSettings {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         if !self.settings_open {
             return;
         }
 
-        frame.render_widget(Clear, area);
+        Widget::render(Clear, area, buf);
         let block = Block::default().title(" Settings ").borders(Borders::ALL);
         let inner = block.inner(area);
-        frame.render_widget(block, area);
+        Widget::render(block, area, buf);
 
         if inner.width < 10 || inner.height < 4 {
             return;
@@ -195,7 +202,7 @@ impl CanvasSettings {
         }
 
         let paragraph = Paragraph::new(lines);
-        frame.render_widget(paragraph, inner);
+        Widget::render(paragraph, inner, buf);
     }
 }
 

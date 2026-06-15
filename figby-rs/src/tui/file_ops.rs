@@ -390,7 +390,7 @@ impl FileOpsDialog {
         }
     }
 
-    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect) {
         match self.mode {
             FileOpsMode::SaveAs => self.render_save_as(frame, area),
             FileOpsMode::Open => self.render_open(frame, area),
@@ -398,7 +398,7 @@ impl FileOpsDialog {
         }
     }
 
-    fn render_open(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_open(&self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Open Font ")
@@ -512,7 +512,7 @@ impl FileOpsDialog {
         frame.render_widget(paragraph, inner);
     }
 
-    fn render_save_as(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_save_as(&self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Save Font As ")

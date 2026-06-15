@@ -227,7 +227,7 @@ impl ExportDialog {
         Ok(())
     }
 
-    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect) {
         if !self.active {
             return;
         }

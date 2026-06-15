@@ -1,8 +1,9 @@
 use crossterm::event::KeyCode;
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use ratatui::Frame;
 
 use super::canvas::CanvasCell;
@@ -238,9 +239,15 @@ impl Palette {
     }
 
     pub fn render(&self, frame: &mut Frame<'_>, area: Rect) {
+        frame.render_widget(self, area);
+    }
+}
+
+impl Widget for &Palette {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::default().title(" Palette ").borders(Borders::ALL);
         let inner = block.inner(area);
-        frame.render_widget(block, area);
+        Widget::render(block, area, buf);
 
         if inner.width < 4 || inner.height < 2 {
             return;
@@ -346,7 +353,7 @@ impl Palette {
         }
 
         let paragraph = Paragraph::new(lines);
-        frame.render_widget(paragraph, inner);
+        Widget::render(paragraph, inner, buf);
     }
 }
 

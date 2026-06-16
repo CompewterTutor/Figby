@@ -327,7 +327,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
     which was a hotfix. Now uses `StatefulWidget` render-pass rect recording.
     Single click → move `selected_index`. Double-click → open `CharEditor`.
     Mouse wheel → scroll grid.
-  - **Touches:** `figby-rs/src/tui/font_editor.rs`
+  - **Touches:** `figby-rs/src/tui/font_editor.rs`, `figby-rs/src/tui/mod.rs`
   - **Depends:** `3.1.3`, `3.1.7`
   - **Difficulty:** Medium
 

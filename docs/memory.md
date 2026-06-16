@@ -1300,6 +1300,14 @@ toggle (3.2.2), font preview strip in overview (3.2.3).
 All 3 subtasks (3.2.1–3.2.3) implemented, tested, merged. Phase 3.3
 (Major Release) is next.
 
+### 3.2.5 — Phase merge: release/3.2 → main
+
+Merged Phase 3.2 (v4) work into default branch (master). Phase 3.2 complete:
+AnimationTimeline widget (3.2.0), frame management (3.2.1), keyframing (3.2.2),
+tweening (3.2.3), GIF export (3.2.4). Tasks 3.2.2-3.2.4 were no-ops due to ID
+collision with v3 tasks (already completed in v3 scope). `master` and
+`release/3.2` were already at the same commit — merge was a no-op.
+
 ### 3.2.1 (v4) — Frame management
 
 Frame management operations for `AnimationTimeline`: `add_frame`,

@@ -8,7 +8,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 3.0 — Manual Testing & Audit
 
-- [ ] `3.0.1` Full manual test of all v2.x features
+- [x] `3.0.1` Full manual test of all v2.x features
   - **Goal:** Test every feature from v2.0 through v2.9 manually. Identify
     bugs, UX issues, missing polish. Log findings for 3.x triage.
   - **Touches:** N/A (testing pass)
@@ -16,7 +16,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Manual verification.
   - **Difficulty:** Medium
 
-- [ ] `3.0.2` Triage issues into 3.x tasks
+- [x] `3.0.2` Triage issues into 3.x tasks
   - **Goal:** Take findings from 3.0.1 and create/amend tasks in the
     appropriate 3.x phase. Prioritize: crashes > data loss > visual bugs
     > UX polish.
@@ -25,7 +25,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** N/A (doc-only).
   - **Difficulty:** Low
 
-- [ ] `3.0.3` Phase merge: release/3.0 → main
+- [x] `3.0.3` Phase merge: release/3.0 → main
   - **Difficulty:** Low
 
 ---

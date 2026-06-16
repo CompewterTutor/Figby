@@ -322,7 +322,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
 
 > Depends on 3.1. These require the refactored widget/event system.
 
-- [ ] `3.2.1` Glyph grid: mouse click select + double-click open
+- [x] `3.2.1` Glyph grid: mouse click select + double-click open
   - **Goal:** Full mouse support for the glyph overview grid. Supersedes `3.0.3`
     which was a hotfix. Now uses `StatefulWidget` render-pass rect recording.
     Single click → move `selected_index`. Double-click → open `CharEditor`.

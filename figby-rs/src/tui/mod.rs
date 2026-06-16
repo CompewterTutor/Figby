@@ -981,17 +981,39 @@ impl TuiApp {
             return;
         }
 
-        // Font editor overview: glyph grid mouse click
+        // Font editor overview: glyph grid mouse click + scroll
         if self.mode == AppMode::FontEditor
             && self.editor.font_editor_comp.editor.view == font_editor::FontEditorView::Overview
-            && mouse.kind == MouseEventKind::Down(MouseButton::Left)
-            && self
-                .editor
-                .font_editor_comp
-                .editor
-                .handle_mouse_click_overview(mouse.column, mouse.row)
         {
-            return;
+            match mouse.kind {
+                MouseEventKind::Down(MouseButton::Left)
+                    if self
+                        .editor
+                        .font_editor_comp
+                        .editor
+                        .handle_mouse_click_overview(mouse.column, mouse.row) =>
+                {
+                    self.dirty = true;
+                    return;
+                }
+                MouseEventKind::ScrollDown => {
+                    self.editor
+                        .font_editor_comp
+                        .editor
+                        .handle_mouse_scroll_overview(1, self.frame_layout.canvas.width);
+                    self.dirty = true;
+                    return;
+                }
+                MouseEventKind::ScrollUp => {
+                    self.editor
+                        .font_editor_comp
+                        .editor
+                        .handle_mouse_scroll_overview(-1, self.frame_layout.canvas.width);
+                    self.dirty = true;
+                    return;
+                }
+                _ => {}
+            }
         }
 
         // Toolbox click: select tool by row

@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.5.3] - 2026-06-16
+
+### Added
+- Font editor overview: mouse wheel scroll through glyph grid (`handle_mouse_scroll_overview`)
+
 ## [2.5.2] - 2026-06-16
 
 ### Changed

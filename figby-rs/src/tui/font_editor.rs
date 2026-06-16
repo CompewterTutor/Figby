@@ -1439,6 +1439,24 @@ impl FontEditor {
         true
     }
 
+    /// Scroll the glyph grid by `delta` rows (positive = down, negative = up).
+    /// `area_width` is the pixel width of the grid area to compute column count.
+    pub fn handle_mouse_scroll_overview(&mut self, delta: i32, area_width: u16) {
+        if self.view != FontEditorView::Overview {
+            return;
+        }
+        let filtered = self.filtered_codes();
+        if filtered.is_empty() {
+            return;
+        }
+        let cols = self.compute_cols(area_width);
+        let total_rows = filtered.len().div_ceil(cols);
+        let max_scroll = total_rows.saturating_sub(1) as u16;
+
+        let new_scroll = self.grid_scroll as i32 + delta;
+        self.grid_scroll = new_scroll.max(0).min(max_scroll as i32) as u16;
+    }
+
     fn handle_key_code_input(&mut self, code: KeyCode) -> bool {
         match code {
             KeyCode::Char(c)

@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.1] - 2026-06-16
+
+### Changed
+- `MenuBar` refactored to `StatefulWidget for &MenuBar` with separate `MenuBarState`
+- All mutable menu state (active_menu, focused_item, header/item rects, pending action)
+  moved to `MenuBarState`; `MenuBar` retains only static config (menus, theme)
+- Key/mouse handlers now take `&mut MenuBarState` instead of `&mut self`
+- Render uses `frame.render_stateful_widget` for proper ratatui StatefulWidget pattern
+
 ## [2.5.0] - 2026-06-15
 
 ### Added

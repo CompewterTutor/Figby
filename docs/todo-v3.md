@@ -285,7 +285,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Touches:** `figby-rs/src/tui/mod.rs:1319-1331`
   - **Difficulty:** Low
 
-- [ ] `3.1.7` Custom menu widget with full mouse support (supersedes 3.0.1 shim)
+- [x] `3.1.7` Custom menu widget with full mouse support (supersedes 3.0.1 shim)
   - **Goal:** After the architecture refactor, implement `MenuBar` as a proper
     `StatefulWidget` using `MenuBarState`. State holds: active menu index
     (None = closed), focused item index within the open menu. Render pass

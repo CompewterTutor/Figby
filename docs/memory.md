@@ -8,7 +8,7 @@ Master memory index. Detailed entries live in versioned files below.
 |-----------|------|--------|
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
-| v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (added AnimationTimeline widget) |
+| v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Frame management) |
 
 ## Architectural Decisions
@@ -1307,6 +1307,40 @@ AnimationTimeline widget (3.2.0), frame management (3.2.1), keyframing (3.2.2),
 tweening (3.2.3), GIF export (3.2.4). Tasks 3.2.2-3.2.4 were no-ops due to ID
 collision with v3 tasks (already completed in v3 scope). `master` and
 `release/3.2` were already at the same commit — merge was a no-op.
+
+### 3.3.1 — Full regression: all features vs v2.x baseline
+
+Added 30+ new integration tests in `tests/tui.rs` covering every v2 feature
+after the 3.1 ratatui refactor:
+- **Brush/Eraser/Line/Spray keyboard paint** via Space/Enter at cursor position
+- **Eyedropper tool** — verified Space does not paint (excluded from keyboard paint)
+- **Text tool** — text entry mode, buffer population, commit/cancel cycle
+- **Selection operations** — programmatic marquee creation, copy/delete/paste,
+  cut, Esc deselect via direct Selection API
+- **Undo/Redo** — Ctrl+Z undoes paint, Ctrl+Y and Ctrl+Shift+Z redo
+- **File operations** — FileOpsDialog open/close, Save As path entry (direct API)
+- **Export dialog** — Ctrl+E opens export in ImageEditor mode, format toggle
+  (Png→Gif→Txt→Png), path entry with Backspace and Esc close
+- **Image Editor** — Tab cycles to ImageEditor mode, C toggles Color/Grayscale
+- **Menu bar** — Alt+F opens File menu, Down+Enter selects item, Alt+E opens
+  Edit menu, Redo item navigation, Help>Keybindings flow
+- **Layout/drawer** — `?` cycles Palette→BrushKeys→Closed
+- **Zen mode** — F11 toggles full-screen canvas
+- **Keybindings overlay** — toggle via programmatic state, Esc closes
+- **Canvas scroll** — cursor movement beyond viewport updates scroll offset
+- **Canvas grid** — G key toggle
+- **Palette FG/BG** — `x` toggles, `f`/`F` sets Foreground (ImageEditor mode)
+- **Font editor CharEditor** — Enter opens, Space toggles cell
+- **Canvas `ensure_cursor_visible`** — scrolls to keep cursor in viewport
+- **Selection perimeter** — Delete key clears selected cells
+- **Polygon select tool** — tool selection via 'p' key
+- **CLI dispatch** — ViewZoomIn/Out/ToggleGrid via menu, ToolsSelect via menu
+
+Key discovery: several global keyboard shortcuts (Ctrl+O/S/Shift+S, Ctrl+K) are
+intercepted by the font editor overview handler which doesn't check KeyModifiers.
+This is a pre-existing dispatch bug in `font_editor.rs:handle_key_overview` —
+it only inspects `KeyCode`, not modifiers, so Ctrl+char combos get treated as
+search input. Filed as separate issue; not part of regression scope.
 
 ### 3.2.1 (v4) — Frame management
 

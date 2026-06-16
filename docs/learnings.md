@@ -838,3 +838,29 @@ Three bugs found in phase merge review:
   uses `brush_char` synced from palette in `mod.rs` key dispatch before font_editor handler runs.
 - `CanvasWidget::render` draws the `GlyphCursor` overlay (blinking `█`) when `glyph_cursor` is
   `Some`, or falls back to the normal reversed-style cursor highlight.
+
+## 3.3.1 — Full regression testing
+
+- **Font editor overview intercepts Ctrl+* combos.** `handle_key_overview` only inspects
+  `KeyCode`, discarding `KeyModifiers`. Ctrl+O/S/E/K treated as search input.
+  `modifiers` param in `FontEditor::handle_key` not forwarded to overview handler.
+- **Toolbox subverts clipboard shortcuts.** Toolbox handles `c`/`v`/`x` for tool
+  selection, so Ctrl+C/X/V for clipboard never reaches selection handler in
+  FontEditor mode. Must use AsciiPreview mode or direct API.
+- **`MenuAction::drain_actions()` consumed inside `handle_key_event`.**
+  Cannot drain again from state; must capture `handle_key_event` return value.
+- **Text tool commit requires font loading.** `commit_block` calls
+  `render_rows_from_buffer()` which needs a loaded font. If font_dir is wrong,
+  commit silently fails leaving `entering_text = true`.
+- **`ExportDialog::handle_key('t')` toggles format** before the generic char arm.
+  Use paths without 't' for path entry tests.
+- **`Selection::marquee`** creates rectangle selection from 2 points.
+  For integration tests, create programmatically then set `app.editor.selection`.
+
+## 3.3.2 — v3.0.0 RC cut
+
+- Crate version and FIGlet-compatible version are separate concerns.
+  `Cargo.toml version` → semver (crate release). `VERSION_INT`/`VERSION`
+  in `main.rs` → FIGlet protocol compatibility (stay at 2.2.5).
+- RC tags should follow existing pattern: `rc/X.Y.Z-rc.N` branch + annotated
+  `vX.Y.Z-rc.N` tag. The `v` prefix is consistent with earlier version tags.

@@ -161,7 +161,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Bake 10 frames, verify each is independent.
   - **Difficulty:** Medium
 
-- [ ] `3.3.4` Phase merge: release/3.3 → main
+- [ ] `3.3.4` Phase merge: release/3.3 → master
   - **Difficulty:** Low
 
 ---

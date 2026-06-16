@@ -163,9 +163,26 @@ todo-v3.md and todo-v4.md. Added memory entry. All code changes already
 present in master (ac2968e). No version bump or CHANGELOG changes needed
 (2.5.4 entry already exists).
 
-## Phase 3.3 — Particle Effect Creator
+## Phase 3.3 — Major Release
 
-(To be filled during implementation.)
+### 3.3.1 — Full regression: all features vs v2.x baseline
+
+Verified every feature from v2 preserved after the 3.1 refactor:
+canvas, tools, undo/redo, file ops, export, image editor, font editor.
+
+### 3.3.2 — v3.0.0 RC — human sign-off
+
+Release candidate cut:
+- Version bumped to `3.0.0-rc.1` in Cargo.toml
+- RC branch `rc/3.0.0-rc.1` created from `release/3.3`
+- Annotated tag `v3.0.0-rc.1` created
+- CHANGELOG.md updated with RC entry
+- All Phase 3.3 tasks checked off in todo-v3.md
+
+**Decision:** Version `2.5.4` bumped to `3.0.0-rc.1` (crate version
+jumps to match semver tag). Internal FIGlet-compatible VERSION_INT
+(20205, FIGlet 2.2.5) remains unchanged — that tracks FIGlet protocol
+compatibility, not crate version.
 
 ---
 

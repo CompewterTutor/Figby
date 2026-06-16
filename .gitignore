@@ -28,3 +28,9 @@ __pycache__/
 # Tests
 tests.log
 figlet
+
+# Font conversion pipeline (local artifacts, not repo content)
+assets/fonts/to-convert/
+assets/fonts/converted/
+figby-fonts/
+lixdu-18.flf

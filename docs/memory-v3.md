@@ -4,6 +4,19 @@ Phase-by-phase implementation log for the v3 release.
 
 ## Phase 3.0 — Manual Testing & Audit
 
+### 3.0.1 — Fix menu mouse: can't select dropdown items
+
+Replaced `tui-menu` v0.3.1 dependency with custom `MenuBar` widget implementing
+`StatefulWidget for &MenuBar` with separate `MenuBarState`. `MenuBar` owns its
+dropdown render pass and records header/item screen rects during draw for hit
+testing. Mouse dispatch:
+- **Header click**: open dropdown only (no `select()`)
+- **Dropdown item click**: compute index from recorded rects, queue action
+- **Click outside**: close menu
+- **Up click**: no-op (select happens on Down for snappier feel)
+
+Removed `tui-menu` from `Cargo.toml` dependencies.
+
 ### Bugfix: `--create-font` produces invisible output
 
 Three bugs fixed in `figby-rs/src/font_gen.rs` and `figby-rs/src/font.rs`:

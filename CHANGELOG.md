@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.2] - 2026-06-16
+
+### Changed
+- `keymap.rs` now owns a `GLOBAL_DISPATCH` table mapping `(KeyModifiers, KeyCode)` to
+  `GlobalAction` variants; `lookup_global()` does exact-match lookup
+- `TuiApp::handle_key_event` global if-chain replaced with `dispatch_global()` match arm;
+  eliminates ~70 lines of repetitive modifier/key-code guards
+- Undo/redo and undo-panel toggle also routed through dispatch table (early global pass)
+
 ## [2.5.1] - 2026-06-16
 
 ### Changed

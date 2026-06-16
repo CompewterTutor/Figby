@@ -1486,41 +1486,16 @@ impl TuiApp {
             return None;
         }
 
-        // Undo/redo: Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z
-        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('z') {
-            let empty = canvas::CanvasBuffer::new(1, 1);
-            if modifiers.contains(KeyModifiers::SHIFT) {
-                let cur = std::mem::replace(&mut self.editor.canvas_comp.canvas.buffer, empty);
-                if let Some((buf, _)) = self.editor.undo.redo(cur) {
-                    self.editor.canvas_comp.canvas.buffer = buf;
-                    self.editor.unsaved = true;
+        // Global key dispatch (early global actions before modal/mode checks)
+        if let Some(action) = keymap::lookup_global(code, modifiers) {
+            match action {
+                keymap::GlobalAction::Undo
+                | keymap::GlobalAction::Redo
+                | keymap::GlobalAction::ToggleUndoPanel => {
+                    return self.dispatch_global(action);
                 }
-            } else {
-                let cur = std::mem::replace(&mut self.editor.canvas_comp.canvas.buffer, empty);
-                if let Some((buf, _)) = self.editor.undo.undo(cur) {
-                    self.editor.canvas_comp.canvas.buffer = buf;
-                    self.editor.unsaved = true;
-                }
+                _ => {}
             }
-            return Some(AppEvent::Undo);
-        }
-        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('y') {
-            let empty = canvas::CanvasBuffer::new(1, 1);
-            let cur = std::mem::replace(&mut self.editor.canvas_comp.canvas.buffer, empty);
-            if let Some((buf, _)) = self.editor.undo.redo(cur) {
-                self.editor.canvas_comp.canvas.buffer = buf;
-                self.editor.unsaved = true;
-            }
-            return Some(AppEvent::Redo);
-        }
-
-        // Ctrl+Shift+H: toggle undo history panel
-        if modifiers.contains(KeyModifiers::CONTROL)
-            && modifiers.contains(KeyModifiers::SHIFT)
-            && code == KeyCode::Char('h')
-        {
-            self.dialogs.undo_panel_comp.panel.toggle();
-            return Some(AppEvent::UndoPanelToggled);
         }
 
         if self.dialogs.settings.settings_open {
@@ -1922,91 +1897,94 @@ impl TuiApp {
             return None;
         }
 
-        // Ctrl+O: Open font
-        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('o') {
-            self.start_open();
-            return None;
+        // Global dispatch: file ops, view toggles, mode cycling, quit
+        if let Some(action) = keymap::lookup_global(code, modifiers) {
+            return self.dispatch_global(action);
         }
 
-        // Ctrl+S: Save (or Save As if no path)
-        if modifiers.contains(KeyModifiers::CONTROL)
-            && !modifiers.contains(KeyModifiers::SHIFT)
-            && code == KeyCode::Char('s')
-        {
-            self.start_save();
-            return None;
-        }
+        None
+    }
 
-        // Ctrl+Shift+S: always Save As
-        if modifiers.contains(KeyModifiers::CONTROL)
-            && modifiers.contains(KeyModifiers::SHIFT)
-            && code == KeyCode::Char('s')
-        {
-            self.start_save_as();
-            return None;
-        }
-
-        // Ctrl+E: Open export dialog
-        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('e') {
-            let mode = match self.mode {
-                AppMode::FontEditor => export::ExportMode::Txt,
-                _ => export::ExportMode::Png,
-            };
-            self.dialogs.export_comp.dialog.enter_export(mode);
-            self.dirty = true;
-            return None;
-        }
-
-        // F5: toggle render mode
-        if code == KeyCode::F(5) {
-            self.render_mode = self.render_mode.toggle();
-            self.dirty = true;
-            return Some(AppEvent::RenderModeChanged);
-        }
-
-        // F11: toggle zen mode
-        if code == KeyCode::F(11) {
-            self.zen_mode = !self.zen_mode;
-            self.dirty = true;
-            return None;
-        }
-
-        // ?: cycle right drawer (palette → brush keys → closed → …)
-        if code == KeyCode::Char('?') && !modifiers.contains(KeyModifiers::CONTROL) {
-            self.right_drawer = self.right_drawer.cycle();
-            self.dirty = true;
-            return None;
-        }
-
-        // Ctrl+K: toggle full keybindings overlay
-        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('k') {
-            self.show_keybindings = !self.show_keybindings;
-            self.dirty = true;
-            return None;
-        }
-
-        // Tab / Shift+Tab / Ctrl+Tab / Ctrl+Shift+Tab: cycle modes
-        if code == KeyCode::Tab {
-            let new_mode = if modifiers.contains(KeyModifiers::SHIFT) {
-                self.mode.prev()
-            } else {
-                self.mode.next()
-            };
-            self.mode = new_mode;
-            self.editor.undo.clear();
-            return Some(AppEvent::ModeChanged);
-        }
-
-        match code {
-            KeyCode::Char('q') if !modifiers.contains(KeyModifiers::CONTROL) => {
+    fn dispatch_global(&mut self, action: keymap::GlobalAction) -> Option<AppEvent> {
+        use keymap::GlobalAction as GA;
+        match action {
+            GA::FileOpen => {
+                self.start_open();
+                None
+            }
+            GA::FileSave => {
+                self.start_save();
+                None
+            }
+            GA::FileSaveAs => {
+                self.start_save_as();
+                None
+            }
+            GA::Export => {
+                let mode = match self.mode {
+                    AppMode::FontEditor => export::ExportMode::Txt,
+                    _ => export::ExportMode::Png,
+                };
+                self.dialogs.export_comp.dialog.enter_export(mode);
+                self.dirty = true;
+                None
+            }
+            GA::Undo => {
+                let empty = canvas::CanvasBuffer::new(1, 1);
+                let cur = std::mem::replace(&mut self.editor.canvas_comp.canvas.buffer, empty);
+                if let Some((buf, _)) = self.editor.undo.undo(cur) {
+                    self.editor.canvas_comp.canvas.buffer = buf;
+                    self.editor.unsaved = true;
+                }
+                Some(AppEvent::Undo)
+            }
+            GA::Redo => {
+                let empty = canvas::CanvasBuffer::new(1, 1);
+                let cur = std::mem::replace(&mut self.editor.canvas_comp.canvas.buffer, empty);
+                if let Some((buf, _)) = self.editor.undo.redo(cur) {
+                    self.editor.canvas_comp.canvas.buffer = buf;
+                    self.editor.unsaved = true;
+                }
+                Some(AppEvent::Redo)
+            }
+            GA::ToggleUndoPanel => {
+                self.dialogs.undo_panel_comp.panel.toggle();
+                Some(AppEvent::UndoPanelToggled)
+            }
+            GA::ToggleRenderMode => {
+                self.render_mode = self.render_mode.toggle();
+                self.dirty = true;
+                Some(AppEvent::RenderModeChanged)
+            }
+            GA::ToggleZenMode => {
+                self.zen_mode = !self.zen_mode;
+                self.dirty = true;
+                None
+            }
+            GA::CycleDrawer => {
+                self.right_drawer = self.right_drawer.cycle();
+                self.dirty = true;
+                None
+            }
+            GA::ToggleKeybindings => {
+                self.show_keybindings = !self.show_keybindings;
+                self.dirty = true;
+                None
+            }
+            GA::NextMode => {
+                self.mode = self.mode.next();
+                self.editor.undo.clear();
+                Some(AppEvent::ModeChanged)
+            }
+            GA::PrevMode => {
+                self.mode = self.mode.prev();
+                self.editor.undo.clear();
+                Some(AppEvent::ModeChanged)
+            }
+            GA::Quit => {
                 self.should_quit = true;
                 Some(AppEvent::Quit)
             }
-            KeyCode::Esc => {
-                self.should_quit = true;
-                Some(AppEvent::Quit)
-            }
-            _ => None,
         }
     }
 

@@ -1,3 +1,148 @@
+use crossterm::event::{KeyCode, KeyModifiers};
+
+/// Machine-dispatchable global actions — one-to-one with entries in [`GLOBAL_DISPATCH`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GlobalAction {
+    FileOpen,
+    FileSave,
+    FileSaveAs,
+    Export,
+    Undo,
+    Redo,
+    ToggleUndoPanel,
+    ToggleRenderMode,
+    ToggleZenMode,
+    CycleDrawer,
+    ToggleKeybindings,
+    NextMode,
+    PrevMode,
+    Quit,
+}
+
+pub struct KeyDispatch {
+    pub modifiers: KeyModifiers,
+    pub key_code: KeyCode,
+    pub action: GlobalAction,
+}
+
+pub static GLOBAL_DISPATCH: &[KeyDispatch] = &[
+    // File operations
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('o'),
+        action: GlobalAction::FileOpen,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('s'),
+        action: GlobalAction::FileSave,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        key_code: KeyCode::Char('s'),
+        action: GlobalAction::FileSaveAs,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('e'),
+        action: GlobalAction::Export,
+    },
+    // Undo / redo
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('z'),
+        action: GlobalAction::Undo,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        key_code: KeyCode::Char('z'),
+        action: GlobalAction::Redo,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('y'),
+        action: GlobalAction::Redo,
+    },
+    // Panels
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        key_code: KeyCode::Char('h'),
+        action: GlobalAction::ToggleUndoPanel,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('k'),
+        action: GlobalAction::ToggleKeybindings,
+    },
+    // View toggles
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::F(5),
+        action: GlobalAction::ToggleRenderMode,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::F(11),
+        action: GlobalAction::ToggleZenMode,
+    },
+    // '?' may arrive with NONE or SHIFT depending on terminal
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::Char('?'),
+        action: GlobalAction::CycleDrawer,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::SHIFT,
+        key_code: KeyCode::Char('?'),
+        action: GlobalAction::CycleDrawer,
+    },
+    // Mode cycling
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::Tab,
+        action: GlobalAction::NextMode,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::SHIFT,
+        key_code: KeyCode::Tab,
+        action: GlobalAction::PrevMode,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Tab,
+        action: GlobalAction::NextMode,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL.union(KeyModifiers::SHIFT),
+        key_code: KeyCode::Tab,
+        action: GlobalAction::PrevMode,
+    },
+    // Quit
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::Char('q'),
+        action: GlobalAction::Quit,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('q'),
+        action: GlobalAction::Quit,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::Esc,
+        action: GlobalAction::Quit,
+    },
+];
+
+/// Look up a global action by exact (modifiers, key_code) match.
+pub fn lookup_global(code: KeyCode, modifiers: KeyModifiers) -> Option<GlobalAction> {
+    GLOBAL_DISPATCH
+        .iter()
+        .find(|d| d.key_code == code && d.modifiers == modifiers)
+        .map(|d| d.action)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
     Global,

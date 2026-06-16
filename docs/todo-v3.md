@@ -304,7 +304,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Depends:** `3.1.3`, `3.1.5`
   - **Difficulty:** Medium
 
-- [ ] `3.1.8` Keymap-driven dispatch (uses 3.0.4 table)
+- [x] `3.1.8` Keymap-driven dispatch (uses 3.0.4 table)
   - **Goal:** Wire `KEYMAP` from `3.0.4` as the actual dispatch table.
     `TuiApp::handle_key_event` looks up `(scope, key)` in `KEYMAP` and calls
     the corresponding handler fn. Eliminates the chain of `if modifiers ==

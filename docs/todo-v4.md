@@ -89,7 +89,7 @@ with theming, modern status bar, and component architecture.
     Verify playhead position updates.
   - **Difficulty:** Medium
 
-- [ ] `3.2.1` Frame management
+- [x] `3.2.1` Frame management
   - **Goal:** Timeline panel with frame thumbnails, add/delete/duplicate/
     reorder frames using `AnimationTimeline` widget. Each frame stores
     full layer state. Onion skinning (semi-transparent overlay of

@@ -856,3 +856,11 @@ Three bugs found in phase merge review:
   Use paths without 't' for path entry tests.
 - **`Selection::marquee`** creates rectangle selection from 2 points.
   For integration tests, create programmatically then set `app.editor.selection`.
+
+## 3.3.2 — v3.0.0 RC cut
+
+- Crate version and FIGlet-compatible version are separate concerns.
+  `Cargo.toml version` → semver (crate release). `VERSION_INT`/`VERSION`
+  in `main.rs` → FIGlet protocol compatibility (stay at 2.2.5).
+- RC tags should follow existing pattern: `rc/X.Y.Z-rc.N` branch + annotated
+  `vX.Y.Z-rc.N` tag. The `v` prefix is consistent with earlier version tags.

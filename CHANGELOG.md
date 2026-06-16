@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.0.0-rc.1] - 2026-06-16
+### Added
+- v3.0.0 release candidate cut. RC branch `rc/3.0.0-rc.1`, annotated tag
+  `v3.0.0-rc.1`. Full Phase 3.3 regression complete.
+
 ## [2.5.4] - 2026-06-16
 ### Changed
 - Phase merge: release/3.2 → master. Phase 3.2 complete: glyph grid mouse

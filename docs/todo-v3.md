@@ -313,7 +313,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Depends:** `3.1.2`, `3.0.4`
   - **Difficulty:** Medium
 
-- [ ] `3.1.9` Phase merge: release/3.1 → main
+- [x] `3.1.9` Phase merge: release/3.1 → main
   - **Difficulty:** Low
 
 ---

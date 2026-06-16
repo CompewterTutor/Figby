@@ -2,8 +2,8 @@ use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::component::Component;
+use crate::tui::events::AppEvent;
 use crate::tui::undo::UndoEntry;
 use crate::tui::undo_panel::UndoPanel;
 
@@ -30,13 +30,11 @@ impl Default for UndoPanelComponent {
 }
 
 impl Component for UndoPanelComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         if !self.panel.open {
             return None;
         }
-        if self.panel.handle_key(key.code) {
-            return Some(Action::CloseDialog);
-        }
+        self.panel.handle_key(key.code);
         None
     }
 

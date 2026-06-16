@@ -242,7 +242,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Depends:** `3.1.2`
   - **Difficulty:** High
 
-- [ ] `3.1.4` Replace `Component` trait with typed event protocol
+- [x] `3.1.4` Replace `Component` trait with typed event protocol
   - **Goal:** The current `Component::handle_key_event(KeyEvent) -> Option<Action>`
     is weakly typed. Actions like `Action::FontEditorAction` carry no payload.
     Replace with a typed protocol:

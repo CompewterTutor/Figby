@@ -2,8 +2,8 @@ use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::component::Component;
+use crate::tui::events::AppEvent;
 use crate::tui::export::ExportDialog;
 
 pub use crate::tui::export::ExportMode;
@@ -34,15 +34,15 @@ impl Default for ExportComponent {
 }
 
 impl Component for ExportComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         if !self.dialog.active {
             return None;
         }
         self.dialog.handle_key(key.code);
         if !self.dialog.active {
-            return Some(Action::ExportRequested(self.dialog.format));
+            return Some(AppEvent::ExportRequested(self.dialog.format));
         }
-        Some(Action::CloseDialog)
+        None
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> std::io::Result<()> {

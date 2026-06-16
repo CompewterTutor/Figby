@@ -2,8 +2,8 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::component::Component;
+use crate::tui::events::{AppEvent, PaletteEvent};
 pub use crate::tui::palette::ColorTarget;
 use crate::tui::palette::Palette;
 
@@ -34,7 +34,7 @@ impl Default for PaletteComponent {
 }
 
 impl Component for PaletteComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         let code = key.code;
         match code {
             KeyCode::Char('x')
@@ -56,9 +56,9 @@ impl Component for PaletteComponent {
                     let color = self.palette.selected_color;
                     let target = self.palette.target;
                     if let Some(c) = color {
-                        return Some(Action::ColorChanged(c, target));
+                        return Some(AppEvent::Palette(PaletteEvent::ColorChanged(c, target)));
                     }
-                    return Some(Action::BrushChanged);
+                    return Some(AppEvent::Palette(PaletteEvent::BrushChanged));
                 }
                 None
             }

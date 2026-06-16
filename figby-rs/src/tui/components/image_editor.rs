@@ -2,8 +2,8 @@ use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::component::Component;
+use crate::tui::events::AppEvent;
 use crate::tui::image_editor::ImageEditor;
 
 pub use crate::tui::image_editor::{AdjustmentMode, AsciiMode};
@@ -27,10 +27,10 @@ impl Default for ImageEditorComponent {
 }
 
 impl Component for ImageEditorComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         let code = key.code;
         if self.editor.handle_key(code) {
-            Some(Action::ImageEditorAction)
+            Some(AppEvent::ImageEditor)
         } else {
             None
         }

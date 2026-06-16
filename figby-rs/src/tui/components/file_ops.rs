@@ -4,8 +4,8 @@ use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::component::Component;
+use crate::tui::events::AppEvent;
 pub use crate::tui::file_ops::FileOpsMode;
 use crate::tui::file_ops::{FileOpsDialog, RecentFiles};
 
@@ -46,7 +46,7 @@ impl Default for FileOpsComponent {
 }
 
 impl Component for FileOpsComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         if self.dialog.mode == FileOpsMode::Idle {
             return None;
         }
@@ -54,12 +54,12 @@ impl Component for FileOpsComponent {
         self.dialog.handle_key(key.code);
         if self.dialog.mode == FileOpsMode::Idle {
             return match prev_mode {
-                FileOpsMode::SaveAs => Some(Action::SaveAsRequested),
-                FileOpsMode::Open => Some(Action::OpenRequested),
+                FileOpsMode::SaveAs => Some(AppEvent::SaveAsRequested),
+                FileOpsMode::Open => Some(AppEvent::OpenRequested),
                 FileOpsMode::Idle => None,
             };
         }
-        Some(Action::CloseDialog)
+        None
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> std::io::Result<()> {

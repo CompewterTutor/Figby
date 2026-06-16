@@ -7,7 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::tui::action::Action;
+use crate::tui::events::AppEvent;
 use crate::tui::component::Component;
 use crate::tui::theme::Theme;
 use crate::tui::AppMode;
@@ -57,15 +57,7 @@ impl StatusBarComponent {
 }
 
 impl Component for StatusBarComponent {
-    fn update(&mut self, action: &Action) -> Option<Action> {
-        match action {
-            Action::CanvasModified
-            | Action::ToolSelected
-            | Action::BrushChanged
-            | Action::ModeChanged
-            | Action::ColorChanged(..) => {}
-            _ => {}
-        }
+    fn update(&mut self, _event: &AppEvent) -> Option<AppEvent> {
         None
     }
 

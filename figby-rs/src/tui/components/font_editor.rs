@@ -2,9 +2,9 @@ use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::canvas::CanvasBuffer;
 use crate::tui::component::Component;
+use crate::tui::events::{AppEvent, FontEditorEvent};
 use crate::tui::font_editor::FontEditor;
 
 pub use crate::tui::font_editor::{CodeInputMode, FontEditorView, MirrorMode};
@@ -42,11 +42,13 @@ impl Default for FontEditorComponent {
 }
 
 impl Component for FontEditorComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         let code = key.code;
         let modifiers = key.modifiers;
         if self.editor.handle_key(code, modifiers, self.area_width) {
-            Some(Action::FontEditorAction)
+            Some(AppEvent::FontEditor(FontEditorEvent::Changed(
+                self.editor.view,
+            )))
         } else {
             None
         }

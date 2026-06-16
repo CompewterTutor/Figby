@@ -4,20 +4,18 @@ use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use super::action::Action;
-
-pub type ActionResult = io::Result<Option<Action>>;
+use super::events::AppEvent;
 
 pub trait Component {
-    fn handle_key_event(&mut self, _key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, _key: KeyEvent) -> Option<AppEvent> {
         None
     }
 
-    fn handle_mouse_event(&mut self, _mouse: MouseEvent) -> Option<Action> {
+    fn handle_mouse_event(&mut self, _mouse: MouseEvent) -> Option<AppEvent> {
         None
     }
 
-    fn update(&mut self, _action: &Action) -> Option<Action> {
+    fn update(&mut self, _event: &AppEvent) -> Option<AppEvent> {
         None
     }
 

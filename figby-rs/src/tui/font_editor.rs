@@ -75,7 +75,7 @@ const TRANSFORM_LABELS: [&str; 8] = [
     "Import Font",
 ];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontEditorView {
     Overview,
     CharEditor(u32),

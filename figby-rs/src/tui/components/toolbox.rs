@@ -2,9 +2,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::brush::BrushState;
 use crate::tui::component::Component;
+use crate::tui::events::{AppEvent, ToolboxEvent};
 pub use crate::tui::toolbox::Tool;
 use crate::tui::toolbox::Toolbox;
 
@@ -20,8 +20,6 @@ impl ToolboxComponent {
             brush: BrushState::new(),
         }
     }
-
-    pub fn push_undo_snapshot(&mut self, _label: &str) {}
 }
 
 impl Default for ToolboxComponent {
@@ -31,29 +29,29 @@ impl Default for ToolboxComponent {
 }
 
 impl Component for ToolboxComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         let code = key.code;
         let modifiers = key.modifiers;
         match code {
             KeyCode::Char('[') => {
                 self.brush.size_down();
-                Some(Action::BrushChanged)
+                Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
             }
             KeyCode::Char(']') => {
                 self.brush.size_up();
-                Some(Action::BrushChanged)
+                Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
             }
             KeyCode::Char(';') => {
                 self.brush.density_down();
-                Some(Action::BrushChanged)
+                Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
             }
             KeyCode::Char('\'') => {
                 self.brush.density_up();
-                Some(Action::BrushChanged)
+                Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
             }
             KeyCode::Char('\\') => {
                 self.brush.cycle_shape();
-                Some(Action::BrushChanged)
+                Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
             }
             KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
                 let lower = c.to_ascii_lowercase();
@@ -61,7 +59,7 @@ impl Component for ToolboxComponent {
                     if let KeyCode::Char(tc) = tool.key_shortcut() {
                         if tc == lower {
                             self.toolbox.selected = *tool;
-                            return Some(Action::ToolSelected);
+                            return Some(AppEvent::Toolbox(ToolboxEvent::ToolSelected));
                         }
                     }
                 }

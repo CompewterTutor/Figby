@@ -2,9 +2,9 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::Rect;
 use ratatui::Frame;
 
-use crate::tui::action::Action;
 use crate::tui::canvas::CanvasWidget;
 use crate::tui::component::Component;
+use crate::tui::events::{AppEvent, CanvasEvent};
 use crate::tui::theme::Theme;
 
 pub struct CanvasComponent {
@@ -38,7 +38,7 @@ impl Default for CanvasComponent {
 }
 
 impl Component for CanvasComponent {
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<Action> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppEvent> {
         let code = key.code;
         match code {
             KeyCode::Up
@@ -54,7 +54,7 @@ impl Component for CanvasComponent {
                     .canvas
                     .handle_key(code, self.last_canvas_size.0, self.last_canvas_size.1)
                 {
-                    return Some(Action::CanvasModified);
+                    return Some(AppEvent::Canvas(CanvasEvent::Modified));
                 }
                 None
             }

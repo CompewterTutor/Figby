@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 use crate::config;
 
-pub mod action;
+pub mod events;
 pub mod brush;
 pub mod canvas;
 pub mod component;
@@ -41,7 +41,7 @@ pub mod tools;
 pub mod undo;
 pub mod undo_panel;
 
-pub use action::Action;
+pub use events::AppEvent;
 pub use brush::BrushState;
 pub use component::Component;
 pub use export::ExportMode;
@@ -488,13 +488,14 @@ impl TuiApp {
         Ok(())
     }
 
-    fn process_action(&mut self, action: &Action) {
-        match action {
-            Action::Quit => self.should_quit = true,
-            Action::ToolSelected if self.editor.toolbox_comp.toolbox.selected != Tool::PolygonSelect => {
+    fn process_event(&mut self, event: &AppEvent) {
+        match event {
+            AppEvent::Quit => self.should_quit = true,
+            AppEvent::Toolbox(crate::tui::events::ToolboxEvent::ToolSelected)
+            if self.editor.toolbox_comp.toolbox.selected != Tool::PolygonSelect => {
                 self.editor.selection_polygon_points.clear();
             }
-            Action::ColorChanged(color, target) => {
+            AppEvent::Palette(crate::tui::events::PaletteEvent::ColorChanged(color, target)) => {
                 self.editor.palette_comp.palette.selected_color = Some(*color);
                 match target {
                     palette::ColorTarget::Foreground => {
@@ -505,12 +506,12 @@ impl TuiApp {
                     }
                 }
             }
-            Action::ModeChanged => self.dirty = true,
-            Action::RenderModeChanged => self.dirty = true,
-            Action::SaveAsRequested => self.perform_save(),
-            Action::OpenRequested => self.perform_open(),
-            Action::ExportRequested(_) => self.perform_export(),
-            Action::Menu(action) => self.handle_menu_action(action.clone()),
+            AppEvent::ModeChanged => self.dirty = true,
+            AppEvent::RenderModeChanged => self.dirty = true,
+            AppEvent::SaveAsRequested => self.perform_save(),
+            AppEvent::OpenRequested => self.perform_open(),
+            AppEvent::ExportRequested(_) => self.perform_export(),
+            AppEvent::Menu(action) => self.handle_menu_action(action.clone()),
             _ => {}
         }
     }
@@ -854,7 +855,7 @@ impl TuiApp {
             .handle_mouse_event(mouse.column, mouse.row, mouse.kind)
         {
             if let Some(action) = self.menu_bar.drain_actions() {
-                self.process_action(&Action::Menu(action));
+                self.process_event(&AppEvent::Menu(action));
             }
             return;
         }
@@ -1221,9 +1222,9 @@ impl TuiApp {
             loop {
                 match event::read()? {
                     Event::Key(key) if key.kind == KeyEventKind::Press => {
-                        let action = self.handle_key_event(key);
-                        if let Some(ref a) = action {
-                            self.process_action(a);
+                        let event = self.handle_key_event(key);
+                        if let Some(ref e) = event {
+                            self.process_event(e);
                         }
                     }
                     Event::Mouse(mouse) => {
@@ -1270,7 +1271,7 @@ impl TuiApp {
         Ok(())
     }
 
-    pub fn handle_key_event(&mut self, key: impl Into<KeyEvent>) -> Option<Action> {
+    pub fn handle_key_event(&mut self, key: impl Into<KeyEvent>) -> Option<AppEvent> {
         let key = key.into();
         let code = key.code;
         let modifiers = key.modifiers;
@@ -1292,7 +1293,7 @@ impl TuiApp {
                 return match prev_mode {
                     file_ops::FileOpsMode::SaveAs => {
                         self.perform_save();
-                        return Some(Action::SaveAsRequested);
+                        return Some(AppEvent::SaveAsRequested);
                     }
                     file_ops::FileOpsMode::Open => {
                         if self.dialogs.file_ops_comp.dialog.path_buffer.trim().is_empty() {
@@ -1312,7 +1313,7 @@ impl TuiApp {
                             return None;
                         }
                         self.perform_open();
-                        return Some(Action::OpenRequested);
+                        return Some(AppEvent::OpenRequested);
                     }
                     file_ops::FileOpsMode::Idle => None,
                 };
@@ -1339,7 +1340,7 @@ impl TuiApp {
         if self.menu_bar.is_active() {
             self.menu_bar.handle_key_event(key);
             if let Some(action) = self.menu_bar.drain_actions() {
-                return Some(Action::Menu(action));
+                return Some(AppEvent::Menu(action));
             }
             return None;
         }
@@ -1365,7 +1366,7 @@ impl TuiApp {
                     self.editor.unsaved = true;
                 }
             }
-            return Some(Action::Undo);
+            return Some(AppEvent::Undo);
         }
         if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('y') {
             let empty = canvas::CanvasBuffer::new(1, 1);
@@ -1374,7 +1375,7 @@ impl TuiApp {
                 self.editor.canvas_comp.canvas.buffer = buf;
                 self.editor.unsaved = true;
             }
-            return Some(Action::Redo);
+            return Some(AppEvent::Redo);
         }
 
         // Ctrl+Shift+H: toggle undo history panel
@@ -1383,7 +1384,7 @@ impl TuiApp {
             && code == KeyCode::Char('h')
         {
             self.dialogs.undo_panel_comp.panel.toggle();
-            return Some(Action::UndoPanelToggled);
+            return Some(AppEvent::UndoPanelToggled);
         }
 
         if self.dialogs.settings.settings_open {
@@ -1415,7 +1416,7 @@ impl TuiApp {
                 if was_entering && !self.editor.image_editor_comp.editor.entering_path() {
                     self.editor.undo.clear();
                 }
-                return Some(Action::ImageEditorAction);
+                return Some(AppEvent::ImageEditor);
             }
         }
 
@@ -1426,7 +1427,7 @@ impl TuiApp {
                     self.editor.push_undo_snapshot("Commit text");
                     self.editor.text_tool.commit_block();
                     self.editor.unsaved = true;
-                    return Some(Action::TextCommitted);
+                    return Some(AppEvent::TextCommitted);
                 }
                 KeyCode::Esc => {
                     self.editor.text_tool.text_buffer.clear();
@@ -1810,7 +1811,7 @@ impl TuiApp {
         if code == KeyCode::F(5) {
             self.render_mode = self.render_mode.toggle();
             self.dirty = true;
-            return Some(Action::RenderModeChanged);
+            return Some(AppEvent::RenderModeChanged);
         }
 
         // Ctrl+Tab / Ctrl+Shift+Tab: cycle modes
@@ -1822,17 +1823,17 @@ impl TuiApp {
             };
             self.mode = new_mode;
             self.editor.undo.clear();
-            return Some(Action::ModeChanged);
+            return Some(AppEvent::ModeChanged);
         }
 
         match code {
             KeyCode::Char('q') if !modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
-                Some(Action::Quit)
+                Some(AppEvent::Quit)
             }
             KeyCode::Esc => {
                 self.should_quit = true;
-                Some(Action::Quit)
+                Some(AppEvent::Quit)
             }
             _ => None,
         }

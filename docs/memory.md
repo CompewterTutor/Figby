@@ -9,6 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (added AnimationTimeline widget) |
+| v4 — (in progress) | (in memory.md) | Active (Frame management) |
 
 ## Architectural Decisions
 
@@ -1298,3 +1299,11 @@ glyph grid mouse click+double-click (3.2.1), glyph char editor cursor+cell
 toggle (3.2.2), font preview strip in overview (3.2.3).
 All 3 subtasks (3.2.1–3.2.3) implemented, tested, merged. Phase 3.3
 (Major Release) is next.
+
+### 3.2.1 (v4) — Frame management
+
+Frame management operations for `AnimationTimeline`: `add_frame`,
+`insert_frame`, `remove_frame`, `duplicate_frame`, `reorder_frame` on
+`TimelineState`. Onion skinning rendering toggle
+(`AnimationTimeline.onion_skinning`). Each `TimelineFrame` stores full
+layer state via `layer_state: Option<CanvasBuffer>`. 11 new tests.

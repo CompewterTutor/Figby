@@ -3,11 +3,14 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{StatefulWidget, Widget};
 
+use super::canvas::CanvasBuffer;
+
 #[derive(Debug, Clone)]
 pub struct TimelineFrame {
     pub thumbnail: Vec<Vec<char>>,
     pub has_keyframe: bool,
     pub label: String,
+    pub layer_state: Option<CanvasBuffer>,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +43,7 @@ pub struct AnimationTimeline {
     pub frame_gap: u16,
     pub visible_frames: usize,
     pub theme: TimelineTheme,
+    pub onion_skinning: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +64,96 @@ impl Default for TimelineState {
             playing: false,
             fps: 12,
         }
+    }
+}
+
+impl TimelineState {
+    /// Add a frame to the end of the timeline.
+    pub fn add_frame(&mut self, frame: TimelineFrame) {
+        self.frames.push(frame);
+    }
+
+    /// Insert a frame at the given index.
+    pub fn insert_frame(&mut self, index: usize, frame: TimelineFrame) {
+        let idx = index.min(self.frames.len());
+        self.frames.insert(idx, frame);
+        if idx <= self.current_frame {
+            self.current_frame += 1;
+        }
+    }
+
+    /// Remove the frame at `index`. Fails if it would leave the timeline empty.
+    pub fn remove_frame(&mut self, index: usize) -> Result<TimelineFrame, String> {
+        if index >= self.frames.len() {
+            return Err(format!(
+                "Frame index {} out of bounds (len={})",
+                index,
+                self.frames.len()
+            ));
+        }
+        if self.frames.len() <= 1 {
+            return Err("Cannot remove the last remaining frame".into());
+        }
+        let removed = self.frames.remove(index);
+        if self.current_frame >= self.frames.len() {
+            self.current_frame = self.frames.len().saturating_sub(1);
+        } else if index < self.current_frame {
+            self.current_frame -= 1;
+        }
+        Ok(removed)
+    }
+
+    /// Duplicate the frame at `index`, inserting the copy after it.
+    pub fn duplicate_frame(&mut self, index: usize) -> Result<(), String> {
+        if index >= self.frames.len() {
+            return Err(format!(
+                "Frame index {} out of bounds (len={})",
+                index,
+                self.frames.len()
+            ));
+        }
+        let mut dup = self.frames[index].clone();
+        dup.label = format!("{} (copy)", dup.label);
+        let insert_at = index + 1;
+        self.frames.insert(insert_at, dup);
+        if insert_at <= self.current_frame {
+            self.current_frame += 1;
+        }
+        Ok(())
+    }
+
+    /// Move a frame from `from` to `to`.
+    pub fn reorder_frame(&mut self, from: usize, to: usize) -> Result<(), String> {
+        if from >= self.frames.len() {
+            return Err(format!(
+                "Source index {} out of bounds (len={})",
+                from,
+                self.frames.len()
+            ));
+        }
+        if to >= self.frames.len() {
+            return Err(format!(
+                "Target index {} out of bounds (len={})",
+                to,
+                self.frames.len()
+            ));
+        }
+        if from == to {
+            return Ok(());
+        }
+        let frame = self.frames.remove(from);
+        let insert_at = if to > from { to.saturating_sub(1) } else { to };
+        self.frames.insert(insert_at, frame);
+
+        let old = self.current_frame;
+        if from == old {
+            self.current_frame = to;
+        } else if from < old && to >= old {
+            self.current_frame = old.saturating_sub(1);
+        } else if from > old && to <= old {
+            self.current_frame = old.saturating_add(1);
+        }
+        Ok(())
     }
 }
 
@@ -125,6 +219,37 @@ impl StatefulWidget for &AnimationTimeline {
             }
 
             let thumb_y = area.y + 1;
+            // Onion skinning: render previous frame's thumbnail dimly if enabled
+            if self.onion_skinning && is_active && frame_idx > 0 {
+                if let Some(prev) = state.frames.get(frame_idx.saturating_sub(1)) {
+                    for ty in 0..self.frame_thumb_height.min(area.height - 1) {
+                        let cy = thumb_y + ty;
+                        if cy >= area.y + area.height {
+                            break;
+                        }
+                        for tx in 0..self.frame_thumb_width {
+                            let cx = x_start + tx;
+                            if cx >= area.x + area.width {
+                                break;
+                            }
+                            if let Some(cell) = buf.cell_mut((cx, cy)) {
+                                let ch = prev
+                                    .thumbnail
+                                    .get(ty as usize)
+                                    .and_then(|row| row.get(tx as usize))
+                                    .copied()
+                                    .unwrap_or(' ');
+                                if ch != ' ' {
+                                    cell.set_char(ch);
+                                    cell.set_style(
+                                        Style::default().fg(self.theme.thumbnail_border),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             for ty in 0..self.frame_thumb_height.min(area.height - 1) {
                 let cy = thumb_y + ty;
                 if cy >= area.y + area.height {
@@ -181,6 +306,23 @@ impl StatefulWidget for &AnimationTimeline {
 mod tests {
     use super::*;
 
+    fn make_test_timeline_with_onion(
+        thumb_w: u16,
+        thumb_h: u16,
+        gap: u16,
+        visible: usize,
+        onion: bool,
+    ) -> AnimationTimeline {
+        AnimationTimeline {
+            frame_thumb_width: thumb_w,
+            frame_thumb_height: thumb_h,
+            frame_gap: gap,
+            visible_frames: visible,
+            theme: TimelineTheme::default(),
+            onion_skinning: onion,
+        }
+    }
+
     fn make_test_timeline(
         thumb_w: u16,
         thumb_h: u16,
@@ -193,6 +335,7 @@ mod tests {
             frame_gap: gap,
             visible_frames: visible,
             theme: TimelineTheme::default(),
+            onion_skinning: false,
         }
     }
 
@@ -201,6 +344,7 @@ mod tests {
             thumbnail: thumb,
             has_keyframe: has_kf,
             label: label.to_string(),
+            layer_state: None,
         }
     }
 
@@ -399,7 +543,8 @@ mod tests {
             fps: 12,
         };
 
-        let area = Rect::new(0, 0, 4, 1 + 3 + 1 + 1);
+        let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
+        let area = Rect::new(0, 0, slot_w, 1 + 3 + 1 + 1);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
@@ -418,5 +563,166 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_onion_skinning_render() {
+        let timeline = make_test_timeline_with_onion(3, 2, 1, 5, true);
+        let thumb0 = vec![vec![' '; 3]; 2];
+        let thumb1 = vec![vec!['O'; 3]; 2];
+        let mut state = TimelineState {
+            frames: vec![
+                make_frame(thumb0, false, "0"),
+                make_frame(thumb1, false, "1"),
+            ],
+            current_frame: 1,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
+        let area = Rect::new(0, 0, 2 * slot_w, 1 + 2 + 1 + 1);
+        let mut buf = Buffer::empty(area);
+        StatefulWidget::render(&timeline, area, &mut buf, &mut state);
+        // Frame 1's slot (active) should show 'O' from its own thumbnail on top
+        let cell = buf.cell((slot_w, 1)).unwrap();
+        assert_eq!(cell.symbol(), "O", "active frame shows its own content");
+    }
+
+    #[test]
+    fn test_add_frame() {
+        let mut state = TimelineState::default();
+        assert_eq!(state.frames.len(), 0);
+        state.add_frame(make_frame(vec![vec!['A'; 3]; 2], false, "new"));
+        assert_eq!(state.frames.len(), 1);
+        assert_eq!(state.frames[0].label, "new");
+    }
+
+    #[test]
+    fn test_insert_frame_updates_current() {
+        let mut state = TimelineState {
+            frames: (0..3)
+                .map(|i| make_frame(vec![vec!['X'; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 1,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        state.insert_frame(0, make_frame(vec![vec!['Y'; 3]; 2], false, "inserted"));
+        assert_eq!(state.frames.len(), 4);
+        assert_eq!(state.frames[0].label, "inserted");
+        assert_eq!(state.current_frame, 2, "current_frame should shift right");
+    }
+
+    #[test]
+    fn test_remove_frame_middle() {
+        let mut state = TimelineState {
+            frames: (0..3)
+                .map(|i| make_frame(vec![vec!['X'; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 2,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        let removed = state.remove_frame(1).unwrap();
+        assert_eq!(removed.label, "1");
+        assert_eq!(state.frames.len(), 2);
+        assert_eq!(state.current_frame, 1, "current_frame should clamp");
+        assert_eq!(state.frames[1].label, "2");
+    }
+
+    #[test]
+    fn test_remove_frame_last_remaining_fails() {
+        let mut state = TimelineState {
+            frames: vec![make_frame(vec![vec!['X'; 3]; 2], false, "only")],
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        assert!(state.remove_frame(0).is_err());
+    }
+
+    #[test]
+    fn test_remove_frame_out_of_bounds_fails() {
+        let mut state = TimelineState {
+            frames: (0..2)
+                .map(|i| make_frame(vec![vec!['X'; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        assert!(state.remove_frame(5).is_err());
+    }
+
+    #[test]
+    fn test_duplicate_frame() {
+        let mut state = TimelineState {
+            frames: (0..3)
+                .map(|i| make_frame(vec![vec!['X'; 3]; 2], i == 1, &format!("{}", i)))
+                .collect(),
+            current_frame: 1,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        state.duplicate_frame(1).unwrap();
+        assert_eq!(state.frames.len(), 4);
+        assert_eq!(state.frames[2].label, "1 (copy)");
+        assert!(state.frames[2].has_keyframe);
+        assert_eq!(
+            state.current_frame, 1,
+            "current_frame stays on original frame"
+        );
+    }
+
+    #[test]
+    fn test_duplicate_frame_out_of_bounds_fails() {
+        let mut state = TimelineState::default();
+        assert!(state.duplicate_frame(0).is_err());
+    }
+
+    #[test]
+    fn test_reorder_forward() {
+        let mut state = TimelineState {
+            frames: (0..4)
+                .map(|i| make_frame(vec![vec!['X'; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        state.reorder_frame(0, 2).unwrap();
+        let labels: Vec<&str> = state.frames.iter().map(|f| f.label.as_str()).collect();
+        assert_eq!(labels, vec!["1", "0", "2", "3"]);
+    }
+
+    #[test]
+    fn test_reorder_backward() {
+        let mut state = TimelineState {
+            frames: (0..4)
+                .map(|i| make_frame(vec![vec!['X'; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 3,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+        };
+        state.reorder_frame(3, 0).unwrap();
+        let labels: Vec<&str> = state.frames.iter().map(|f| f.label.as_str()).collect();
+        assert_eq!(labels, vec!["3", "0", "1", "2"]);
+    }
+
+    #[test]
+    fn test_reorder_out_of_bounds_fails() {
+        let mut state = TimelineState::default();
+        state.add_frame(make_frame(vec![vec!['A'; 3]; 2], false, "a"));
+        assert!(state.reorder_frame(0, 1).is_err());
+        assert!(state.reorder_frame(2, 0).is_err());
     }
 }

@@ -364,7 +364,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
     Canvas, tools, undo/redo, file ops, export, image editor, font editor.
   - **Difficulty:** Medium
 
-- [ ] `3.3.2` v3.0.0 RC — human sign-off
+- [x] `3.3.2` v3.0.0 RC — human sign-off
   - **Touches:** RC branch, annotated tag
   - **Difficulty:** Low
   - **Model:** Human

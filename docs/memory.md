@@ -8,7 +8,7 @@ Master memory index. Detailed entries live in versioned files below.
 |-----------|------|--------|
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
-| v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (added AnimationTimeline widget) |
+| v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Frame management) |
 
 ## Architectural Decisions

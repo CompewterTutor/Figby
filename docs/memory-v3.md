@@ -111,7 +111,13 @@ Added `glyph_cursor_x`, `glyph_cursor_y`, `brush_char` fields to `FontEditor`. `
 
 `mod.rs` render path syncs cursor position and calls `blink()` per frame — avoids recreating `GlyphCursor` each frame to preserve blink timer. Key dispatch syncs `brush_char` from palette before font_editor handler runs.
 
----
+### 3.2.3 — Font preview strip in overview
+
+Added `render_string()` convenience function to `render.rs` — wraps `add_char` + `render_line` for rendering arbitrary text through the FIGlet pipeline. Exposes full rendering as a single call returning `Vec<String>`.
+
+Updated `render_overview()` layout from 3 to 4 chunks: prompt, grid (Min(1)), preview (Length(charheight+2)), hint. Preview renders a bordered panel with title " Preview: AaBbCc123!? " containing the rendered glyph rows. Updated grid constraint from Min(0) to Min(1) for baseline spacing.
+
+`PREVIEW_STRING` constant defined at module level. Preview computed on every render frame, so glyph edits are reflected immediately. No `.unwrap()` in production. fmt and clippy pass clean.
 
 ## Phase 3.3 — Particle Effect Creator
 

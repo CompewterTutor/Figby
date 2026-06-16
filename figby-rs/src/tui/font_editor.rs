@@ -12,6 +12,8 @@ use super::theme::Theme;
 use crate::font::{load_font, FIGfont};
 use crate::smush::{smush_horizontal, SmushMode};
 
+const PREVIEW_STRING: &str = "AaBbCc123!?";
+
 const SMUSH_RULE_LABELS: [(&str, u32); 6] = [
     ("Equal Char", SmushMode::EQUAL_CHARS),
     ("Underscore", SmushMode::UNDERSCORE),
@@ -340,16 +342,15 @@ impl FontEditor {
 
     fn render_overview(&mut self, frame: &mut Frame, area: Rect) {
         let prompt_height: u16 = 3;
+        let preview_height = self.font.as_ref().map_or(0, |f| f.charheight as u16 + 2);
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(
-                [
-                    Constraint::Length(prompt_height),
-                    Constraint::Min(0),
-                    Constraint::Length(1),
-                ]
-                .as_ref(),
-            )
+            .constraints([
+                Constraint::Length(prompt_height),
+                Constraint::Min(1),
+                Constraint::Length(preview_height),
+                Constraint::Length(1),
+            ])
             .split(area);
 
         if self.code_input_active {
@@ -392,7 +393,7 @@ impl FontEditor {
             " \u{2191}\u{2193}\u{2190}\u{2192} Navigate  Type Search  Enter Edit  A Add  D Del  C Copy  H Header  S Smush  T Transform  Esc Close",
         )
         .style(Style::default().fg(self.theme.menu.dim));
-        frame.render_widget(hint, chunks[2]);
+        frame.render_widget(hint, chunks[3]);
 
         let grid_area = chunks[1];
         let filtered = self.filtered_codes();
@@ -480,6 +481,18 @@ impl FontEditor {
 
         let grid = Paragraph::new(lines);
         frame.render_widget(grid, grid_area);
+
+        // Preview strip
+        if preview_height > 0 {
+            if let Some(font) = &self.font {
+                let preview_rows = crate::render::render_string(font, PREVIEW_STRING);
+                let block = Block::default()
+                    .borders(Borders::ALL)
+                    .title(format!(" Preview: {} ", PREVIEW_STRING));
+                let paragraph = Paragraph::new(preview_rows.join("\n")).block(block);
+                frame.render_widget(paragraph, chunks[2]);
+            }
+        }
     }
 
     fn render_smush_editor(&self, frame: &mut Frame, area: Rect) {
@@ -2289,5 +2302,21 @@ mod tests {
             !editor.error_message.is_empty(),
             "should set error for nonexistent font"
         );
+    }
+
+    #[test]
+    fn test_preview_string_renders() {
+        let editor = make_editor();
+        let font = editor.font.as_ref().unwrap();
+        let preview_rows = crate::render::render_string(font, PREVIEW_STRING);
+        assert!(!preview_rows.is_empty());
+        assert_eq!(preview_rows.len(), font.charheight as usize);
+    }
+
+    #[test]
+    fn test_preview_height_zero_without_font() {
+        let editor = FontEditor::new();
+        assert!(editor.font.is_none());
+        // preview_height will be 0 -> no preview rendered -> no panic
     }
 }

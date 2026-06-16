@@ -341,7 +341,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
     `figby-rs/src/tui/canvas.rs`
   - **Difficulty:** Medium
 
-- [ ] `3.2.3` Font preview strip in overview
+- [x] `3.2.3` Font preview strip in overview
   - **Goal:** Below the glyph grid, render a live preview strip showing a
     sample string ("AaBbCc123!?") rendered using the current font glyphs via
     `render.rs`. Updates on every glyph edit. Helps see font as a whole.

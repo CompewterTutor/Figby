@@ -881,7 +881,7 @@ fn test_font_editor_grid_renders_102_chars() {
     let mut editor = FontEditor::new();
     editor.load_font(font);
 
-    let backend = TestBackend::new(120, 50);
+    let backend = TestBackend::new(120, 60);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| editor.render(f, f.area())).unwrap();
     let buffer = terminal.backend().buffer();

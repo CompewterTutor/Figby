@@ -806,6 +806,13 @@ Three bugs found in phase merge review:
   a `pub` field accessed in `render(self, area, buf)`. The `Widget` trait has no
   parameter for passing extra state — all context must be in `&self`.
 - When removing `Color` from a module's `use` statement, verify no remaining `Color::`
+
+## 3.2.3 — Font preview strip in overview
+
+- Adding a preview strip (8 rows) below the glyph grid changes the layout constraints,
+  shrinking the grid area. Integration tests using fixed terminal sizes (e.g. 120×50)
+  may fail because codes previously visible at the bottom of the grid are now clipped.
+  Fix: increase terminal height to accommodate the new strip (120×50 → 120×60).
   references exist in the file. grep for `Color::` to confirm zero matches across
   production and test code.
 

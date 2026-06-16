@@ -374,6 +374,39 @@ pub fn render_line(
         .collect()
 }
 
+/// Render a string through the full FIGlet pipeline.
+///
+/// Convenience wrapper: initializes output rows, calls `add_char` for each
+/// codepoint in `text`, then calls `render_line` with left justification and
+/// no width limit. Returns `charheight` rows of rendered text.
+pub fn render_string(font: &FIGfont, text: &str) -> Vec<String> {
+    let mode = SmushMode::new(font.full_layout as u32);
+    let height = font.charheight as usize;
+    let mut output_rows = vec![String::new(); height];
+    let mut outlinelen = 0;
+    let mut prev_width = 0;
+
+    for ch in text.chars() {
+        add_char(
+            font,
+            ch as u32,
+            &mut output_rows,
+            &mut outlinelen,
+            &mut prev_width,
+            mode,
+            false,
+            usize::MAX,
+        );
+    }
+
+    render_line(
+        &output_rows,
+        font.hardblank,
+        Justification::Left,
+        usize::MAX,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1263,5 +1296,28 @@ mod tests {
         );
 
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_render_string_basic() {
+        let font_bytes = include_bytes!("../../fonts/standard.flf");
+        let font_str = String::from_utf8_lossy(font_bytes);
+        let font = crate::font::parse_tlf_font(&font_str).unwrap();
+        let rows = render_string(&font, "AaBbCc123!?");
+        assert!(!rows.is_empty());
+        assert_eq!(rows.len(), font.charheight as usize);
+        for row in &rows {
+            assert!(!row.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_render_string_empty() {
+        let font_bytes = include_bytes!("../../fonts/standard.flf");
+        let font_str = String::from_utf8_lossy(font_bytes);
+        let font = crate::font::parse_tlf_font(&font_str).unwrap();
+        let rows = render_string(&font, "");
+        assert!(!rows.is_empty());
+        assert_eq!(rows.len(), font.charheight as usize);
     }
 }

@@ -1025,7 +1025,7 @@ impl TuiApp {
                     self.editor
                         .font_editor_comp
                         .editor
-                        .handle_mouse_scroll_overview(1, self.frame_layout.canvas.width);
+                        .handle_mouse_scroll_overview(1);
                     self.dirty = true;
                     return;
                 }
@@ -1033,7 +1033,7 @@ impl TuiApp {
                     self.editor
                         .font_editor_comp
                         .editor
-                        .handle_mouse_scroll_overview(-1, self.frame_layout.canvas.width);
+                        .handle_mouse_scroll_overview(-1);
                     self.dirty = true;
                     return;
                 }

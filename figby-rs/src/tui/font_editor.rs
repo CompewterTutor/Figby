@@ -1,8 +1,9 @@
 use crossterm::event::{KeyCode, KeyModifiers};
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget};
 use ratatui::Frame;
 
 use std::path::PathBuf;
@@ -94,6 +95,133 @@ pub enum CodeInputMode {
     DeleteConfirm,
 }
 
+#[derive(Clone)]
+pub struct GlyphGridState {
+    pub cell_rects: Vec<(u32, Rect)>,
+    last_click: Option<(u32, Instant)>,
+    cols: usize,
+}
+
+impl GlyphGridState {
+    pub fn new() -> Self {
+        Self {
+            cell_rects: Vec::new(),
+            last_click: None,
+            cols: 0,
+        }
+    }
+
+    pub fn last_click(&self) -> Option<(u32, Instant)> {
+        self.last_click
+    }
+
+    pub fn set_last_click(&mut self, click: Option<(u32, Instant)>) {
+        self.last_click = click;
+    }
+
+    pub fn cols(&self) -> usize {
+        self.cols
+    }
+}
+
+impl Default for GlyphGridState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct GlyphGridWidget<'a> {
+    font: &'a FIGfont,
+    filtered: &'a [u32],
+    selected_index: usize,
+    grid_scroll: u16,
+    theme: &'a Theme,
+}
+
+impl StatefulWidget for &GlyphGridWidget<'_> {
+    type State = GlyphGridState;
+
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        let cell_w = (self.font.maxlength as u16 + 2).max(8) as usize;
+        let cell_h = (self.font.charheight as u16 + 1) as usize;
+        let cols = (area.width as usize / cell_w).max(1);
+
+        let start_cell = self.grid_scroll as usize * cols;
+
+        state.cell_rects.clear();
+        state.cols = cols;
+
+        let mut cell_idx = start_cell;
+        let mut y_offset = 0u16;
+
+        while cell_idx < self.filtered.len() && (y_offset as usize) + cell_h <= area.height as usize
+        {
+            let end = (cell_idx + cols).min(self.filtered.len());
+            let chunk = &self.filtered[cell_idx..end];
+
+            for (ci, &code) in chunk.iter().enumerate() {
+                state.cell_rects.push((
+                    code,
+                    Rect::new(
+                        area.x + (ci * cell_w) as u16,
+                        area.y + y_offset,
+                        cell_w as u16,
+                        cell_h as u16,
+                    ),
+                ));
+            }
+
+            for (ci, &code) in chunk.iter().enumerate() {
+                let abs_idx = cell_idx + ci;
+                let is_selected = abs_idx == self.selected_index;
+                let label = format!("{:>4}", code);
+                let style = if is_selected {
+                    Style::default()
+                        .fg(self.theme.dialog.highlight)
+                        .add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                let mut text = String::with_capacity(cell_w);
+                text.push_str(&label);
+                text.push(' ');
+                while text.len() < cell_w {
+                    text.push(' ');
+                }
+                let x = area.x + (ci * cell_w) as u16;
+                let y = area.y + y_offset;
+                buf.set_string(x, y, &text, style);
+            }
+            y_offset += 1;
+
+            for row in 0..self.font.charheight as usize {
+                for (ci, &code) in chunk.iter().enumerate() {
+                    let row_text = self
+                        .font
+                        .chars
+                        .get(&code)
+                        .and_then(|c| c.rows().get(row))
+                        .map(|s| s.as_str())
+                        .unwrap_or("");
+                    let mut text = String::with_capacity(cell_w);
+                    text.push(' ');
+                    let display_len = row_text.len().min(cell_w.saturating_sub(1));
+                    text.push_str(&row_text[..display_len]);
+                    while text.len() < cell_w {
+                        text.push(' ');
+                    }
+                    let x = area.x + (ci * cell_w) as u16;
+                    let y = area.y + y_offset;
+                    buf.set_string(x, y, &text, Style::default());
+                }
+                y_offset += 1;
+            }
+
+            cell_idx = end;
+        }
+    }
+}
+
 pub struct FontEditor {
     pub font: Option<FIGfont>,
     pub view: FontEditorView,
@@ -124,10 +252,7 @@ pub struct FontEditor {
     pub glyph_cursor_y: u16,
     pub brush_char: char,
     pub theme: Theme,
-    /// (code_point, screen_rect) for each visible glyph cell — populated during render
-    pub cell_rects: Vec<(u32, Rect)>,
-    /// Last click: (code_point, time) for double-click detection
-    last_click: Option<(u32, Instant)>,
+    pub grid_state: GlyphGridState,
 }
 
 impl FontEditor {
@@ -162,8 +287,7 @@ impl FontEditor {
             glyph_cursor_y: 0,
             brush_char: '\u{2588}',
             theme: Theme::default(),
-            cell_rects: Vec::new(),
-            last_click: None,
+            grid_state: GlyphGridState::new(),
         }
     }
 
@@ -407,80 +531,14 @@ impl FontEditor {
 
         let Some(font) = &self.font else { return };
 
-        let cell_w = (font.maxlength as u16 + 2).max(8) as usize;
-        let cell_h = (font.charheight as u16 + 1) as usize;
-        let cols = (grid_area.width as usize / cell_w).max(1);
-
-        let start_cell = self.grid_scroll as usize * cols;
-
-        self.cell_rects.clear();
-        let mut lines: Vec<Line> = Vec::new();
-        let mut cell_idx = start_cell;
-
-        while cell_idx < filtered.len() && lines.len() + cell_h <= grid_area.height as usize {
-            let end = (cell_idx + cols).min(filtered.len());
-            let chunk = &filtered[cell_idx..end];
-
-            // Record cell rects before building this row's lines
-            let cell_row_y = grid_area.y + lines.len() as u16;
-            for (ci, &code) in chunk.iter().enumerate() {
-                let cell_rect = Rect::new(
-                    grid_area.x + (ci * cell_w) as u16,
-                    cell_row_y,
-                    cell_w as u16,
-                    cell_h as u16,
-                );
-                self.cell_rects.push((code, cell_rect));
-            }
-
-            let mut code_spans = Vec::new();
-            for (ci, &code) in chunk.iter().enumerate() {
-                let abs_idx = cell_idx + ci;
-                let is_selected = abs_idx == self.selected_index;
-                let label = format!("{:>4}", code);
-                let style = if is_selected {
-                    Style::default()
-                        .fg(self.theme.dialog.highlight)
-                        .add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default()
-                };
-                let mut text = String::with_capacity(cell_w);
-                text.push_str(&label);
-                text.push(' ');
-                while text.len() < cell_w {
-                    text.push(' ');
-                }
-                code_spans.push(Span::styled(text, style));
-            }
-            lines.push(Line::from(code_spans));
-
-            for row in 0..font.charheight as usize {
-                let mut row_spans = Vec::new();
-                for &code in chunk {
-                    let row_text = font
-                        .chars
-                        .get(&code)
-                        .and_then(|c| c.rows().get(row))
-                        .map(|s| s.as_str())
-                        .unwrap_or("");
-                    let mut text = String::with_capacity(cell_w);
-                    text.push(' ');
-                    let display_len = row_text.len().min(cell_w.saturating_sub(1));
-                    text.push_str(&row_text[..display_len]);
-                    while text.len() < cell_w {
-                        text.push(' ');
-                    }
-                    row_spans.push(Span::raw(text));
-                }
-                lines.push(Line::from(row_spans));
-            }
-
-            cell_idx = end;
-        }
-
-        let grid = Paragraph::new(lines);
-        frame.render_widget(grid, grid_area);
+        let widget = GlyphGridWidget {
+            font,
+            filtered: &filtered,
+            selected_index: self.selected_index,
+            grid_scroll: self.grid_scroll,
+            theme: &self.theme,
+        };
+        frame.render_stateful_widget(&widget, grid_area, &mut self.grid_state);
 
         // Preview strip
         if preview_height > 0 {
@@ -1490,6 +1548,7 @@ impl FontEditor {
             return false;
         }
         let hit = self
+            .grid_state
             .cell_rects
             .iter()
             .find(|(_, rect)| {
@@ -1513,10 +1572,11 @@ impl FontEditor {
         // Double-click detection: same code within 400ms
         let now = Instant::now();
         let is_double = self
-            .last_click
+            .grid_state
+            .last_click()
             .map(|(c, t)| c == code && now.duration_since(t).as_millis() < 400)
             .unwrap_or(false);
-        self.last_click = Some((code, now));
+        self.grid_state.set_last_click(Some((code, now)));
 
         if is_double {
             self.glyph_cursor_x = 0;
@@ -1527,8 +1587,7 @@ impl FontEditor {
     }
 
     /// Scroll the glyph grid by `delta` rows (positive = down, negative = up).
-    /// `area_width` is the pixel width of the grid area to compute column count.
-    pub fn handle_mouse_scroll_overview(&mut self, delta: i32, area_width: u16) {
+    pub fn handle_mouse_scroll_overview(&mut self, delta: i32) {
         if self.view != FontEditorView::Overview {
             return;
         }
@@ -1536,7 +1595,15 @@ impl FontEditor {
         if filtered.is_empty() {
             return;
         }
-        let cols = self.compute_cols(area_width);
+        let cols = if self.grid_state.cols() > 0 {
+            self.grid_state.cols()
+        } else {
+            let Some(font) = &self.font else { return };
+            let cell_w = (font.maxlength as u16 + 2).max(8);
+            // Estimate from any reasonable width; caller will update on next render
+            let default_width = cell_w * 4;
+            self.compute_cols(default_width)
+        };
         let total_rows = filtered.len().div_ceil(cols);
         let max_scroll = total_rows.saturating_sub(1) as u16;
 
@@ -2318,5 +2385,180 @@ mod tests {
         let editor = FontEditor::new();
         assert!(editor.font.is_none());
         // preview_height will be 0 -> no preview rendered -> no panic
+    }
+
+    // --- Glyph Grid State tests ---
+
+    fn make_editor_big() -> FontEditor {
+        let mut chars: HashMap<u32, FIGcharacter> = HashMap::new();
+        for code in 0..200u32 {
+            chars.insert(
+                code,
+                FIGcharacter::from(vec![
+                    "     ".to_string(),
+                    "     ".to_string(),
+                    "     ".to_string(),
+                ]),
+            );
+        }
+        let font = FIGfont {
+            charheight: 3,
+            maxlength: 5,
+            chars,
+            ..Default::default()
+        };
+        let mut editor = FontEditor::new();
+        editor.load_font(font);
+        editor
+    }
+
+    fn render_editor(editor: &mut FontEditor, w: u16, h: u16) {
+        let backend = ratatui::backend::TestBackend::new(w, h);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| {
+                editor.render(frame, frame.area());
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn test_glyph_grid_state_rects_populated() {
+        let mut editor = make_editor();
+        render_editor(&mut editor, 120, 30);
+        assert!(!editor.grid_state.cell_rects.is_empty());
+        for (code, rect) in &editor.grid_state.cell_rects {
+            assert!(rect.width > 0);
+            assert!(rect.height > 0);
+            let _ = code; // code is valid
+        }
+    }
+
+    #[test]
+    fn test_mouse_click_selects_glyph() {
+        let mut editor = make_editor();
+        render_editor(&mut editor, 120, 30);
+
+        assert!(!editor.grid_state.cell_rects.is_empty());
+        let (code, rect) = editor.grid_state.cell_rects[0];
+        let col = rect.x + 1;
+        let row = rect.y + 1;
+        let old_view = editor.view;
+
+        assert!(editor.handle_mouse_click_overview(col, row));
+
+        let filtered = editor.filtered_codes();
+        assert!(editor.selected_index < filtered.len());
+        assert_eq!(filtered[editor.selected_index], code);
+        assert_eq!(editor.view, old_view);
+    }
+
+    #[test]
+    fn test_mouse_click_miss_no_selection() {
+        let mut editor = make_editor();
+        let old_index = editor.selected_index;
+
+        // Click at (0, 0) which should be outside any cell rect
+        assert!(!editor.handle_mouse_click_overview(0, 0));
+        assert_eq!(editor.selected_index, old_index);
+    }
+
+    #[test]
+    fn test_double_click_opens_editor() {
+        let mut editor = make_editor();
+        render_editor(&mut editor, 120, 30);
+
+        assert!(!editor.grid_state.cell_rects.is_empty());
+        let (code, rect) = editor.grid_state.cell_rects[0];
+        let col = rect.x + 1;
+        let row = rect.y + 1;
+
+        // First click: select only
+        assert!(editor.handle_mouse_click_overview(col, row));
+        assert_eq!(editor.view, FontEditorView::Overview);
+
+        // Second click registers as double-click (within 400ms)
+        assert!(editor.handle_mouse_click_overview(col, row));
+        assert_eq!(editor.view, FontEditorView::CharEditor(code));
+    }
+
+    #[test]
+    fn test_mouse_scroll_down() {
+        let mut editor = make_editor_big();
+        render_editor(&mut editor, 120, 30);
+
+        let initial_scroll = editor.grid_scroll;
+        editor.handle_mouse_scroll_overview(1);
+        // With 200 chars, cols >= 1, total_rows > 1, so scroll should advance
+        assert!(editor.grid_scroll > initial_scroll);
+    }
+
+    #[test]
+    fn test_mouse_scroll_up() {
+        let mut editor = make_editor_big();
+        render_editor(&mut editor, 120, 30);
+
+        // Scroll down first so we have room to scroll up
+        editor.handle_mouse_scroll_overview(5);
+        let after_down = editor.grid_scroll;
+        assert!(after_down > 0);
+
+        editor.handle_mouse_scroll_overview(-1);
+        assert!(editor.grid_scroll < after_down);
+    }
+
+    #[test]
+    fn test_grid_state_cleared_each_frame() {
+        let mut editor = make_editor();
+
+        // First render populates cell_rects
+        render_editor(&mut editor, 120, 30);
+        assert!(!editor.grid_state.cell_rects.is_empty());
+        let first_count = editor.grid_state.cell_rects.len();
+
+        // Simulate some stale rects
+        editor.grid_state.cell_rects.push((9999, Rect::default()));
+
+        // Second render should clear and re-populate
+        render_editor(&mut editor, 120, 30);
+        assert_eq!(editor.grid_state.cell_rects.len(), first_count);
+        let has_stale = editor
+            .grid_state
+            .cell_rects
+            .iter()
+            .any(|(code, _)| *code == 9999);
+        assert!(!has_stale, "stale rect from previous frame should be gone");
+    }
+
+    #[test]
+    fn test_scroll_clamped_at_zero() {
+        let mut editor = make_editor_big();
+        render_editor(&mut editor, 120, 30);
+
+        editor.handle_mouse_scroll_overview(-1);
+        assert_eq!(editor.grid_scroll, 0);
+    }
+
+    #[test]
+    fn test_scroll_bounded_above() {
+        let mut editor = make_editor_big();
+        render_editor(&mut editor, 120, 30);
+
+        // Scroll way down
+        editor.handle_mouse_scroll_overview(999);
+        let max_scroll = editor.grid_scroll;
+        assert!(max_scroll > 0);
+
+        // Try to scroll more
+        editor.handle_mouse_scroll_overview(999);
+        assert_eq!(editor.grid_scroll, max_scroll);
+    }
+
+    #[test]
+    fn test_grid_state_new_creates_empty_state() {
+        let state = GlyphGridState::new();
+        assert!(state.cell_rects.is_empty());
+        assert_eq!(state.cols(), 0);
+        assert!(state.last_click().is_none());
     }
 }

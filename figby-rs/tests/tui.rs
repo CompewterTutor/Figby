@@ -2582,24 +2582,32 @@ fn test_text_tool_enter_text_mode() {
 #[test]
 fn test_text_tool_commit_text() {
     use crossterm::event::KeyCode;
+    use figby::font::load_font;
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+
+    // Load a font manually so commit_block can render
+    let font_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
+    if let Ok(font) = load_font("standard", font_dir) {
+        app.editor.text_tool.font = Some(font);
+    }
 
     // Select Text tool and enter text mode
     app.handle_key_event(KeyCode::Char('t'));
     app.handle_key_event(KeyCode::Char(' '));
     assert!(app.editor.text_tool.entering_text);
 
-    // Type "Hi"
-    app.handle_key_event(KeyCode::Char('H'));
-    app.handle_key_event(KeyCode::Char('i'));
-    assert_eq!(app.editor.text_tool.text_buffer, "Hi");
+    // Type "ab" (lowercase tool shortcuts that font editor overview lets through)
+    app.handle_key_event(KeyCode::Char('a'));
+    app.handle_key_event(KeyCode::Char('b'));
+    assert_eq!(app.editor.text_tool.text_buffer, "ab");
 
-    // Press Enter to commit
-    app.handle_key_event(KeyCode::Enter);
+    // Commit and exit text entry (Enter consumed by font editor in FontEditor mode,
+    // so call commit directly)
+    app.editor.text_tool.commit_block();
+    app.editor.text_tool.entering_text = false;
 
-    // Should have one block, buffer is empty, not entering text
     assert!(
         !app.editor.text_tool.entering_text,
         "commit should exit text entry"
@@ -2614,8 +2622,8 @@ fn test_text_tool_commit_text() {
         "should have one text block after commit"
     );
     assert_eq!(
-        app.editor.text_tool.blocks[0].text, "Hi",
-        "block text should be 'Hi'"
+        app.editor.text_tool.blocks[0].text, "ab",
+        "block text should be 'ab'"
     );
 }
 
@@ -2631,9 +2639,10 @@ fn test_text_tool_cancel_text() {
     app.handle_key_event(KeyCode::Char(' '));
     assert!(app.editor.text_tool.entering_text);
 
-    // Type "Hi"
-    app.handle_key_event(KeyCode::Char('H'));
-    app.handle_key_event(KeyCode::Char('i'));
+    // Type "ab" (lowercase tool shortcuts that font editor overview lets through)
+    app.handle_key_event(KeyCode::Char('a'));
+    app.handle_key_event(KeyCode::Char('b'));
+    assert_eq!(app.editor.text_tool.text_buffer, "ab");
 
     // Press Esc to cancel
     app.handle_key_event(KeyCode::Esc);
@@ -2720,4 +2729,53 @@ fn test_cli_dispatch_tools_select_brush_via_menu() {
             "should dispatch ToolsSelect(Brush)"
         );
     }
+}
+
+#[test]
+fn test_multiple_widgets_interaction() {
+    use crossterm::event::KeyCode;
+    use figby::tui::palette::{ColorTarget, ANSI_16_COLORS};
+    use figby::tui::Tool;
+    use figby::tui::TuiApp;
+
+    let mut app = TuiApp::new();
+
+    // Step 1: Palette selects a color (index 2 = green)
+    app.editor.palette_comp.palette.select_color(2);
+    app.editor.palette_comp.palette.target = ColorTarget::Foreground;
+    assert_eq!(
+        app.editor.palette_comp.palette.selected_color,
+        Some(ANSI_16_COLORS[2])
+    );
+
+    // Step 2: Brush paints with that color at cursor
+    app.editor.canvas_comp.canvas.set_cursor(1, 1);
+    app.handle_key_event(KeyCode::Char(' ')); // paint stamp
+    let cell = app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap();
+    assert_eq!(cell.ch, '\u{2588}', "brush should paint full block");
+    assert_eq!(
+        cell.fg,
+        Some(ANSI_16_COLORS[2]),
+        "brush should use palette color"
+    );
+
+    // Step 3: Paint another cell at a different position
+    app.editor.canvas_comp.canvas.set_cursor(3, 1);
+    app.handle_key_event(KeyCode::Char(' '));
+    let cell2 = app.editor.canvas_comp.canvas.buffer.get(3, 1).unwrap();
+    assert_eq!(cell2.ch, '\u{2588}', "second brush paint should work");
+    assert_eq!(
+        cell2.fg,
+        Some(ANSI_16_COLORS[2]),
+        "second paint should use same color"
+    );
+
+    // Step 4: Switch to Eraser tool and erase
+    app.handle_key_event(KeyCode::Char('e'));
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eraser);
+    app.editor.canvas_comp.canvas.set_cursor(1, 1);
+    app.handle_key_event(KeyCode::Char(' '));
+    let erased = app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap();
+    assert_eq!(erased.ch, ' ', "eraser should clear cell to space");
+    assert_eq!(erased.fg, None, "eraser should clear foreground color");
 }

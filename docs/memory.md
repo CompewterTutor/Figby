@@ -1290,3 +1290,11 @@ Created `rc/2.0.0-rc.1` branch and annotated tag `2.0.0-rc.1` from
 `release/2.10` tip (af0111f). Stale RC infrastructure (old `rc/2.0.0-rc.1`
 branch and `2.0.0-rc.1` tag from Phase 2.0) deleted and recreated.
 Handoff for human sign-off and merge to master.
+
+### 3.2.4 — Phase merge: release/3.2 → main
+
+Merged all Phase 3.2 work into default branch (master). Phase 3.2 complete:
+glyph grid mouse click+double-click (3.2.1), glyph char editor cursor+cell
+toggle (3.2.2), font preview strip in overview (3.2.3).
+All 3 subtasks (3.2.1–3.2.3) implemented, tested, merged. Phase 3.3
+(Major Release) is next.

@@ -349,7 +349,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
     `figby-rs/src/render.rs`
   - **Difficulty:** Medium
 
-- [ ] `3.2.4` Phase merge: release/3.2 → main
+- [x] `3.2.4` Phase merge: release/3.2 → main
   - **Difficulty:** Low
 
 ---

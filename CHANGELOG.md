@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.5.4] - 2026-06-16
+### Changed
+- Phase merge: release/3.2 → master. Phase 3.2 complete: glyph grid mouse
+  click+double-click, glyph char editor cursor+cell toggle, font preview strip.
+
 ## [2.5.3] - 2026-06-16
 
 ### Added

@@ -119,6 +119,14 @@ Updated `render_overview()` layout from 3 to 4 chunks: prompt, grid (Min(1)), pr
 
 `PREVIEW_STRING` constant defined at module level. Preview computed on every render frame, so glyph edits are reflected immediately. No `.unwrap()` in production. fmt and clippy pass clean.
 
+### 3.2.4 — Phase merge: release/3.2 → main
+
+Merged all Phase 3.2 work into default branch (master). Phase 3.2 complete:
+glyph grid mouse click+double-click (3.2.1), glyph char editor cursor+cell
+toggle (3.2.2), font preview strip in overview (3.2.3).
+All 3 subtasks (3.2.1–3.2.3) implemented, tested, merged. Phase 3.3
+(Major Release) is next.
+
 ## Phase 3.3 — Particle Effect Creator
 
 (To be filled during implementation.)

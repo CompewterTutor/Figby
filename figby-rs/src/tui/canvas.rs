@@ -4,7 +4,36 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::Widget;
 
+use std::time::{Duration, Instant};
+
 use super::theme::Theme;
+
+#[derive(Debug, Clone)]
+pub struct GlyphCursor {
+    pub x: u16,
+    pub y: u16,
+    pub visible: bool,
+    last_blink: Instant,
+}
+
+impl GlyphCursor {
+    pub fn new(x: u16, y: u16) -> Self {
+        Self {
+            x,
+            y,
+            visible: true,
+            last_blink: Instant::now(),
+        }
+    }
+
+    pub fn blink(&mut self) {
+        let now = Instant::now();
+        if now.duration_since(self.last_blink) >= Duration::from_millis(500) {
+            self.visible = !self.visible;
+            self.last_blink = now;
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CanvasCell {
@@ -90,6 +119,7 @@ pub struct CanvasWidget {
     pub polygon_vertices: Vec<(i16, i16)>,
     pub text_overlays: Vec<TextOverlay>,
     pub text_block_perimeter: Option<Vec<(usize, usize)>>,
+    pub glyph_cursor: Option<GlyphCursor>,
     pub theme: Theme,
 }
 
@@ -107,6 +137,7 @@ impl CanvasWidget {
             polygon_vertices: Vec::new(),
             text_overlays: Vec::new(),
             text_block_perimeter: None,
+            glyph_cursor: None,
             theme: Theme::default(),
         }
     }
@@ -459,18 +490,34 @@ impl Widget for &CanvasWidget {
             }
         }
 
-        // Cursor highlight (rendered after grid so it's visible on top)
-        if self.cursor.0 >= sx
-            && self.cursor.0 < sx + vis_w
-            && self.cursor.1 >= sy
-            && self.cursor.1 < sy + vis_h
-        {
-            let cx = area.x + (self.cursor.0 - sx) * zoom;
-            let cy = area.y + (self.cursor.1 - sy) * zoom;
-            for r in cy..(cy + zoom).min(area.y + area.height) {
-                for c in cx..(cx + zoom).min(area.x + area.width) {
-                    if let Some(cell) = buf.cell_mut((c, r)) {
-                        cell.set_style(cell.style().reversed());
+        // Glyph cursor overlay (blinking █) — replaces normal cursor when set
+        if let Some(ref gc) = self.glyph_cursor {
+            if gc.visible && gc.x >= sx && gc.x < sx + vis_w && gc.y >= sy && gc.y < sy + vis_h {
+                let cx = area.x + (gc.x - sx) * zoom;
+                let cy = area.y + (gc.y - sy) * zoom;
+                for r in cy..(cy + zoom).min(area.y + area.height) {
+                    for c in cx..(cx + zoom).min(area.x + area.width) {
+                        if let Some(cell) = buf.cell_mut((c, r)) {
+                            cell.set_char('\u{2588}');
+                            cell.set_style(cell.style().reversed());
+                        }
+                    }
+                }
+            }
+        } else {
+            // Cursor highlight (rendered after grid so it's visible on top)
+            if self.cursor.0 >= sx
+                && self.cursor.0 < sx + vis_w
+                && self.cursor.1 >= sy
+                && self.cursor.1 < sy + vis_h
+            {
+                let cx = area.x + (self.cursor.0 - sx) * zoom;
+                let cy = area.y + (self.cursor.1 - sy) * zoom;
+                for r in cy..(cy + zoom).min(area.y + area.height) {
+                    for c in cx..(cx + zoom).min(area.x + area.width) {
+                        if let Some(cell) = buf.cell_mut((c, r)) {
+                            cell.set_style(cell.style().reversed());
+                        }
                     }
                 }
             }

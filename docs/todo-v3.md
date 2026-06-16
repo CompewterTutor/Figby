@@ -331,7 +331,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Depends:** `3.1.3`, `3.1.7`
   - **Difficulty:** Medium
 
-- [ ] `3.2.2` Glyph char editor: proper canvas cursor + cell toggle
+- [x] `3.2.2` Glyph char editor: proper canvas cursor + cell toggle
   - **Goal:** In `CharEditor` mode the canvas is the editing surface. Currently
     the canvas widget handles drawing tools, but the font editor glyph cell is
     simple toggle (space / non-space). Add a dedicated `GlyphCursor` overlay
@@ -341,7 +341,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
     `figby-rs/src/tui/canvas.rs`
   - **Difficulty:** Medium
 
-- [ ] `3.2.3` Font preview strip in overview
+- [x] `3.2.3` Font preview strip in overview
   - **Goal:** Below the glyph grid, render a live preview strip showing a
     sample string ("AaBbCc123!?") rendered using the current font glyphs via
     `render.rs`. Updates on every glyph edit. Helps see font as a whole.

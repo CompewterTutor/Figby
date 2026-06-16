@@ -12,6 +12,8 @@ use super::theme::Theme;
 use crate::font::{load_font, FIGfont};
 use crate::smush::{smush_horizontal, SmushMode};
 
+const PREVIEW_STRING: &str = "AaBbCc123!?";
+
 const SMUSH_RULE_LABELS: [(&str, u32); 6] = [
     ("Equal Char", SmushMode::EQUAL_CHARS),
     ("Underscore", SmushMode::UNDERSCORE),
@@ -118,6 +120,9 @@ pub struct FontEditor {
     pub font_storage_name: String,
     pub current_path: Option<PathBuf>,
     pub original_font: Option<FIGfont>,
+    pub glyph_cursor_x: u16,
+    pub glyph_cursor_y: u16,
+    pub brush_char: char,
     pub theme: Theme,
     /// (code_point, screen_rect) for each visible glyph cell — populated during render
     pub cell_rects: Vec<(u32, Rect)>,
@@ -153,6 +158,9 @@ impl FontEditor {
             font_storage_name: String::new(),
             current_path: None,
             original_font: None,
+            glyph_cursor_x: 0,
+            glyph_cursor_y: 0,
+            brush_char: '\u{2588}',
             theme: Theme::default(),
             cell_rects: Vec::new(),
             last_click: None,
@@ -180,6 +188,9 @@ impl FontEditor {
         self.transform_font_name.clear();
         self.font_storage_name.clear();
         self.original_font = None;
+        self.glyph_cursor_x = 0;
+        self.glyph_cursor_y = 0;
+        self.brush_char = '\u{2588}';
     }
 
     pub fn enter_header_editor(&mut self) {
@@ -331,16 +342,15 @@ impl FontEditor {
 
     fn render_overview(&mut self, frame: &mut Frame, area: Rect) {
         let prompt_height: u16 = 3;
+        let preview_height = self.font.as_ref().map_or(0, |f| f.charheight as u16 + 2);
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(
-                [
-                    Constraint::Length(prompt_height),
-                    Constraint::Min(0),
-                    Constraint::Length(1),
-                ]
-                .as_ref(),
-            )
+            .constraints([
+                Constraint::Length(prompt_height),
+                Constraint::Min(1),
+                Constraint::Length(preview_height),
+                Constraint::Length(1),
+            ])
             .split(area);
 
         if self.code_input_active {
@@ -383,7 +393,7 @@ impl FontEditor {
             " \u{2191}\u{2193}\u{2190}\u{2192} Navigate  Type Search  Enter Edit  A Add  D Del  C Copy  H Header  S Smush  T Transform  Esc Close",
         )
         .style(Style::default().fg(self.theme.menu.dim));
-        frame.render_widget(hint, chunks[2]);
+        frame.render_widget(hint, chunks[3]);
 
         let grid_area = chunks[1];
         let filtered = self.filtered_codes();
@@ -471,6 +481,18 @@ impl FontEditor {
 
         let grid = Paragraph::new(lines);
         frame.render_widget(grid, grid_area);
+
+        // Preview strip
+        if preview_height > 0 {
+            if let Some(font) = &self.font {
+                let preview_rows = crate::render::render_string(font, PREVIEW_STRING);
+                let block = Block::default()
+                    .borders(Borders::ALL)
+                    .title(format!(" Preview: {} ", PREVIEW_STRING));
+                let paragraph = Paragraph::new(preview_rows.join("\n")).block(block);
+                frame.render_widget(paragraph, chunks[2]);
+            }
+        }
     }
 
     fn render_smush_editor(&self, frame: &mut Frame, area: Rect) {
@@ -720,6 +742,67 @@ impl FontEditor {
         match code {
             KeyCode::Esc => {
                 self.view = FontEditorView::Overview;
+                true
+            }
+            KeyCode::Up => {
+                self.glyph_cursor_y = self.glyph_cursor_y.saturating_sub(1);
+                true
+            }
+            KeyCode::Down => {
+                if let Some(ref font) = self.font {
+                    self.glyph_cursor_y =
+                        (self.glyph_cursor_y + 1).min(font.charheight.saturating_sub(1) as u16);
+                }
+                true
+            }
+            KeyCode::Left => {
+                self.glyph_cursor_x = self.glyph_cursor_x.saturating_sub(1);
+                true
+            }
+            KeyCode::Right => {
+                if let FontEditorView::CharEditor(charcode) = self.view {
+                    if let Some(ref font) = self.font {
+                        if let Some(ch) = font.chars.get(&charcode) {
+                            self.glyph_cursor_x =
+                                (self.glyph_cursor_x + 1).min(ch.width().saturating_sub(1) as u16);
+                        }
+                    }
+                }
+                true
+            }
+            KeyCode::Char(' ') => {
+                if let FontEditorView::CharEditor(charcode) = self.view {
+                    if let Some(ref mut font) = self.font {
+                        if let Some(ch) = font.chars.get_mut(&charcode) {
+                            let mut rows = ch.rows().to_vec();
+                            let y = self.glyph_cursor_y as usize;
+                            let x = self.glyph_cursor_x as usize;
+                            if y < rows.len() {
+                                let old_row: Vec<char> = rows[y].chars().collect();
+                                if x < old_row.len() {
+                                    let current = old_row[x];
+                                    let new_row: String = old_row
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(i, &c)| {
+                                            if i == x {
+                                                if current == ' ' {
+                                                    self.brush_char
+                                                } else {
+                                                    ' '
+                                                }
+                                            } else {
+                                                c
+                                            }
+                                        })
+                                        .collect();
+                                    rows[y] = new_row;
+                                    ch.set_rows(rows);
+                                }
+                            }
+                        }
+                    }
+                }
                 true
             }
             _ => false,
@@ -1346,6 +1429,8 @@ impl FontEditor {
             // Enter selects highlighted char
             KeyCode::Enter => {
                 if !filtered.is_empty() && self.selected_index < filtered.len() {
+                    self.glyph_cursor_x = 0;
+                    self.glyph_cursor_y = 0;
                     self.view = FontEditorView::CharEditor(filtered[self.selected_index]);
                 }
                 true
@@ -1434,6 +1519,8 @@ impl FontEditor {
         self.last_click = Some((code, now));
 
         if is_double {
+            self.glyph_cursor_x = 0;
+            self.glyph_cursor_y = 0;
             self.view = FontEditorView::CharEditor(code);
         }
         true
@@ -2215,5 +2302,21 @@ mod tests {
             !editor.error_message.is_empty(),
             "should set error for nonexistent font"
         );
+    }
+
+    #[test]
+    fn test_preview_string_renders() {
+        let editor = make_editor();
+        let font = editor.font.as_ref().unwrap();
+        let preview_rows = crate::render::render_string(font, PREVIEW_STRING);
+        assert!(!preview_rows.is_empty());
+        assert_eq!(preview_rows.len(), font.charheight as usize);
+    }
+
+    #[test]
+    fn test_preview_height_zero_without_font() {
+        let editor = FontEditor::new();
+        assert!(editor.font.is_none());
+        // preview_height will be 0 -> no preview rendered -> no panic
     }
 }

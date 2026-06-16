@@ -73,7 +73,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 3.2 — Animation Timeline & Playback
 
-- [ ] `3.2.0` Custom ratatui widget: `AnimationTimeline`
+- [x] `3.2.0` Custom ratatui widget: `AnimationTimeline`
   - **Goal:** Create `AnimationTimeline` widget following ratatui best
     practices: `Widget for &AnimationTimeline` (reference-based, not
     consuming), separate `TimelineState` implementing

@@ -103,6 +103,16 @@ Also added `self.dirty = true` in `check_async_completion()` itself when a resul
 
 ## Phase 3.2 — Font Editor Polish
 
+### 3.2.0 — AnimationTimeline custom ratatui widget
+
+Created `figby-rs/src/tui/timeline.rs` with `AnimationTimeline` implementing
+both `Widget for &AnimationTimeline` and `StatefulWidget for &AnimationTimeline`
+with `TimelineState`. Supports: horizontal-scrollable frame thumbnails at
+configurable size/gap, keyframe markers (`◆`/`·`), playhead indicator (`▼`),
+time ruler (─), active frame highlight, and scroll offset tracking.
+6 unit tests covering basic render, playhead update, constraints, scroll offset,
+keyframe markers, empty state, and thumbnail content.
+
 ### 3.2.2 — Glyph char editor: GlyphCursor overlay + cell toggle
 
 Added `GlyphCursor` struct to `canvas.rs` — blinking `█` cursor overlay (`Option<GlyphCursor>` on `CanvasWidget`) rendered when set, replacing the normal reversed-style cursor. `blink()` toggles `visible` every 500ms via `Instant::now()`.

@@ -36,6 +36,7 @@ pub mod render_mode;
 pub mod status;
 pub mod theme;
 pub mod throbber;
+pub mod timeline;
 pub mod toolbox;
 pub mod tools;
 pub mod undo;

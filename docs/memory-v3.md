@@ -129,13 +129,32 @@ Updated `render_overview()` layout from 3 to 4 chunks: prompt, grid (Min(1)), pr
 
 `PREVIEW_STRING` constant defined at module level. Preview computed on every render frame, so glyph edits are reflected immediately. No `.unwrap()` in production. fmt and clippy pass clean.
 
+### 3.2.1 — Glyph grid: StatefulWidget refactor with mouse support
+
+Converted the glyph overview grid from Paragraph-based rendering to idiomatic
+ratatui `StatefulWidget` pattern:
+- **`GlyphGridState`** struct: owns `cell_rects` (render-pass recording),
+  `last_click` (double-click detection), `cols` (column count from last render).
+  Public accessors: `last_click()`, `set_last_click()`, `cols()`. `Clone` + `Default`.
+- **`GlyphGridWidget<'a>`** struct: holds borrowed `FIGfont`, filtered code slice,
+  selected_index, grid_scroll, and Theme reference. Implements `StatefulWidget
+  for &GlyphGridWidget` — writes directly to `Buffer` via `buf.set_string()`.
+- Existing `cell_rects`/`last_click` fields on `FontEditor` replaced with single
+  `grid_state: GlyphGridState`. `render_overview()` now calls
+  `frame.render_stateful_widget(&widget, area, &mut self.grid_state)`.
+- `handle_mouse_scroll_overview()` lost its `area_width` parameter — reads `cols`
+  from `grid_state` instead of recomputing. `mod.rs` call sites updated.
+- 11 unit tests: rects populated, click selects, click miss, double-click opens
+  editor, scroll down/up, grid cleared per frame, scroll clamped at zero, scroll
+  bounded above, empty state construction.
+
 ### 3.2.4 — Phase merge: release/3.2 → main
 
 Merged all Phase 3.2 work into default branch (master). Phase 3.2 complete:
-glyph grid mouse click+double-click (3.2.1), glyph char editor cursor+cell
-toggle (3.2.2), font preview strip in overview (3.2.3).
-All 3 subtasks (3.2.1–3.2.3) implemented, tested, merged. Phase 3.3
-(Major Release) is next.
+glyph grid StatefulWidget refactor with mouse click+double-click (3.2.1),
+glyph char editor cursor+cell toggle (3.2.2), font preview strip in
+overview (3.2.3). All 3 subtasks (3.2.1–3.2.3) implemented, tested, merged.
+Phase 3.3 (Major Release) is next.
 
 ## Phase 3.3 — Particle Effect Creator
 

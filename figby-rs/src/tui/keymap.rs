@@ -27,44 +27,228 @@ pub struct KeyBinding {
 
 pub const KEYMAP: &[KeyBinding] = &[
     // Global
-    KeyBinding { keys: "Ctrl+O",       scope: Scope::Global,         description: "Open file" },
-    KeyBinding { keys: "Ctrl+S",       scope: Scope::Global,         description: "Save file" },
-    KeyBinding { keys: "Ctrl+Shift+S", scope: Scope::Global,         description: "Save As" },
-    KeyBinding { keys: "Ctrl+E",       scope: Scope::Global,         description: "Export" },
-    KeyBinding { keys: "Ctrl+Q",       scope: Scope::Global,         description: "Quit" },
-    KeyBinding { keys: "Tab",          scope: Scope::Global,         description: "Next mode" },
-    KeyBinding { keys: "Shift+Tab",    scope: Scope::Global,         description: "Prev mode" },
-    KeyBinding { keys: "F5",           scope: Scope::Global,         description: "Toggle render mode (Fast/Dirty)" },
-    KeyBinding { keys: "Ctrl+Shift+H", scope: Scope::Global,         description: "Toggle undo history panel" },
-    KeyBinding { keys: "Alt+F",        scope: Scope::Global,         description: "Open File menu" },
-    KeyBinding { keys: "Alt+E",        scope: Scope::Global,         description: "Open Edit menu" },
-    KeyBinding { keys: "Alt+V",        scope: Scope::Global,         description: "Open View menu" },
-    KeyBinding { keys: "Alt+T",        scope: Scope::Global,         description: "Open Tools menu" },
-    KeyBinding { keys: "Alt+H",        scope: Scope::Global,         description: "Open Help menu" },
+    KeyBinding {
+        keys: "Ctrl+O",
+        scope: Scope::Global,
+        description: "Open file",
+    },
+    KeyBinding {
+        keys: "Ctrl+S",
+        scope: Scope::Global,
+        description: "Save file",
+    },
+    KeyBinding {
+        keys: "Ctrl+Shift+S",
+        scope: Scope::Global,
+        description: "Save As",
+    },
+    KeyBinding {
+        keys: "Ctrl+E",
+        scope: Scope::Global,
+        description: "Export",
+    },
+    KeyBinding {
+        keys: "Ctrl+Q",
+        scope: Scope::Global,
+        description: "Quit",
+    },
+    KeyBinding {
+        keys: "Tab",
+        scope: Scope::Global,
+        description: "Next mode",
+    },
+    KeyBinding {
+        keys: "Shift+Tab",
+        scope: Scope::Global,
+        description: "Prev mode",
+    },
+    KeyBinding {
+        keys: "F5",
+        scope: Scope::Global,
+        description: "Toggle render mode (Fast/Dirty)",
+    },
+    KeyBinding {
+        keys: "F11",
+        scope: Scope::Global,
+        description: "Toggle zen mode (full canvas)",
+    },
+    KeyBinding {
+        keys: "?",
+        scope: Scope::Global,
+        description: "Cycle right drawer (palette/brush keys/closed)",
+    },
+    KeyBinding {
+        keys: "Ctrl+K",
+        scope: Scope::Global,
+        description: "Toggle keybindings overlay",
+    },
+    KeyBinding {
+        keys: "Ctrl+Shift+H",
+        scope: Scope::Global,
+        description: "Toggle undo history panel",
+    },
+    KeyBinding {
+        keys: "Alt+F",
+        scope: Scope::Global,
+        description: "Open File menu",
+    },
+    KeyBinding {
+        keys: "Alt+E",
+        scope: Scope::Global,
+        description: "Open Edit menu",
+    },
+    KeyBinding {
+        keys: "Alt+V",
+        scope: Scope::Global,
+        description: "Open View menu",
+    },
+    KeyBinding {
+        keys: "Alt+T",
+        scope: Scope::Global,
+        description: "Open Tools menu",
+    },
+    KeyBinding {
+        keys: "Alt+H",
+        scope: Scope::Global,
+        description: "Open Help menu",
+    },
     // Canvas
-    KeyBinding { keys: "Ctrl+Z",       scope: Scope::Canvas,         description: "Undo" },
-    KeyBinding { keys: "Ctrl+Y",       scope: Scope::Canvas,         description: "Redo" },
-    KeyBinding { keys: "Ctrl+Shift+Z", scope: Scope::Canvas,         description: "Redo (alternate)" },
-    KeyBinding { keys: "+ / -",        scope: Scope::Canvas,         description: "Zoom in / out" },
+    KeyBinding {
+        keys: "Ctrl+Z",
+        scope: Scope::Canvas,
+        description: "Undo",
+    },
+    KeyBinding {
+        keys: "Ctrl+Y",
+        scope: Scope::Canvas,
+        description: "Redo",
+    },
+    KeyBinding {
+        keys: "Ctrl+Shift+Z",
+        scope: Scope::Canvas,
+        description: "Redo (alternate)",
+    },
+    KeyBinding {
+        keys: "+ / -",
+        scope: Scope::Canvas,
+        description: "Zoom in / out",
+    },
+    KeyBinding {
+        keys: "b/e/l/v/c/p",
+        scope: Scope::Canvas,
+        description: "Brush/Eraser/Lasso/Select/Circle/Polygon",
+    },
+    KeyBinding {
+        keys: "g/i/d/a/t",
+        scope: Scope::Canvas,
+        description: "Fill/Line/Eyedropper/Spray/Text",
+    },
+    KeyBinding {
+        keys: "[ / ]",
+        scope: Scope::Canvas,
+        description: "Brush size down / up",
+    },
+    KeyBinding {
+        keys: "; / '",
+        scope: Scope::Canvas,
+        description: "Brush density down / up",
+    },
+    KeyBinding {
+        keys: r"\",
+        scope: Scope::Canvas,
+        description: "Cycle brush shape",
+    },
     // Font Overview
-    KeyBinding { keys: "↑↓←→",         scope: Scope::FontOverview,   description: "Navigate glyph grid" },
-    KeyBinding { keys: "Enter",        scope: Scope::FontOverview,   description: "Open glyph editor" },
-    KeyBinding { keys: "Type chars",   scope: Scope::FontOverview,   description: "Activate search / filter glyphs" },
-    KeyBinding { keys: "Esc",          scope: Scope::FontOverview,   description: "Clear search" },
-    KeyBinding { keys: "A",            scope: Scope::FontOverview,   description: "Add glyph" },
-    KeyBinding { keys: "D",            scope: Scope::FontOverview,   description: "Delete glyph" },
-    KeyBinding { keys: "C",            scope: Scope::FontOverview,   description: "Copy glyph" },
-    KeyBinding { keys: "H",            scope: Scope::FontOverview,   description: "Header editor" },
-    KeyBinding { keys: "S",            scope: Scope::FontOverview,   description: "Smushing rule editor" },
-    KeyBinding { keys: "T",            scope: Scope::FontOverview,   description: "Transform editor" },
+    KeyBinding {
+        keys: "↑↓←→",
+        scope: Scope::FontOverview,
+        description: "Navigate glyph grid",
+    },
+    KeyBinding {
+        keys: "Enter",
+        scope: Scope::FontOverview,
+        description: "Open glyph editor",
+    },
+    KeyBinding {
+        keys: "Type chars",
+        scope: Scope::FontOverview,
+        description: "Activate search / filter glyphs",
+    },
+    KeyBinding {
+        keys: "Esc",
+        scope: Scope::FontOverview,
+        description: "Clear search",
+    },
+    KeyBinding {
+        keys: "A",
+        scope: Scope::FontOverview,
+        description: "Add glyph",
+    },
+    KeyBinding {
+        keys: "D",
+        scope: Scope::FontOverview,
+        description: "Delete glyph",
+    },
+    KeyBinding {
+        keys: "C",
+        scope: Scope::FontOverview,
+        description: "Copy glyph",
+    },
+    KeyBinding {
+        keys: "H",
+        scope: Scope::FontOverview,
+        description: "Header editor",
+    },
+    KeyBinding {
+        keys: "S",
+        scope: Scope::FontOverview,
+        description: "Smushing rule editor",
+    },
+    KeyBinding {
+        keys: "T",
+        scope: Scope::FontOverview,
+        description: "Transform editor",
+    },
     // Font Char Editor
-    KeyBinding { keys: "↑↓←→",         scope: Scope::FontCharEditor, description: "Move cursor in glyph" },
-    KeyBinding { keys: "Space",        scope: Scope::FontCharEditor, description: "Toggle cell" },
-    KeyBinding { keys: "M",            scope: Scope::FontCharEditor, description: "Mirror" },
-    KeyBinding { keys: "F",            scope: Scope::FontCharEditor, description: "Flip" },
-    KeyBinding { keys: "G",            scope: Scope::FontCharEditor, description: "Generate from system font" },
+    KeyBinding {
+        keys: "↑↓←→",
+        scope: Scope::FontCharEditor,
+        description: "Move cursor in glyph",
+    },
+    KeyBinding {
+        keys: "Space",
+        scope: Scope::FontCharEditor,
+        description: "Toggle cell",
+    },
+    KeyBinding {
+        keys: "M",
+        scope: Scope::FontCharEditor,
+        description: "Mirror",
+    },
+    KeyBinding {
+        keys: "F",
+        scope: Scope::FontCharEditor,
+        description: "Flip",
+    },
+    KeyBinding {
+        keys: "G",
+        scope: Scope::FontCharEditor,
+        description: "Generate from system font",
+    },
     // Dialog
-    KeyBinding { keys: "Esc",          scope: Scope::Dialog,         description: "Close / cancel" },
-    KeyBinding { keys: "Enter",        scope: Scope::Dialog,         description: "Confirm" },
-    KeyBinding { keys: "↑↓",           scope: Scope::Dialog,         description: "Navigate items" },
+    KeyBinding {
+        keys: "Esc",
+        scope: Scope::Dialog,
+        description: "Close / cancel",
+    },
+    KeyBinding {
+        keys: "Enter",
+        scope: Scope::Dialog,
+        description: "Confirm",
+    },
+    KeyBinding {
+        keys: "↑↓",
+        scope: Scope::Dialog,
+        description: "Navigate items",
+    },
 ];

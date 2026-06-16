@@ -178,6 +178,10 @@ impl BrushState {
             Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!(" {}", self.size)),
         ]));
+        lines.push(Line::from(vec![
+            Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", self.shape.name())),
+        ]));
 
         lines.push(Line::from(Span::raw("")));
 

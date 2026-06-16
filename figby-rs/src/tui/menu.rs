@@ -136,7 +136,11 @@ impl MenuBar {
                 }
                 KeyCode::Left => {
                     if let Some(idx) = self.active_menu {
-                        let prev = if idx == 0 { self.menus.len() - 1 } else { idx - 1 };
+                        let prev = if idx == 0 {
+                            self.menus.len() - 1
+                        } else {
+                            idx - 1
+                        };
                         self.open_menu(prev);
                     }
                     true
@@ -225,7 +229,9 @@ impl MenuBar {
         self.header_rects.clear();
 
         // Render menu bar background
-        let bar_style = Style::default().fg(self.theme.menu.fg).bg(self.theme.menu.bg);
+        let bar_style = Style::default()
+            .fg(self.theme.menu.fg)
+            .bg(self.theme.menu.bg);
         let bar = Paragraph::new(" ".repeat(area.width as usize)).style(bar_style);
         frame.render_widget(bar, area);
 
@@ -277,7 +283,7 @@ impl MenuBar {
             .max()
             .unwrap_or(10);
         let dropdown_w = max_label_w + 4; // 1 space padding each side + 2 borders
-        let dropdown_h = item_count + 2;  // items + top/bottom border
+        let dropdown_h = item_count + 2; // items + top/bottom border
 
         // Position below the open header
         let Some(&header_rect) = self.header_rects.get(menu_idx) else {
@@ -296,9 +302,11 @@ impl MenuBar {
 
         // Clear area and draw bordered box
         frame.render_widget(Clear, dropdown_rect);
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().bg(self.theme.menu.dropdown_bg).fg(self.theme.menu.fg));
+        let block = Block::default().borders(Borders::ALL).style(
+            Style::default()
+                .bg(self.theme.menu.dropdown_bg)
+                .fg(self.theme.menu.fg),
+        );
         frame.render_widget(block, dropdown_rect);
 
         // Inner area for items
@@ -329,7 +337,11 @@ impl MenuBar {
                     .bg(self.theme.menu.dropdown_bg)
             };
 
-            let padded = format!(" {:<width$} ", label, width = (inner_w as usize).saturating_sub(2));
+            let padded = format!(
+                " {:<width$} ",
+                label,
+                width = (inner_w as usize).saturating_sub(2)
+            );
             frame.render_widget(Paragraph::new(padded).style(style), item_rect);
         }
     }
@@ -393,7 +405,10 @@ fn build_menus() -> Vec<TopMenu> {
                 ("Marquee", MenuAction::ToolsSelect(Tool::Marquee)),
                 ("Lasso", MenuAction::ToolsSelect(Tool::Lasso)),
                 ("Circle Select", MenuAction::ToolsSelect(Tool::CircleSelect)),
-                ("Polygon Select", MenuAction::ToolsSelect(Tool::PolygonSelect)),
+                (
+                    "Polygon Select",
+                    MenuAction::ToolsSelect(Tool::PolygonSelect),
+                ),
                 ("Eyedropper", MenuAction::ToolsSelect(Tool::Eyedropper)),
                 ("Spray", MenuAction::ToolsSelect(Tool::Spray)),
                 ("Text", MenuAction::ToolsSelect(Tool::Text)),

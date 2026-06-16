@@ -77,6 +77,35 @@ Ralph supports multi-phase loops, per-task agent selection via `Agent:`/`Difficu
 - Phase completion triggers review before merge to main
 - Major versions (X.0) require human sign-off
 
+### Post-Task Checklist
+
+After completing any implementation work, do ALL of the following (or ask the user to confirm, unless in auto mode):
+
+1. **Summarize** what changed — files touched, behavior added/fixed/removed.
+2. **Verify** — run before committing (fail = stop, report, fix first):
+   ```bash
+   cargo build --manifest-path figby-rs/Cargo.toml
+   cargo test --manifest-path figby-rs/Cargo.toml
+   cargo clippy --manifest-path figby-rs/Cargo.toml --all-targets -- -D warnings
+   cargo fmt --manifest-path figby-rs/Cargo.toml --check
+   ```
+   If `cargo fmt --check` fails, run `cargo fmt` and re-verify before committing.
+3. **Commit** — write a proper conventional-commit message (`feat:`, `fix:`, `refactor:`, etc.) with a concise subject and body that explains *why*, not just *what*. Co-author line required.
+4. **Version bump** — increment the patch version (or minor/major if scope warrants) in:
+   - `figby-rs/Cargo.toml` (`version = "X.Y.Z"`)
+   - `README.md` (if it mentions a version)
+   - Any `--version` / `--help` output strings in `main.rs`
+5. **Changelog** — prepend an entry to `CHANGELOG.md` (create it if absent) in Keep a Changelog format:
+   ```
+   ## [X.Y.Z] - YYYY-MM-DD
+   ### Added / Changed / Fixed / Removed
+   - One-line description per change
+   ```
+6. **Check off task** in `docs/todo-v*.md`.
+7. Add entries to `docs/memory.md` and `docs/learnings.md` if there's anything non-obvious to preserve.
+
+**Auto mode:** do steps 1–7 without asking. **Interactive mode:** summarize + verify first, then ask "Commit, bump version, and update changelog?" before proceeding.
+
 ### Memory Updates
 
 After completing any implementation work:

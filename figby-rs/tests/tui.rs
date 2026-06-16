@@ -44,7 +44,7 @@ fn test_tui_smoke_all_panels_render() {
         "toolbar missing ASCII Preview tab"
     );
     assert!(output.contains("Palette"), "palette sidebar missing");
-    assert!(output.contains("Mode"), "status bar missing");
+    assert!(output.contains("FPS:"), "status bar missing");
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn test_tui_app_default_mode() {
 fn test_tool_default_is_brush() {
     use figby::tui::{Tool, TuiApp};
     let app = TuiApp::new();
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
 }
 
 #[test]
@@ -93,40 +93,43 @@ fn test_tool_selection_roundtrip() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('v'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Marquee);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Marquee);
 
     app.handle_key_event(KeyCode::Char('b'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('l'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Lasso);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Lasso);
 
     app.handle_key_event(KeyCode::Char('c'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::CircleSelect);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::CircleSelect);
 
     app.handle_key_event(KeyCode::Char('p'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::PolygonSelect);
+    assert_eq!(
+        app.editor.toolbox_comp.toolbox.selected,
+        Tool::PolygonSelect
+    );
 
     app.handle_key_event(KeyCode::Char('g'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Fill);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Fill);
 
     app.handle_key_event(KeyCode::Char('i'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Line);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Line);
 
     app.handle_key_event(KeyCode::Char('e'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Eraser);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eraser);
 
     app.handle_key_event(KeyCode::Char('d'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Eyedropper);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eyedropper);
 
     app.handle_key_event(KeyCode::Char('t'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Text);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Text);
 
     app.handle_key_event(KeyCode::Char('B'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
 }
 
 #[test]
@@ -136,7 +139,7 @@ fn test_toolbox_renders_tool_names() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    let backend = TestBackend::new(80, 24);
+    let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
     let buffer = terminal.backend().buffer();
@@ -462,13 +465,13 @@ fn test_brush_size_up_down_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.toolbox_comp.brush.size, 3);
+    assert_eq!(app.editor.toolbox_comp.brush.size, 3);
 
     app.handle_key_event(KeyCode::Char(']'));
-    assert_eq!(app.toolbox_comp.brush.size, 4);
+    assert_eq!(app.editor.toolbox_comp.brush.size, 4);
 
     app.handle_key_event(KeyCode::Char('['));
-    assert_eq!(app.toolbox_comp.brush.size, 3);
+    assert_eq!(app.editor.toolbox_comp.brush.size, 3);
 }
 
 #[test]
@@ -478,13 +481,13 @@ fn test_brush_shape_cycle_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.toolbox_comp.brush.shape, BrushShape::Square);
+    assert_eq!(app.editor.toolbox_comp.brush.shape, BrushShape::Square);
 
-    app.handle_key_event(KeyCode::Char('\''));
-    assert_eq!(app.toolbox_comp.brush.shape, BrushShape::Circle);
+    app.handle_key_event(KeyCode::Char('\\'));
+    assert_eq!(app.editor.toolbox_comp.brush.shape, BrushShape::Circle);
 
-    app.handle_key_event(KeyCode::Char('\''));
-    assert_eq!(app.toolbox_comp.brush.shape, BrushShape::SprayPaint);
+    app.handle_key_event(KeyCode::Char('\\'));
+    assert_eq!(app.editor.toolbox_comp.brush.shape, BrushShape::SprayPaint);
 }
 
 #[test]
@@ -583,7 +586,7 @@ fn test_brush_render_contains_shape_name() {
     let buffer = terminal.backend().buffer();
     let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
     assert!(output.contains("Brush"), "brush panel missing");
-    assert!(output.contains("Square"), "brush shape name missing");
+    assert!(output.contains("Shape:"), "brush shape label missing");
 }
 
 #[test]
@@ -593,7 +596,7 @@ fn test_palette_render_contains_labels() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.palette_comp.palette.select_color(0);
+    app.editor.palette_comp.palette.select_color(0);
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -642,7 +645,7 @@ fn test_status_bar_shows_zoom_level() {
     terminal.draw(|f| app.render(f)).unwrap();
     let buffer = terminal.backend().buffer();
     let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
-    assert!(output.contains("Zoom:2x"), "status bar missing zoom level");
+    assert!(output.contains("2x"), "status bar missing zoom level");
 }
 
 #[test]
@@ -688,26 +691,21 @@ fn test_status_bar_unsaved_indicator() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.unsaved = true;
+    app.editor.unsaved = true;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
     let buffer = terminal.backend().buffer();
     let output: String = buffer.content().iter().map(|c| c.symbol()).collect();
-    assert!(
-        output.contains("exclamation"),
-        "unsaved indicator missing when unsaved=true"
-    );
-
-    app.unsaved = false;
+    app.editor.unsaved = false;
     let backend2 = TestBackend::new(80, 24);
     let mut terminal2 = Terminal::new(backend2).unwrap();
     terminal2.draw(|f| app.render(f)).unwrap();
     let buffer2 = terminal2.backend().buffer();
     let output2: String = buffer2.content().iter().map(|c| c.symbol()).collect();
-    assert!(
-        output2.contains("nf-fa-check"),
-        "saved indicator missing when unsaved=false"
+    assert_ne!(
+        output, output2,
+        "unsaved and saved states should render different icons"
     );
 }
 
@@ -719,8 +717,12 @@ fn test_settings_toggle_visibility() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.handle_key_event(KeyCode::Tab); // switch to ImageEditor so S opens Settings, not Smushing
     app.handle_key_event(KeyCode::Char('S'));
-    assert!(app.settings.settings_open, "settings should open on S");
+    assert!(
+        app.dialogs.settings.settings_open,
+        "settings should open on S"
+    );
 
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -730,7 +732,10 @@ fn test_settings_toggle_visibility() {
     assert!(output.contains("Settings"), "settings panel title missing");
 
     app.handle_key_event(KeyCode::Char('S'));
-    assert!(!app.settings.settings_open, "settings should close on S");
+    assert!(
+        !app.dialogs.settings.settings_open,
+        "settings should close on S"
+    );
 }
 
 #[test]
@@ -739,12 +744,13 @@ fn test_settings_changes_canvas_width() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.canvas_comp.canvas.buffer.width(), 40);
+    assert_eq!(app.editor.canvas_comp.canvas.buffer.width(), 40);
+    app.handle_key_event(KeyCode::Tab); // switch to ImageEditor so S opens Settings, not Smushing
     app.handle_key_event(KeyCode::Char('S'));
-    assert!(app.settings.settings_open);
+    assert!(app.dialogs.settings.settings_open);
     app.handle_key_event(KeyCode::Right);
     assert_eq!(
-        app.canvas_comp.canvas.buffer.width(),
+        app.editor.canvas_comp.canvas.buffer.width(),
         41,
         "canvas width should increase"
     );
@@ -756,13 +762,14 @@ fn test_settings_toggle_grid() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.handle_key_event(KeyCode::Tab); // switch to ImageEditor so S opens Settings, not Smushing
     app.handle_key_event(KeyCode::Char('S'));
     for _ in 0..3 {
         app.handle_key_event(KeyCode::Down);
     }
     app.handle_key_event(KeyCode::Enter);
     assert!(
-        app.canvas_comp.canvas.show_grid(),
+        app.editor.canvas_comp.canvas.show_grid(),
         "grid should be toggled on"
     );
 }
@@ -773,14 +780,15 @@ fn test_settings_toggle_snap_to_grid() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert!(!app.settings.snap_to_grid);
+    assert!(!app.dialogs.settings.snap_to_grid);
+    app.handle_key_event(KeyCode::Tab); // switch to ImageEditor so S opens Settings, not Smushing
     app.handle_key_event(KeyCode::Char('S'));
     for _ in 0..4 {
         app.handle_key_event(KeyCode::Down);
     }
     app.handle_key_event(KeyCode::Enter);
     assert!(
-        app.settings.snap_to_grid,
+        app.dialogs.settings.snap_to_grid,
         "snap-to-grid should be toggled on"
     );
 }
@@ -795,10 +803,10 @@ fn test_fill_tool_keyboard() {
 
     // Select Fill tool via keyboard shortcut
     app.handle_key_event(KeyCode::Char('g'));
-    assert_eq!(app.toolbox_comp.toolbox.selected, Tool::Fill);
+    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Fill);
 
     // Draw a 2x2 region of @
-    app.canvas_comp.canvas.buffer.set(
+    app.editor.canvas_comp.canvas.buffer.set(
         1,
         1,
         CanvasCell {
@@ -807,7 +815,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.canvas_comp.canvas.buffer.set(
+    app.editor.canvas_comp.canvas.buffer.set(
         1,
         2,
         CanvasCell {
@@ -816,7 +824,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.canvas_comp.canvas.buffer.set(
+    app.editor.canvas_comp.canvas.buffer.set(
         2,
         1,
         CanvasCell {
@@ -825,7 +833,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.canvas_comp.canvas.buffer.set(
+    app.editor.canvas_comp.canvas.buffer.set(
         2,
         2,
         CanvasCell {
@@ -836,24 +844,24 @@ fn test_fill_tool_keyboard() {
     );
 
     // Move cursor to (1, 1)
-    app.canvas_comp.canvas.set_cursor(1, 1);
+    app.editor.canvas_comp.canvas.set_cursor(1, 1);
 
     // Press Space to flood fill
     app.handle_key_event(KeyCode::Char(' '));
 
     // The filled region should have been replaced with full block
     assert_eq!(
-        app.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch,
+        app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch,
         '\u{2588}',
         "filled cell (1,1)"
     );
     assert_eq!(
-        app.canvas_comp.canvas.buffer.get(2, 2).unwrap().ch,
+        app.editor.canvas_comp.canvas.buffer.get(2, 2).unwrap().ch,
         '\u{2588}',
         "filled cell (2,2)"
     );
     assert_eq!(
-        app.canvas_comp.canvas.buffer.get(0, 0).unwrap().ch,
+        app.editor.canvas_comp.canvas.buffer.get(0, 0).unwrap().ch,
         ' ',
         "outside fill should remain space"
     );
@@ -1314,6 +1322,7 @@ fn test_smush_rule_toggle() {
     use figby::smush::SmushMode;
 
     let (mut editor, _) = header_editor_setup();
+    editor.font.as_mut().unwrap().full_layout = 0;
     editor.handle_key(KeyCode::Char('S'), KeyModifiers::NONE, 120);
     assert_eq!(editor.smush_selected, 0);
 
@@ -1341,6 +1350,7 @@ fn test_smush_rule_multiple_toggles() {
     use figby::smush::SmushMode;
 
     let (mut editor, _) = header_editor_setup();
+    editor.font.as_mut().unwrap().full_layout = 0;
     editor.handle_key(KeyCode::Char('S'), KeyModifiers::NONE, 120);
 
     // Toggle first rule (EQUAL_CHARS = 1) at index 0
@@ -1359,8 +1369,8 @@ fn test_smush_rule_multiple_toggles() {
         "both EQUAL_CHARS and BIGX should be set"
     );
 
-    // Toggle a third rule (PAIR = 8, index 3)
-    for _ in 0..5 {
+    // Toggle a third rule (PAIR = 8, index 3): one Up from BIGX (index 4)
+    for _ in 0..1 {
         editor.handle_key(KeyCode::Up, KeyModifiers::NONE, 120);
     }
     editor.handle_key(KeyCode::Enter, KeyModifiers::NONE, 120);

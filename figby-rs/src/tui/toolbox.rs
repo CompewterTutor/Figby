@@ -174,8 +174,7 @@ impl Widget for &Toolbox {
     }
 }
 
-impl Toolbox {
-}
+impl Toolbox {}
 
 impl Default for Toolbox {
     fn default() -> Self {

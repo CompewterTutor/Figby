@@ -1277,8 +1277,22 @@ impl FontEditor {
         }
 
         match code {
-            // Any printable char (except action keys) activates search and appends in one keystroke
-            KeyCode::Char(c) if !c.is_control() && !self.search_active && !matches!(c, 'H' | 'S' | 'T' | 'A' | 'D' | 'C') => {
+            // Printable chars start/extend search when not in search mode,
+            // EXCEPT chars that have global meaning. Those fall through to mod.rs.
+            KeyCode::Char(c)
+                if !c.is_control()
+                    && !self.search_active
+                    // Font editor action keys (handled by explicit arms below)
+                    && !matches!(c, 'H' | 'S' | 'T' | 'A' | 'D' | 'C')
+                    // Global tool shortcuts (lowercase and uppercase)
+                    && !matches!(c.to_ascii_lowercase(), 'b' | 'v' | 'l' | 'c' | 'p' | 'g' | 'i' | 'e' | 'd' | 'a' | 't')
+                    // Global app commands
+                    && !matches!(c, 'q' | 'Q' | '?')
+                    // Brush adjustment shortcuts
+                    && !matches!(c, '[' | ']' | ';' | '\'' | '\\')
+                    // Canvas/zoom controls and paint trigger
+                    && !matches!(c, '+' | '-' | '=' | '_' | ' ') =>
+            {
                 self.search_active = true;
                 self.search_query.push(c);
                 self.grid_scroll = 0;

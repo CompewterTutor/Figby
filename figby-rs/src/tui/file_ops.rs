@@ -819,7 +819,15 @@ mod tests {
         let mut dialog = FileOpsDialog::new();
         let recent = Vec::new();
         dialog.enter_open(&recent);
+        // Enter with empty path stays Open (no file selected)
         dialog.handle_key(KeyCode::Enter);
+        assert_eq!(dialog.mode, FileOpsMode::Open);
+        // Enter with a non-existent path also stays Open (file must exist on disk)
+        dialog.path_buffer = "/tmp/figby_test_nonexistent.flf".to_string();
+        dialog.handle_key(KeyCode::Enter);
+        assert_eq!(dialog.mode, FileOpsMode::Open);
+        // Esc closes the dialog
+        dialog.handle_key(KeyCode::Esc);
         assert_eq!(dialog.mode, FileOpsMode::Idle);
     }
 

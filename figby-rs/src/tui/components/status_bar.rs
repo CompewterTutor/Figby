@@ -7,8 +7,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::tui::events::AppEvent;
 use crate::tui::component::Component;
+use crate::tui::events::AppEvent;
 use crate::tui::theme::Theme;
 use crate::tui::AppMode;
 

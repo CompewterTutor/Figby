@@ -8,7 +8,6 @@ use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
 use ratatui::layout::Rect;
-use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
@@ -20,16 +19,17 @@ use std::time::{Duration, Instant};
 
 use crate::config;
 
-pub mod events;
 pub mod brush;
 pub mod canvas;
 pub mod component;
 pub mod components;
+pub mod events;
 pub mod export;
 pub mod file_ops;
 pub mod font_editor;
 pub mod image_editor;
 pub mod keymap;
+pub mod layout;
 pub mod menu;
 pub mod palette;
 pub mod render_mode;
@@ -41,9 +41,9 @@ pub mod tools;
 pub mod undo;
 pub mod undo_panel;
 
-pub use events::AppEvent;
 pub use brush::BrushState;
 pub use component::Component;
+pub use events::AppEvent;
 pub use export::ExportMode;
 pub use menu::MenuBar;
 pub use palette::Palette;
@@ -313,8 +313,8 @@ pub struct TuiApp {
     pub icons: BTreeMap<String, String>,
     pub menu_bar: MenuBar,
     pub status_bar_comp: StatusBarComponent,
-    toolbox_area: Rect,
-    palette_area: Rect,
+    /// Geometry computed each frame; used by mouse handlers in the next cycle.
+    frame_layout: layout::FrameLayout,
     auto_save_interval: u64,
     last_save_time: Instant,
     pub throbber: ThrobberState,
@@ -327,6 +327,10 @@ pub struct TuiApp {
     dirty: bool,
     last_draw_time: Instant,
     pub show_keybindings: bool,
+    /// `F11` toggle: canvas fills entire terminal, minimal hint overlay.
+    pub zen_mode: bool,
+    /// Controls what the right drawer panel shows.
+    pub right_drawer: layout::DrawerMode,
     pub editor: EditorState,
     pub dialogs: DialogState,
 }
@@ -411,8 +415,7 @@ impl TuiApp {
             icons,
             menu_bar,
             status_bar_comp,
-            toolbox_area: Rect::new(0, 0, 0, 0),
-            palette_area: Rect::new(0, 0, 0, 0),
+            frame_layout: layout::FrameLayout::default(),
             auto_save_interval: 0,
             last_save_time: Instant::now(),
             throbber: ThrobberState::new(),
@@ -425,6 +428,8 @@ impl TuiApp {
             dirty: true,
             last_draw_time: Instant::now(),
             show_keybindings: false,
+            zen_mode: false,
+            right_drawer: layout::DrawerMode::Palette,
             editor: EditorState {
                 canvas_comp,
                 toolbox_comp,
@@ -492,7 +497,8 @@ impl TuiApp {
         match event {
             AppEvent::Quit => self.should_quit = true,
             AppEvent::Toolbox(crate::tui::events::ToolboxEvent::ToolSelected)
-            if self.editor.toolbox_comp.toolbox.selected != Tool::PolygonSelect => {
+                if self.editor.toolbox_comp.toolbox.selected != Tool::PolygonSelect =>
+            {
                 self.editor.selection_polygon_points.clear();
             }
             AppEvent::Palette(crate::tui::events::PaletteEvent::ColorChanged(color, target)) => {
@@ -520,17 +526,39 @@ impl TuiApp {
         self.check_async_completion();
         self.throbber.tick();
 
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Length(3),
-                Constraint::Min(0),
-                Constraint::Length(3),
-            ])
-            .split(frame.area());
+        // Single-pass layout computation — stored for mouse handlers next cycle.
+        let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer);
+        self.frame_layout = fl;
 
-        // Menu rendered at end of pipeline for proper dropdown z-order
+        // --- Zen mode: canvas only, hint overlay ---
+        if self.zen_mode {
+            self.render_canvas_area(frame, fl.canvas);
+            // Hint bar at bottom-right corner
+            let area = frame.area();
+            if area.height > 0 && area.width > 30 {
+                let hint = " F11=exit zen  ?=keys  ^K=keybinds ";
+                let hint_w = hint.len() as u16;
+                let hint_rect = Rect {
+                    x: area.width.saturating_sub(hint_w),
+                    y: area.height - 1,
+                    width: hint_w.min(area.width),
+                    height: 1,
+                };
+                let hint_para = Paragraph::new(hint).style(
+                    Style::default()
+                        .fg(self.theme.general.secondary)
+                        .add_modifier(Modifier::DIM),
+                );
+                frame.render_widget(hint_para, hint_rect);
+            }
+            // Still render overlays in zen mode
+            self.render_overlays(frame);
+            return;
+        }
+
+        // --- Normal mode ---
+
+        // Mode tabs
         let mode_labels = [
             ("mode_font_editor", "Font Editor"),
             ("mode_image_editor", "Image Editor"),
@@ -557,32 +585,91 @@ impl TuiApp {
                     .add_modifier(Modifier::BOLD),
             )
             .select(selected);
-        frame.render_widget(tabs, chunks[1]);
+        frame.render_widget(tabs, fl.tabs);
 
-        let main_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(8),
-                Constraint::Min(10),
-                Constraint::Length(20),
-            ])
-            .split(chunks[2]);
-
-        let tool_brush_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(10), Constraint::Length(10)])
-            .split(main_chunks[0]);
-        self.toolbox_area = tool_brush_chunks[0];
-        self.palette_area = main_chunks[2];
-
-        // Toolbox + brush
-        let _ = self.editor.toolbox_comp.draw(frame, main_chunks[0]);
-
-        if self.editor.toolbox_comp.toolbox.selected == Tool::Text {
-            self.editor.text_tool.render_options(frame, tool_brush_chunks[1]);
-        } else {
-            self.editor.toolbox_comp.brush.render(frame, tool_brush_chunks[1]);
+        // Toolbox + brush/text options (left panel)
+        if let Some(tb_full) = fl.toolbox_full {
+            let _ = self.editor.toolbox_comp.draw(frame, tb_full);
+            if let Some(tb_brush) = fl.toolbox_brush {
+                if self.editor.toolbox_comp.toolbox.selected == Tool::Text {
+                    self.editor.text_tool.render_options(frame, tb_brush);
+                } else {
+                    self.editor.toolbox_comp.brush.render(frame, tb_brush);
+                }
+            }
         }
+
+        // Canvas / font editor area
+        self.render_canvas_area(frame, fl.canvas);
+
+        // Right drawer
+        if let Some(rp) = fl.right_panel {
+            match self.right_drawer {
+                layout::DrawerMode::Palette => {
+                    if self.dialogs.settings.settings_open {
+                        self.dialogs.settings.render(frame, rp);
+                    } else {
+                        let _ = self.editor.palette_comp.draw(frame, rp);
+                    }
+                }
+                layout::DrawerMode::BrushKeys => {
+                    self.render_brush_keys_panel(frame, rp);
+                }
+                layout::DrawerMode::Closed => {}
+            }
+        }
+
+        // FPS tracking
+        let now = Instant::now();
+        let elapsed = now - self.last_frame_time;
+        self.last_frame_time = now;
+        let instant_fps = if elapsed.as_secs_f64() > 0.0 {
+            1.0 / elapsed.as_secs_f64()
+        } else {
+            0.0
+        };
+        self.fps = self.fps * 0.9 + instant_fps * 0.1;
+
+        // Status bar
+        let mode_name = self.mode_name_string();
+        self.status_bar_comp.cursor = self.editor.canvas_comp.canvas.cursor();
+        self.status_bar_comp.zoom = self.editor.canvas_comp.canvas.zoom_level();
+        self.status_bar_comp.tool_name = self
+            .editor
+            .toolbox_comp
+            .toolbox
+            .selected
+            .full_name()
+            .to_string();
+        self.status_bar_comp.mode_name = mode_name;
+        self.status_bar_comp.unsaved = self.editor.unsaved;
+        self.status_bar_comp.current_path = self
+            .editor
+            .font_editor_comp
+            .editor
+            .current_path
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string());
+        self.status_bar_comp.throbber_text = self.throbber.render_string();
+        self.status_bar_comp.mode = self.mode;
+        self.status_bar_comp.undo_count = self.editor.undo.history_len();
+        self.status_bar_comp.fps = self.fps;
+        self.status_bar_comp.render_mode = self.render_mode.label();
+        self.status_bar_comp.git_branch = self.git_branch.clone();
+        self.status_bar_comp.clock_str = format_clock();
+        self.status_bar_comp.layer_count = 1;
+        self.status_bar_comp.animation_frame = 0;
+        let _ = self.status_bar_comp.draw(frame, fl.status);
+
+        // Menu bar (rendered last so dropdown overlays main content)
+        self.menu_bar.draw(frame, fl.menu);
+
+        self.render_overlays(frame);
+    }
+
+    /// Render the canvas (or font editor overview) inside `canvas_area`.
+    fn render_canvas_area(&mut self, frame: &mut Frame<'_>, canvas_area: Rect) {
+        let fl = self.frame_layout;
 
         let mode_title = match self.mode {
             AppMode::ImageEditor => {
@@ -604,8 +691,14 @@ impl TuiApp {
             }
             _ => self.mode.title().to_string(),
         };
-        let block = Block::default().title(mode_title).borders(Borders::ALL);
-        let inner = block.inner(main_chunks[1]);
+
+        let canvas_borders = if self.zen_mode {
+            Borders::NONE
+        } else {
+            fl.canvas_borders()
+        };
+        let block = Block::default().title(mode_title).borders(canvas_borders);
+        let inner = block.inner(canvas_area);
 
         let is_font_ui_mode = self.mode == AppMode::FontEditor
             && !matches!(
@@ -614,7 +707,7 @@ impl TuiApp {
             );
 
         if is_font_ui_mode {
-            frame.render_widget(block, main_chunks[1]);
+            frame.render_widget(block, canvas_area);
             let _ = self.editor.font_editor_comp.draw(frame, inner);
         } else {
             if self.mode == AppMode::FontEditor {
@@ -634,7 +727,8 @@ impl TuiApp {
             } else {
                 self.editor.canvas_comp.canvas.selection_perimeter = None;
             }
-            self.editor.canvas_comp
+            self.editor
+                .canvas_comp
                 .canvas
                 .polygon_vertices
                 .clone_from(&self.editor.selection_polygon_points);
@@ -642,7 +736,8 @@ impl TuiApp {
             // Text overlays
             if self.editor.toolbox_comp.toolbox.selected == Tool::Text {
                 self.editor.canvas_comp.canvas.text_overlays = self
-                    .editor.text_tool
+                    .editor
+                    .text_tool
                     .blocks
                     .iter()
                     .enumerate()
@@ -680,12 +775,9 @@ impl TuiApp {
                 self.editor.canvas_comp.canvas.text_block_perimeter = None;
             }
 
-            let block_inner = block.inner(main_chunks[1]);
-            frame.render_widget(block, main_chunks[1]);
+            frame.render_widget(block, canvas_area);
 
-            // Render canvas
-            let inner_area = block_inner;
-            self.editor.canvas_comp.canvas_inner_rect = self.editor.compute_canvas_rect(inner_area);
+            self.editor.canvas_comp.canvas_inner_rect = self.editor.compute_canvas_rect(inner);
             if self.editor.canvas_comp.canvas_inner_rect.width > 1
                 && self.editor.canvas_comp.canvas_inner_rect.height > 1
             {
@@ -696,29 +788,136 @@ impl TuiApp {
                 );
                 frame.render_widget(edge, self.editor.canvas_comp.canvas_inner_rect);
             }
-            frame.render_widget(&self.editor.canvas_comp.canvas, self.editor.canvas_comp.canvas_inner_rect);
+            frame.render_widget(
+                &self.editor.canvas_comp.canvas,
+                self.editor.canvas_comp.canvas_inner_rect,
+            );
+        }
+    }
+
+    /// Render the brush/tool keybind reference in the right drawer.
+    fn render_brush_keys_panel(&self, frame: &mut Frame<'_>, area: Rect) {
+        let block = Block::default()
+            .title(" Brush Keys (? to cycle) ")
+            .borders(Borders::ALL)
+            .style(
+                Style::default()
+                    .bg(self.theme.menu.dropdown_bg)
+                    .fg(self.theme.menu.fg),
+            );
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let lines: Vec<Line> = vec![
+            Line::from(Span::styled(
+                " Tools ",
+                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            )),
+            Line::from("  b  Brush"),
+            Line::from("  e  Eraser"),
+            Line::from("  l  Lasso"),
+            Line::from("  v  Select"),
+            Line::from("  c  Circle sel."),
+            Line::from("  p  Polygon sel."),
+            Line::from("  g  Fill"),
+            Line::from("  i  Line"),
+            Line::from("  d  Eyedropper"),
+            Line::from("  a  Spray"),
+            Line::from("  t  Text"),
+            Line::from(""),
+            Line::from(Span::styled(
+                " Brush ",
+                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            )),
+            Line::from("  [  Size down"),
+            Line::from("  ]  Size up"),
+            Line::from("  ;  Density down"),
+            Line::from("  '  Density up"),
+            Line::from(r"  \  Cycle shape"),
+            Line::from(""),
+            Line::from(Span::styled(
+                " View ",
+                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            )),
+            Line::from("  F11  Zen mode"),
+            Line::from("  ?    This panel"),
+            Line::from("  ^K   All keybinds"),
+        ];
+        frame.render_widget(Paragraph::new(lines), inner);
+    }
+
+    /// Render all floating overlays (dialogs, keybindings, undo panel).
+    fn render_overlays(&mut self, frame: &mut Frame<'_>) {
+        // Export dialog overlay
+        if self.dialogs.export_comp.dialog.active {
+            let overlay = centered_overlay(frame.area());
+            frame.render_widget(Clear, overlay);
+            self.dialogs.export_comp.dialog.render(frame, overlay);
         }
 
-        // Palette or Settings
-        if self.dialogs.settings.settings_open {
-            self.dialogs.settings.render(frame, main_chunks[2]);
-        } else {
-            let _ = self.editor.palette_comp.draw(frame, main_chunks[2]);
+        // File ops overlay
+        if self.dialogs.file_ops_comp.dialog.mode != file_ops::FileOpsMode::Idle {
+            let overlay = centered_overlay(frame.area());
+            frame.render_widget(Clear, overlay);
+            self.dialogs.file_ops_comp.dialog.render(frame, overlay);
         }
 
-        // FPS tracking
-        let now = Instant::now();
-        let elapsed = now - self.last_frame_time;
-        self.last_frame_time = now;
-        let instant_fps = if elapsed.as_secs_f64() > 0.0 {
-            1.0 / elapsed.as_secs_f64()
-        } else {
-            0.0
-        };
-        self.fps = self.fps * 0.9 + instant_fps * 0.1;
+        // Keybindings overlay
+        if self.show_keybindings {
+            let area = frame.area();
+            let overlay = Rect {
+                x: area.width / 8,
+                y: area.height / 8,
+                width: area.width * 3 / 4,
+                height: area.height * 3 / 4,
+            };
+            frame.render_widget(Clear, overlay);
+            let block = Block::default()
+                .title(" Keybindings (Esc to close) ")
+                .borders(Borders::ALL)
+                .style(
+                    Style::default()
+                        .bg(self.theme.menu.dropdown_bg)
+                        .fg(self.theme.menu.fg),
+                );
+            let inner = block.inner(overlay);
+            frame.render_widget(block, overlay);
 
-        // Status bar
-        let mode_name = match self.mode {
+            let mut lines: Vec<Line> = Vec::new();
+            let mut last_scope: Option<keymap::Scope> = None;
+            for binding in keymap::KEYMAP {
+                if last_scope != Some(binding.scope) {
+                    if last_scope.is_some() {
+                        lines.push(Line::from(""));
+                    }
+                    lines.push(Line::from(Span::styled(
+                        format!(" {}", binding.scope.label()),
+                        Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                    )));
+                    last_scope = Some(binding.scope);
+                }
+                lines.push(Line::from(format!(
+                    "  {:<22} {}",
+                    binding.keys, binding.description
+                )));
+            }
+            frame.render_widget(Paragraph::new(lines), inner);
+        }
+
+        // Undo history panel overlay
+        if self.dialogs.undo_panel_comp.panel.open {
+            frame.render_widget(Clear, frame.area());
+            self.dialogs.undo_panel_comp.panel.render(
+                frame,
+                frame.area(),
+                self.editor.undo.history_entries(),
+            );
+        }
+    }
+
+    /// Build the mode name string for the status bar.
+    fn mode_name_string(&self) -> String {
+        match self.mode {
             AppMode::ImageEditor => {
                 if self.editor.image_editor_comp.editor.has_cells() {
                     format!(
@@ -751,100 +950,6 @@ impl TuiApp {
                     "Font Editor".to_string()
                 }
             }
-        };
-        self.status_bar_comp.cursor = self.editor.canvas_comp.canvas.cursor();
-        self.status_bar_comp.zoom = self.editor.canvas_comp.canvas.zoom_level();
-        self.status_bar_comp.tool_name = self.editor.toolbox_comp.toolbox.selected.full_name().to_string();
-        self.status_bar_comp.mode_name = mode_name;
-        self.status_bar_comp.unsaved = self.editor.unsaved;
-        self.status_bar_comp.current_path = self
-            .editor.font_editor_comp
-            .editor
-            .current_path
-            .as_ref()
-            .map(|p| p.to_string_lossy().to_string());
-        self.status_bar_comp.throbber_text = self.throbber.render_string();
-        self.status_bar_comp.mode = self.mode;
-        self.status_bar_comp.undo_count = self.editor.undo.history_len();
-        self.status_bar_comp.fps = self.fps;
-        self.status_bar_comp.render_mode = self.render_mode.label();
-        self.status_bar_comp.git_branch = self.git_branch.clone();
-        self.status_bar_comp.clock_str = format_clock();
-        self.status_bar_comp.layer_count = 1;
-        self.status_bar_comp.animation_frame = 0;
-        let _ = self.status_bar_comp.draw(frame, chunks[3]);
-
-        // Menu bar (rendered last so dropdown overlays main content when active)
-        self.menu_bar.draw(frame, chunks[0]);
-
-        // Export dialog overlay
-        if self.dialogs.export_comp.dialog.active {
-            let overlay = Rect {
-                x: frame.area().width / 6,
-                y: frame.area().height / 6,
-                width: frame.area().width * 2 / 3,
-                height: frame.area().height * 2 / 3,
-            };
-            frame.render_widget(Clear, overlay);
-            self.dialogs.export_comp.dialog.render(frame, overlay);
-        }
-
-        // File ops overlay
-        if self.dialogs.file_ops_comp.dialog.mode != file_ops::FileOpsMode::Idle {
-            let overlay = Rect {
-                x: frame.area().width / 6,
-                y: frame.area().height / 6,
-                width: frame.area().width * 2 / 3,
-                height: frame.area().height * 2 / 3,
-            };
-            frame.render_widget(Clear, overlay);
-            self.dialogs.file_ops_comp.dialog.render(frame, overlay);
-        }
-
-        // Keybindings overlay
-        if self.show_keybindings {
-            let area = frame.area();
-            let overlay = Rect {
-                x: area.width / 8,
-                y: area.height / 8,
-                width: area.width * 3 / 4,
-                height: area.height * 3 / 4,
-            };
-            frame.render_widget(Clear, overlay);
-            let block = Block::default()
-                .title(" Keybindings (Esc to close) ")
-                .borders(Borders::ALL)
-                .style(Style::default().bg(self.theme.menu.dropdown_bg).fg(self.theme.menu.fg));
-            let inner = block.inner(overlay);
-            frame.render_widget(block, overlay);
-
-            let mut lines: Vec<Line> = Vec::new();
-            let mut last_scope: Option<keymap::Scope> = None;
-            for binding in keymap::KEYMAP {
-                if last_scope != Some(binding.scope) {
-                    if last_scope.is_some() {
-                        lines.push(Line::from(""));
-                    }
-                    lines.push(Line::from(Span::styled(
-                        format!(" {}", binding.scope.label()),
-                        Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-                    )));
-                    last_scope = Some(binding.scope);
-                }
-                lines.push(Line::from(format!(
-                    "  {:<22} {}",
-                    binding.keys, binding.description
-                )));
-            }
-            frame.render_widget(Paragraph::new(lines), inner);
-        }
-
-        // Undo history panel overlay
-        if self.dialogs.undo_panel_comp.panel.open {
-            frame.render_widget(Clear, frame.area());
-            self.dialogs.undo_panel_comp
-                .panel
-                .render(frame, frame.area(), self.editor.undo.history_entries());
         }
     }
 
@@ -876,32 +981,33 @@ impl TuiApp {
         if self.mode == AppMode::FontEditor
             && self.editor.font_editor_comp.editor.view == font_editor::FontEditorView::Overview
             && mouse.kind == MouseEventKind::Down(MouseButton::Left)
-        {
-            if self
-                .editor.font_editor_comp
+            && self
+                .editor
+                .font_editor_comp
                 .editor
                 .handle_mouse_click_overview(mouse.column, mouse.row)
-            {
-                return;
-            }
+        {
+            return;
         }
 
         // Toolbox click: select tool by row
-        let tool_count = Tool::all().len() as u16;
-        let toolbox_inner_y = self.toolbox_area.y + 1;
-        if mouse.kind == MouseEventKind::Down(MouseButton::Left)
-            && mouse.column >= self.toolbox_area.x
-            && mouse.column < self.toolbox_area.x + self.toolbox_area.width
-            && mouse.row >= toolbox_inner_y
-            && mouse.row < toolbox_inner_y + tool_count
-        {
-            let idx = (mouse.row - toolbox_inner_y) as usize;
-            let tools = Tool::all();
-            if idx < tools.len() {
-                self.editor.toolbox_comp.toolbox.selected = tools[idx];
-                self.editor.selection_polygon_points.clear();
+        if let Some(tb) = self.frame_layout.toolbox_list {
+            let tool_count = Tool::all().len() as u16;
+            let toolbox_inner_y = tb.y + 1;
+            if mouse.kind == MouseEventKind::Down(MouseButton::Left)
+                && mouse.column >= tb.x
+                && mouse.column < tb.x + tb.width
+                && mouse.row >= toolbox_inner_y
+                && mouse.row < toolbox_inner_y + tool_count
+            {
+                let idx = (mouse.row - toolbox_inner_y) as usize;
+                let tools = Tool::all();
+                if idx < tools.len() {
+                    self.editor.toolbox_comp.toolbox.selected = tools[idx];
+                    self.editor.selection_polygon_points.clear();
+                }
+                return;
             }
-            return;
         }
 
         // Text tool: hit-test blocks or enter text mode
@@ -919,12 +1025,14 @@ impl TuiApp {
                         self.editor.text_tool.cursor_position = (bx, by);
                         self.editor.text_tool.entering_text = true;
                         self.editor.text_tool.text_buffer.clear();
-                        self.editor.canvas_comp
+                        self.editor
+                            .canvas_comp
                             .canvas
                             .set_cursor(bx.max(0) as u16, by.max(0) as u16);
                     } else {
                         self.editor.text_tool.cursor_position = (bx, by);
-                        self.editor.canvas_comp
+                        self.editor
+                            .canvas_comp
                             .canvas
                             .set_cursor(bx.max(0) as u16, by.max(0) as u16);
                     }
@@ -965,7 +1073,8 @@ impl TuiApp {
                     self.editor.line_start = None;
                     return;
                 };
-                self.editor.canvas_comp
+                self.editor
+                    .canvas_comp
                     .canvas
                     .set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 self.editor.unsaved = true;
@@ -985,7 +1094,12 @@ impl TuiApp {
                         bg: None,
                     };
                     self.editor.palette_comp.palette.apply_to_cell(&mut cell);
-                    tools::fill::flood_fill(&mut self.editor.canvas_comp.canvas.buffer, bx, by, cell);
+                    tools::fill::flood_fill(
+                        &mut self.editor.canvas_comp.canvas.buffer,
+                        bx,
+                        by,
+                        cell,
+                    );
                     return;
                 }
                 if self.editor.toolbox_comp.toolbox.selected == Tool::Line {
@@ -1011,7 +1125,8 @@ impl TuiApp {
                         if let Some(fg) = cell.fg {
                             self.editor.palette_comp.palette.selected_color = Some(fg);
                             self.editor.palette_comp.palette.push_recent(fg);
-                            self.editor.palette_comp.palette.target = palette::ColorTarget::Foreground;
+                            self.editor.palette_comp.palette.target =
+                                palette::ColorTarget::Foreground;
                         }
                     }
                 } else if self.editor.toolbox_comp.toolbox.selected == Tool::Spray {
@@ -1055,7 +1170,8 @@ impl TuiApp {
                 let Some((bx, by)) = self.editor.screen_to_buffer(mouse.column, mouse.row) else {
                     return;
                 };
-                self.editor.canvas_comp
+                self.editor
+                    .canvas_comp
                     .canvas
                     .set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 self.editor.unsaved = true;
@@ -1066,7 +1182,9 @@ impl TuiApp {
                 }
 
                 if self.editor.toolbox_comp.toolbox.selected == Tool::Line {
-                    if let (Some((sx, sy)), Some(saved)) = (self.editor.line_start, &self.editor.saved_buffer) {
+                    if let (Some((sx, sy)), Some(saved)) =
+                        (self.editor.line_start, &self.editor.saved_buffer)
+                    {
                         self.editor.canvas_comp.canvas.buffer = saved.clone();
                         let mut cell = canvas::CanvasCell {
                             ch: self.editor.toolbox_comp.brush.ch,
@@ -1149,7 +1267,8 @@ impl TuiApp {
             }
             MouseEventKind::Moved => {
                 if let Some((bx, by)) = self.editor.screen_to_buffer(mouse.column, mouse.row) {
-                    self.editor.canvas_comp
+                    self.editor
+                        .canvas_comp
                         .canvas
                         .set_cursor(bx.max(0) as u16, by.max(0) as u16);
                 }
@@ -1176,7 +1295,8 @@ impl TuiApp {
                             self.dialogs.file_ops_comp.dialog.error_message.clear();
                         }
                         Err(e) => {
-                            self.dialogs.file_ops_comp.dialog.error_message = format!("Save failed: {e}");
+                            self.dialogs.file_ops_comp.dialog.error_message =
+                                format!("Save failed: {e}");
                         }
                     },
                     AsyncResult::OpenComplete(r) => match r {
@@ -1296,7 +1416,14 @@ impl TuiApp {
                         return Some(AppEvent::SaveAsRequested);
                     }
                     file_ops::FileOpsMode::Open => {
-                        if self.dialogs.file_ops_comp.dialog.path_buffer.trim().is_empty() {
+                        if self
+                            .dialogs
+                            .file_ops_comp
+                            .dialog
+                            .path_buffer
+                            .trim()
+                            .is_empty()
+                        {
                             return None;
                         }
                         let path = self.dialogs.file_ops_comp.dialog.selected_path();
@@ -1401,7 +1528,8 @@ impl TuiApp {
         // Font Editor mode: dispatch to font_editor before canvas/tools
         if self.mode == AppMode::FontEditor {
             if let Some(action) = self.editor.font_editor_comp.handle_key_event(key) {
-                if self.editor.font_editor_comp.editor.view != font_editor::FontEditorView::Overview {
+                if self.editor.font_editor_comp.editor.view != font_editor::FontEditorView::Overview
+                {
                     self.editor.sync_font_char_to_canvas();
                 }
                 return Some(action);
@@ -1421,7 +1549,9 @@ impl TuiApp {
         }
 
         // Text tool: text entry mode (before canvas, captures all keys)
-        if self.editor.toolbox_comp.toolbox.selected == Tool::Text && self.editor.text_tool.entering_text {
+        if self.editor.toolbox_comp.toolbox.selected == Tool::Text
+            && self.editor.text_tool.entering_text
+        {
             match code {
                 KeyCode::Enter => {
                     self.editor.push_undo_snapshot("Commit text");
@@ -1454,7 +1584,8 @@ impl TuiApp {
             match code {
                 KeyCode::Up => {
                     if !self.editor.text_tool.available_fonts.is_empty() {
-                        self.editor.text_tool.font_index = self.editor.text_tool.font_index.saturating_sub(1);
+                        self.editor.text_tool.font_index =
+                            self.editor.text_tool.font_index.saturating_sub(1);
                         self.editor.text_tool.load_selected_font();
                     }
                     return None;
@@ -1540,7 +1671,11 @@ impl TuiApp {
         }
 
         // Selection operations (before canvas cursor movement)
-        let selection_active = self.editor.selection.as_ref().is_some_and(|s| s.is_active());
+        let selection_active = self
+            .editor
+            .selection
+            .as_ref()
+            .is_some_and(|s| s.is_active());
 
         if selection_active {
             match code {
@@ -1583,7 +1718,8 @@ impl TuiApp {
                 match code {
                     KeyCode::Char('c') => {
                         if let Some(ref sel) = self.editor.selection {
-                            self.editor.clipboard = Some(sel.copy_from(&self.editor.canvas_comp.canvas.buffer));
+                            self.editor.clipboard =
+                                Some(sel.copy_from(&self.editor.canvas_comp.canvas.buffer));
                         }
                         return None;
                     }
@@ -1650,10 +1786,13 @@ impl TuiApp {
         }
 
         // Text tool settings (not entering text)
-        if self.editor.toolbox_comp.toolbox.selected == Tool::Text && !self.editor.text_tool.entering_text {
+        if self.editor.toolbox_comp.toolbox.selected == Tool::Text
+            && !self.editor.text_tool.entering_text
+        {
             match code {
                 KeyCode::Char('j') | KeyCode::Char('J') => {
-                    self.editor.text_tool.justification = match self.editor.text_tool.justification {
+                    self.editor.text_tool.justification = match self.editor.text_tool.justification
+                    {
                         crate::render::Justification::Left => crate::render::Justification::Center,
                         crate::render::Justification::Center => crate::render::Justification::Right,
                         crate::render::Justification::Right => crate::render::Justification::Left,
@@ -1685,8 +1824,10 @@ impl TuiApp {
 
         // Settings toggle
         if code == KeyCode::Char('S') && !modifiers.contains(KeyModifiers::CONTROL) {
-            self.dialogs.settings.canvas_width = self.editor.canvas_comp.canvas.buffer.width() as u16;
-            self.dialogs.settings.canvas_height = self.editor.canvas_comp.canvas.buffer.height() as u16;
+            self.dialogs.settings.canvas_width =
+                self.editor.canvas_comp.canvas.buffer.width() as u16;
+            self.dialogs.settings.canvas_height =
+                self.editor.canvas_comp.canvas.buffer.height() as u16;
             self.dialogs.settings.show_grid = self.editor.canvas_comp.canvas.show_grid();
             self.dialogs.settings.settings_open = true;
             self.dirty = true;
@@ -1814,8 +1955,29 @@ impl TuiApp {
             return Some(AppEvent::RenderModeChanged);
         }
 
-        // Ctrl+Tab / Ctrl+Shift+Tab: cycle modes
-        if code == KeyCode::Tab && modifiers.contains(KeyModifiers::CONTROL) {
+        // F11: toggle zen mode
+        if code == KeyCode::F(11) {
+            self.zen_mode = !self.zen_mode;
+            self.dirty = true;
+            return None;
+        }
+
+        // ?: cycle right drawer (palette → brush keys → closed → …)
+        if code == KeyCode::Char('?') && !modifiers.contains(KeyModifiers::CONTROL) {
+            self.right_drawer = self.right_drawer.cycle();
+            self.dirty = true;
+            return None;
+        }
+
+        // Ctrl+K: toggle full keybindings overlay
+        if modifiers.contains(KeyModifiers::CONTROL) && code == KeyCode::Char('k') {
+            self.show_keybindings = !self.show_keybindings;
+            self.dirty = true;
+            return None;
+        }
+
+        // Tab / Shift+Tab / Ctrl+Tab / Ctrl+Shift+Tab: cycle modes
+        if code == KeyCode::Tab {
             let new_mode = if modifiers.contains(KeyModifiers::SHIFT) {
                 self.mode.prev()
             } else {
@@ -1870,7 +2032,8 @@ impl TuiApp {
         if self.mode != AppMode::FontEditor {
             return;
         }
-        self.dialogs.file_ops_comp
+        self.dialogs
+            .file_ops_comp
             .dialog
             .enter_save_as(self.editor.font_editor_comp.editor.current_path.as_deref());
         self.dirty = true;
@@ -1908,7 +2071,8 @@ impl TuiApp {
         if self.mode != AppMode::FontEditor {
             return;
         }
-        self.dialogs.file_ops_comp
+        self.dialogs
+            .file_ops_comp
             .dialog
             .enter_open(self.dialogs.file_ops_comp.recent_files.list());
         self.dirty = true;
@@ -1940,20 +2104,22 @@ impl TuiApp {
         if self.throbber.is_active() {
             return;
         }
-        let cells: Vec<Vec<canvas::CanvasCell>> = (0..self.editor.canvas_comp.canvas.buffer.height())
-            .map(|y| {
-                (0..self.editor.canvas_comp.canvas.buffer.width())
-                    .map(|x| {
-                        self.editor.canvas_comp
-                            .canvas
-                            .buffer
-                            .get(x, y)
-                            .copied()
-                            .unwrap_or_default()
-                    })
-                    .collect()
-            })
-            .collect();
+        let cells: Vec<Vec<canvas::CanvasCell>> =
+            (0..self.editor.canvas_comp.canvas.buffer.height())
+                .map(|y| {
+                    (0..self.editor.canvas_comp.canvas.buffer.width())
+                        .map(|x| {
+                            self.editor
+                                .canvas_comp
+                                .canvas
+                                .buffer
+                                .get(x, y)
+                                .copied()
+                                .unwrap_or_default()
+                        })
+                        .collect()
+                })
+                .collect();
         let format = self.dialogs.export_comp.dialog.format;
         let font_size = self.dialogs.export_comp.dialog.font_size;
         let path_buf = std::path::PathBuf::from(&self.dialogs.export_comp.dialog.path_buffer);
@@ -2040,8 +2206,9 @@ impl TuiApp {
                     if sel.is_active() {
                         self.editor.push_undo_snapshot("Cut selection");
                         if let Some(sel_owned) = self.editor.selection.take() {
-                            self.editor.clipboard =
-                                Some(sel_owned.cut_from(&mut self.editor.canvas_comp.canvas.buffer));
+                            self.editor.clipboard = Some(
+                                sel_owned.cut_from(&mut self.editor.canvas_comp.canvas.buffer),
+                            );
                             self.editor.unsaved = true;
                         }
                     }
@@ -2051,7 +2218,8 @@ impl TuiApp {
             menu::MenuAction::EditCopy => {
                 if let Some(ref sel) = self.editor.selection {
                     if sel.is_active() {
-                        self.editor.clipboard = Some(sel.copy_from(&self.editor.canvas_comp.canvas.buffer));
+                        self.editor.clipboard =
+                            Some(sel.copy_from(&self.editor.canvas_comp.canvas.buffer));
                     }
                 }
                 self.menu_bar.reset();
@@ -2137,6 +2305,16 @@ pub enum AsyncResult {
 impl Default for TuiApp {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Returns a 2/3-width, 2/3-height overlay centered in `area`.
+fn centered_overlay(area: Rect) -> Rect {
+    Rect {
+        x: area.width / 6,
+        y: area.height / 6,
+        width: area.width * 2 / 3,
+        height: area.height * 2 / 3,
     }
 }
 

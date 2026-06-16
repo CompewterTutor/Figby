@@ -258,14 +258,20 @@ WidgetRef, proper Layout usage, event-driven component protocol).
   - **Depends:** `3.1.2`
   - **Difficulty:** High
 
-- [ ] `3.1.5` Layout system: replace hardcoded `Rect` with `Constraint`-based layout
+- [x] `3.1.5` Layout system: replace hardcoded `Rect` with `Constraint`-based layout
   - **Goal:** Several widgets store `Rect` fields that are set during render
     (`toolbox_area`, `palette_area`, `canvas_inner_rect`, `menu_area`). This
     couples render-time geometry to event-time hit-testing.
     Refactor to a single `layout()` fn on `TuiApp` that computes all areas
     once per frame using `Layout::default().constraints(...)` and caches them
     in a `FrameLayout` struct. Hit-testing reads from `FrameLayout`.
-  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/menu.rs`
+  - **Implemented:** `tui/layout.rs` — `FrameLayout` struct with `DrawerMode` enum.
+    `Constraint::Fill(1)` for canvas. Canvas collapsed borders (`canvas_borders()`).
+    Right drawer cycles Palette → BrushKeys → Closed with `?`.
+    Zen mode (full-screen canvas) with `F11`. `Ctrl+K` for keybindings overlay.
+    `render_canvas_area()`, `render_brush_keys_panel()`, `render_overlays()` helpers.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/layout.rs` (new),
+    `figby-rs/src/tui/keymap.rs`
   - **Depends:** `3.1.2`
   - **Difficulty:** Medium
 

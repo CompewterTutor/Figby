@@ -359,7 +359,7 @@ WidgetRef, proper Layout usage, event-driven component protocol).
 
 ## Phase 3.3 — Major Release
 
-- [ ] `3.3.1` Full regression: all features vs v2.x baseline
+- [x] `3.3.1` Full regression: all features vs v2.x baseline
   - **Goal:** Verify every feature from v2 is preserved after the 3.1 refactor.
     Canvas, tools, undo/redo, file ops, export, image editor, font editor.
   - **Difficulty:** Medium

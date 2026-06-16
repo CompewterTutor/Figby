@@ -2906,3 +2906,7 @@ DONE: 3.2.5 merged into release/3.2.
 ## 2026-06-16 05:07
 
 All 3.2 tasks complete. Starting phase review.
+
+## 2026-06-16 05:08
+
+PHASE_COMPLETE: 3.2 merged to main after review approval.

@@ -156,6 +156,13 @@ glyph char editor cursor+cell toggle (3.2.2), font preview strip in
 overview (3.2.3). All 3 subtasks (3.2.1–3.2.3) implemented, tested, merged.
 Phase 3.3 (Major Release) is next.
 
+### 3.2.5 — Phase merge: release/3.2 → main
+
+Docs-alignment pass for the Phase 3.2 merge. Checked off 3.2.5 in
+todo-v3.md and todo-v4.md. Added memory entry. All code changes already
+present in master (ac2968e). No version bump or CHANGELOG changes needed
+(2.5.4 entry already exists).
+
 ## Phase 3.3 — Particle Effect Creator
 
 (To be filled during implementation.)

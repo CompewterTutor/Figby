@@ -352,6 +352,9 @@ WidgetRef, proper Layout usage, event-driven component protocol).
 - [x] `3.2.4` Phase merge: release/3.2 → main
   - **Difficulty:** Low
 
+- [x] `3.2.5` Phase merge: release/3.2 → main
+  - **Difficulty:** Low
+
 ---
 
 ## Phase 3.3 — Major Release

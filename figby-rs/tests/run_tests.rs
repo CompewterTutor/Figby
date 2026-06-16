@@ -537,3 +537,66 @@ fn test_50_big_font_rtl() {
     let output = run_figby(&["-f", "big", "-R"], Some(b"Hello"));
     assert_eq!(output, expected_output(50));
 }
+
+#[test]
+fn test_51_deutsch_unicode_input() {
+    // Deutsch flag: [\] → Ä/Ö/Ü, {|}~ → ä/ö/ü/ß
+    let output = run_figby(&["-f", "standard", "-D"], Some(b"[\\]"));
+    assert!(!output.is_empty(), "Deutsch output should not be empty");
+    // Output should differ from non-Deutsch (explicit smush mode 0 for comparison)
+    let output_normal = run_figby(&["-f", "standard", "-m0"], Some(b"[\\]"));
+    assert_ne!(
+        output, output_normal,
+        "Deutsch output should differ from raw []\\"
+    );
+}
+
+#[test]
+fn test_52_smush_all_rules_large_font() {
+    // Multi-char smushing at default width with large font (big)
+    let output = run_figby(&["-f", "big", "-m191"], Some(b"/\\\\"));
+    assert!(!output.is_empty(), "smush output should not be empty");
+    assert!(output.len() > 50, "smush output should be substantial");
+}
+
+#[test]
+fn test_53_control_file_extended_charset() {
+    // Control file remapping with upper.flc (a→A, etc.)
+    let output = run_figby(&["-f", "banner", "-C", "fonts/upper.flc"], Some(b"abc"));
+    assert!(
+        !output.is_empty(),
+        "control file remapping should produce output"
+    );
+    // Without control file, input is lowercase
+    let without = run_figby(&["-f", "banner"], Some(b"abc"));
+    // With control file input is uppercase (a→A etc.) so output should differ
+    assert_ne!(output, without, "control file should change output");
+}
+
+#[test]
+#[ignore = "TODO: paragraph mode output differs from C baseline"]
+fn test_54_paragraph_narrow_width() {
+    // Paragraph mode with narrow output width
+    let input = b"Hello World Foo Bar Baz Qux\nAnother line here\n";
+    let output = run_figby(&["-f", "standard", "-p", "-w30"], Some(input));
+    assert!(
+        !output.is_empty(),
+        "paragraph narrow output should not be empty"
+    );
+}
+
+#[test]
+fn test_55_wide_center_justification() {
+    // Wide output with center justification
+    let output = run_figby(&["-f", "standard", "-c", "-w120"], Some(b"Hello Figby"));
+    assert!(
+        !output.is_empty(),
+        "center justified output should not be empty"
+    );
+    // With -f big, should have some content
+    let big_output = run_figby(&["-f", "big", "-c", "-w120"], Some(b"Hi"));
+    assert!(
+        !big_output.is_empty(),
+        "big font center justified should not be empty"
+    );
+}

@@ -101,9 +101,15 @@ Also added `self.dirty = true` in `check_async_completion()` itself when a resul
 
 ---
 
-## Phase 3.2 — Animation Timeline & Playback
+## Phase 3.2 — Font Editor Polish
 
-(To be filled during implementation.)
+### 3.2.2 — Glyph char editor: GlyphCursor overlay + cell toggle
+
+Added `GlyphCursor` struct to `canvas.rs` — blinking `█` cursor overlay (`Option<GlyphCursor>` on `CanvasWidget`) rendered when set, replacing the normal reversed-style cursor. `blink()` toggles `visible` every 500ms via `Instant::now()`.
+
+Added `glyph_cursor_x`, `glyph_cursor_y`, `brush_char` fields to `FontEditor`. `handle_key_char_editor()` rewired: arrow keys move cursor (clamped to glyph bounds), Space toggles cell between space and `brush_char`.
+
+`mod.rs` render path syncs cursor position and calls `blink()` per frame — avoids recreating `GlyphCursor` each frame to preserve blink timer. Key dispatch syncs `brush_char` from palette before font_editor handler runs.
 
 ---
 

@@ -821,3 +821,13 @@ Three bugs found in phase merge review:
   async completions, and programmatic state transitions (dialog opens, settings apply, menu actions).
 - Each `perform_*` method that starts an async operation should set `dirty = true` to show the
   throbber immediately. Without it, the throbber only appears after a user event + render cycle.
+
+## 3.2.2 — Glyph char editor: GlyphCursor + cell toggle
+
+- Blinking cursors need persistent state across frames. Recreating the `GlyphCursor` every frame
+  via `GlyphCursor::new(x, y)` resets `Instant::now()` so the blink timer never reaches 500ms.
+  Fix: create only when `glyph_cursor` is `None`, otherwise just update x/y.
+- `handle_key_char_editor` now handles arrow keys (movement) and Space (toggle). The space handler
+  uses `brush_char` synced from palette in `mod.rs` key dispatch before font_editor handler runs.
+- `CanvasWidget::render` draws the `GlyphCursor` overlay (blinking `█`) when `glyph_cursor` is
+  `Some`, or falls back to the normal reversed-style cursor highlight.

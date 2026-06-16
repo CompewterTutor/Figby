@@ -118,6 +118,9 @@ pub struct FontEditor {
     pub font_storage_name: String,
     pub current_path: Option<PathBuf>,
     pub original_font: Option<FIGfont>,
+    pub glyph_cursor_x: u16,
+    pub glyph_cursor_y: u16,
+    pub brush_char: char,
     pub theme: Theme,
     /// (code_point, screen_rect) for each visible glyph cell — populated during render
     pub cell_rects: Vec<(u32, Rect)>,
@@ -153,6 +156,9 @@ impl FontEditor {
             font_storage_name: String::new(),
             current_path: None,
             original_font: None,
+            glyph_cursor_x: 0,
+            glyph_cursor_y: 0,
+            brush_char: '\u{2588}',
             theme: Theme::default(),
             cell_rects: Vec::new(),
             last_click: None,
@@ -180,6 +186,9 @@ impl FontEditor {
         self.transform_font_name.clear();
         self.font_storage_name.clear();
         self.original_font = None;
+        self.glyph_cursor_x = 0;
+        self.glyph_cursor_y = 0;
+        self.brush_char = '\u{2588}';
     }
 
     pub fn enter_header_editor(&mut self) {
@@ -720,6 +729,67 @@ impl FontEditor {
         match code {
             KeyCode::Esc => {
                 self.view = FontEditorView::Overview;
+                true
+            }
+            KeyCode::Up => {
+                self.glyph_cursor_y = self.glyph_cursor_y.saturating_sub(1);
+                true
+            }
+            KeyCode::Down => {
+                if let Some(ref font) = self.font {
+                    self.glyph_cursor_y =
+                        (self.glyph_cursor_y + 1).min(font.charheight.saturating_sub(1) as u16);
+                }
+                true
+            }
+            KeyCode::Left => {
+                self.glyph_cursor_x = self.glyph_cursor_x.saturating_sub(1);
+                true
+            }
+            KeyCode::Right => {
+                if let FontEditorView::CharEditor(charcode) = self.view {
+                    if let Some(ref font) = self.font {
+                        if let Some(ch) = font.chars.get(&charcode) {
+                            self.glyph_cursor_x =
+                                (self.glyph_cursor_x + 1).min(ch.width().saturating_sub(1) as u16);
+                        }
+                    }
+                }
+                true
+            }
+            KeyCode::Char(' ') => {
+                if let FontEditorView::CharEditor(charcode) = self.view {
+                    if let Some(ref mut font) = self.font {
+                        if let Some(ch) = font.chars.get_mut(&charcode) {
+                            let mut rows = ch.rows().to_vec();
+                            let y = self.glyph_cursor_y as usize;
+                            let x = self.glyph_cursor_x as usize;
+                            if y < rows.len() {
+                                let old_row: Vec<char> = rows[y].chars().collect();
+                                if x < old_row.len() {
+                                    let current = old_row[x];
+                                    let new_row: String = old_row
+                                        .iter()
+                                        .enumerate()
+                                        .map(|(i, &c)| {
+                                            if i == x {
+                                                if current == ' ' {
+                                                    self.brush_char
+                                                } else {
+                                                    ' '
+                                                }
+                                            } else {
+                                                c
+                                            }
+                                        })
+                                        .collect();
+                                    rows[y] = new_row;
+                                    ch.set_rows(rows);
+                                }
+                            }
+                        }
+                    }
+                }
                 true
             }
             _ => false,
@@ -1346,6 +1416,8 @@ impl FontEditor {
             // Enter selects highlighted char
             KeyCode::Enter => {
                 if !filtered.is_empty() && self.selected_index < filtered.len() {
+                    self.glyph_cursor_x = 0;
+                    self.glyph_cursor_y = 0;
                     self.view = FontEditorView::CharEditor(filtered[self.selected_index]);
                 }
                 true
@@ -1434,6 +1506,8 @@ impl FontEditor {
         self.last_click = Some((code, now));
 
         if is_double {
+            self.glyph_cursor_x = 0;
+            self.glyph_cursor_y = 0;
             self.view = FontEditorView::CharEditor(code);
         }
         true

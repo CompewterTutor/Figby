@@ -790,6 +790,30 @@ impl TuiApp {
                 );
                 frame.render_widget(edge, self.editor.canvas_comp.canvas_inner_rect);
             }
+            // Sync glyph cursor for CharEditor mode
+            if self.mode == AppMode::FontEditor
+                && matches!(
+                    self.editor.font_editor_comp.editor.view,
+                    font_editor::FontEditorView::CharEditor(_)
+                )
+            {
+                let gc = &mut self.editor.canvas_comp.canvas;
+                if gc.glyph_cursor.is_none() {
+                    gc.glyph_cursor = Some(canvas::GlyphCursor::new(
+                        self.editor.font_editor_comp.editor.glyph_cursor_x,
+                        self.editor.font_editor_comp.editor.glyph_cursor_y,
+                    ));
+                } else if let Some(ref mut g) = gc.glyph_cursor {
+                    g.x = self.editor.font_editor_comp.editor.glyph_cursor_x;
+                    g.y = self.editor.font_editor_comp.editor.glyph_cursor_y;
+                }
+                if let Some(ref mut g) = gc.glyph_cursor {
+                    g.blink();
+                }
+            } else {
+                self.editor.canvas_comp.canvas.glyph_cursor = None;
+            }
+
             frame.render_widget(
                 &self.editor.canvas_comp.canvas,
                 self.editor.canvas_comp.canvas_inner_rect,
@@ -1533,6 +1557,13 @@ impl TuiApp {
 
         // Font Editor mode: dispatch to font_editor before canvas/tools
         if self.mode == AppMode::FontEditor {
+            // Sync brush char for CharEditor cell toggle
+            if matches!(
+                self.editor.font_editor_comp.editor.view,
+                font_editor::FontEditorView::CharEditor(_)
+            ) {
+                self.editor.font_editor_comp.editor.brush_char = self.editor.toolbox_comp.brush.ch;
+            }
             if let Some(action) = self.editor.font_editor_comp.handle_key_event(key) {
                 if self.editor.font_editor_comp.editor.view != font_editor::FontEditorView::Overview
                 {

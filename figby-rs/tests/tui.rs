@@ -2483,3 +2483,241 @@ fn test_palette_fg_keyboard_shortcut() {
         "'x' should toggle back to BG"
     );
 }
+
+#[test]
+fn test_selection_perimeter_delete() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use figby::tui::canvas::CanvasCell;
+    use figby::tui::tools::selection::Selection;
+    use figby::tui::TuiApp;
+
+    let mut app = TuiApp::new();
+
+    // Paint cells inside and outside the selection area
+    app.editor.canvas_comp.canvas.buffer.set(
+        1,
+        1,
+        CanvasCell {
+            ch: 'A',
+            fg: None,
+            bg: None,
+        },
+    );
+    app.editor.canvas_comp.canvas.buffer.set(
+        2,
+        2,
+        CanvasCell {
+            ch: 'B',
+            fg: None,
+            bg: None,
+        },
+    );
+    // Cell outside selection (should survive)
+    app.editor.canvas_comp.canvas.buffer.set(
+        5,
+        5,
+        CanvasCell {
+            ch: 'X',
+            fg: None,
+            bg: None,
+        },
+    );
+
+    // Create marquee selection from (0,0) to (3,3)
+    let sel = Selection::marquee(&app.editor.canvas_comp.canvas.buffer, 0, 0, 3, 3);
+    app.editor.selection = Some(sel);
+
+    // Delete selection
+    app.handle_key_event(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+
+    // Selected cells should be cleared
+    assert_eq!(
+        app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch,
+        ' ',
+        "selected cell (1,1) should be cleared"
+    );
+    assert_eq!(
+        app.editor.canvas_comp.canvas.buffer.get(2, 2).unwrap().ch,
+        ' ',
+        "selected cell (2,2) should be cleared"
+    );
+
+    // Cell outside selection should remain
+    assert_eq!(
+        app.editor.canvas_comp.canvas.buffer.get(5, 5).unwrap().ch,
+        'X',
+        "cell outside selection should not be cleared"
+    );
+
+    // Selection should be consumed (set to None)
+    assert!(
+        app.editor.selection.is_none(),
+        "selection should be consumed after delete"
+    );
+}
+
+#[test]
+fn test_text_tool_enter_text_mode() {
+    use crossterm::event::KeyCode;
+    use figby::tui::TuiApp;
+
+    let mut app = TuiApp::new();
+
+    // Select Text tool
+    app.handle_key_event(KeyCode::Char('t'));
+    assert_eq!(
+        app.editor.toolbox_comp.toolbox.selected,
+        figby::tui::Tool::Text,
+        "should select Text tool"
+    );
+
+    // Press Space to start entering text
+    app.handle_key_event(KeyCode::Char(' '));
+    assert!(
+        app.editor.text_tool.entering_text,
+        "Space with Text tool should activate text entry"
+    );
+}
+
+#[test]
+fn test_text_tool_commit_text() {
+    use crossterm::event::KeyCode;
+    use figby::tui::TuiApp;
+
+    let mut app = TuiApp::new();
+
+    // Select Text tool and enter text mode
+    app.handle_key_event(KeyCode::Char('t'));
+    app.handle_key_event(KeyCode::Char(' '));
+    assert!(app.editor.text_tool.entering_text);
+
+    // Type "Hi"
+    app.handle_key_event(KeyCode::Char('H'));
+    app.handle_key_event(KeyCode::Char('i'));
+    assert_eq!(app.editor.text_tool.text_buffer, "Hi");
+
+    // Press Enter to commit
+    app.handle_key_event(KeyCode::Enter);
+
+    // Should have one block, buffer is empty, not entering text
+    assert!(
+        !app.editor.text_tool.entering_text,
+        "commit should exit text entry"
+    );
+    assert!(
+        app.editor.text_tool.text_buffer.is_empty(),
+        "buffer should be empty after commit"
+    );
+    assert_eq!(
+        app.editor.text_tool.blocks.len(),
+        1,
+        "should have one text block after commit"
+    );
+    assert_eq!(
+        app.editor.text_tool.blocks[0].text, "Hi",
+        "block text should be 'Hi'"
+    );
+}
+
+#[test]
+fn test_text_tool_cancel_text() {
+    use crossterm::event::KeyCode;
+    use figby::tui::TuiApp;
+
+    let mut app = TuiApp::new();
+
+    // Select Text tool and enter text mode
+    app.handle_key_event(KeyCode::Char('t'));
+    app.handle_key_event(KeyCode::Char(' '));
+    assert!(app.editor.text_tool.entering_text);
+
+    // Type "Hi"
+    app.handle_key_event(KeyCode::Char('H'));
+    app.handle_key_event(KeyCode::Char('i'));
+
+    // Press Esc to cancel
+    app.handle_key_event(KeyCode::Esc);
+
+    // Should be cancelled: not entering text, buffer empty, no blocks
+    assert!(
+        !app.editor.text_tool.entering_text,
+        "Esc should cancel text entry"
+    );
+    assert!(
+        app.editor.text_tool.text_buffer.is_empty(),
+        "buffer should be empty after cancel"
+    );
+    assert!(
+        app.editor.text_tool.blocks.is_empty(),
+        "no blocks after cancel"
+    );
+}
+
+#[test]
+fn test_cli_dispatch_view_zoom_in_via_menu() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use figby::tui::events::AppEvent;
+    use figby::tui::menu::MenuAction;
+    use figby::tui::TuiApp;
+
+    let mut app = TuiApp::new();
+    assert_eq!(
+        app.editor.canvas_comp.canvas.zoom_level(),
+        1,
+        "default zoom is 1"
+    );
+
+    // Open View menu via Alt+V (index 2)
+    app.handle_key_event(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT));
+    assert!(app.menu_bar_state.is_active());
+    assert_eq!(app.menu_bar_state.active_menu, Some(2));
+
+    // First item (index 0) is "Zoom In" — press Enter to select
+    let event = app.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert!(
+        event.is_some(),
+        "Enter on Zoom In should produce a Menu event"
+    );
+    if let Some(AppEvent::Menu(action)) = event {
+        assert_eq!(action, MenuAction::ViewZoomIn, "should dispatch ViewZoomIn");
+    }
+}
+
+#[test]
+fn test_cli_dispatch_tools_select_brush_via_menu() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use figby::tui::events::AppEvent;
+    use figby::tui::menu::MenuAction;
+    use figby::tui::{Tool, TuiApp};
+
+    let mut app = TuiApp::new();
+
+    // Switch to a different tool first so we can verify it changes
+    app.handle_key_event(KeyCode::Char('e'));
+    assert_eq!(
+        app.editor.toolbox_comp.toolbox.selected,
+        Tool::Eraser,
+        "should start with Eraser"
+    );
+
+    // Open Tools menu via Alt+T (index 3)
+    app.handle_key_event(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::ALT));
+    assert!(app.menu_bar_state.is_active());
+    assert_eq!(app.menu_bar_state.active_menu, Some(3));
+
+    // First item (index 0) is "Brush" — press Enter to select
+    let event = app.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    assert!(
+        event.is_some(),
+        "Enter on Brush should produce a Menu event"
+    );
+    if let Some(AppEvent::Menu(action)) = event {
+        assert_eq!(
+            action,
+            MenuAction::ToolsSelect(Tool::Brush),
+            "should dispatch ToolsSelect(Brush)"
+        );
+    }
+}

@@ -79,6 +79,12 @@ pub struct StatusBarTheme {
     pub mode_ascii: Color,
     pub separator: Color,
     pub label: Color,
+    pub git_branch: Color,
+    pub font_name: Color,
+    pub fps: Color,
+    pub glyph_count: Color,
+    pub unsaved: Color,
+    pub saved: Color,
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +143,12 @@ impl Default for Theme {
                 mode_ascii: Color::Rgb(0xff, 0xaa, 0x00),
                 separator: Color::Rgb(0x55, 0x55, 0x77),
                 label: Color::Rgb(0x88, 0x88, 0xaa),
+                git_branch: Color::Rgb(0x55, 0x55, 0x77),
+                font_name: Color::Rgb(0x88, 0x88, 0xaa),
+                fps: Color::Rgb(0x88, 0x88, 0xaa),
+                glyph_count: Color::Rgb(0x88, 0x88, 0xaa),
+                unsaved: Color::Rgb(0xff, 0xaa, 0x00),
+                saved: Color::Rgb(0x00, 0xff, 0x87),
             },
             menu: MenuTheme {
                 bg: Color::Rgb(0x0d, 0x0d, 0x1a),
@@ -224,6 +236,12 @@ struct StatusBarYaml {
     mode_ascii: Option<String>,
     separator: Option<String>,
     label: Option<String>,
+    git_branch: Option<String>,
+    font_name: Option<String>,
+    fps: Option<String>,
+    glyph_count: Option<String>,
+    unsaved: Option<String>,
+    saved: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -343,6 +361,30 @@ impl From<ThemeYaml> for Theme {
                 label: merge_color(
                     y.statusbar.as_ref().and_then(|t| t.label.as_ref()),
                     base.statusbar.label,
+                ),
+                git_branch: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.git_branch.as_ref()),
+                    base.statusbar.git_branch,
+                ),
+                font_name: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.font_name.as_ref()),
+                    base.statusbar.font_name,
+                ),
+                fps: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.fps.as_ref()),
+                    base.statusbar.fps,
+                ),
+                glyph_count: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.glyph_count.as_ref()),
+                    base.statusbar.glyph_count,
+                ),
+                unsaved: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.unsaved.as_ref()),
+                    base.statusbar.unsaved,
+                ),
+                saved: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.saved.as_ref()),
+                    base.statusbar.saved,
                 ),
             },
             menu: MenuTheme {

@@ -394,7 +394,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** Smooth fade-in visible on every cold launch.
   - **Difficulty:** Medium
 
-- [ ] `4.9.4` New status bar redesign
+- [x] `4.9.4` New status bar redesign
   - **Goal:** Redesign the bottom status bar. Show: mode, current tool, cursor
     position, font name + glyph count, unsaved indicator, git branch, FPS/render
     mode. Responsive layout: drops low-priority items at narrow widths.

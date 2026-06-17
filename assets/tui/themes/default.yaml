@@ -26,6 +26,12 @@ statusbar:
   mode_ascii: "#ffaa00"
   separator: "#555577"
   label: "#8888aa"
+  git_branch: "#555577"
+  font_name: "#8888aa"
+  fps: "#8888aa"
+  glyph_count: "#8888aa"
+  unsaved: "#ffaa00"
+  saved: "#00ff87"
 
 menu:
   bg: "#0d0d1a"

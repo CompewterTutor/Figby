@@ -22,6 +22,7 @@ use crate::config;
 
 pub mod brush;
 pub mod canvas;
+pub mod components;
 pub mod events;
 pub mod export;
 pub mod file_ops;
@@ -333,24 +334,7 @@ pub struct TuiApp {
     pub icons: BTreeMap<String, String>,
     pub menu_bar: MenuBar,
     pub menu_bar_state: menu::MenuBarState,
-    // Status bar data (inline)
-    pub status_cursor: (u16, u16),
-    pub status_zoom: u8,
-    pub status_tool_name: String,
-    pub status_mode_name: String,
-    pub status_unsaved: bool,
-    pub status_current_path: Option<String>,
-    pub status_throbber_text: String,
-    pub status_mode: AppMode,
-    pub status_undo_count: usize,
-    pub status_fps: f64,
-    pub status_render_mode: &'static str,
-    pub status_git_branch: Option<String>,
-    pub status_clock_str: String,
-    pub status_layer_count: u8,
-    pub status_animation_frame: u8,
-    pub status_icons: BTreeMap<String, String>,
-    pub status_theme: theme::Theme,
+
     // Drag state (extracted from EditorState)
     pub selection_drag_origin: Option<(i16, i16)>,
     pub selection_polygon_points: Vec<(i16, i16)>,
@@ -472,23 +456,7 @@ impl TuiApp {
             icons: icons.clone(),
             menu_bar: MenuBar::new(),
             menu_bar_state: menu::MenuBarState::new(),
-            status_cursor: (0, 0),
-            status_zoom: 1,
-            status_tool_name: String::new(),
-            status_mode_name: String::new(),
-            status_unsaved: false,
-            status_current_path: None,
-            status_throbber_text: String::new(),
-            status_mode: AppMode::FontEditor,
-            status_undo_count: 0,
-            status_fps: 0.0,
-            status_render_mode: "",
-            status_git_branch: git_branch.clone(),
-            status_clock_str: String::new(),
-            status_layer_count: 1,
-            status_animation_frame: 0,
-            status_icons: icons,
-            status_theme: theme.clone(),
+
             selection_drag_origin: None,
             selection_polygon_points: Vec::new(),
             selection_lasso_points: Vec::new(),
@@ -767,28 +735,44 @@ impl TuiApp {
         };
         self.fps = self.fps * 0.9 + instant_fps * 0.1;
 
-        // Status bar (inline rendering)
-        self.status_cursor = self.editor.canvas.cursor();
-        self.status_zoom = self.editor.canvas.zoom_level();
-        self.status_tool_name = self.editor.toolbox.selected.full_name().to_string();
-        self.status_mode_name = self.mode_name_string();
-        self.status_unsaved = self.editor.unsaved;
-        self.status_current_path = self
-            .editor
-            .font_editor
-            .current_path
-            .as_ref()
-            .map(|p| p.to_string_lossy().to_string());
-        self.status_throbber_text = self.throbber.render_string();
-        self.status_mode = self.mode;
-        self.status_undo_count = self.editor.undo.history_len();
-        self.status_fps = self.fps;
-        self.status_render_mode = self.render_mode.label();
-        self.status_git_branch = self.git_branch.clone();
-        self.status_clock_str = format_clock();
-        self.status_layer_count = self.editor.layer_stack.len() as u8;
-        self.status_animation_frame = 0;
-        self.render_status_bar(frame, fl.status);
+        // Status bar
+        let status_font_name = self.editor.font_editor.font.as_ref().and_then(|_f| {
+            let name = if self.editor.font_editor.font_storage_name.is_empty() {
+                self.editor
+                    .font_editor
+                    .current_path
+                    .as_ref()
+                    .and_then(|p| p.file_stem())
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Untitled")
+                    .to_string()
+            } else {
+                self.editor.font_editor.font_storage_name.clone()
+            };
+            (!name.is_empty()).then_some(name)
+        });
+        let status_glyph_count = self.editor.font_editor.font.as_ref().map(|f| f.chars.len());
+        frame.render_widget(
+            components::status_bar::StatusBarWidget::new(
+                self.mode,
+                &self.mode_name_string(),
+                self.editor.canvas.cursor(),
+                self.editor.toolbox.selected.full_name(),
+                self.editor.unsaved,
+                status_font_name.as_deref(),
+                status_glyph_count,
+                self.git_branch.as_deref(),
+                self.fps,
+                self.render_mode.label(),
+                &format_clock(),
+                self.editor.layer_stack.len() as u8,
+                self.editor.undo.history_len(),
+                &self.throbber.render_string(),
+                &self.icons,
+                &self.theme,
+            ),
+            fl.status,
+        );
 
         // Menu bar (rendered last so dropdown overlays main content)
         frame.render_stateful_widget(&self.menu_bar, fl.menu, &mut self.menu_bar_state);
@@ -1009,113 +993,6 @@ impl TuiApp {
             Line::from("  ^K   All keybinds"),
         ];
         frame.render_widget(Paragraph::new(lines), inner);
-    }
-
-    /// Render the status bar from inline fields.
-    fn render_status_bar(&self, frame: &mut Frame<'_>, area: Rect) {
-        let block = ratatui::widgets::Block::default().borders(ratatui::widgets::Borders::ALL);
-        let inner = block.inner(area);
-        frame.render_widget(&block, area);
-
-        if inner.width < 10 {
-            return;
-        }
-
-        let pos_icon = self
-            .icons
-            .get("status_position")
-            .map_or("+", |s| s.as_str());
-        let zoom_icon = self.icons.get("status_zoom").map_or("Z", |s| s.as_str());
-        let tool_icon = self.icons.get("status_tool").map_or("T", |s| s.as_str());
-        let mode_icon = self.icons.get("status_mode").map_or("M", |s| s.as_str());
-        let unsaved_icon = self.icons.get("status_unsaved").map_or("!", |s| s.as_str());
-        let saved_icon = self.icons.get("status_saved").map_or("*", |s| s.as_str());
-
-        let mode_color = match self.mode {
-            AppMode::FontEditor => self.theme.statusbar.mode_font,
-            AppMode::ImageEditor => self.theme.statusbar.mode_image,
-            AppMode::AsciiPreview => self.theme.statusbar.mode_ascii,
-        };
-
-        let unsaved_dot = if self.status_unsaved {
-            unsaved_icon
-        } else {
-            saved_icon
-        };
-        let filename = self
-            .status_current_path
-            .as_ref()
-            .map(std::path::Path::new)
-            .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str())
-            .map(|n| n.to_string())
-            .unwrap_or_else(|| "Untitled".to_string());
-
-        let undo_str = if self.status_undo_count > 0 {
-            format!(" undo:{}", self.status_undo_count)
-        } else {
-            String::new()
-        };
-
-        let fps_str = format!("FPS:{:.0}", self.status_fps);
-        let render_str = if self.status_render_mode.is_empty() {
-            String::new()
-        } else {
-            format!(" Rnd:{}", self.status_render_mode)
-        };
-        let branch_str = match &self.status_git_branch {
-            Some(b) => format!(" ⎇ {}", b),
-            None => String::new(),
-        };
-        let throbber_str = if self.status_throbber_text.is_empty() {
-            String::new()
-        } else {
-            format!(" {} ", self.status_throbber_text)
-        };
-
-        let mode_label = format!(" {} {} ", mode_icon, self.status_mode_name);
-        let cursor_str = format!(
-            " {} X:{} Y:{} ",
-            pos_icon, self.status_cursor.0, self.status_cursor.1
-        );
-        let zoom_label = format!(" {} {}x", zoom_icon, self.status_zoom);
-        let tool_label = format!(" {} {} ", tool_icon, self.status_tool_name);
-        let center_str = format!(" {} {}{}", unsaved_dot, filename, undo_str);
-        let right_str = format!(
-            "{}{} │ L:{} │ F:{} │ {}{}{}",
-            fps_str,
-            render_str,
-            self.status_layer_count,
-            self.status_animation_frame,
-            self.status_clock_str,
-            throbber_str,
-            branch_str,
-        );
-
-        let left_w = mode_label.chars().count()
-            + tool_label.chars().count()
-            + cursor_str.chars().count()
-            + zoom_label.chars().count();
-        let right_w = right_str.chars().count();
-        let gap = (inner.width as usize).saturating_sub(left_w + right_w + 6);
-        let center_trunc: String = center_str.chars().take(gap).collect();
-
-        let mut spans: Vec<Span> = Vec::new();
-        spans.push(Span::styled(
-            mode_label,
-            Style::default().fg(mode_color).add_modifier(Modifier::BOLD),
-        ));
-        spans.push(Span::raw(format!(
-            "{}{}{}",
-            tool_label, cursor_str, zoom_label
-        )));
-        spans.push(Span::raw(" │ "));
-        spans.push(Span::raw(center_trunc));
-        spans.push(Span::raw(" │ "));
-        spans.push(Span::raw(right_str));
-
-        let paragraph = Paragraph::new(Line::from(spans));
-        frame.render_widget(paragraph, inner);
     }
 
     /// Render all floating overlays (dialogs, keybindings, undo panel).

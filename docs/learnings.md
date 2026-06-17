@@ -1,5 +1,19 @@
 # Figby — Learnings
 
+## 4.8.2 — Raw mode playback engine
+
+- `write!()` into `String` requires `use std::fmt::Write`, not `use std::io::Write`.
+  Using `format!()` avoids the trait ambiguity entirely.
+- `event::poll(Duration::ZERO)` works for non-blocking keyboard checks in raw mode.
+  Combined with `std::thread::sleep()` for frame timing, this avoids the coupling
+  between poll timeout and frame rate.
+- CUP escape sequence `\x1b[{row};{col}H` is 1-indexed (row 1, col 1 = top-left).
+- Skipping blank cells (space with no colors) in `render_frame_raw()` reduces
+  ANSI output size significantly for frames with lots of empty space.
+- ratatui `Color::Gray` and `Color::DarkGray` both map to ANSI `90m` (bright
+  black) — ratatui's distinction between them is not reflected in standard
+  ANSI, so both get the same SGR code.
+
 ## 4.6.1 — Particle system design
 
 - Spawn-before-update pattern: particles are created at the emitter position,

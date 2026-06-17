@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::io;
+use std::io::{self, Write};
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode};
@@ -8,7 +8,7 @@ use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::widgets::Widget;
 use ratatui::Terminal;
 
@@ -189,12 +189,12 @@ impl AnimationPlayer {
                 self.seek(cur.saturating_add(1));
                 true
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('+') | KeyCode::Char('=') => {
                 let s = self.speed.get() + 0.25;
                 self.set_speed(s);
                 true
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('-') | KeyCode::Char('_') => {
                 let s = self.speed.get() - 0.25;
                 self.set_speed(s);
                 true
@@ -480,6 +480,179 @@ pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
 
     terminal.show_cursor()?;
     session.exit_player_mode()?;
+    Ok(())
+}
+
+/// Convert a ratatui `Color` to ANSI foreground escape code string.
+fn color_fg_ansi(c: &Color) -> String {
+    match c {
+        Color::Reset => "\x1b[39m".into(),
+        Color::Black => "\x1b[30m".into(),
+        Color::Red => "\x1b[31m".into(),
+        Color::Green => "\x1b[32m".into(),
+        Color::Yellow => "\x1b[33m".into(),
+        Color::Blue => "\x1b[34m".into(),
+        Color::Magenta => "\x1b[35m".into(),
+        Color::Cyan => "\x1b[36m".into(),
+        Color::White => "\x1b[37m".into(),
+        Color::Gray | Color::DarkGray => "\x1b[90m".into(),
+        Color::LightRed => "\x1b[91m".into(),
+        Color::LightGreen => "\x1b[92m".into(),
+        Color::LightYellow => "\x1b[93m".into(),
+        Color::LightBlue => "\x1b[94m".into(),
+        Color::LightMagenta => "\x1b[95m".into(),
+        Color::LightCyan => "\x1b[96m".into(),
+        Color::Rgb(r, g, b) => format!("\x1b[38;2;{};{};{}m", r, g, b),
+        Color::Indexed(idx) => format!("\x1b[38;5;{}m", idx),
+    }
+}
+
+/// Convert a ratatui `Color` to ANSI background escape code string.
+fn color_bg_ansi(c: &Color) -> String {
+    match c {
+        Color::Reset => "\x1b[49m".into(),
+        Color::Black => "\x1b[40m".into(),
+        Color::Red => "\x1b[41m".into(),
+        Color::Green => "\x1b[42m".into(),
+        Color::Yellow => "\x1b[43m".into(),
+        Color::Blue => "\x1b[44m".into(),
+        Color::Magenta => "\x1b[45m".into(),
+        Color::Cyan => "\x1b[46m".into(),
+        Color::White => "\x1b[47m".into(),
+        Color::Gray | Color::DarkGray => "\x1b[100m".into(),
+        Color::LightRed => "\x1b[101m".into(),
+        Color::LightGreen => "\x1b[102m".into(),
+        Color::LightYellow => "\x1b[103m".into(),
+        Color::LightBlue => "\x1b[104m".into(),
+        Color::LightMagenta => "\x1b[105m".into(),
+        Color::LightCyan => "\x1b[106m".into(),
+        Color::Rgb(r, g, b) => format!("\x1b[48;2;{};{};{}m", r, g, b),
+        Color::Indexed(idx) => format!("\x1b[48;5;{}m", idx),
+    }
+}
+
+/// Render a single frame as ANSI escape sequences into a String.
+/// Uses CUP (cursor position) to place each cell, bypassing ratatui diffing.
+pub fn render_frame_raw(frame: &AnimationFrame) -> String {
+    let mut out = String::new();
+    for (y, row) in frame.iter().enumerate() {
+        for (x, cell) in row.iter().enumerate() {
+            let has_content = cell.ch != ' ' || cell.fg.is_some() || cell.bg.is_some();
+            if !has_content {
+                continue;
+            }
+            out.push_str(&format!("\x1b[{};{}H\x1b[0m{}", y + 1, x + 1, {
+                let mut s = String::new();
+                if let Some(ref fg) = cell.fg {
+                    s.push_str(&color_fg_ansi(fg));
+                }
+                if let Some(ref bg) = cell.bg {
+                    s.push_str(&color_bg_ansi(bg));
+                }
+                s
+            }));
+            out.push(cell.ch);
+        }
+    }
+    out
+}
+
+/// Raw mode playback engine.
+///
+/// Enters raw mode (no echo, no line buffering), renders frames by writing
+/// pre-computed ANSI escape codes directly to stdout (bypassing ratatui's
+/// Terminal::draw diffing). Frame timing via `sleep`. Keyboard controls:
+/// Space=pause, Esc=exit, Left/Right=seek, +/-=speed.
+pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
+    if frames.is_empty() {
+        return Ok(());
+    }
+
+    let total = frames.len();
+    let precomputed: Vec<String> = frames.iter().map(render_frame_raw).collect();
+    let player = AnimationPlayer::new(frames, fps);
+    player.play();
+
+    terminal::enable_raw_mode()?;
+    write!(io::stdout(), "\x1b[?25l\x1b[2J")?;
+    io::stdout().flush()?;
+
+    let mut finished = false;
+
+    while !finished {
+        let cur = player.current_frame();
+
+        write!(io::stdout(), "{}", precomputed[cur])?;
+        write_playback_progress_bar(&player, cur, total)?;
+        io::stdout().flush()?;
+
+        let frame_interval = Duration::from_secs_f64(1.0 / (fps as f64 * player.speed_mult()));
+        std::thread::sleep(frame_interval);
+
+        if event::poll(Duration::ZERO)? {
+            if let Event::Key(key) = event::read()? {
+                let consumed = player.handle_key(key.code);
+                if consumed && key.code == KeyCode::Esc {
+                    finished = true;
+                }
+            }
+        }
+
+        if player.is_playing() {
+            player.advance(frame_interval);
+        }
+
+        let (cur_frame, total_frames) = player.progress();
+        if total_frames > 0
+            && cur_frame >= total_frames.saturating_sub(1)
+            && !player.is_looping()
+            && !player.is_playing()
+        {
+            finished = true;
+        }
+    }
+
+    write!(io::stdout(), "\x1b[?25h\x1b[0m\x1b[2J\x1b[H")?;
+    io::stdout().flush()?;
+    terminal::disable_raw_mode()?;
+    Ok(())
+}
+
+/// Write a one-line progress bar for raw playback (bottom of terminal).
+fn write_playback_progress_bar(
+    player: &AnimationPlayer,
+    cur: usize,
+    total: usize,
+) -> io::Result<()> {
+    let play_ch = if player.is_playing() {
+        '\u{23F8}'
+    } else {
+        '\u{25B6}'
+    };
+    let total_digits = total.to_string().len();
+    let counter = format!("{:0width$}/{}", cur + 1, total, width = total_digits);
+    let speed = format!(" {:.2}x", player.speed_mult());
+    let prefix = format!("{} {} [", play_ch, counter);
+    let suffix = format!("]{}", speed);
+
+    let (cols, rows) = terminal::size().unwrap_or((80, 24));
+    let bar_width = (cols as usize)
+        .saturating_sub(prefix.len() + suffix.len() + 1)
+        .clamp(2, 60);
+
+    let filled = if total > 1 {
+        ((cur * bar_width) as f64 / (total - 1) as f64).round() as usize
+    } else {
+        bar_width
+    };
+    let filled = filled.min(bar_width);
+
+    write!(io::stdout(), "\x1b[{};1H\x1b[0m{}", rows, prefix)?;
+    for i in 0..bar_width {
+        let ch = if i < filled { '\u{2588}' } else { '\u{2591}' };
+        write!(io::stdout(), "{}", ch)?;
+    }
+    write!(io::stdout(), "{}", suffix)?;
     Ok(())
 }
 
@@ -840,5 +1013,128 @@ mod tests {
         let result = play_fullscreen(vec![], 10);
         // Will fail in test env because no real terminal, but should not panic
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_color_fg_ansi_named() {
+        assert_eq!(color_fg_ansi(&Color::Red), "\x1b[31m");
+        assert_eq!(color_fg_ansi(&Color::Green), "\x1b[32m");
+        assert_eq!(color_fg_ansi(&Color::White), "\x1b[37m");
+        assert_eq!(color_fg_ansi(&Color::LightBlue), "\x1b[94m");
+    }
+
+    #[test]
+    fn test_color_fg_ansi_rgb() {
+        assert_eq!(color_fg_ansi(&Color::Rgb(255, 0, 0)), "\x1b[38;2;255;0;0m");
+        assert_eq!(
+            color_fg_ansi(&Color::Rgb(0, 128, 255)),
+            "\x1b[38;2;0;128;255m"
+        );
+    }
+
+    #[test]
+    fn test_color_fg_ansi_indexed() {
+        assert_eq!(color_fg_ansi(&Color::Indexed(42)), "\x1b[38;5;42m");
+    }
+
+    #[test]
+    fn test_color_bg_ansi_named() {
+        assert_eq!(color_bg_ansi(&Color::Black), "\x1b[40m");
+        assert_eq!(color_bg_ansi(&Color::Cyan), "\x1b[46m");
+    }
+
+    #[test]
+    fn test_color_bg_ansi_rgb() {
+        assert_eq!(
+            color_bg_ansi(&Color::Rgb(10, 20, 30)),
+            "\x1b[48;2;10;20;30m"
+        );
+    }
+
+    #[test]
+    fn test_render_frame_raw_basic() {
+        let frame = vec![
+            vec![
+                CanvasCell {
+                    ch: 'X',
+                    fg: None,
+                    bg: None,
+                },
+                CanvasCell {
+                    ch: ' ',
+                    fg: None,
+                    bg: None,
+                },
+            ],
+            vec![
+                CanvasCell {
+                    ch: 'Y',
+                    fg: None,
+                    bg: None,
+                },
+                CanvasCell {
+                    ch: 'Z',
+                    fg: None,
+                    bg: None,
+                },
+            ],
+        ];
+        let out = render_frame_raw(&frame);
+        // Should include cursor positions for non-space cells
+        assert!(out.contains("\x1b[1;1H\x1b[0mX"));
+        assert!(out.contains("\x1b[2;1H\x1b[0mY"));
+        assert!(out.contains("\x1b[2;2H\x1b[0mZ"));
+        // Space cell at (1,2) should be skipped
+        assert!(!out.contains("\x1b[1;2H"));
+    }
+
+    #[test]
+    fn test_render_frame_raw_with_colors() {
+        let frame = vec![vec![CanvasCell {
+            ch: 'A',
+            fg: Some(Color::Red),
+            bg: None,
+        }]];
+        let out = render_frame_raw(&frame);
+        assert!(out.contains("\x1b[31m"));
+        assert!(out.contains("A"));
+    }
+
+    #[test]
+    fn test_render_frame_raw_empty() {
+        let out = render_frame_raw(&vec![]);
+        assert_eq!(out, "");
+    }
+
+    #[test]
+    fn test_play_raw_empty_frames() {
+        let result = play_raw(vec![], 30);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_handle_key_plus_speed() {
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10);
+
+        player.handle_key(KeyCode::Char('='));
+        assert!((player.speed_mult() - 1.25).abs() < 1e-6);
+
+        player.handle_key(KeyCode::Char('+'));
+        assert!((player.speed_mult() - 1.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_handle_key_minus_speed() {
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10);
+
+        // Start at 2.0, then decrement
+        player.set_speed(2.0);
+        player.handle_key(KeyCode::Char('-'));
+        assert!((player.speed_mult() - 1.75).abs() < 1e-6);
+
+        player.handle_key(KeyCode::Char('_'));
+        assert!((player.speed_mult() - 1.5).abs() < 1e-6);
     }
 }

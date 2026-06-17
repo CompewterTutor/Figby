@@ -1817,6 +1817,24 @@ Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal
 capture), 4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into
 the mainline. Next phase: 4.8 (Animation Player).
 
+### 4.8.2 — Raw mode playback engine
+
+Added raw mode playback engine to `player.rs`:
+- `play_raw()` — enters raw mode (no echo, no line buffering), renders frames
+  by writing pre-computed ANSI escape codes directly to stdout (bypasses
+  ratatui Terminal::draw diffing for speed)
+- `render_frame_raw()` — converts `AnimationFrame` to ANSI escape string with
+  CUP cursor positioning, skips blank cells for efficiency
+- `color_fg_ansi()` / `color_bg_ansi()` — ratatui `Color` to ANSI SGR code
+  conversion for all named, RGB, and indexed color variants
+- Frame timing via `std::thread::sleep` with speed multiplier
+- Keyboard: Space=pause, Esc=exit, Left/Right=seek, +/-=speed (also keeps
+  existing Up/Down for speed, L for loop)
+- `+`/`=` and `-`/`_` added to `AnimationPlayer::handle_key()` for speed
+- Progress bar rendered at bottom row during raw playback
+- 13 new unit tests: color ANSI conversions, render_frame_raw, handle_key
+  with +/-/=/-, play_raw empty frames
+
 ### 4.8.1 — Terminal capture for playback
 
 Added terminal capture and restore lifecycle to `player.rs`:

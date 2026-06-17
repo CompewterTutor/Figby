@@ -2854,6 +2854,14 @@ impl TuiApp {
                         )
                         .map_err(|e| e.to_string())?
                     }
+                    crate::tui::export::ExportMode::Ansi => {
+                        if timeline_available && !frames.is_empty() {
+                            crate::output::export_cells_to_ansi_multi(&frames, &frame_delays)
+                                .into_bytes()
+                        } else {
+                            crate::output::export_cells_to_ansi(&cells).into_bytes()
+                        }
+                    }
                 };
                 std::fs::write(&path_buf, &bytes).map_err(|e| format!("IoError({e})"))?;
                 if let Some(stack) = layer_stack {

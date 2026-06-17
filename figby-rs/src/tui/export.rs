@@ -6,8 +6,9 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::output::{
-    export_cells_to_apng, export_cells_to_gif, export_cells_to_png, export_cells_to_png_with_alpha,
-    export_cells_to_txt, ExportError, ExportFormat,
+    export_cells_to_ansi, export_cells_to_ansi_multi, export_cells_to_apng, export_cells_to_gif,
+    export_cells_to_png, export_cells_to_png_with_alpha, export_cells_to_txt, ExportError,
+    ExportFormat,
 };
 
 use super::canvas::{CanvasBuffer, CanvasCell};
@@ -21,6 +22,7 @@ pub enum ExportMode {
     Apng,
     Gif,
     Txt,
+    Ansi,
 }
 
 impl ExportMode {
@@ -30,6 +32,7 @@ impl ExportMode {
             ExportMode::Apng => "APNG",
             ExportMode::Gif => "GIF",
             ExportMode::Txt => "TXT",
+            ExportMode::Ansi => "ANSI",
         }
     }
 
@@ -38,7 +41,8 @@ impl ExportMode {
             ExportMode::Png => ExportMode::Apng,
             ExportMode::Apng => ExportMode::Gif,
             ExportMode::Gif => ExportMode::Txt,
-            ExportMode::Txt => ExportMode::Png,
+            ExportMode::Txt => ExportMode::Ansi,
+            ExportMode::Ansi => ExportMode::Png,
         }
     }
 
@@ -48,6 +52,7 @@ impl ExportMode {
             ExportMode::Apng => ExportFormat::Apng,
             ExportMode::Gif => ExportFormat::Gif,
             ExportMode::Txt => ExportFormat::Txt,
+            ExportMode::Ansi => ExportFormat::Ansi,
         }
     }
 
@@ -57,6 +62,7 @@ impl ExportMode {
             ExportMode::Apng => ".apng",
             ExportMode::Gif => ".gif",
             ExportMode::Txt => ".txt",
+            ExportMode::Ansi => ".ans",
         }
     }
 }
@@ -267,11 +273,11 @@ impl ExportDialog {
                 self.format = self.format.cycle();
                 true
             }
-            KeyCode::Char('L') | KeyCode::Char('l') => {
+            KeyCode::Char('L') | KeyCode::Char('l') if self.format != ExportMode::Ansi => {
                 self.export_layers = !self.export_layers;
                 true
             }
-            KeyCode::Char('P') | KeyCode::Char('p') => {
+            KeyCode::Char('P') | KeyCode::Char('p') if self.format != ExportMode::Ansi => {
                 self.use_transparency = !self.use_transparency;
                 true
             }
@@ -353,6 +359,14 @@ impl ExportDialog {
         let bytes: Vec<u8> = match self.format {
             ExportMode::Png => export_cells_to_png(cells, self.font_size)?,
             ExportMode::Txt => export_cells_to_txt(cells).into_bytes(),
+            ExportMode::Ansi => {
+                if self.timeline_available && !self.timeline_frames.is_empty() {
+                    export_cells_to_ansi_multi(&self.timeline_frames, &self.frame_delays)
+                        .into_bytes()
+                } else {
+                    export_cells_to_ansi(cells).into_bytes()
+                }
+            }
             ExportMode::Apng | ExportMode::Gif => {
                 let frame_slice: &[Vec<Vec<CanvasCell>>] =
                     if self.timeline_available && !self.timeline_frames.is_empty() {
@@ -452,6 +466,7 @@ impl ExportDialog {
         }
 
         let is_animation = self.format == ExportMode::Gif || self.format == ExportMode::Apng;
+        let is_ansi = self.format == ExportMode::Ansi;
 
         let mut lines: Vec<Line> = Vec::new();
 
@@ -508,7 +523,7 @@ impl ExportDialog {
             Style::default().fg(self.theme.dialog.meta),
         )));
 
-        if !is_animation || !self.timeline_available {
+        if (!is_animation || !self.timeline_available) && !is_ansi {
             lines.push(Line::from(Span::styled(
                 format!(
                     " Layers: [{}]  (L to toggle)",
@@ -716,6 +731,7 @@ impl Widget for &ExportDialog {
         )));
 
         let is_animation = self.format == ExportMode::Gif || self.format == ExportMode::Apng;
+        let is_ansi = self.format == ExportMode::Ansi;
 
         if is_animation && self.timeline_available {
             lines.push(Line::from(Span::styled(
@@ -765,7 +781,7 @@ impl Widget for &ExportDialog {
             Style::default().fg(self.theme.dialog.meta),
         )));
 
-        if !is_animation || !self.timeline_available {
+        if (!is_animation || !self.timeline_available) && !is_ansi {
             lines.push(Line::from(Span::styled(
                 format!(
                     " Layers: [{}]  (L to toggle)",
@@ -912,6 +928,8 @@ mod tests {
         dialog.handle_key(KeyCode::Char('t'));
         assert_eq!(dialog.format, ExportMode::Txt);
         dialog.handle_key(KeyCode::Char('t'));
+        assert_eq!(dialog.format, ExportMode::Ansi);
+        dialog.handle_key(KeyCode::Char('t'));
         assert_eq!(dialog.format, ExportMode::Png);
     }
 
@@ -959,6 +977,7 @@ mod tests {
         assert_eq!(ExportMode::Apng.label(), "APNG");
         assert_eq!(ExportMode::Gif.label(), "GIF");
         assert_eq!(ExportMode::Txt.label(), "TXT");
+        assert_eq!(ExportMode::Ansi.label(), "ANSI");
     }
 
     #[test]
@@ -967,6 +986,7 @@ mod tests {
         assert_eq!(ExportMode::Apng.extension(), ".apng");
         assert_eq!(ExportMode::Gif.extension(), ".gif");
         assert_eq!(ExportMode::Txt.extension(), ".txt");
+        assert_eq!(ExportMode::Ansi.extension(), ".ans");
     }
 
     #[test]
@@ -1359,5 +1379,67 @@ mod tests {
         dialog.populate_from_timeline(&timeline, &stack, 3, 3);
         assert!(!dialog.timeline_available);
         assert!(dialog.timeline_frames.is_empty());
+    }
+
+    #[test]
+    fn test_export_ansi_no_layers_toggle() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Ansi);
+        assert!(!dialog.export_layers);
+        // L key should not toggle layers in ANSI mode
+        dialog.handle_key(KeyCode::Char('L'));
+        assert!(!dialog.export_layers);
+        dialog.handle_key(KeyCode::Char('l'));
+        assert!(!dialog.export_layers);
+    }
+
+    #[test]
+    fn test_export_ansi_no_transparency_toggle() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Ansi);
+        assert!(!dialog.use_transparency);
+        // P key should not toggle transparency in ANSI mode
+        dialog.handle_key(KeyCode::Char('P'));
+        assert!(!dialog.use_transparency);
+        dialog.handle_key(KeyCode::Char('p'));
+        assert!(!dialog.use_transparency);
+    }
+
+    #[test]
+    fn test_export_ansi_enter_export_path() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Ansi);
+        assert_eq!(dialog.path_buffer, "export.ans");
+    }
+
+    #[test]
+    fn test_export_ansi_perform_single() {
+        let tmpdir = std::env::temp_dir();
+        let path = tmpdir.join("test_export_ansi_perform_single.ans");
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Ansi);
+        dialog.path_buffer = path.to_string_lossy().to_string();
+        let cells = vec![vec![CanvasCell {
+            ch: 'A',
+            fg: Some(Color::Red),
+            bg: None,
+        }]];
+        let result = dialog.perform_export(&cells);
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        assert!(content.contains('A'));
+        assert!(content.contains("\x1b[38;2;255;0;0m"));
+        assert!(content.contains("\x1b[0m"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_export_ansi_mode_gated_layers_png() {
+        // Verify that L and P still work for PNG mode
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Png);
+        assert!(!dialog.export_layers);
+        dialog.handle_key(KeyCode::Char('L'));
+        assert!(dialog.export_layers);
     }
 }

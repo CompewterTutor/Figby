@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Phase 4.6 merged) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.7 merged) |
 
 ## Architectural Decisions
 
@@ -1810,6 +1810,12 @@ Integrated into TUI export system:
 - `L` (layers) and `P` (transparency) keys gated off in ANSI mode (not applicable)
 - Export extension `.ans`
 - CLI export path in `tui/mod.rs` handles single-frame and multi-frame cases
+
+### 4.7.4 — Phase merge: release/4.7 → master (2026-06-17)
+
+Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal
+capture), 4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into
+the mainline. Next phase: 4.8 (Animation Player).
 
 ### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
 

@@ -20,6 +20,12 @@
   to specify the full `ParticleConfig` structure. The `ParticleConfig` defaults
   in `particles.rs` are separate from the TOML-level defaults.
 
+## 4.7.4 — Phase merge: release/4.7 → master
+
+- No code changes — merge was a no-op (release/4.7 already an ancestor of master
+  from merge commits for 4.7.1, 4.7.2, 4.7.3). Only docs, changelog, and metadata
+  updated.
+
 ## 4.6.4 — Phase merge: release/4.6 → master
 
 - No code changes — merge was a no-op (release/4.6 already an ancestor of master

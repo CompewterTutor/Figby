@@ -316,7 +316,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Export → `cat` → visual comparison with TUI playback.
   - **Difficulty:** Low
 
-- [ ] `4.7.4` Phase merge: release/4.7 → main
+- [x] `4.7.4` Phase merge: release/4.7 → main
   - **Difficulty:** Low
 
 ---

@@ -40,7 +40,7 @@ pub const CHAR_GROUPS: &[CharGroup] = &[
     CharGroup { name: "box",     chars: "─━│┃┄┅┆┇┈┉┊┋┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╎╏═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿" },
     CharGroup { name: "dithered", chars: "░▒▓" },
     CharGroup { name: "geometric", chars: "■□▪▫▲△▶▷▼▽◀◁◆◇◈◊○◎●◐◑◦◯" },
-    CharGroup { name: "ogham",   chars: " ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏᚐᚑᚒᚓᚔᚕᚖᚗᚘᚙᚚ᚛᚜" },
+    CharGroup { name: "ogham",   chars: " ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏᚐᚑᚒᚓᚔᚕᚖᚗᚘᚙᚚ᚛᚜" },
 ];
 
 pub const ANSI_16_COLORS: [Color; 16] = [
@@ -610,5 +610,58 @@ mod tests {
         cps.sort_unstable();
         cps.dedup();
         assert_eq!(cps.len(), 23, "should have 23 unique geometric codepoints");
+    }
+
+    // --- Ogham palette tests ---
+
+    #[test]
+    fn test_ogham_palette_count() {
+        let ogham = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "ogham")
+            .expect("ogham group should exist");
+        let count = ogham.chars.chars().count();
+        assert_eq!(
+            count, 29,
+            "ogham group should have exactly 29 chars, got {count}"
+        );
+    }
+
+    #[test]
+    fn test_ogham_palette_all_in_range() {
+        let ogham = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "ogham")
+            .expect("ogham group should exist");
+        for c in ogham.chars.chars() {
+            let cp = c as u32;
+            assert!(
+                (0x1680..=0x169F).contains(&cp),
+                "ogham char U+{cp:04X} outside U+1680–U+169F"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ogham_palette_all_unique() {
+        let ogham = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "ogham")
+            .expect("ogham group should exist");
+        let mut cps: Vec<u32> = ogham.chars.chars().map(|c| c as u32).collect();
+        assert_eq!(cps.len(), 29, "should have 29 ogham chars");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 29, "should have 29 unique ogham codepoints");
+        assert_eq!(cps[0], 0x1680, "first codepoint should be U+1680");
+        assert_eq!(cps[28], 0x169C, "last codepoint should be U+169C");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x1680 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x1680 + i as u32
+            );
+        }
     }
 }

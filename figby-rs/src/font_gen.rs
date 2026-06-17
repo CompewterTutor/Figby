@@ -1049,4 +1049,45 @@ mod tests {
         cps.dedup();
         assert_eq!(cps.len(), 23, "should have 23 unique codepoints");
     }
+
+    // --- Ogham charset tests ---
+
+    #[test]
+    fn test_ogham_count() {
+        assert_eq!(ogham_charset().len(), 29);
+    }
+
+    #[test]
+    fn test_ogham_all_in_range() {
+        for s in ogham_charset() {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x1680..=0x169F).contains(&cp),
+                "ogham char U+{cp:04X} outside U+1680–U+169F"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ogham_all_unique() {
+        let chars = ogham_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 29, "should have 29 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 29, "should have 29 unique codepoints");
+        assert_eq!(cps[0], 0x1680, "first codepoint should be U+1680");
+        assert_eq!(cps[28], 0x169C, "last codepoint should be U+169C");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x1680 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x1680 + i as u32
+            );
+        }
+    }
 }

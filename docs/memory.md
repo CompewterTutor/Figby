@@ -1426,6 +1426,21 @@ Updated `blocks` palette string in `palette.rs` to match. Added 3 verification t
 `font_gen.rs` (count=32, range check, unique/nogap all-32-codepoints) and 3 in `palette.rs`
 (same checks on the static group string). All blocks tests pass.
 
+### 4.2.4 — Ogham charset
+
+Production code was already in place:
+- `ogham_charset()` in `font_gen.rs` — 29 codepoints U+1680–U+169C, cached via `OnceLock`
+- `resolve_charset("ogham")` — wired to `ogham_charset()` for font-gen use
+- `deluxe_charset()` — includes ogham via `extend_from_slice(ogham_charset())`
+- `CHAR_GROUPS` in `palette.rs` — ogham group with 29 chars as a static string
+
+Fix applied: palette ogham group first char was U+0020 (regular space) instead of
+U+1680 (Ogham Space Mark). Changed to U+1680 to match `ogham_charset()` output.
+
+Added 6 verification tests (3 in `font_gen.rs`, 3 in `palette.rs`):
+- Count (29), range (U+1680–U+169F), unique all-codepoints-no-gaps checks for both
+  the charset function and the palette group string. fmt and clippy pass clean.
+
 ### 4.2.3 — Box drawing + dithered charset
 
 Added three new charset functions to `font_gen.rs`:

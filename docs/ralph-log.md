@@ -3091,3 +3091,11 @@ DONE: 4.7.2 merged into release/4.7.
 ## 2026-06-17 09:56
 
 DONE: 4.7.4 merged into release/4.7.
+
+## 2026-06-17 10:02
+
+DONE: 4.7.4 merged into release/4.7.
+
+## 2026-06-17 10:02
+
+All 4.7 tasks complete. Starting phase review.

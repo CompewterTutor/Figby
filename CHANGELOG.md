@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.0.0-rc.2] - 2026-06-17
+### Changed
+- Phase merge: release/4.1 → main. Phase 4.1 complete: welcome screen (4.1.4),
+  ZIP font browsing (4.1.5), various polish fixes.
+
 ## [3.0.0-rc.1] - 2026-06-16
 ### Added
 - v3.0.0 release candidate cut. RC branch `rc/3.0.0-rc.1`, annotated tag

@@ -3015,3 +3015,7 @@ All 4.3 tasks complete. Starting phase review.
 ## 2026-06-17 07:22
 
 PHASE_COMPLETE: 4.3 merged to main after review approval.
+
+## 2026-06-17 07:37
+
+DONE: 4.4.1 merged into release/4.4.

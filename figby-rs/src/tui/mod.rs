@@ -449,6 +449,7 @@ impl TuiApp {
         let layer_stack = layers::LayerStack::new(canvas_w, canvas_h);
         let mut layer_panel = layers::LayerPanel::new();
         layer_panel.theme = theme.clone();
+        layer_panel.icons = icons.clone();
 
         Self {
             mode: AppMode::FontEditor,
@@ -1774,6 +1775,7 @@ impl TuiApp {
                         self.editor.layer_stack = layers::LayerStack::new(32, 16);
                         self.editor.layer_panel = layers::LayerPanel::new();
                         self.editor.layer_panel.theme = self.theme.clone();
+                        self.editor.layer_panel.icons = self.icons.clone();
                         self.editor.recomposite_canvas();
                         self.welcome_screen.show = false;
                         self.dirty = true;

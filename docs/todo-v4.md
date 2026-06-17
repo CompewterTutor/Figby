@@ -218,7 +218,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Create frames, switch between them, verify state isolation.
   - **Difficulty:** High
 
-- [x] `4.5.2` Keyframing
+- [ ] `4.5.2` Keyframing
   - **Goal:** Keyframeable properties per layer: position offset, opacity,
     blend mode. Keyframe markers on timeline. Interpolation between
     keyframes (linear). Keyframe editor panel.
@@ -227,7 +227,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Set keyframes, play, verify interpolation.
   - **Difficulty:** High
 
-- [x] `4.5.3` Tweening
+- [ ] `4.5.3` Tweening
   - **Goal:** Auto-tween: select start/end keyframes, generate
     intermediate frames. Easing functions: linear, ease-in, ease-out,
     bounce. Preview tween before committing.
@@ -236,7 +236,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Tween between known keyframes, verify frame sequence.
   - **Difficulty:** Medium
 
-- [x] `4.5.4` GIF export from timeline
+- [ ] `4.5.4` GIF export from timeline
   - **Goal:** Render animation timeline to animated GIF. Frame delay per
     frame or global FPS setting. Loop count. Preview playback in TUI.
   - **Touches:** `figby-rs/src/tui/export.rs`
@@ -244,7 +244,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Export GIF, verify frame count + timing.
   - **Difficulty:** Medium
 
-- [x] `4.5.5` Phase merge: release/4.5 → main
+- [ ] `4.5.5` Phase merge: release/4.5 → main
   - **Difficulty:** Low
 
 ---

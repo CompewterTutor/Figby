@@ -304,10 +304,10 @@ fn box_charset() -> &'static [&'static str] {
     })
 }
 
-/// Ogham script block U+1680–U+169F.
+/// Ogham script block U+1680–U+169C.
 fn ogham_charset() -> &'static [&'static str] {
     static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
-    CELL.get_or_init(|| make_charset_vec(0x1680u32..=0x169Fu32))
+    CELL.get_or_init(|| make_charset_vec(0x1680u32..=0x169Cu32))
 }
 
 /// Deluxe: ASCII printable + blocks + box + braille + ogham.

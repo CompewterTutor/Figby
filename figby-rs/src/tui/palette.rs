@@ -362,3 +362,59 @@ impl Default for Palette {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::CHAR_GROUPS;
+
+    #[test]
+    fn test_braille_palette_group_length() {
+        let braille = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "braille")
+            .expect("braille group should exist");
+        let count = braille.chars.chars().count();
+        assert_eq!(
+            count, 256,
+            "braille group should have exactly 256 chars, got {count}"
+        );
+    }
+
+    #[test]
+    fn test_braille_palette_all_in_range() {
+        let braille = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "braille")
+            .expect("braille group should exist");
+        for c in braille.chars.chars() {
+            let cp = c as u32;
+            assert!(
+                (0x2800..=0x28FF).contains(&cp),
+                "braille char U+{cp:04X} outside U+2800–U+28FF"
+            );
+        }
+    }
+
+    #[test]
+    fn test_braille_palette_all_256_unique() {
+        let braille = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "braille")
+            .expect("braille group should exist");
+        let mut cps: Vec<u32> = braille.chars.chars().map(|c| c as u32).collect();
+        assert_eq!(cps.len(), 256, "should have 256 braille chars");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 256, "should have 256 unique braille codepoints");
+        assert_eq!(cps[0], 0x2800, "first codepoint should be U+2800");
+        assert_eq!(cps[255], 0x28FF, "last codepoint should be U+28FF");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2800 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2800 + i as u32
+            );
+        }
+    }
+}

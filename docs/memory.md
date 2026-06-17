@@ -1402,3 +1402,18 @@ open dialog (4.1.2), block mouse fall-through when dialog is open (4.1.3),
 welcome screen on startup (4.1.4), ZIP file browsing in file open dialog (4.1.5).
 All 5 subtasks (4.1.1–4.1.5) implemented, tested, merged. Phase 4.2 (Extended
 Charsets) is next.
+
+### 4.2.1 — Braille charset block
+
+Production code was already in place:
+- `braille_charset()` in `font_gen.rs` — all 256 codepoints U+2800–U+28FF, sorted
+  by dot count then codepoint, cached via `OnceLock`
+- `resolve_charset("braille")` — wired to `braille_charset()` for font-gen use
+- `deluxe_charset()` — includes braille via `extend_from_slice(braille_charset())`
+- `CHAR_GROUPS` in `palette.rs` — braille group with all 256 braille chars as
+  a static string, exposed for future canvas charset picker
+
+Added 7 verification tests (4 in `font_gen.rs`, 3 in `palette.rs`):
+- Count (256), range (U+2800–U+28FF), sort order (dot count, codepoint), unique
+  all-codepoints-no-gaps checks for both the charset function and the palette
+  group string. fmt and clippy pass clean.

@@ -857,6 +857,15 @@ Three bugs found in phase merge review:
 - **`Selection::marquee`** creates rectangle selection from 2 points.
   For integration tests, create programmatically then set `app.editor.selection`.
 
+## 4.2.1 — Braille charset block
+
+- Production code (braille_charset, resolve_charset wiring, deluxe_charset
+  integration, CHAR_GROUPS static string) was already in place from earlier
+  font_gen development. Task deliverable was exclusively 7 verification tests.
+  This is an unusual pattern — typically tasks implement new production code.
+  When production code pre-exists, the task can focus solely on test coverage
+  and documentation.
+
 ## 3.3.2 — v3.0.0 RC cut
 
 - Crate version and FIGlet-compatible version are separate concerns.

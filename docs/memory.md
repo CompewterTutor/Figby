@@ -1677,6 +1677,28 @@ Merged release/4.5 branch into master. Brings 4.5.0 (AnimationTimeline widget),
 4.5.1 (Frame management), 4.5.2 (Keyframing), 4.5.3 (Tweening), and 4.5.4 (GIF export
 from timeline) into the mainline. Next phase: 4.6 (Particle Effect Creator).
 
+### 4.6.1 — Particle system design
+
+Created `figby-rs/src/tui/particles.rs` with particle data model:
+- `ParticleConfig` struct — TOML-deserializable config with emitter position,
+  spawn rate, lifetime range, velocity range (x/y), acceleration (x/y), size,
+  color (optional R/G/B), character, opacity, blend mode
+- `Particle` struct — runtime particle state with current position (x,y),
+  velocity (vx,vy), remaining_lifetime, size, color, character, opacity,
+  blend_mode
+- `ParticleSystem` struct — owns config + active_particles Vec + age +
+  spawn_rate_accumulator. Methods: `new()`, `update(dt)`, `active_count()`,
+  `clear()`, `pause()`, `resume()`, `is_paused()`
+- Spawn-before-update: particles spawn at emitter then move during the same
+  frame's update pass. Expired particles removed via `retain(|p| remaining > 0.0)`.
+- `ParticleSection` added to `config.rs` TOML config — all ParticleConfig fields
+  as `Option<T>` for granular config file override
+- `FromStr` impl for `BlendMode` in `layers.rs` — parses blend mode names from
+  config strings, falls back to Normal on unknown
+- 12 unit tests: spawn, motion, expire, acceleration, spawn rate accumulator,
+  full lifecycle, color from config, no color default, pause/resume, clear,
+  negative dt, zero dt
+
 ### 4.5.2 — Keyframing
 
 Added per-layer keyframing to the `AnimationTimeline` widget:
@@ -1698,3 +1720,31 @@ Added per-layer keyframing to the `AnimationTimeline` widget:
 - 21 new tests: set/remove keyframes, linear interpolation (position, opacity),
   blend mode step, before/after bounds, single keyframe, no keyframes, multi-layer,
   editor navigation, numeric edit, blend cycle, has_keyframe derivation
+
+### 4.6.2 — Particle emitter UI
+
+Added full particle emitter tool to the TUI toolbox:
+- `EmissionShape` enum (Point/CircleRadius/RectWH) with custom serde (string format for YAML config)
+- `spread_angle: f64` and `emission_shape: EmissionShape` fields on `ParticleConfig`
+- `Particle::new()` applies spread angle velocity cone randomization and emission shape position offset
+- `ParticleSystem::render_to_canvas()` writes particle chars to `CanvasBuffer` with bounds clipping (no unwrap)
+- `EmitterConfigPanel` struct with 17 editable fields (spawn rate, lifetime, velocity, acceleration, spread angle, emission shape, size, character, RGB color, opacity)
+- Config panel rendered as a right-side overlay with bordered list, field highlight, edit mode
+- `Emitter` tool variant added to `Tool` enum (shortcut `m`, display `"Em"`, icon `tool_emitter`)
+- `tool_emitter: ` icon entry in `icons.yaml`
+- Mouse click places emitter at buffer coords, opens config panel, starts particle animation
+- Particle system updates every frame via delta time, rendering particles onto canvas buffer (save/restore pattern prevents persistence artifacts)
+- Deactivation on tool switch handled via `AppEvent::Toolbox`
+- 15 new unit tests: emission shapes (point/circle/rect), spread angle, render to canvas, bounds clipping, config panel navigation, float editing, shape cycling
+- No `.unwrap()` in production — all fallible paths use `Option` or `Result` with user-facing error display
+
+### 4.6.3 — Particle-to-layer baking
+
+Added bake functionality to the particle system:
+- `ParticleSystem::bake_to_buffer(width, height)` — snapshots current particle state into a fresh `CanvasBuffer`, independent of the live particle system
+- `ParticleSystem::bake_frames(num_frames, width, height, dt)` — clears system, generates N sequential frames via `update(dt)` + `bake_to_buffer()`, returns independent snapshot vec
+- `LayerStack::add_frozen_frames(frames, base_name)` — pushes each buffer as a visible layer named `"{base_name} frame {i}"`, returns layer indices
+- `TuiApp.show_live_particles` field (default `true`) — controls whether live particle overlay renders; when false, canvas renders without particle overlay (baked layers visible via composite)
+- `TuiApp.baked_layer_indices` field — tracks indices of baked layers for potential cleanup
+- Keybindings when emitter is active: `b` bakes single frame to layer, `B` bakes 10 frames as layer stack and switches to baked view, `v` toggles live/baked preview
+- 6 new unit tests: bake independence, frame count + independence, empty system bake, content verification, 10-frame batch independence, layer stack insertion with independence

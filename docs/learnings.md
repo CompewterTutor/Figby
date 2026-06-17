@@ -1,5 +1,25 @@
 # Figby — Learnings
 
+## 4.6.1 — Particle system design
+
+- Spawn-before-update pattern: particles are created at the emitter position,
+  then ALL particles (including newly spawned) go through the position update
+  in the same frame. This means a particle's first frame includes a full dt of
+  motion. Tests must account for this: lifetime must exceed dt to survive
+  the birth frame, and `assertions on position must include `velocity × dt`.
+- `retain(|p| p.remaining_lifetime > 0.0)` with strict `>` (not `>=`) means
+  particles expire when remaining_lifetime reaches exactly 0.0. Combined with
+  spawn-before-update, a particle with `lifetime == dt` expires instantly.
+  Always use `lifetime > dt` for any particle expected to render at least
+  one frame.
+- `FromStr` for `BlendMode` matches lowercase names and returns
+  `Ok(BlendMode::Normal)` for unknown strings — never fails, always falls
+  back gracefully. This is deliberate (config file parsing should be lenient).
+- `ParticleSection` in config.rs uses `Option<T>` for every field (not raw `T`)
+  so that a TOML config file can override individual settings without needing
+  to specify the full `ParticleConfig` structure. The `ParticleConfig` defaults
+  in `particles.rs` are separate from the TOML-level defaults.
+
 ## 4.5.3 — Tweening
 
 - Standard bounce easing: 4 piecewise quadratic phases with decreasing amplitude.
@@ -987,3 +1007,15 @@ Three bugs found in phase merge review:
   mask buffer. This is a simplification over "sample near cursor" — the
   cursor position isn't available in the layer panel render path. Sampling
   from row 0 is sufficient for a visual mask presence indicator.
+
+## 4.6.3 — Particle-to-layer baking
+
+- `bake_frames()` calls `self.clear()` first, so frame generation starts from
+  a clean particle system. This means baked frames reflect N frames of fresh
+  emission, not a continuation of the current live state.
+- `add_frozen_frames()` sets `self.active` to the last frame's index after
+  inserting all frames. This makes the final frame active for immediate
+  display after insertion — intentional for the `B` keybinding flow.
+- `test_bake_frames_count_and_independence` uses `windows(2).all(...)` on the
+  frame vec to verify adjacent frames differ. This is O(N) without comparing
+  all O(N²) pairs — sufficient for proving non-identity across a sequence.

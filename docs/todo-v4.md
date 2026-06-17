@@ -252,7 +252,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.6 — Particle Effect Creator
 
-- [ ] `4.6.1` Particle system design
+- [x] `4.6.1` Particle system design
   - **Goal:** Design particle data model: emitter position, spawn rate,
     lifetime, velocity (x,y), acceleration, size, color, character,
     opacity, blend mode. Config file format (TOML). Runtime particle
@@ -262,7 +262,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Particle lifecycle: spawn → update → expire.
   - **Difficulty:** Medium
 
-- [ ] `4.6.2` Particle emitter UI
+- [x] `4.6.2` Particle emitter UI
   - **Goal:** Toolbox tool: place emitter on canvas. Emitter config panel:
     spawn rate (particles/sec), lifetime range, velocity range, acceleration,
     spread angle, emission shape (point/circle/rect). Preview emission in
@@ -272,7 +272,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Emit particles, verify count and motion.
   - **Difficulty:** High
 
-- [ ] `4.6.3` Particle-to-layer baking
+- [x] `4.6.3` Particle-to-layer baking
   - **Goal:** Bake current particle frame(s) to a canvas layer. Generate
     frame-by-frame layer stack from particle animation. Toggle between
     live preview and baked layers.

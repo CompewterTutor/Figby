@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -61,6 +63,21 @@ impl BlendMode {
             BlendMode::Screen => "Screen",
             BlendMode::Add => "Add",
             BlendMode::Subtract => "Subtract",
+        }
+    }
+}
+
+impl FromStr for BlendMode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "multiply" => Ok(BlendMode::Multiply),
+            "overlay" => Ok(BlendMode::Overlay),
+            "screen" => Ok(BlendMode::Screen),
+            "add" => Ok(BlendMode::Add),
+            "subtract" => Ok(BlendMode::Subtract),
+            _ => Ok(BlendMode::Normal),
         }
     }
 }
@@ -524,6 +541,21 @@ impl LayerStack {
         if let Some(layer) = self.layers.get_mut(index) {
             layer.blend_mode = mode;
         }
+    }
+
+    pub fn add_frozen_frames(&mut self, frames: Vec<CanvasBuffer>, base_name: &str) -> Vec<usize> {
+        let mut indices = Vec::with_capacity(frames.len());
+        for (i, buffer) in frames.into_iter().enumerate() {
+            let idx = self.layers.len();
+            let name = format!("{} frame {}", base_name, i);
+            let mut layer = Layer::new(buffer.width(), buffer.height(), name);
+            layer.buffer = buffer;
+            layer.visible = true;
+            self.layers.push(layer);
+            self.active = idx;
+            indices.push(idx);
+        }
+        indices
     }
 }
 
@@ -1654,5 +1686,55 @@ mod tests {
         assert_eq!(comp.get(0, 0).unwrap().ch, 'C');
         // (1,1): only bottom layer => 'B'
         assert_eq!(comp.get(1, 1).unwrap().ch, 'B');
+    }
+
+    // ── Frozen frames tests ──────────────────────────────────
+
+    #[test]
+    fn test_add_frozen_frames_to_layer_stack() {
+        let mut stack = make_stack(5, 5);
+        let initial_count = stack.len();
+
+        let mut buf_a = CanvasBuffer::new(5, 5);
+        buf_a.set(0, 0, make_cell('A'));
+        let mut buf_b = CanvasBuffer::new(5, 5);
+        buf_b.set(1, 1, make_cell('B'));
+        let mut buf_c = CanvasBuffer::new(5, 5);
+        buf_c.set(2, 2, make_cell('C'));
+
+        let indices = stack.add_frozen_frames(vec![buf_a, buf_b, buf_c], "snapshot");
+        assert_eq!(indices.len(), 3);
+        assert_eq!(stack.len(), initial_count + 3);
+
+        // Verify names
+        assert_eq!(stack.layers[initial_count].name, "snapshot frame 0");
+        assert_eq!(stack.layers[initial_count + 1].name, "snapshot frame 1");
+        assert_eq!(stack.layers[initial_count + 2].name, "snapshot frame 2");
+
+        // Verify independent content
+        assert_eq!(
+            stack.layers[initial_count].buffer.get(0, 0).unwrap().ch,
+            'A'
+        );
+        assert_eq!(
+            stack.layers[initial_count + 1].buffer.get(1, 1).unwrap().ch,
+            'B'
+        );
+        assert_eq!(
+            stack.layers[initial_count + 2].buffer.get(2, 2).unwrap().ch,
+            'C'
+        );
+
+        // Verify independence: mutating one doesn't affect others
+        stack
+            .layers
+            .get_mut(initial_count)
+            .unwrap()
+            .buffer
+            .set(0, 0, make_cell(' '));
+        assert_eq!(
+            stack.layers[initial_count + 1].buffer.get(1, 1).unwrap().ch,
+            'B'
+        );
     }
 }

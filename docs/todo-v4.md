@@ -119,7 +119,7 @@ with theming, modern status bar, and component architecture.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`
   - **Difficulty:** Low
 
-- [ ] `4.2.6` Phase merge: release/4.2 → main
+- [x] `4.2.6` Phase merge: release/4.2 → main
   - **Difficulty:** Low
 
 ---

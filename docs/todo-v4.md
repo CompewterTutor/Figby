@@ -252,7 +252,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.6 — Particle Effect Creator
 
-- [ ] `4.6.1` Particle system design
+- [x] `4.6.1` Particle system design
   - **Goal:** Design particle data model: emitter position, spawn rate,
     lifetime, velocity (x,y), acceleration, size, color, character,
     opacity, blend mode. Config file format (TOML). Runtime particle

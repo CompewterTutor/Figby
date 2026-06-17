@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -61,6 +63,21 @@ impl BlendMode {
             BlendMode::Screen => "Screen",
             BlendMode::Add => "Add",
             BlendMode::Subtract => "Subtract",
+        }
+    }
+}
+
+impl FromStr for BlendMode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "multiply" => Ok(BlendMode::Multiply),
+            "overlay" => Ok(BlendMode::Overlay),
+            "screen" => Ok(BlendMode::Screen),
+            "add" => Ok(BlendMode::Add),
+            "subtract" => Ok(BlendMode::Subtract),
+            _ => Ok(BlendMode::Normal),
         }
     }
 }

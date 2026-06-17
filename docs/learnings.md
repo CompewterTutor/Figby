@@ -1,5 +1,25 @@
 # Figby — Learnings
 
+## 4.6.1 — Particle system design
+
+- Spawn-before-update pattern: particles are created at the emitter position,
+  then ALL particles (including newly spawned) go through the position update
+  in the same frame. This means a particle's first frame includes a full dt of
+  motion. Tests must account for this: lifetime must exceed dt to survive
+  the birth frame, and `assertions on position must include `velocity × dt`.
+- `retain(|p| p.remaining_lifetime > 0.0)` with strict `>` (not `>=`) means
+  particles expire when remaining_lifetime reaches exactly 0.0. Combined with
+  spawn-before-update, a particle with `lifetime == dt` expires instantly.
+  Always use `lifetime > dt` for any particle expected to render at least
+  one frame.
+- `FromStr` for `BlendMode` matches lowercase names and returns
+  `Ok(BlendMode::Normal)` for unknown strings — never fails, always falls
+  back gracefully. This is deliberate (config file parsing should be lenient).
+- `ParticleSection` in config.rs uses `Option<T>` for every field (not raw `T`)
+  so that a TOML config file can override individual settings without needing
+  to specify the full `ParticleConfig` structure. The `ParticleConfig` defaults
+  in `particles.rs` are separate from the TOML-level defaults.
+
 ## 4.5.3 — Tweening
 
 - Standard bounce easing: 4 piecewise quadratic phases with decreasing amplitude.

@@ -80,7 +80,7 @@ with theming, modern status bar, and component architecture.
 
 > Needed for font-gen, canvas work, and braille/block art modes.
 
-- [ ] `4.2.1` Braille charset block
+- [x] `4.2.1` Braille charset block
   - **Goal:** Add a "Braille" charset group covering all 256 Unicode Braille
     Pattern characters (U+2800–U+28FF). Expose in font-gen and canvas charset
     picker. Reference: `throbber-widgets-tui` uses these for spinners.

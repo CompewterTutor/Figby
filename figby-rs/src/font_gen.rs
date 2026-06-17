@@ -839,4 +839,71 @@ mod tests {
             small.charheight
         );
     }
+
+    // --- Braille charset tests ---
+
+    #[test]
+    fn test_braille_charset_count_256() {
+        assert_eq!(braille_charset().len(), 256);
+    }
+
+    #[test]
+    fn test_braille_charset_all_in_range() {
+        for s in braille_charset() {
+            let c = s.chars().next().expect("each entry should be one char");
+            let cp = c as u32;
+            assert!(
+                (0x2800..=0x28FF).contains(&cp),
+                "braille char U+{cp:04X} outside U+2800–U+28FF"
+            );
+        }
+    }
+
+    #[test]
+    fn test_braille_charset_sorted_by_dots() {
+        let chars = braille_charset();
+        let cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        for pair in cps.windows(2) {
+            let a = pair[0];
+            let b = pair[1];
+            let key_a = ((a & 0xFF).count_ones(), a);
+            let key_b = ((b & 0xFF).count_ones(), b);
+            assert!(
+                key_a <= key_b,
+                "sort violation: U+{:04X} (dots={}, code={}) before U+{:04X} (dots={}, code={})",
+                a,
+                (a & 0xFF).count_ones(),
+                a,
+                b,
+                (b & 0xFF).count_ones(),
+                b
+            );
+        }
+    }
+
+    #[test]
+    fn test_braille_charset_all_256_unique() {
+        let chars = braille_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 256, "should have 256 unique codepoints");
+        assert_eq!(cps[0], 0x2800, "first codepoint should be U+2800");
+        assert_eq!(cps[255], 0x28FF, "last codepoint should be U+28FF");
+        // Verify no gaps
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2800 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2800 + i as u32
+            );
+        }
+    }
 }

@@ -1522,3 +1522,27 @@ Merged all Phase 4.3 work into default branch (master). Phase 4.3 complete:
 TUI architecture audit (4.3.1), ratatui architecture fixes — remove Component
 trait, flatten tui/, adopt native Widget pattern (4.3.2). All 2 subtasks
 implemented, tested, merged. Phase 4.4 (Layers, Blending & Compositing) is next.
+
+### 4.4.1 — Layer system
+
+Created `figby-rs/src/tui/layers.rs` with three core types:
+- `Layer` struct: owns `CanvasBuffer`, name, visibility, lock, opacity
+- `LayerStack` struct: `Vec<Layer>` with active index, composite rendering,
+  CRUD operations (add/delete/duplicate/merge/reorder), resize_all
+- `LayerPanel` struct: ratatui widget rendered in right drawer, keyboard
+  navigation (↑/↓ select, Enter toggle vis, L lock, ± opacity, N new,
+  D dup, X del, M merge, ,/. reorder)
+
+Integrated into EditorState: `layer_stack` and `layer_panel` fields replace
+direct `canvas.buffer` writes with active-layer routing. Tool operations
+(brush, eraser, fill, spray, line) redirected through clone-apply-recomposite
+pattern to write to active layer buffer then composite to canvas. Mouse
+painting, keyboard painting, selection (cut/copy/paste/delete), undo/redo
+all route through active layer.
+
+DrawerMode extended: Palette → BrushKeys → Layers → Closed cycle.
+Status bar shows actual layer count from `LayerStack::len()`.
+Theme expanded with `LayerTheme` struct (bg, fg, active_bg, border).
+
+17 unit tests in layers.rs covering all operations, composite order,
+opacity blending, visibility toggle, edge cases.

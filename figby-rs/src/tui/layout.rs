@@ -12,16 +12,19 @@ pub enum DrawerMode {
     Palette,
     /// Show brush/tool keybind reference.
     BrushKeys,
+    /// Show layer panel.
+    Layers,
     /// Drawer closed.
     Closed,
 }
 
 impl DrawerMode {
-    /// Cycle: Palette → BrushKeys → Closed → Palette
+    /// Cycle: Palette → BrushKeys → Layers → Closed → Palette
     pub fn cycle(self) -> Self {
         match self {
             DrawerMode::Palette => DrawerMode::BrushKeys,
-            DrawerMode::BrushKeys => DrawerMode::Closed,
+            DrawerMode::BrushKeys => DrawerMode::Layers,
+            DrawerMode::Layers => DrawerMode::Closed,
             DrawerMode::Closed => DrawerMode::Palette,
         }
     }

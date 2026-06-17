@@ -928,6 +928,16 @@ Three bugs found in phase merge review:
   that import from the crate root. These must be maintained for public API
   compatibility even though the internal architecture changed.
 
+## 4.4.5 — Phase merge: release/4.4 → master
+
+- Merge completed cleanly — no conflicts. All 11 files merged automatically
+  (2320 insertions, 153 deletions). Unlike the 4.3.3 merge which had a
+  `docs/ralph-log.md` conflict, this merge had zero conflicts across all
+  documentation files (`docs/todo-v4.md`, `docs/memory.md`, `docs/learnings.md`,
+  `docs/ralph-log.md`). The `docs/ralph-log.md` had a staged modification on
+  `task-4.4.5` which was stashed before merge.
+- No code changes beyond merge conflict resolution (none needed).
+
 ## 4.4.3 — Layer groups + masks
 
 - Clippy `option_map_unit_fn` lint fires on `opt.map(|v| v.field = val)` —

@@ -1599,6 +1599,13 @@ preserved after layer delete, empty/invalid index guards, create/remove/toggle m
 toggle enabled, paint pixel, out-of-bounds, composite with mask (fully hidden),
 composite with painted mask (revealed), composite with disabled mask, mask thumbnail.
 
+### 4.4.5 — Phase merge: release/4.4 → master
+
+Merged all Phase 4.4 work into default branch (master). Phase 4.4 complete:
+layer system (4.4.1), blending modes (4.4.2), layer groups + masks (4.4.3),
+export with layers (4.4.4). All 4 subtasks implemented, tested, merged.
+Phase 4.5 (Animation Timeline & Playback) is next.
+
 ### 4.4.4 — Export with layers
 
 Added per-layer export and alpha transparency to the TUI export dialog:

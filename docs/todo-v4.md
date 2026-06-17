@@ -186,7 +186,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Export composite vs manual layer merge.
   - **Difficulty:** Low
 
-- [ ] `4.4.5` Phase merge: release/4.4 → main
+- [x] `4.4.5` Phase merge: release/4.4 → main
   - **Difficulty:** Low
 
 ---

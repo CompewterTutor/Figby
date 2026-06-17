@@ -10,6 +10,7 @@ pub enum ExportFormat {
     Txt,
     Gif,
     Apng,
+    Ansi,
 }
 
 #[derive(Debug)]
@@ -339,6 +340,43 @@ pub fn export_cells_to_txt(cells: &[Vec<CanvasCell>]) -> String {
         .map(|row| row.iter().map(|c| c.ch).collect::<String>())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+pub fn export_cells_to_ansi(cells: &[Vec<CanvasCell>]) -> String {
+    if cells.is_empty() || cells[0].is_empty() {
+        return String::new();
+    }
+    let mut output = String::new();
+    for row in cells {
+        for cell in row {
+            if let Some(fg) = cell.fg {
+                let (r, g, b) = color_to_rgb(fg);
+                output.push_str(&format!("\x1b[38;2;{};{};{}m", r, g, b));
+            }
+            if let Some(bg) = cell.bg {
+                let (r, g, b) = color_to_rgb(bg);
+                output.push_str(&format!("\x1b[48;2;{};{};{}m", r, g, b));
+            }
+            output.push(cell.ch);
+        }
+        output.push_str("\x1b[0m\n");
+    }
+    output
+}
+
+pub fn export_cells_to_ansi_multi(
+    frames: &[Vec<Vec<CanvasCell>>],
+    _frame_delays_cs: &[u16],
+) -> String {
+    if frames.is_empty() {
+        return String::new();
+    }
+    let mut output = String::new();
+    for frame in frames {
+        output.push_str("\x1b[2J\x1b[H");
+        output.push_str(&export_cells_to_ansi(frame));
+    }
+    output
 }
 
 pub fn export_cells_to_gif(
@@ -776,5 +814,117 @@ mod tests {
         assert_ne!(ExportFormat::Apng, ExportFormat::Png);
         assert_ne!(ExportFormat::Apng, ExportFormat::Gif);
         assert_ne!(ExportFormat::Apng, ExportFormat::Txt);
+    }
+
+    #[test]
+    fn test_output_ansi_simple() {
+        let cells = vec![vec![
+            CanvasCell {
+                ch: 'A',
+                fg: None,
+                bg: None,
+            },
+            CanvasCell {
+                ch: 'B',
+                fg: None,
+                bg: None,
+            },
+        ]];
+        let result = export_cells_to_ansi(&cells);
+        assert!(result.contains("AB"));
+        assert!(result.contains("\x1b[0m"));
+    }
+
+    #[test]
+    fn test_output_ansi_colors() {
+        let cells = vec![vec![CanvasCell {
+            ch: 'X',
+            fg: Some(Color::Red),
+            bg: Some(Color::Blue),
+        }]];
+        let result = export_cells_to_ansi(&cells);
+        assert!(result.contains("\x1b[38;2;255;0;0m"));
+        assert!(result.contains("\x1b[48;2;0;0;255m"));
+        assert!(result.contains("X"));
+        assert!(result.contains("\x1b[0m"));
+    }
+
+    #[test]
+    fn test_output_ansi_no_color() {
+        let cells = vec![vec![CanvasCell {
+            ch: 'A',
+            fg: None,
+            bg: None,
+        }]];
+        let result = export_cells_to_ansi(&cells);
+        assert!(!result.contains("\x1b[38"));
+        assert!(!result.contains("\x1b[48"));
+        assert!(result.contains("A"));
+    }
+
+    #[test]
+    fn test_output_ansi_multi_frame() {
+        let frame1 = vec![vec![CanvasCell {
+            ch: 'A',
+            fg: None,
+            bg: None,
+        }]];
+        let frame2 = vec![vec![CanvasCell {
+            ch: 'B',
+            fg: None,
+            bg: None,
+        }]];
+        let result = export_cells_to_ansi_multi(&[frame1, frame2], &[10, 10]);
+        assert_eq!(result.matches("\x1b[2J").count(), 2);
+        assert_eq!(result.matches("\x1b[H").count(), 2);
+        assert!(result.contains("A"));
+        assert!(result.contains("B"));
+    }
+
+    #[test]
+    fn test_export_format_ansi() {
+        assert_eq!(ExportFormat::Ansi, ExportFormat::Ansi);
+        assert_ne!(ExportFormat::Ansi, ExportFormat::Txt);
+        assert_ne!(ExportFormat::Ansi, ExportFormat::Png);
+    }
+
+    #[test]
+    fn test_output_ansi_foreground_only() {
+        let cells = vec![vec![CanvasCell {
+            ch: 'Y',
+            fg: Some(Color::Green),
+            bg: None,
+        }]];
+        let result = export_cells_to_ansi(&cells);
+        assert!(result.contains("\x1b[38;2;0;128;0m"));
+        assert!(!result.contains("\x1b[48"));
+        assert!(result.contains("Y"));
+    }
+
+    #[test]
+    fn test_output_ansi_background_only() {
+        let cells = vec![vec![CanvasCell {
+            ch: 'Z',
+            fg: None,
+            bg: Some(Color::Magenta),
+        }]];
+        let result = export_cells_to_ansi(&cells);
+        assert!(!result.contains("\x1b[38"));
+        assert!(result.contains("\x1b[48;2;255;0;255m"));
+        assert!(result.contains("Z"));
+    }
+
+    #[test]
+    fn test_output_ansi_empty_cells() {
+        let result = export_cells_to_ansi(&[]);
+        assert!(result.is_empty());
+        let result = export_cells_to_ansi(&[vec![]]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_output_ansi_multi_empty_frames() {
+        let result = export_cells_to_ansi_multi(&[], &[]);
+        assert!(result.is_empty());
     }
 }

@@ -3097,3 +3097,7 @@ PHASE_COMPLETE: 4.6 merged to main after review approval.
 ## 2026-06-17 09:33
 
 DONE: 4.7.1 merged into release/4.7.
+
+## 2026-06-17 09:46
+
+DONE: 4.7.2 merged into release/4.7.

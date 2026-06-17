@@ -1796,6 +1796,21 @@ Integrated into TUI export system:
 finite loop (num_plays=3), empty frames error, format enum equality.
 Integration tests in `tests/tui.rs` updated for new toggle order.
 
+### 4.7.3 — ANSI escape sequence export (2026-06-17)
+
+Added `export_cells_to_ansi()` in `output.rs` — renders canvas cells to ANSI
+escape sequences with true-color foreground (`\x1b[38;2;R;G;Bm`) and background
+(`\x1b[48;2;R;G;Bm`) using 24-bit color codes. `export_cells_to_ansi_multi()`
+separates frames with `\x1b[2J\x1b[H` (clear + cursor home). Single-frame
+export produces styled text with `\x1b[0m` reset per row.
+
+Integrated into TUI export system:
+- `ExportMode::Ansi` added to format cycle (Png → Apng → Gif → Txt → Ansi → Png)
+- `ExportFormat::Ansi` variant in `output.rs`
+- `L` (layers) and `P` (transparency) keys gated off in ANSI mode (not applicable)
+- Export extension `.ans`
+- CLI export path in `tui/mod.rs` handles single-frame and multi-frame cases
+
 ### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
 
 Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),

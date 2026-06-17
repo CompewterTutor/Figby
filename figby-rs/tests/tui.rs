@@ -2065,9 +2065,17 @@ fn test_export_dialog_format_toggle() {
     dialog.handle_key(KeyCode::Char('t'));
     assert_eq!(dialog.format, ExportMode::Txt, "third toggle: Gif -> Txt");
 
-    // Toggle: Txt -> Png
+    // Toggle: Txt -> Ansi
     dialog.handle_key(KeyCode::Char('t'));
-    assert_eq!(dialog.format, ExportMode::Png, "fourth toggle: Txt -> Png");
+    assert_eq!(
+        dialog.format,
+        ExportMode::Ansi,
+        "fourth toggle: Txt -> Ansi"
+    );
+
+    // Toggle: Ansi -> Png
+    dialog.handle_key(KeyCode::Char('t'));
+    assert_eq!(dialog.format, ExportMode::Png, "fifth toggle: Ansi -> Png");
 }
 
 #[test]

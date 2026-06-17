@@ -68,7 +68,7 @@ fn regression_export_png_non_blank() {
 fn regression_export_gif_single_frame() {
     use gif::DecodeOptions;
     let cells = make_test_cells(2, 2, 'X');
-    let gif_bytes = export_cells_to_gif(&[cells], &[10], 1).expect("GIF export should succeed");
+    let gif_bytes = export_cells_to_gif(&[cells], &[10], 1, 0).expect("GIF export should succeed");
 
     let mut decoder = DecodeOptions::new();
     decoder.set_color_output(gif::ColorOutput::RGBA);
@@ -91,7 +91,7 @@ fn regression_export_gif_multi_frame() {
     let cells_b = make_test_cells(1, 1, 'B');
     let frames = vec![cells_a, cells_b];
     let delays = vec![15, 30];
-    let gif_bytes = export_cells_to_gif(&frames, &delays, 1).expect("multi-frame GIF export");
+    let gif_bytes = export_cells_to_gif(&frames, &delays, 1, 0).expect("multi-frame GIF export");
 
     let mut decoder = DecodeOptions::new();
     decoder.set_color_output(gif::ColorOutput::RGBA);
@@ -132,7 +132,7 @@ fn regression_export_png_to_file() {
 #[test]
 fn regression_export_gif_to_file() {
     let cells = make_test_cells(1, 1, 'G');
-    let gif_bytes = export_cells_to_gif(&[cells], &[10], 1).expect("GIF export");
+    let gif_bytes = export_cells_to_gif(&[cells], &[10], 1, 0).expect("GIF export");
     let tmp = std::env::temp_dir().join("regression_test_export.gif");
     std::fs::write(&tmp, &gif_bytes).expect("should write GIF file");
     use std::fs;

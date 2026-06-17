@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Phase 4.3 merged) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.5 merged) |
 
 ## Architectural Decisions
 
@@ -467,6 +467,41 @@ implemented, tested, merged. Phase 2.1 (Image-to-ASCII Pipeline) is next.
 Second merge (this commit) brings 3 post-initial-merge commits from `release/2.0`:
 fix broken template tests, redesign `.ftmp` format (YAML frontmatter, defer to TUI),
 add `assets/tui/icons.yaml` for Phase 2.2, renumber 2.2.5→2.2.6.
+
+### 4.5.3 — Tweening
+
+Added auto-tween system to animation timeline:
+- `EasingFunction` enum (Linear, EaseIn, EaseOut, Bounce) with `apply(t)` cubic/bounce curves
+- `TweenConfig` struct (start/end frames, num_frames, easing) with Default
+- `TweenPreview` struct holds generated frames, valid flag, and field_index for UI nav
+- `open_tween()` creates preview from current frame
+- `compute_tween()` interpolates position (lerp_i16), opacity (lerp_u8), blend mode (step) between keyframed layers
+- `commit_tween()` inserts generated frames, shifts current_frame
+- `discard_tween()` clears preview
+- `render_tween_panel()` renders config UI in overlay panel
+- `handle_tween_key()` navigates fields, adjusts values, generates/commits/discards
+- Timeline widget renders preview frames as ghost thumbnails (Cyan color, dim style)
+- `T` key opens tween panel, Enter generates/commits, C commits, Esc discards
+- 23 unit tests covering easing, tween generation, commit, discard, edge cases
+- No `.unwrap()` in production paths
+
+### 4.5.4 — GIF export from timeline
+
+Added GIF timeline export support to the TUI editor:
+- `export_cells_to_gif()` in `output.rs` now takes `loop_count: u16` parameter (0=infinite)
+- `ExportDialog` gained GIF-specific fields: `fps`, `loop_count`, `frame_delays`,
+  `preview_frame`, `preview_playing`, `timeline_available`, `timeline_frames`
+- `set_timeline(fps, count)` populates frame_delays from FPS (delay=100/fps cs)
+- `preview_tick()` advances preview_frame cyclically when `preview_playing`
+- GIF-specific key handlers: `F` cycles FPS presets (6/8/12/24/30/60), `L` cycles
+  loop presets (0/1/2/5/10), `P` toggles preview, `Space` steps frame when paused
+- GIF render shows FPS/Loop/Frames/Preview status lines; hides Layers/Alpha lines
+- `perform_export` in `mod.rs` composes timeline frames via keyframe interpolation
+  (position_offset, opacity, blend_mode) per layer per frame before spawning export thread
+- `blend_mode_color()` and `blend_colors()` made `pub(crate)` in `layers.rs` for reuse
+- 10 new tests: finite/infinite loop GIF, all GIF dialog key handlers, preview tick,
+  frame delay recalculation, set_timeline, mode-gating, space step
+- No `.unwrap()` in production paths
 
 ### 2.10.1 — Full regression against C FIGlet 2.2.5
 
@@ -1635,3 +1670,31 @@ Merged release/4.4 branch into main at `d0a0967`. Brings 4.4.1 (Layer panel),
 4.4.2 (Per-layer blend modes), 4.4.3 (Layer groups/masks), and 4.4.4 (Export
 with layers/transparency) into the mainline. Next phase: 4.5 (Animation Timeline
 & Playback).
+
+## 4.5.5 — Phase merge: release/4.5 → master (2026-06-17)
+
+Merged release/4.5 branch into master. Brings 4.5.0 (AnimationTimeline widget),
+4.5.1 (Frame management), 4.5.2 (Keyframing), 4.5.3 (Tweening), and 4.5.4 (GIF export
+from timeline) into the mainline. Next phase: 4.6 (Particle Effect Creator).
+
+### 4.5.2 — Keyframing
+
+Added per-layer keyframing to the `AnimationTimeline` widget:
+- `LayerKeyframe` struct with `position_offset: (i16, i16)`, `opacity: u8`,
+  `blend_mode: BlendMode` — snapshots layer properties at a frame
+- `TimelineFrame.layer_keyframes: Vec<Option<LayerKeyframe>>` — per-layer keyframe
+  data for each frame. `has_keyframe` derived from `.any(|k| k.is_some())`
+- `KeyframeEditState` struct — editor panel state with layer/property navigation,
+  edit mode for numeric input, blend mode cycling via Enter
+- `TimelineState` methods: `set_keyframe()`, `remove_keyframe()`, `get_keyframe()`,
+  `get_interpolated_properties()`, `handle_keyframe_editor_key()`,
+  `render_keyframe_editor()`
+- Linear interpolation (`lerp_i16`, `lerp_u8`) for position and opacity between
+  nearest keyframes; step interpolation (`step_blend_mode`) for blend mode
+  (switches at t=0.5)
+- Before-first/after-last keyframe: clamp to nearest keyframe values
+- No keyframes: return defaults `((0,0), 255, Normal)`
+- `K` key toggles keyframe editor panel overlay in TUI (`mod.rs` integration)
+- 21 new tests: set/remove keyframes, linear interpolation (position, opacity),
+  blend mode step, before/after bounds, single keyframe, no keyframes, multi-layer,
+  editor navigation, numeric edit, blend cycle, has_keyframe derivation

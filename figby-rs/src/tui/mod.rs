@@ -372,6 +372,7 @@ pub struct TuiApp {
     pub right_drawer: layout::DrawerMode,
     pub editor: EditorState,
     pub dialogs: DialogState,
+    pub timeline_state: timeline::TimelineState,
 }
 
 impl TuiApp {
@@ -521,6 +522,7 @@ impl TuiApp {
                 undo_panel,
                 settings,
             },
+            timeline_state: timeline::TimelineState::default(),
         }
     }
 
@@ -1056,6 +1058,8 @@ impl TuiApp {
             let overlay = centered_overlay(frame.area());
             frame.render_widget(Clear, overlay);
             self.dialogs.export_dialog.render(frame, overlay);
+            // Tick preview if playing in GIF mode
+            self.dialogs.export_dialog.preview_tick();
         }
 
         // File ops overlay
@@ -1113,6 +1117,48 @@ impl TuiApp {
             self.dialogs
                 .undo_panel
                 .render(frame, frame.area(), self.editor.undo.history_entries());
+        }
+
+        // Keyframe editor panel
+        if self.timeline_state.keyframe_editor.open {
+            let area = frame.area();
+            let panel_w = area.width.clamp(30, 42);
+            let panel_x = area.x + area.width.saturating_sub(panel_w);
+            let panel_h = (area.height / 2).max(10).min(area.height - 3);
+            let panel_y = area.y + area.height.saturating_sub(panel_h + 3);
+            let panel_rect = Rect {
+                x: panel_x,
+                y: panel_y,
+                width: panel_w,
+                height: panel_h,
+            };
+            frame.render_widget(Clear, panel_rect);
+            self.timeline_state.render_keyframe_editor(
+                frame,
+                panel_rect,
+                &timeline::TimelineTheme::default(),
+            );
+        }
+
+        // Tween panel
+        if self.timeline_state.tween.is_some() {
+            let area = frame.area();
+            let panel_w = area.width.clamp(30, 42);
+            let panel_x = area.x + area.width.saturating_sub(panel_w);
+            let panel_h = (area.height / 2).max(10).min(area.height - 3);
+            let panel_y = area.y + 1;
+            let panel_rect = Rect {
+                x: panel_x,
+                y: panel_y,
+                width: panel_w,
+                height: panel_h,
+            };
+            frame.render_widget(Clear, panel_rect);
+            self.timeline_state.render_tween_panel(
+                frame,
+                panel_rect,
+                &timeline::TimelineTheme::default(),
+            );
         }
     }
 
@@ -1673,7 +1719,17 @@ impl TuiApp {
 
         // Export dialog active: dispatch all keys to it
         if self.dialogs.export_dialog.active {
+            let prev_format = self.dialogs.export_dialog.format;
             self.dialogs.export_dialog.handle_key(code);
+            // If format changed to GIF and timeline has frames, populate timeline data
+            if self.dialogs.export_dialog.format == export::ExportMode::Gif
+                && prev_format != export::ExportMode::Gif
+                && !self.timeline_state.frames.is_empty()
+            {
+                let fps = self.timeline_state.fps;
+                let count = self.timeline_state.frames.len();
+                self.dialogs.export_dialog.set_timeline(fps, count);
+            }
             if !self.dialogs.export_dialog.active {
                 self.perform_export();
             }
@@ -1683,6 +1739,20 @@ impl TuiApp {
         // Undo history panel open: dispatch to it first
         if self.dialogs.undo_panel.open {
             self.dialogs.undo_panel.handle_key(code);
+            return None;
+        }
+
+        // Keyframe editor: intercept all keys when open
+        if self.timeline_state.keyframe_editor.open
+            && self.timeline_state.handle_keyframe_editor_key(code)
+        {
+            self.dirty = true;
+            return None;
+        }
+
+        // Tween panel: intercept keys when open
+        if self.timeline_state.tween.is_some() && self.timeline_state.handle_tween_key(code) {
+            self.dirty = true;
             return None;
         }
 
@@ -2134,6 +2204,20 @@ impl TuiApp {
             return None;
         }
 
+        // Toggle keyframe editor (uppercase only to avoid conflict)
+        if code == KeyCode::Char('K') {
+            self.timeline_state.keyframe_editor.open = !self.timeline_state.keyframe_editor.open;
+            self.dirty = true;
+            return None;
+        }
+
+        // Open tween panel (uppercase only to avoid conflict with Text tool)
+        if code == KeyCode::Char('T') {
+            self.timeline_state.open_tween();
+            self.dirty = true;
+            return None;
+        }
+
         // Toolbox tool selection + brush adjustments (inline from old ToolboxComponent)
         {
             use crate::tui::events::ToolboxEvent;
@@ -2309,6 +2393,11 @@ impl TuiApp {
                     _ => export::ExportMode::Png,
                 };
                 self.dialogs.export_dialog.enter_export(mode);
+                if mode == export::ExportMode::Gif && !self.timeline_state.frames.is_empty() {
+                    self.dialogs
+                        .export_dialog
+                        .set_timeline(self.timeline_state.fps, self.timeline_state.frames.len());
+                }
                 self.dirty = true;
                 None
             }
@@ -2494,9 +2583,11 @@ impl TuiApp {
         if self.throbber.is_active() {
             return;
         }
-        let cells: Vec<Vec<canvas::CanvasCell>> = (0..self.editor.canvas.buffer.height())
+        let w = self.editor.canvas.buffer.width();
+        let h = self.editor.canvas.buffer.height();
+        let cells: Vec<Vec<canvas::CanvasCell>> = (0..h)
             .map(|y| {
-                (0..self.editor.canvas.buffer.width())
+                (0..w)
                     .map(|x| {
                         self.editor
                             .canvas
@@ -2513,11 +2604,96 @@ impl TuiApp {
         let path_buf = std::path::PathBuf::from(&self.dialogs.export_dialog.path_buffer);
         let export_layers = self.dialogs.export_dialog.export_layers;
         let use_transparency = self.dialogs.export_dialog.use_transparency;
+        let timeline_available = self.dialogs.export_dialog.timeline_available;
+        let frame_delays = self.dialogs.export_dialog.frame_delays.clone();
+        let loop_count = self.dialogs.export_dialog.loop_count;
         let layer_stack = if export_layers {
             Some(self.editor.layer_stack.clone())
         } else {
             None
         };
+
+        // Compose timeline frames if GIF + timeline has frames
+        let frames: Vec<Vec<Vec<canvas::CanvasCell>>> = if format
+            == crate::tui::export::ExportMode::Gif
+            && timeline_available
+            && !self.timeline_state.frames.is_empty()
+        {
+            let ts = &self.timeline_state;
+            let num_frames = ts.frames.len();
+            let layer_stack = &self.editor.layer_stack;
+            (0..num_frames)
+                .map(|frame_idx| {
+                    let mut result_buf = canvas::CanvasBuffer::new(w, h);
+                    for (layer_idx, layer) in layer_stack.layers.iter().enumerate() {
+                        if !layer.visible {
+                            continue;
+                        }
+                        let props = ts.get_interpolated_properties(frame_idx, layer_idx);
+                        if props.opacity == 0 {
+                            continue;
+                        }
+                        let ox = props.position_offset.0.max(0) as usize;
+                        let oy = props.position_offset.1.max(0) as usize;
+                        for y in 0..h.min(layer.buffer.height()) {
+                            for x in 0..w.min(layer.buffer.width()) {
+                                let bx = x + ox;
+                                let by = y + oy;
+                                if bx >= w || by >= h {
+                                    continue;
+                                }
+                                if let Some(top) = layer.buffer.get(x, y) {
+                                    if top.ch == ' ' && top.fg.is_none() && top.bg.is_none() {
+                                        continue;
+                                    }
+                                    let bottom =
+                                        result_buf.get(bx, by).copied().unwrap_or_default();
+                                    let blended_fg = crate::tui::layers::blend_mode_color(
+                                        top.fg,
+                                        bottom.fg,
+                                        props.blend_mode,
+                                    );
+                                    let blended_bg = crate::tui::layers::blend_mode_color(
+                                        top.bg,
+                                        bottom.bg,
+                                        props.blend_mode,
+                                    );
+                                    let final_fg = crate::tui::layers::blend_colors(
+                                        blended_fg,
+                                        bottom.fg,
+                                        props.opacity,
+                                    );
+                                    let final_bg = crate::tui::layers::blend_colors(
+                                        blended_bg,
+                                        bottom.bg,
+                                        props.opacity,
+                                    );
+                                    result_buf.set(
+                                        bx,
+                                        by,
+                                        canvas::CanvasCell {
+                                            ch: top.ch,
+                                            fg: final_fg,
+                                            bg: final_bg,
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    (0..result_buf.height())
+                        .map(|y| {
+                            (0..result_buf.width())
+                                .map(|x| result_buf.get(x, y).copied().unwrap_or_default())
+                                .collect()
+                        })
+                        .collect()
+                })
+                .collect()
+        } else {
+            vec![cells.clone()]
+        };
+
         let (tx, rx) = mpsc::channel();
         self.async_rx = Some(rx);
         self.throbber.start("Exporting...");
@@ -2541,8 +2717,19 @@ impl TuiApp {
                         crate::output::export_cells_to_txt(&cells).into_bytes()
                     }
                     crate::tui::export::ExportMode::Gif => {
-                        crate::output::export_cells_to_gif(&[cells], &[10], font_size)
-                            .map_err(|e| e.to_string())?
+                        let delay_slice: &[u16] = if timeline_available && !frame_delays.is_empty()
+                        {
+                            frame_delays.as_slice()
+                        } else {
+                            &[10]
+                        };
+                        crate::output::export_cells_to_gif(
+                            &frames,
+                            delay_slice,
+                            font_size,
+                            loop_count,
+                        )
+                        .map_err(|e| e.to_string())?
                     }
                 };
                 std::fs::write(&path_buf, &bytes).map_err(|e| format!("IoError({e})"))?;
@@ -2585,6 +2772,11 @@ impl TuiApp {
                     _ => export::ExportMode::Png,
                 };
                 self.dialogs.export_dialog.enter_export(mode);
+                if mode == export::ExportMode::Gif && !self.timeline_state.frames.is_empty() {
+                    self.dialogs
+                        .export_dialog
+                        .set_timeline(self.timeline_state.fps, self.timeline_state.frames.len());
+                }
                 self.menu_bar_state.reset();
             }
             menu::MenuAction::FileQuit => {

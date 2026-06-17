@@ -1,5 +1,31 @@
 # Figby — Learnings
 
+## 4.5.3 — Tweening
+
+- Standard bounce easing: 4 piecewise quadratic phases with decreasing amplitude.
+  Reference implementation widely used in CSS/JS easing; formula verified against
+  common JavaScript libraries.
+- `filter(|t| ...)` on `Option` returns `Option` with same lifetime — useful for
+  conditional preview rendering without redundant matching.
+- `replaceAll` in edit tool is fragile when there are multiple match patterns;
+  better to use targeted `rg` to count instances then apply precise `oldString` patterns.
+
+## 4.5.2 — Keyframing
+
+- `Vec<Option<LayerKeyframe>>` with `get(layer_idx)?` returns `Option<&Option<T>>`.
+  Dereferencing: `(*vec.get(i)?)?` extracts the inner `T` — cleaner than
+  `.and_then(|o| *o)` or `.copied().flatten()` which don't work because
+  `&Option<T>` is not an iterator.
+- When using struct-update syntax for test TimelineState constructors, adding
+  new fields to `Default` and using `..Default::default()` in existing tests
+  minimizes churn. With 14+ existing tests using struct literals, `replaceAll`
+  for the closing pattern `fps: 12,\n        };` → `fps: 12,\n        keyframe_editor: ...,\n        };`
+  is less risky than changing each test individually.
+- `clippy::collapsible_match` fires when a match arm body is `if guard { action }`.
+  Fix: move the `if` to a match guard: `Arm if guard => { action }`.
+- `clippy::manual_clamp` fires on `.min(max).max(min)` chains. Fix: `.clamp(min, max)`.
+  Note: clamps panic if min > max, so args must be ordered correctly (min then max).
+
 ## 1.1.2 — Core types
 
 - Serde + serde_json needed for round-trip tests even though "Touches" only listed
@@ -927,6 +953,12 @@ Three bugs found in phase merge review:
 - Removing `pub use` re-exports (`BrushState`, etc.) breaks integration tests
   that import from the crate root. These must be maintained for public API
   compatibility even though the internal architecture changed.
+
+## 4.5.5 — Phase merge: release/4.5 → master
+
+- Merge completed cleanly — no conflicts. All documentation files merged automatically
+  (`docs/todo-v4.md`, `docs/memory.md`, `docs/learnings.md`, `docs/ralph-log.md`).
+- No code changes beyond merge.
 
 ## 4.4.5 — Phase merge: release/4.4 → master
 

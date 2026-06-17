@@ -4,6 +4,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
 use std::collections::BTreeMap;
+use unicode_width::UnicodeWidthStr;
 
 use super::super::theme::Theme;
 use super::super::AppMode;
@@ -227,7 +228,7 @@ impl<'a> Widget for StatusBarWidget<'a> {
         let mut all_spans: Vec<Span<'a>> = Vec::new();
 
         all_spans.extend(self.build_p1());
-        let p1_len: usize = all_spans.iter().map(|s| s.content.len()).sum();
+        let p1_len: usize = all_spans.iter().map(|s| s.content.width()).sum();
 
         if p1_len >= width {
             // P1 doesn't even fit — truncate mode badge
@@ -252,13 +253,13 @@ impl<'a> Widget for StatusBarWidget<'a> {
             all_spans.extend(p2);
         }
 
-        let sofar: usize = all_spans.iter().map(|s| s.content.len()).sum();
+        let sofar: usize = all_spans.iter().map(|s| s.content.width()).sum();
         if sofar < width && width >= 80 {
             let p3 = self.build_p3();
             all_spans.extend(p3);
         }
 
-        let sofar: usize = all_spans.iter().map(|s| s.content.len()).sum();
+        let sofar: usize = all_spans.iter().map(|s| s.content.width()).sum();
         if sofar < width && width >= 100 {
             let p4 = self.build_p4();
             all_spans.extend(p4);

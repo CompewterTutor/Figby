@@ -620,6 +620,15 @@ impl TuiApp {
             return;
         }
 
+        // App fade-in (runs outside welcome screen — covers zen + normal modes)
+        let area = frame.area();
+        if let Some(ref mut fade) = self.app_fade_in {
+            fade.process(self.delta_time, frame.buffer_mut(), area);
+            if fade.done() {
+                self.app_fade_in = None;
+            }
+        }
+
         // Single-pass layout computation — stored for mouse handlers next cycle.
         let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer);
 

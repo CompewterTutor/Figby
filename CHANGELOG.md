@@ -5,6 +5,9 @@
 - Phase 4.7: Animation Exporter (4.7.1–4.7.3) — frame-by-frame terminal capture,
   APNG export, ANSI escape sequence export.
 ### Changed
+- Phase merge: release/4.8 → master. Phase 4.8 complete: AnimationPlayer widget
+  (4.8.0), terminal capture for playback (4.8.1), raw mode playback engine (4.8.2),
+  player integration into TUI (4.8.3).
 - Phase merge: release/4.7 → master. Phase 4.7 complete: frame-by-frame terminal
   capture (4.7.1), APNG export (4.7.2), ANSI escape sequence export (4.7.3).
 - Phase merge: release/4.6 → master. Phase 4.6 complete: particle system data

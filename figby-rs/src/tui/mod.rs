@@ -1733,7 +1733,7 @@ impl TuiApp {
             && self
                 .editor
                 .layer_panel
-                .handle_key(code, &mut self.editor.layer_stack)
+                .handle_key(key, &mut self.editor.layer_stack)
         {
             self.editor.recomposite_canvas();
             self.editor.unsaved = true;

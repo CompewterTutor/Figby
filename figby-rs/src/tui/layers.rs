@@ -1,11 +1,11 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders};
 use ratatui::Frame;
 
-use super::canvas::CanvasBuffer;
+use super::canvas::{CanvasBuffer, CanvasCell};
 use super::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -66,6 +66,44 @@ impl BlendMode {
 }
 
 #[derive(Debug, Clone)]
+pub struct LayerMask {
+    pub buffer: CanvasBuffer,
+    pub enabled: bool,
+}
+
+impl LayerMask {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            buffer: CanvasBuffer::new(width, height),
+            enabled: true,
+        }
+    }
+
+    pub fn buffer(&self) -> &CanvasBuffer {
+        &self.buffer
+    }
+
+    pub fn buffer_mut(&mut self) -> &mut CanvasBuffer {
+        &mut self.buffer
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LayerGroup {
+    pub name: String,
+    pub collapsed: bool,
+}
+
+impl LayerGroup {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            collapsed: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Layer {
     pub buffer: CanvasBuffer,
     pub name: String,
@@ -73,6 +111,8 @@ pub struct Layer {
     pub locked: bool,
     pub opacity: u8,
     pub blend_mode: BlendMode,
+    pub mask: Option<LayerMask>,
+    pub group: Option<usize>,
 }
 
 impl Layer {
@@ -84,6 +124,8 @@ impl Layer {
             locked: false,
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            mask: None,
+            group: None,
         }
     }
 
@@ -100,6 +142,7 @@ impl Layer {
 pub struct LayerStack {
     pub layers: Vec<Layer>,
     pub active: usize,
+    pub groups: Vec<LayerGroup>,
 }
 
 impl LayerStack {
@@ -107,6 +150,7 @@ impl LayerStack {
         Self {
             layers: vec![Layer::new(width, height, "Background".to_string())],
             active: 0,
+            groups: Vec::new(),
         }
     }
 
@@ -120,7 +164,11 @@ impl LayerStack {
             };
             layers.push(Layer::new(width, height, name));
         }
-        Self { layers, active: 0 }
+        Self {
+            layers,
+            active: 0,
+            groups: Vec::new(),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -260,6 +308,147 @@ impl LayerStack {
         }
     }
 
+    pub fn create_group(&mut self, indices: &[usize], name: String) -> Option<usize> {
+        if indices.is_empty() {
+            return None;
+        }
+        for &idx in indices {
+            if idx >= self.layers.len() {
+                return None;
+            }
+        }
+        let group_idx = self.groups.len();
+        self.groups.push(LayerGroup::new(name));
+        for &idx in indices {
+            self.layers[idx].group = Some(group_idx);
+        }
+        Some(group_idx)
+    }
+
+    pub fn remove_group(&mut self, group_idx: usize) -> bool {
+        if group_idx >= self.groups.len() {
+            return false;
+        }
+        for layer in &mut self.layers {
+            if layer.group == Some(group_idx) {
+                layer.group = None;
+            }
+        }
+        self.groups.remove(group_idx);
+        for layer in &mut self.layers {
+            if let Some(g) = layer.group {
+                if g > group_idx {
+                    layer.group = Some(g - 1);
+                }
+            }
+        }
+        true
+    }
+
+    pub fn toggle_group_collapsed(&mut self, group_idx: usize) -> bool {
+        if let Some(group) = self.groups.get_mut(group_idx) {
+            group.collapsed = !group.collapsed;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn rename_group(&mut self, group_idx: usize, name: String) -> bool {
+        if let Some(group) = self.groups.get_mut(group_idx) {
+            group.name = name;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn group_of_layer(&self, layer_idx: usize) -> Option<usize> {
+        self.layers.get(layer_idx).and_then(|l| l.group)
+    }
+
+    pub fn layers_in_group(&self, group_idx: usize) -> Vec<usize> {
+        self.layers
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.group == Some(group_idx))
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    pub fn create_mask(&mut self, layer_idx: usize) -> bool {
+        if let Some(layer) = self.layers.get_mut(layer_idx) {
+            if layer.mask.is_some() {
+                return false;
+            }
+            let w = layer.buffer.width();
+            let h = layer.buffer.height();
+            layer.mask = Some(LayerMask::new(w, h));
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_mask(&mut self, layer_idx: usize) -> bool {
+        if let Some(layer) = self.layers.get_mut(layer_idx) {
+            if layer.mask.is_some() {
+                layer.mask = None;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn toggle_mask(&mut self, layer_idx: usize) -> bool {
+        let layer = match self.layers.get_mut(layer_idx) {
+            Some(l) => l,
+            None => return false,
+        };
+        if layer.mask.is_some() {
+            layer.mask = None;
+        } else {
+            let w = layer.buffer.width();
+            let h = layer.buffer.height();
+            layer.mask = Some(LayerMask::new(w, h));
+        }
+        true
+    }
+
+    pub fn toggle_mask_enabled(&mut self, layer_idx: usize) -> bool {
+        if let Some(layer) = self.layers.get_mut(layer_idx) {
+            if let Some(ref mut mask) = layer.mask {
+                mask.enabled = !mask.enabled;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    pub fn set_mask_pixel(&mut self, layer_idx: usize, x: usize, y: usize, cell: CanvasCell) {
+        if let Some(layer) = self.layers.get_mut(layer_idx) {
+            if let Some(ref mut mask) = layer.mask {
+                if x < mask.buffer.width() && y < mask.buffer.height() {
+                    mask.buffer.set(x, y, cell);
+                }
+            }
+        }
+    }
+
+    pub fn get_mask_pixel(&self, layer_idx: usize, x: usize, y: usize) -> Option<CanvasCell> {
+        self.layers
+            .get(layer_idx)
+            .and_then(|l| l.mask.as_ref())
+            .and_then(|m| m.buffer.get(x, y))
+            .copied()
+    }
+
     pub fn composite(&self) -> CanvasBuffer {
         if self.layers.is_empty() {
             return CanvasBuffer::new(1, 1);
@@ -278,6 +467,15 @@ impl LayerStack {
                     if let Some(top) = layer.buffer.get(x, y) {
                         if top.ch == ' ' && top.fg.is_none() && top.bg.is_none() {
                             continue;
+                        }
+                        if let Some(ref mask) = layer.mask {
+                            if mask.enabled {
+                                if let Some(mask_cell) = mask.buffer.get(x, y) {
+                                    if mask_cell.ch == ' ' {
+                                        continue;
+                                    }
+                                }
+                            }
                         }
                         if opacity == 255 && blend_mode == BlendMode::Normal {
                             result.set(x, y, *top);
@@ -403,7 +601,10 @@ impl LayerPanel {
         }
     }
 
-    pub fn handle_key(&mut self, code: KeyCode, stack: &mut LayerStack) -> bool {
+    pub fn handle_key(&mut self, key: KeyEvent, stack: &mut LayerStack) -> bool {
+        let code = key.code;
+        let modifiers = key.modifiers;
+
         match code {
             KeyCode::Up => {
                 if stack.active > 0 {
@@ -449,8 +650,85 @@ impl LayerPanel {
                 stack.delete(stack.active);
                 true
             }
-            KeyCode::Char('m') | KeyCode::Char('M') => {
-                stack.merge_down(stack.active);
+            KeyCode::Char('g') if modifiers == KeyModifiers::CONTROL => {
+                let indices = [stack.active];
+                let group_name = format!("Group {}", stack.groups.len() + 1);
+                stack.create_group(&indices, group_name);
+                true
+            }
+            KeyCode::Char('g') if modifiers == KeyModifiers::CONTROL | KeyModifiers::SHIFT => {
+                if let Some(g) = stack.group_of_layer(stack.active) {
+                    stack.remove_group(g);
+                }
+                true
+            }
+            KeyCode::Right => {
+                if let Some(g) = stack.group_of_layer(stack.active) {
+                    if let Some(grp) = stack.groups.get_mut(g) {
+                        grp.collapsed = false;
+                    }
+                }
+                true
+            }
+            KeyCode::Left => {
+                if let Some(g) = stack.group_of_layer(stack.active) {
+                    if let Some(grp) = stack.groups.get_mut(g) {
+                        grp.collapsed = true;
+                    }
+                }
+                true
+            }
+            KeyCode::Char('M') => {
+                stack.toggle_mask(stack.active);
+                true
+            }
+            KeyCode::Char('m') => {
+                if stack
+                    .layers
+                    .get(stack.active)
+                    .and_then(|l| l.mask.as_ref())
+                    .is_some()
+                {
+                    stack.toggle_mask_enabled(stack.active);
+                } else {
+                    stack.merge_down(stack.active);
+                }
+                true
+            }
+            KeyCode::Tab => {
+                if stack.groups.is_empty() {
+                    return false;
+                }
+                if let Some(g) = stack.group_of_layer(stack.active) {
+                    let members = stack.layers_in_group(g);
+                    if let Some(&last) = members.last() {
+                        if stack.active == last {
+                            let next = last + 1;
+                            if next < stack.layers.len() {
+                                stack.active = next;
+                            }
+                        } else if let Some(&next) = members.iter().find(|&&i| i > stack.active) {
+                            stack.active = next;
+                        }
+                    }
+                } else {
+                    let mut found = false;
+                    for i in (0..stack.active).rev() {
+                        if stack.layers[i].group.is_some() {
+                            stack.active = i;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        for i in stack.active + 1..stack.layers.len() {
+                            if stack.layers[i].group.is_some() {
+                                stack.active = i;
+                                break;
+                            }
+                        }
+                    }
+                }
                 true
             }
             KeyCode::Char(',') => {
@@ -498,11 +776,10 @@ impl LayerPanel {
         let inner_y = inner.y;
         let inner_x = inner.x;
         let inner_h = inner.height as usize;
-        let name_max = (inner.width as usize).saturating_sub(11).max(4);
         let help_lines = [
             "↑↓ sel ↵vis Llock ±opa Bbld",
-            "Nnew Ddup Xdel Mmerge",
-            ",↑ .↓ reorder",
+            "Nnew Ddup Xdel Mmask(Grp",
+            ",↑ .↓ reorder ←→col",
         ];
 
         for (y, help) in help_lines.iter().enumerate() {
@@ -527,16 +804,57 @@ impl LayerPanel {
         }
 
         let offset = help_lines.len() + 1;
-
         let vis_icon = "v";
+        let mut display_idx: usize = 0;
+        let mut emitted_group_header = vec![false; stack.groups.len()];
 
-        for (rev_idx, layer) in stack.layers.iter().enumerate().rev() {
-            let y = offset + rev_idx;
-            if y >= inner_h {
+        for rev_idx in 0..stack.layers.len() {
+            let real_idx = stack.layers.len() - 1 - rev_idx;
+            let layer = &stack.layers[real_idx];
+
+            if let Some(g) = layer.group {
+                if g < emitted_group_header.len() && !emitted_group_header[g] {
+                    emitted_group_header[g] = true;
+                    let y_pos = offset + display_idx;
+                    if y_pos < inner_h {
+                        if let Some(group) = stack.groups.get(g) {
+                            let disclosure = if group.collapsed { "▶" } else { "▼" };
+                            let count = stack.layers.iter().filter(|l| l.group == Some(g)).count();
+                            let group_label = format!(" {} {} ({})", disclosure, group.name, count);
+                            let row_style = Style::default()
+                                .bg(self.theme.menu.dropdown_bg)
+                                .fg(self.theme.general.secondary)
+                                .add_modifier(Modifier::BOLD);
+                            let para = ratatui::widgets::Paragraph::new(Line::from(Span::styled(
+                                group_label,
+                                row_style,
+                            )));
+                            frame.render_widget(
+                                para,
+                                Rect {
+                                    x: inner_x,
+                                    y: inner_y + y_pos as u16,
+                                    width: inner.width,
+                                    height: 1,
+                                },
+                            );
+                        }
+                    }
+                    display_idx += 1;
+
+                    if let Some(group) = stack.groups.get(g) {
+                        if group.collapsed {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            let y_pos = offset + display_idx;
+            if y_pos >= inner_h {
                 break;
             }
 
-            let real_idx = stack.layers.len() - 1 - rev_idx;
             let is_active = real_idx == stack.active;
             let row_bg = if is_active {
                 self.theme.menu.highlight
@@ -544,6 +862,7 @@ impl LayerPanel {
                 self.theme.menu.dropdown_bg
             };
 
+            let indent = if layer.group.is_some() { "  " } else { "" };
             let vis_ch = if layer.visible { vis_icon } else { " " };
             let lock_ch = if layer.locked { "L" } else { " " };
             let blend_icon = self
@@ -552,14 +871,18 @@ impl LayerPanel {
                 .map(|s| s.as_str())
                 .unwrap_or("");
 
+            let name_max = (inner.width as usize).saturating_sub(16).max(4);
+
             let label = format!(
-                " {} {} {} {} {:3}% {}",
+                "{}{} {} {} {} {:3}% {}{}",
+                indent,
                 vis_ch,
                 lock_ch,
                 if is_active { ">" } else { " " },
                 blend_icon,
                 (layer.opacity as f32 / 255.0 * 100.0).round() as u8,
                 truncate_str(&layer.name, name_max),
+                self.render_mask_thumbnail(layer),
             );
             let row_style = Style::default().bg(row_bg).fg(self.theme.menu.fg);
 
@@ -569,11 +892,33 @@ impl LayerPanel {
                 row_para,
                 Rect {
                     x: inner_x,
-                    y: inner_y + y as u16,
+                    y: inner_y + y_pos as u16,
                     width: inner.width,
                     height: 1,
                 },
             );
+            display_idx += 1;
+        }
+    }
+
+    fn render_mask_thumbnail(&self, layer: &Layer) -> String {
+        if let Some(ref mask) = layer.mask {
+            let mut s = String::with_capacity(4);
+            s.push(' ');
+            for i in 0..3 {
+                if let Some(cell) = mask.buffer.get(i, 0) {
+                    if cell.ch == ' ' {
+                        s.push('░');
+                    } else {
+                        s.push('▓');
+                    }
+                } else {
+                    s.push(' ');
+                }
+            }
+            s
+        } else {
+            String::new()
         }
     }
 }
@@ -1019,5 +1364,287 @@ mod tests {
             }
             _ => panic!("expected Some(Color::Rgb)"),
         }
+    }
+
+    // --- Layer group tests ---
+
+    #[test]
+    fn test_create_group() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        let group_idx = stack.create_group(&[0, 1], "My Group".to_string());
+        assert!(group_idx.is_some());
+        let g = group_idx.unwrap();
+        assert_eq!(stack.groups.len(), 1);
+        assert_eq!(stack.groups[g].name, "My Group");
+        assert!(!stack.groups[g].collapsed);
+        assert_eq!(stack.layers[0].group, Some(g));
+        assert_eq!(stack.layers[1].group, Some(g));
+        assert!(stack.layers[2].group.is_none());
+    }
+
+    #[test]
+    fn test_remove_group() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        let g = stack.create_group(&[0, 1], "G".to_string()).unwrap();
+        assert!(stack.remove_group(g));
+        assert!(stack.layers[0].group.is_none());
+        assert!(stack.layers[1].group.is_none());
+        assert_eq!(stack.groups.len(), 0);
+    }
+
+    #[test]
+    fn test_toggle_group_collapsed() {
+        let mut stack = make_stack(10, 10);
+        let g = stack.create_group(&[0], "G".to_string()).unwrap();
+        assert!(!stack.groups[g].collapsed);
+        assert!(stack.toggle_group_collapsed(g));
+        assert!(stack.groups[g].collapsed);
+        assert!(stack.toggle_group_collapsed(g));
+        assert!(!stack.groups[g].collapsed);
+    }
+
+    #[test]
+    fn test_rename_group() {
+        let mut stack = make_stack(10, 10);
+        let g = stack.create_group(&[0], "Old".to_string()).unwrap();
+        assert!(stack.rename_group(g, "New".to_string()));
+        assert_eq!(stack.groups[g].name, "New");
+    }
+
+    #[test]
+    fn test_group_of_layer() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        let g = stack.create_group(&[1], "G".to_string()).unwrap();
+        assert_eq!(stack.group_of_layer(1), Some(g));
+        assert_eq!(stack.group_of_layer(0), None);
+    }
+
+    #[test]
+    fn test_layers_in_group() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        let g = stack.create_group(&[0, 2], "G".to_string()).unwrap();
+        let members = stack.layers_in_group(g);
+        assert_eq!(members.len(), 2);
+        assert!(members.contains(&0));
+        assert!(members.contains(&2));
+    }
+
+    #[test]
+    fn test_create_group_empty_indices() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.create_group(&[], "Empty".to_string()).is_none());
+        assert_eq!(stack.groups.len(), 0);
+    }
+
+    #[test]
+    fn test_create_group_invalid_index() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.create_group(&[0, 5], "Bad".to_string()).is_none());
+        assert_eq!(stack.groups.len(), 0);
+    }
+
+    #[test]
+    fn test_remove_group_nonexistent() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.remove_group(0));
+    }
+
+    #[test]
+    fn test_toggle_group_collapsed_nonexistent() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.toggle_group_collapsed(0));
+    }
+
+    #[test]
+    fn test_rename_group_nonexistent() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.rename_group(0, "X".to_string()));
+    }
+
+    #[test]
+    fn test_group_preserved_after_delete() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        let g = stack.create_group(&[0, 1], "G".to_string()).unwrap();
+        stack.delete(0);
+        assert_eq!(stack.layers[0].group, Some(g));
+        assert_eq!(stack.groups.len(), 1);
+    }
+
+    #[test]
+    fn test_group_index_shifted_after_remove() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        let g0 = stack.create_group(&[0], "G0".to_string()).unwrap();
+        let g1 = stack.create_group(&[1, 2], "G1".to_string()).unwrap();
+        assert_eq!(g0, 0);
+        assert_eq!(g1, 1);
+        stack.remove_group(0);
+        assert_eq!(stack.layers[0].group, None);
+        assert_eq!(stack.layers[1].group, Some(0));
+        assert_eq!(stack.layers[2].group, Some(0));
+    }
+
+    // --- Layer mask tests ---
+
+    #[test]
+    fn test_create_mask() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.layers[0].mask.is_none());
+        assert!(stack.create_mask(0));
+        assert!(stack.layers[0].mask.is_some());
+        let mask = stack.layers[0].mask.as_ref().unwrap();
+        assert!(mask.enabled);
+        assert_eq!(mask.buffer.width(), 10);
+        assert_eq!(mask.buffer.height(), 10);
+    }
+
+    #[test]
+    fn test_create_mask_on_nonexistent_layer() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.create_mask(5));
+    }
+
+    #[test]
+    fn test_create_mask_twice_noop() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.create_mask(0));
+        assert!(!stack.create_mask(0));
+    }
+
+    #[test]
+    fn test_remove_mask() {
+        let mut stack = make_stack(10, 10);
+        stack.create_mask(0);
+        assert!(stack.remove_mask(0));
+        assert!(stack.layers[0].mask.is_none());
+    }
+
+    #[test]
+    fn test_remove_mask_nonexistent() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.remove_mask(0));
+    }
+
+    #[test]
+    fn test_toggle_mask() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.toggle_mask(0));
+        assert!(stack.layers[0].mask.is_some());
+        assert!(stack.toggle_mask(0));
+        assert!(stack.layers[0].mask.is_none());
+    }
+
+    #[test]
+    fn test_layer_mask_toggle_enabled() {
+        let mut stack = make_stack(10, 10);
+        stack.create_mask(0);
+        assert!(stack.layers[0].mask.as_ref().unwrap().enabled);
+        assert!(stack.toggle_mask_enabled(0));
+        assert!(!stack.layers[0].mask.as_ref().unwrap().enabled);
+        assert!(stack.toggle_mask_enabled(0));
+        assert!(stack.layers[0].mask.as_ref().unwrap().enabled);
+    }
+
+    #[test]
+    fn test_mask_paint() {
+        let mut stack = make_stack(10, 10);
+        stack.create_mask(0);
+        let cell = make_cell('X');
+        stack.set_mask_pixel(0, 3, 4, cell);
+        let got = stack.get_mask_pixel(0, 3, 4);
+        assert!(got.is_some());
+        assert_eq!(got.unwrap().ch, 'X');
+    }
+
+    #[test]
+    fn test_set_mask_pixel_out_of_bounds() {
+        let mut stack = make_stack(5, 5);
+        stack.create_mask(0);
+        stack.set_mask_pixel(0, 100, 100, make_cell('X'));
+    }
+
+    #[test]
+    fn test_set_mask_pixel_no_mask() {
+        let mut stack = make_stack(5, 5);
+        stack.set_mask_pixel(0, 0, 0, make_cell('X'));
+    }
+
+    #[test]
+    fn test_composite_with_mask() {
+        let mut stack = make_stack(3, 3);
+        stack.layers[0].buffer.set(0, 0, make_cell('A'));
+        stack.create_mask(0);
+        // Mask is all spaces by default -> layer is fully hidden
+        let comp = stack.composite();
+        assert_eq!(comp.get(0, 0).unwrap().ch, ' ');
+    }
+
+    #[test]
+    fn test_composite_with_mask_painted() {
+        let mut stack = make_stack(3, 3);
+        stack.layers[0].buffer.set(0, 0, make_cell('A'));
+        stack.create_mask(0);
+        // Paint mask pixel at (0,0) to reveal it
+        stack.set_mask_pixel(0, 0, 0, make_cell('▓'));
+        let comp = stack.composite();
+        assert_eq!(comp.get(0, 0).unwrap().ch, 'A');
+    }
+
+    #[test]
+    fn test_composite_with_mask_disabled() {
+        let mut stack = make_stack(3, 3);
+        stack.layers[0].buffer.set(0, 0, make_cell('A'));
+        stack.create_mask(0);
+        stack.layers[0].mask.as_mut().unwrap().enabled = false;
+        let comp = stack.composite();
+        assert_eq!(comp.get(0, 0).unwrap().ch, 'A');
+    }
+
+    #[test]
+    fn test_mask_thumbnail() {
+        let panel = LayerPanel::new();
+        let layer = Layer::new(5, 5, "Test".to_string());
+        let thumb = panel.render_mask_thumbnail(&layer);
+        assert_eq!(thumb, ""); // No mask => empty string
+    }
+
+    #[test]
+    fn test_mask_thumbnail_with_mask() {
+        let panel = LayerPanel::new();
+        let mut layer = Layer::new(5, 5, "Test".to_string());
+        let mut mask = LayerMask::new(5, 5);
+        // Paint first two pixels
+        mask.buffer.set(0, 0, make_cell('▓'));
+        mask.buffer.set(1, 0, make_cell('▓'));
+        layer.mask = Some(mask);
+        let thumb = panel.render_mask_thumbnail(&layer);
+        assert_eq!(thumb, " ▓▓░");
+    }
+
+    #[test]
+    fn test_composite_two_layers_with_mask() {
+        let mut stack = make_stack(3, 3);
+        stack.add(3, 3);
+        // Bottom layer has content at (0,0) and (1,1)
+        stack.layers[0].buffer.set(0, 0, make_cell('A'));
+        stack.layers[0].buffer.set(1, 1, make_cell('B'));
+        // Top layer has content at (0,0) with mask revealing only part
+        stack.layers[1].buffer.set(0, 0, make_cell('C'));
+        stack.create_mask(1);
+        stack.set_mask_pixel(1, 0, 0, make_cell('▓'));
+        let comp = stack.composite();
+        // (0,0): top layer visible through mask => 'C'
+        assert_eq!(comp.get(0, 0).unwrap().ch, 'C');
+        // (1,1): only bottom layer => 'B'
+        assert_eq!(comp.get(1, 1).unwrap().ch, 'B');
     }
 }

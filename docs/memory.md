@@ -1817,6 +1817,23 @@ Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal
 capture), 4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into
 the mainline. Next phase: 4.8 (Animation Player).
 
+### 4.8.0 — Custom ratatui widget: `AnimationPlayer`
+
+Created `figby-rs/src/tui/player.rs` with `AnimationPlayer` struct — standalone
+ratatui widget for playing back animation frames on the alternate screen:
+- Uses interior mutability (`Cell`) to implement `Widget for &AnimationPlayer`
+  (not `&mut`), matching ratatui's recommended reference-based widget pattern
+- Takes `Vec<AnimationFrame>` (2D grid of `CanvasCell`) and FPS rate
+- Supports play/pause, seek by frame index, loop toggle, speed control 0.25x–4x
+- `advance(delta)` — accumulator-based frame advancement at effective FPS
+- `handle_key(code)` — Space (play/pause), Left/Right (seek), Up/Down (speed),
+  `l`/`L` (loop toggle), Esc (pause+reset), Enter (play)
+- Implements `Widget for &AnimationPlayer` rendering frame content with FG/BG
+  colors and a progress bar on the bottom row (play icon, counter, bar, speed)
+- 16 unit tests covering advance, looping, seek, speed clamp, progress bar
+  rendering, frame content, empty frames, and all key handlers
+- No `.unwrap()` in production paths
+
 ### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
 
 Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),

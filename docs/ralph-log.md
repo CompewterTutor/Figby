@@ -3160,3 +3160,7 @@ DONE: 4.9.5 merged into release/4.9.
 ## 2026-06-17 11:11
 
 All 4.9 tasks complete. Starting phase review.
+
+## 2026-06-17 11:20
+
+PHASE_COMPLETE: 4.9 merged to main after review approval.

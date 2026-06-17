@@ -559,8 +559,14 @@ fn printinfo(
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn get_columns() -> Option<u16> {
     crossterm::terminal::size().ok().map(|(cols, _)| cols)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_columns() -> Option<u16> {
+    None
 }
 
 impl ImageOptions {
@@ -1050,6 +1056,12 @@ fn run(config: CliConfig, message: Vec<String>) {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    figby::web::run_web().expect("Figby web error");
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     let args = CliArgs::parse();
     let infocode = args.infocode;

@@ -1121,6 +1121,28 @@ Three bugs found in phase merge review:
   that transitions both background and foreground colors from the given values to
   transparent — ideal for app-launch black-to-reveal effects. This differs from
   `fx::fade_from_fg()` (used in 4.9.1) which only modifies foreground.
+
+## 4.10.1 — WASM / web target via Ratzilla
+
+- Ratzilla 0.3.1 uses `DomBackend`, `WebRenderer` trait, and `draw_web()` (not `draw()`).
+  Events registered via `on_key_event()` callbacks. Compatible with ratatui ^0.30.1.
+- `ratatui = "0.30.1"` must be split across targets: native builds need `features = ["crossterm"]`
+  (enables `init()`/`restore()`), WASM builds need `default-features = false` (avoids crossterm).
+  Cargo resolves target-specific deps per-target, so no feature unification conflict.
+- `zip` crate with default features pulls in `lzma-sys` (C dependency) which fails on WASM.
+  Fix: `default-features = false, features = ["deflate"]` uses pure Rust miniz.
+- `flate2` with default features uses C libraries (zlib/libzma). Fix: `default-features = false,
+  features = ["rust_backend"]` for pure Rust deflate implementation.
+- `CanvasCell` type (defined in tui/canvas.rs) is needed by output.rs unconditionally.
+  For WASM builds (where `tui` module is disabled), the type must be available at crate root.
+  Moved to `canvas_inner` private mod + `pub use` at lib.rs root. tui/canvas.rs re-exports via
+  `pub use crate::CanvasCell;`.
+- Several native-only functions in `image_input.rs` and `main.rs` used `crossterm::terminal::size()`.
+  Added `get_terminal_width()` helper with dual cfg versions (crossterm for native, `None` for WASM).
+- `getrandom` feature for WASM is `"js"` (not `"wasm_js"`).
+- `cargo build -p figby --target wasm32-unknown-unknown` succeeds for both lib and bin targets
+  (bin has stub `fn main(){}` for WASM).
+
 - The effect must be applied AFTER rendering the UI content but BEFORE `frame.finish()`,
   so the overlay draws on top of the rendered widgets. Calling `.process()` on
   `frame.buffer_mut()` after all `frame.render_*` calls achieves this correctly.

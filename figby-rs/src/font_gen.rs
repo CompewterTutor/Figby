@@ -247,19 +247,20 @@ fn braille_charset() -> &'static [&'static str] {
     })
 }
 
-/// Block elements + shade chars + vertical eighths.
+/// Block elements U+2580–U+259F, ordered by luminance (light → dark).
 fn blocks_charset() -> &'static [&'static str] {
     static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
     CELL.get_or_init(|| {
-        // Ordered light → dark for luminance mapping
         let cps: Vec<u32> = vec![
-            // Space (blank)
-            0x0020, // Shade chars (light → dark)
-            0x2591, 0x2592, 0x2593, // Vertical eighths ▁▂▃▄▅▆▇
-            0x2581, 0x2582, 0x2583, 0x2584, 0x2585, 0x2586, 0x2587, // Half-blocks
-            0x2596, 0x2597, 0x2598, 0x259A, 0x259D, 0x2599, 0x259B, 0x259C, 0x259E, 0x259F, 0x258F,
-            0x258E, 0x258D, 0x258C, 0x258B, 0x258A, 0x2589, 0x2580, 0x2584, 0x258C, 0x2590,
-            // Full block
+            // ~12.5% coverage
+            0x2581, 0x258F, 0x2594, 0x2595, // ~25% coverage
+            0x2582, 0x258E, 0x2596, 0x2597, 0x2598, 0x259D, // ~37.5% coverage
+            0x2583, 0x258D, // ~50% coverage
+            0x2584, 0x2580, 0x258C, 0x2590, 0x2591, 0x259A, 0x259E, // ~62.5% coverage
+            0x2585, 0x258B, // ~66% coverage
+            0x2592, // ~75% coverage
+            0x2586, 0x258A, 0x2593, 0x2599, 0x259B, 0x259C, 0x259F, // ~87.5% coverage
+            0x2587, 0x2589, // 100% coverage
             0x2588,
         ];
         make_charset_vec(cps.into_iter())
@@ -903,6 +904,48 @@ mod tests {
                 0x2800 + i as u32,
                 "missing codepoint U+{:04X}",
                 0x2800 + i as u32
+            );
+        }
+    }
+
+    #[test]
+    fn test_blocks_count_32() {
+        let chars = blocks_charset();
+        assert_eq!(chars.len(), 32, "blocks charset should have 32 entries");
+    }
+
+    #[test]
+    fn test_blocks_all_in_range() {
+        let chars = blocks_charset();
+        for s in chars {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x2580..=0x259F).contains(&cp),
+                "blocks char U+{cp:04X} outside U+2580–U+259F"
+            );
+        }
+    }
+
+    #[test]
+    fn test_blocks_all_unique() {
+        let chars = blocks_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 32, "should have 32 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 32, "should have 32 unique codepoints");
+        assert_eq!(cps[0], 0x2580, "first codepoint should be U+2580");
+        assert_eq!(cps[31], 0x259F, "last codepoint should be U+259F");
+        // Verify no gaps
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2580 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2580 + i as u32
             );
         }
     }

@@ -2957,3 +2957,7 @@ All 4.1 tasks complete. Starting phase review.
 ## 2026-06-17 05:47
 
 PHASE_COMPLETE: 4.1 merged to main after review approval.
+
+## 2026-06-17 05:51
+
+DONE: 4.2.1 merged into release/4.2.

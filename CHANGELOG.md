@@ -2,6 +2,9 @@
 
 ## [Unreleased] - 2026-06-17
 ### Changed
+- Phase merge: release/4.6 → master. Phase 4.6 complete: particle system data
+  model (4.6.1), particle emitter UI tool (4.6.2), particle-to-layer baking
+  (4.6.3).
 - Phase merge: release/4.5 → master. Phase 4.5 complete: AnimationTimeline widget
   (4.5.0), frame management (4.5.1), keyframing (4.5.2), tweening (4.5.3),
   GIF export from timeline (4.5.4).

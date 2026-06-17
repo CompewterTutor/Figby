@@ -1748,3 +1748,9 @@ Added bake functionality to the particle system:
 - `TuiApp.baked_layer_indices` field — tracks indices of baked layers for potential cleanup
 - Keybindings when emitter is active: `b` bakes single frame to layer, `B` bakes 10 frames as layer stack and switches to baked view, `v` toggles live/baked preview
 - 6 new unit tests: bake independence, frame count + independence, empty system bake, content verification, 10-frame batch independence, layer stack insertion with independence
+
+### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
+
+Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),
+4.6.2 (Particle emitter UI tool with config panel), and 4.6.3 (Particle-to-layer baking) into
+the mainline. Next phase: 4.7 (Animation Exporter).

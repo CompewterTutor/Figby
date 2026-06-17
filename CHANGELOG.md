@@ -1,25 +1,30 @@
 # Changelog
 
-## [Unreleased] - 2026-06-17
+## [4.0.0-rc.1] - 2026-06-17
 ### Added
-- Phase 4.7: Animation Exporter (4.7.1–4.7.3) — frame-by-frame terminal capture,
-  APNG export, ANSI escape sequence export.
+- Phase 4.1: Priority bugs & polish — ZIP font browsing, welcome screen,
+  dialog enhancements (4.1.1–4.1.5).
+- Phase 4.2: Extended charsets — Braille, block elements, box drawing, Ogham,
+  Deluxe meta-charset (4.2.1–4.2.5).
+- Phase 4.5: Animation timeline — custom `AnimationTimeline` widget, frame
+  management, keyframing, tweening, GIF export (4.5.0–4.5.4).
+- Phase 4.6: Particle effect creator — data model, emitter UI, particle-to-layer
+  baking (4.6.1–4.6.3).
+- Phase 4.7: Animation exporter — frame-by-frame terminal capture, APNG export,
+  ANSI escape sequence export (4.7.1–4.7.3).
+- Phase 4.8: Animation player — custom `AnimationPlayer` widget, terminal capture
+  for playback, raw mode playback engine, TUI integration (4.8.0–4.8.3).
+- Phase 4.10: Web target — WASM build via Ratzilla (4.10.1).
 - Phase 4.11: Dynamic lighting system design document (4.11.1).
 ### Changed
-- Phase merge: release/4.11 → master. Phase 4.11 complete: dynamic lighting
-  system design (4.11.1).
-- Phase merge: release/4.8 → master. Phase 4.8 complete: AnimationPlayer widget
-  (4.8.0), terminal capture for playback (4.8.1), raw mode playback engine (4.8.2),
-  player integration into TUI (4.8.3).
-- Phase merge: release/4.7 → master. Phase 4.7 complete: frame-by-frame terminal
-  capture (4.7.1), APNG export (4.7.2), ANSI escape sequence export (4.7.3).
-- Phase merge: release/4.6 → master. Phase 4.6 complete: particle system data
-  model (4.6.1), particle emitter UI tool (4.6.2), particle-to-layer baking
-  (4.6.3).
-- Phase merge: release/4.5 → master. Phase 4.5 complete: AnimationTimeline widget
-  (4.5.0), frame management (4.5.1), keyframing (4.5.2), tweening (4.5.3),
-  GIF export from timeline (4.5.4).
-- Phase merge: release/4.7 → master — phase 4.7 complete.
+- Phase 4.3: Architecture audit — TUI deepdive vs ratatui best practices,
+  applied architecture fixes (4.3.1–4.3.2).
+- Phase 4.4: Layers, blending & compositing — layer system, blending modes,
+  layer groups + masks, export with layers (4.4.1–4.4.4).
+- Phase 4.9: Visual polish & TachyonFX — TachyonFX evaluation, default panel
+  theme, app fade-in on launch, status bar redesign (4.9.1–4.9.4).
+- Phase 4.12: Full regression against C FIGlet 2.2.5, v4 RC cut (4.12.1–4.12.2).
+- Version bumped from `3.0.0-rc.3` to `4.0.0-rc.1`.
 
 ## [3.0.0-rc.2] - 2026-06-17
 ### Changed

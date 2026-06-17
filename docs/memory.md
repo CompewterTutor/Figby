@@ -1570,3 +1570,31 @@ and on welcome-screen canvas reset.
 14 unit tests: multiply/overlay (dark+light)/screen/add/subtract channel math,
 composite with blend mode, composite with opacity+blend, cycle (next/prev six-step),
 set_blend_mode, icon_key, display_name, normal-returns-top.
+
+### 4.4.3 — Layer groups + masks
+
+Added `LayerMask` struct with `buffer: CanvasBuffer` and `enabled: bool`.
+Mask buffer initialized to spaces (fully transparent). Non-space cells = visible.
+Added `LayerGroup` struct with `name` and `collapsed` fields.
+
+`Layer` gained `mask: Option<LayerMask>` and `group: Option<usize>` fields.
+`LayerStack` gained `groups: Vec<LayerGroup>` plus methods: `create_group()`,
+`remove_group()`, `toggle_group_collapsed()`, `rename_group()`, `group_of_layer()`,
+`layers_in_group()`, `create_mask()`, `remove_mask()`, `toggle_mask()`,
+`toggle_mask_enabled()`, `set_mask_pixel()`, `get_mask_pixel()`.
+
+`composite()` checks mask per pixel: space cell in enabled mask → skip pixel.
+
+`LayerPanel::handle_key()` changed signature to accept `KeyEvent` (was `KeyCode`).
+New keybindings: `Ctrl+G` group, `Ctrl+Shift+G` ungroup, `→`/`←` expand/collapse,
+`M` toggle mask, `m` mask enable/disable (falls back to merge-down if no mask),
+`Tab` cycle focus across group boundaries.
+
+`render_with_stack()` renders group headers with `▶`/`▼` disclosure triangles,
+indents grouped layers by 2 spaces, shows 3-char mask thumbnail (`▓`/`░`/` `)
+sampled from mask row 0.
+
+22 unit tests: create/remove/toggle/rename group, group index shift after removal,
+preserved after layer delete, empty/invalid index guards, create/remove/toggle mask,
+toggle enabled, paint pixel, out-of-bounds, composite with mask (fully hidden),
+composite with painted mask (revealed), composite with disabled mask, mask thumbnail.

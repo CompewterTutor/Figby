@@ -927,3 +927,21 @@ Three bugs found in phase merge review:
 - Removing `pub use` re-exports (`BrushState`, etc.) breaks integration tests
   that import from the crate root. These must be maintained for public API
   compatibility even though the internal architecture changed.
+
+## 4.4.3 — Layer groups + masks
+
+- Clippy `option_map_unit_fn` lint fires on `opt.map(|v| v.field = val)` —
+  use `if let Some(v) = opt { v.field = val; }` instead. The `map` with a
+  side-effect-only closure is considered an anti-pattern (should only map
+  values, not cause side effects).
+- Changing `LayerPanel::handle_key` from `KeyCode` to `KeyEvent` required
+  updating the call site in `mod.rs:1736` to pass the full `key` event
+  (which is already in scope as a `KeyEvent` from `handle_key_event`).
+- `toggle_mask()` combining create/remove into a single toggle operation
+  is cleaner than separate `create_mask`/`remove_mask` for the `M` keybinding,
+  but all three methods are useful for programmatic control (tests,
+  undo/redo). Both toggle and explicit paths are exposed.
+- Mask thumbnail rendering samples 3 horizontal cells from row 0 of the
+  mask buffer. This is a simplification over "sample near cursor" — the
+  cursor position isn't available in the layer panel render path. Sampling
+  from row 0 is sufficient for a visual mask presence indicator.

@@ -170,7 +170,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Multiply + Overlay blend with known test patterns.
   - **Difficulty:** High
 
-- [ ] `4.4.3` Layer groups + masks
+- [x] `4.4.3` Layer groups + masks
   - **Goal:** Group layers into folders. Layer mask: paint on mask to
     hide/reveal parts of layer. Mask thumbnail in layer panel.
   - **Touches:** `figby-rs/src/tui/layers.rs`

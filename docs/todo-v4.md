@@ -386,7 +386,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** Side-by-side comparison shows obvious visual improvement.
   - **Difficulty:** Low
 
-- [ ] `4.9.3` App fade-in on launch (ratzilla-style)
+- [x] `4.9.3` App fade-in on launch (ratzilla-style)
   - **Goal:** On startup, play a brief fade-in effect (TachyonFX or custom) that
     reveals the canvas/UI. Reference: https://ratatui.rs/ecosystem/ratzilla/
     See the fade-in demo as inspiration.

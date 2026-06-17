@@ -409,7 +409,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.10 — Web Target
 
-- [ ] `4.10.1` WASM / web target via Ratzilla
+- [x] `4.10.1` WASM / web target via Ratzilla
   - **Goal:** Add a `wasm32-unknown-unknown` build target using `ratzilla` crate.
     Render the TUI in-browser via the Ratzilla web backend. Start with read-only
     font preview; interactive editing is stretch goal.

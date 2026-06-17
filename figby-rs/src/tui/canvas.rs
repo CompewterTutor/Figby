@@ -35,22 +35,7 @@ impl GlyphCursor {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CanvasCell {
-    pub ch: char,
-    pub fg: Option<Color>,
-    pub bg: Option<Color>,
-}
-
-impl Default for CanvasCell {
-    fn default() -> Self {
-        Self {
-            ch: ' ',
-            fg: None,
-            bg: None,
-        }
-    }
-}
+pub use crate::CanvasCell;
 
 #[derive(Debug, Clone)]
 pub struct CanvasBuffer {

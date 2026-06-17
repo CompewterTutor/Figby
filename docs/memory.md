@@ -1340,3 +1340,30 @@ Frame management operations for `AnimationTimeline`: `add_frame`,
 `TimelineState`. Onion skinning rendering toggle
 (`AnimationTimeline.onion_skinning`). Each `TimelineFrame` stores full
 layer state via `layer_state: Option<CanvasBuffer>`. 11 new tests.
+
+### 4.1.4 — Welcome screen on startup
+
+Created `figby-rs/src/tui/welcome.rs` with `WelcomeScreen` struct (`show: bool`,
+default `true`). Renders a centered welcome overlay showing Figby + version,
+recent files list (numbered 1-9 shortcuts), and keybinding hints (Ctrl+O Open,
+Ctrl+N New, S Settings, ? Help, Esc dismiss).
+
+Integration in `figby-rs/src/tui/mod.rs`:
+- `welcome_screen` field on `TuiApp`, initialized in `new()`
+- `render()` checks `welcome_screen.show` early, renders welcome as full-screen
+  overlay with `render_overlays()` stacked on top (so keybindings overlay works
+  on top of welcome)
+- `handle_key_event()` checks welcome after settings but before mode-specific
+  dispatch: Dismiss (Esc), OpenRecent (1-9), Open (Ctrl+O), NewFile (Ctrl+N),
+  ToggleHelp (?), OpenSettings (S)
+- All constructive actions dismiss the welcome screen; only ToggleHelp keeps it
+  visible (keybindings overlay renders on top)
+
+Key design decisions:
+- Welcome placed after dialog/settings checks but before mode handlers so open
+  dialog and settings panel can receive keys after welcome dismisses
+- 1-9 digit keys open recent files directly via `perform_open()` with path from
+  `recent_files.get(idx)`
+- Ctrl+N creates a new blank font (clears font, undo, path, resets canvas to 32×16)
+
+4 files touched: `welcome.rs` (new), `mod.rs` (modified). fmt and clippy pass clean.

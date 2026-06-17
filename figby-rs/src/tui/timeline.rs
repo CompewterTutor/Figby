@@ -2117,8 +2117,10 @@ mod tests {
         }
         state.compute_tween();
         state.commit_tween();
-        // current_frame was 0, insert at 1, so current shifts by 3 → 3
-        assert_eq!(state.current_frame, 3);
+        // Insert at 1, current_frame is 0 (before insert point), no shift
+        assert_eq!(state.current_frame, 0);
+        assert_eq!(state.frames.len(), 14);
+        assert!(state.frames[1].label.starts_with("tween"));
     }
 
     #[test]

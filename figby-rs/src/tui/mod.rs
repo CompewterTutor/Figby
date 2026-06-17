@@ -2204,15 +2204,15 @@ impl TuiApp {
             return None;
         }
 
-        // Toggle keyframe editor
-        if code == KeyCode::Char('k') || code == KeyCode::Char('K') {
+        // Toggle keyframe editor (uppercase only to avoid conflict)
+        if code == KeyCode::Char('K') {
             self.timeline_state.keyframe_editor.open = !self.timeline_state.keyframe_editor.open;
             self.dirty = true;
             return None;
         }
 
-        // Open tween panel
-        if code == KeyCode::Char('t') || code == KeyCode::Char('T') {
+        // Open tween panel (uppercase only to avoid conflict with Text tool)
+        if code == KeyCode::Char('T') {
             self.timeline_state.open_tween();
             self.dirty = true;
             return None;

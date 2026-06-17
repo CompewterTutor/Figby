@@ -10,8 +10,10 @@ use crate::output::{
     ExportError, ExportFormat,
 };
 
-use super::canvas::CanvasCell;
+use super::canvas::{CanvasBuffer, CanvasCell};
+use super::layers::{blend_colors, blend_mode_color, LayerStack};
 use super::theme::Theme;
+use super::timeline::TimelineState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportMode {
@@ -130,6 +132,27 @@ impl ExportDialog {
         self.timeline_available = false;
         self.frame_delays.clear();
         self.timeline_frames.clear();
+        self.preview_frame = 0;
+        self.preview_playing = false;
+    }
+
+    pub fn populate_from_timeline(
+        &mut self,
+        timeline: &TimelineState,
+        layer_stack: &LayerStack,
+        width: usize,
+        height: usize,
+    ) {
+        let frames = capture_timeline_frames(timeline, layer_stack, width, height);
+        if frames.is_empty() {
+            self.clear_timeline();
+            return;
+        }
+        self.timeline_frames = frames;
+        self.timeline_available = true;
+        let count = self.timeline_frames.len();
+        let delay = (100u16 / self.fps.max(1) as u16).max(1);
+        self.frame_delays = vec![delay; count];
         self.preview_frame = 0;
         self.preview_playing = false;
     }
@@ -589,6 +612,68 @@ impl Default for ExportDialog {
     }
 }
 
+pub fn capture_timeline_frames(
+    timeline: &TimelineState,
+    layer_stack: &LayerStack,
+    width: usize,
+    height: usize,
+) -> Vec<Vec<Vec<CanvasCell>>> {
+    if timeline.frames.is_empty() {
+        return Vec::new();
+    }
+    (0..timeline.frames.len())
+        .map(|frame_idx| {
+            let mut result_buf = CanvasBuffer::new(width, height);
+            for (layer_idx, layer) in layer_stack.layers.iter().enumerate() {
+                if !layer.visible {
+                    continue;
+                }
+                let props = timeline.get_interpolated_properties(frame_idx, layer_idx);
+                if props.opacity == 0 {
+                    continue;
+                }
+                let ox = props.position_offset.0.max(0) as usize;
+                let oy = props.position_offset.1.max(0) as usize;
+                for y in 0..height.min(layer.buffer.height()) {
+                    for x in 0..width.min(layer.buffer.width()) {
+                        let bx = x + ox;
+                        let by = y + oy;
+                        if bx >= width || by >= height {
+                            continue;
+                        }
+                        if let Some(top) = layer.buffer.get(x, y) {
+                            if top.ch == ' ' && top.fg.is_none() && top.bg.is_none() {
+                                continue;
+                            }
+                            let bottom = result_buf.get(bx, by).copied().unwrap_or_default();
+                            let blended_fg = blend_mode_color(top.fg, bottom.fg, props.blend_mode);
+                            let blended_bg = blend_mode_color(top.bg, bottom.bg, props.blend_mode);
+                            let final_fg = blend_colors(blended_fg, bottom.fg, props.opacity);
+                            let final_bg = blend_colors(blended_bg, bottom.bg, props.opacity);
+                            result_buf.set(
+                                bx,
+                                by,
+                                CanvasCell {
+                                    ch: top.ch,
+                                    fg: final_fg,
+                                    bg: final_bg,
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+            (0..result_buf.height())
+                .map(|y| {
+                    (0..result_buf.width())
+                        .map(|x| result_buf.get(x, y).copied().unwrap_or_default())
+                        .collect()
+                })
+                .collect()
+        })
+        .collect()
+}
+
 use ratatui::buffer::Buffer;
 use ratatui::widgets::Widget;
 
@@ -778,7 +863,10 @@ impl Widget for &ExportDialog {
 
 #[cfg(test)]
 mod tests {
+    use super::super::layers::{BlendMode, Layer, LayerStack};
+    use super::super::timeline::{LayerKeyframe, TimelineFrame, TimelineState};
     use super::*;
+    use ratatui::style::Color;
 
     #[test]
     fn test_export_dialog_new() {
@@ -1020,5 +1108,237 @@ mod tests {
         assert_eq!(dialog.preview_frame, 1);
         dialog.handle_key(KeyCode::Char(' '));
         assert_eq!(dialog.preview_frame, 2);
+    }
+
+    // ── capture_timeline_frames tests ──────────────────────────────────
+
+    #[test]
+    fn test_capture_empty_timeline() {
+        let timeline = TimelineState::default();
+        let stack = LayerStack::new(5, 5);
+        let frames = capture_timeline_frames(&timeline, &stack, 5, 5);
+        assert!(frames.is_empty());
+    }
+
+    #[test]
+    fn test_capture_single_layer_single_frame() {
+        let mut stack = LayerStack::new(3, 3);
+        stack.layers[0].buffer.set(
+            0,
+            0,
+            CanvasCell {
+                ch: 'A',
+                fg: Some(Color::Red),
+                bg: None,
+            },
+        );
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: None,
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+        let frames = capture_timeline_frames(&timeline, &stack, 3, 3);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0][0][0].ch, 'A');
+        assert_eq!(frames[0][0][0].fg, Some(Color::Red));
+    }
+
+    #[test]
+    fn test_capture_two_layers_composite() {
+        let mut stack = LayerStack::new(3, 3);
+        stack.layers[0].buffer.set(
+            0,
+            0,
+            CanvasCell {
+                ch: 'A',
+                fg: Some(Color::Red),
+                bg: None,
+            },
+        );
+        stack.layers.push(Layer::new(3, 3, "Layer 1".into()));
+        stack.layers[1].buffer.set(
+            1,
+            0,
+            CanvasCell {
+                ch: 'B',
+                fg: Some(Color::Green),
+                bg: None,
+            },
+        );
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: None,
+            layer_keyframes: vec![
+                Some(LayerKeyframe::default()),
+                Some(LayerKeyframe::default()),
+            ],
+        });
+        let frames = capture_timeline_frames(&timeline, &stack, 3, 3);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0][0][0].ch, 'A');
+        assert_eq!(frames[0][0][1].ch, 'B');
+    }
+
+    #[test]
+    fn test_capture_keyframe_position_offset() {
+        let mut stack = LayerStack::new(5, 3);
+        stack.layers[0].buffer.set(
+            0,
+            0,
+            CanvasCell {
+                ch: 'X',
+                fg: Some(Color::Blue),
+                bg: None,
+            },
+        );
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: None,
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F1".into(),
+            layer_state: None,
+            layer_keyframes: vec![Some(LayerKeyframe {
+                position_offset: (1, 0),
+                ..Default::default()
+            })],
+        });
+        let frames = capture_timeline_frames(&timeline, &stack, 5, 3);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0][0][0].ch, 'X');
+        assert_eq!(frames[1][0][0].ch, ' ');
+        assert_eq!(frames[1][0][1].ch, 'X');
+    }
+
+    #[test]
+    fn test_capture_keyframe_opacity() {
+        let mut stack = LayerStack::new(3, 3);
+        stack.layers[0].buffer.set(
+            0,
+            0,
+            CanvasCell {
+                ch: 'Z',
+                fg: Some(Color::Cyan),
+                bg: None,
+            },
+        );
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: None,
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F1".into(),
+            layer_state: None,
+            layer_keyframes: vec![Some(LayerKeyframe {
+                opacity: 0,
+                ..Default::default()
+            })],
+        });
+        let frames = capture_timeline_frames(&timeline, &stack, 3, 3);
+        assert_eq!(frames.len(), 2);
+        let cell = &frames[1][0][0];
+        assert_eq!(cell.ch, ' ');
+        assert_eq!(cell.fg, None);
+    }
+
+    #[test]
+    fn test_capture_keyframe_blend_mode() {
+        let mut stack = LayerStack::new(1, 1);
+        stack.layers[0].buffer.set(
+            0,
+            0,
+            CanvasCell {
+                ch: ' ',
+                fg: Some(Color::Rgb(200, 100, 50)),
+                bg: None,
+            },
+        );
+        stack.layers.push(Layer::new(1, 1, "Layer 1".into()));
+        stack.layers[1].buffer.set(
+            0,
+            0,
+            CanvasCell {
+                ch: 'X',
+                fg: Some(Color::Rgb(100, 200, 50)),
+                bg: None,
+            },
+        );
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: None,
+            layer_keyframes: vec![
+                Some(LayerKeyframe::default()),
+                Some(LayerKeyframe {
+                    blend_mode: BlendMode::Multiply,
+                    ..Default::default()
+                }),
+            ],
+        });
+        let frames = capture_timeline_frames(&timeline, &stack, 1, 1);
+        // Multiply(100,200,50) × (200,100,50) = (78,78,9)
+        let blended = frames[0][0][0].fg;
+        assert_eq!(blended, Some(Color::Rgb(78, 78, 9)));
+    }
+
+    #[test]
+    fn test_capture_populate_dialog() {
+        let mut dialog = ExportDialog::new();
+        dialog.fps = 12;
+        let mut stack = LayerStack::new(3, 3);
+        stack.layers[0].buffer.set(
+            0,
+            0,
+            CanvasCell {
+                ch: 'A',
+                fg: Some(Color::Red),
+                bg: None,
+            },
+        );
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: None,
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+        assert!(!dialog.timeline_available);
+        dialog.populate_from_timeline(&timeline, &stack, 3, 3);
+        assert!(dialog.timeline_available);
+        assert_eq!(dialog.timeline_frames.len(), 1);
+        assert_eq!(dialog.timeline_frames[0][0][0].ch, 'A');
+        assert_eq!(dialog.frame_delays, vec![8]);
+    }
+
+    #[test]
+    fn test_capture_populate_dialog_empty_timeline() {
+        let mut dialog = ExportDialog::new();
+        let timeline = TimelineState::default();
+        let stack = LayerStack::new(3, 3);
+        dialog.timeline_available = true;
+        dialog.populate_from_timeline(&timeline, &stack, 3, 3);
+        assert!(!dialog.timeline_available);
+        assert!(dialog.timeline_frames.is_empty());
     }
 }

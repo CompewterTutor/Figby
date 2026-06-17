@@ -880,20 +880,11 @@ Transform editor UI: navigable list (`↑`/`↓`), Enter activates, parameter in
 
 ### 2.5.7 — Phase merge: release/2.5 → main
 
-<<<<<<< HEAD
-Merged all Phase 2.5 work into default branch (master). Phase 2.5 complete:
-font mode scaffold with glyph grid overview (2.5.1), per-character canvas
-editing with drawing tools + undo/redo (2.5.2), FIGfont header/layout editor
-(2.5.3), smushing rule configuration (2.5.4), add/remove codetagged characters
-(2.5.5), font-level transform tools (2.5.6). All 6 subtasks (2.5.1–2.5.6)
-implemented, tested, merged. Phase 2.6 (Image Editor Mode) is next.
-=======
 - **Merge commit `b6d340f`** — release/2.5 merged into main.
 - Phase 2.5 complete: all 7 subtasks (2.5.1–2.5.7) implemented, tested, merged.
 - **Documentation**: `docs/todo-v2.md` task checked off; this memory entry added.
 - **No code changes** — merge was performed externally; only doc state synced.
 - **Next up**: Phase 2.6 — Image Editor Mode.
->>>>>>> release/2.5
 
 ### 2.6.1 — Image import + canvas display
 

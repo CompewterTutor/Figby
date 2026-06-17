@@ -376,7 +376,6 @@ DONE: 2.4.6 merged into release/2.4.
 ## 2026-06-13 14:26
 
 DONE: 2.4.7 merged into release/2.4.
-<<<<<<< Updated upstream
 
 ## 2026-06-13 14:32
 
@@ -387,9 +386,6 @@ DONE: 2.4.8 merged into master (phase merge).
 All 2.4 tasks complete. Starting phase review.
 
 PHASE_COMPLETE: 2.4 merged to main after review approval.
-
-=======
->>>>>>> Stashed changes
 
 ## 2026-06-13 17:29
 
@@ -411,15 +407,13 @@ DONE: 2.5.4 merged into release/2.5.
 
 DONE: 2.5.5 merged into release/2.5.
 
-<<<<<<< HEAD
 ## 2026-06-13 18:04
 
 DONE: 2.5.6 merged into release/2.5.
-=======
+
 ## 2026-06-13 18:07
 
 DONE: 2.5.7 merged into release/2.5.
->>>>>>> release/2.5
 
 ## 2026-06-13 18:12
 
@@ -444,8 +438,6 @@ DONE: 2.6.4 merged into release/2.6.
 ## 2026-06-13 18:55
 
 DONE: 2.6.5 merged into master (phase merge).
-<<<<<<< HEAD
-=======
 
 ## 2026-06-13 18:56
 
@@ -454,7 +446,6 @@ DONE: 2.6.5 merged into release/2.6.
 ## 2026-06-13 18:56
 
 All 2.6 tasks complete. Starting phase review.
->>>>>>> release/2.6
 
 ## 2026-06-13 18:59
 
@@ -2938,3 +2929,11 @@ DONE: 3.3.1 merged into release/3.3.
 ## 2026-06-16 05:57
 
 All 3.3 tasks complete. Starting phase review.
+
+## 2026-06-17 05:08
+
+All 4.0 tasks complete. Starting phase review.
+
+## 2026-06-17 05:08
+
+MAJOR_RC_READY: rc/4.0.0-rc.1 + tag 4.0.0-rc.1 created from release/4.0. Awaiting human sign-off before merge to main.

@@ -245,7 +245,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Export GIF, verify frame count + timing.
   - **Difficulty:** Medium
 
-- [ ] `4.5.5` Phase merge: release/4.5 → main
+- [x] `4.5.5` Phase merge: release/4.5 → main
   - **Difficulty:** Low
 
 ---

@@ -1,13 +1,11 @@
+use super::canvas::CanvasCell;
+use super::theme::Theme;
 use crossterm::event::KeyCode;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Widget};
-use ratatui::Frame;
-
-use super::canvas::CanvasCell;
-use super::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorTarget {
@@ -250,10 +248,6 @@ impl Palette {
             }
             _ => false,
         }
-    }
-
-    pub fn render(&self, frame: &mut Frame<'_>, area: Rect) {
-        frame.render_widget(self, area);
     }
 }
 

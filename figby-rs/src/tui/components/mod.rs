@@ -1,9 +1,1 @@
-pub mod canvas;
-pub mod export;
-pub mod file_ops;
-pub mod font_editor;
-pub mod image_editor;
-pub mod palette;
-pub mod status_bar;
-pub mod toolbox;
-pub mod undo_panel;
+// Component wrappers removed — widgets render directly via frame.render_widget().

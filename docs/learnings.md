@@ -881,3 +881,25 @@ Three bugs found in phase merge review:
   in `main.rs` → FIGlet protocol compatibility (stay at 2.2.5).
 - RC tags should follow existing pattern: `rc/X.Y.Z-rc.N` branch + annotated
   `vX.Y.Z-rc.N` tag. The `v` prefix is consistent with earlier version tags.
+
+## 4.3.2 — Apply ratatui architecture fixes from audit
+
+- The `Widget for &T` pattern renders to `Buffer`, not `Frame`. Converting
+  Frame-based render methods to Buffer-based requires replacing
+  `frame.render_widget(w, area)` with `ratatui::widgets::Widget::render(w, area, buf)`.
+- `FontEditor` had ~2000 lines of Frame-based rendering. Making it implement
+  `Widget` required converting all sub-render methods from `Frame` to `Buffer`,
+  and extracting `StatefulWidget` state mutation into a separate
+  `before_render(&mut self)` step.
+- When converting `StatefulWidget` to regular `Widget`, the state (e.g.
+  `GlyphGridState::cell_rects`) must be pre-computed in `before_render()`
+  since the Widget impl only borrows `&self`.
+- Screen-to-buffer coordinate conversion needs the canvas inner rect, which
+  was previously stored on `CanvasComponent`. After inlining, it's computed
+  locally in both `render_canvas_area()` and the mouse handler, which
+  computes `FrameLayout` from `crossterm::terminal::size()`.
+- The mouse handler's `FrameLayout` computation duplicates what `render()`
+  does, but it's cheap arithmetic and avoids stale stored geometry.
+- Removing `pub use` re-exports (`BrushState`, etc.) breaks integration tests
+  that import from the crate root. These must be maintained for public API
+  compatibility even though the internal architecture changed.

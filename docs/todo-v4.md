@@ -137,7 +137,7 @@ with theming, modern status bar, and component architecture.
     file:line findings and proposed fixes.
   - **Difficulty:** Medium
 
-- [ ] `4.3.2` Apply ratatui architecture fixes from audit
+- [x] `4.3.2` Apply ratatui architecture fixes from audit
   - **Goal:** Implement fixes identified in `4.3.1`. Priority: widget
     ownership/borrow patterns first, then layout constraints.
   - **Touches:** `figby-rs/src/tui/`

@@ -24,6 +24,30 @@ pub struct TuiSection {
     pub render_mode: Option<String>,
     #[serde(default)]
     pub brush: BrushSection,
+    #[serde(default)]
+    pub particles: ParticleSection,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ParticleSection {
+    pub emitter_x: Option<f64>,
+    pub emitter_y: Option<f64>,
+    pub spawn_rate: Option<f64>,
+    pub lifetime_min: Option<f64>,
+    pub lifetime_max: Option<f64>,
+    pub velocity_x_min: Option<f64>,
+    pub velocity_x_max: Option<f64>,
+    pub velocity_y_min: Option<f64>,
+    pub velocity_y_max: Option<f64>,
+    pub acceleration_x: Option<f64>,
+    pub acceleration_y: Option<f64>,
+    pub size: Option<u8>,
+    pub color_r: Option<u8>,
+    pub color_g: Option<u8>,
+    pub color_b: Option<u8>,
+    pub character: Option<String>,
+    pub opacity: Option<u8>,
+    pub blend_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

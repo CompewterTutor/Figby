@@ -1677,6 +1677,28 @@ Merged release/4.5 branch into master. Brings 4.5.0 (AnimationTimeline widget),
 4.5.1 (Frame management), 4.5.2 (Keyframing), 4.5.3 (Tweening), and 4.5.4 (GIF export
 from timeline) into the mainline. Next phase: 4.6 (Particle Effect Creator).
 
+### 4.6.1 — Particle system design
+
+Created `figby-rs/src/tui/particles.rs` with particle data model:
+- `ParticleConfig` struct — TOML-deserializable config with emitter position,
+  spawn rate, lifetime range, velocity range (x/y), acceleration (x/y), size,
+  color (optional R/G/B), character, opacity, blend mode
+- `Particle` struct — runtime particle state with current position (x,y),
+  velocity (vx,vy), remaining_lifetime, size, color, character, opacity,
+  blend_mode
+- `ParticleSystem` struct — owns config + active_particles Vec + age +
+  spawn_rate_accumulator. Methods: `new()`, `update(dt)`, `active_count()`,
+  `clear()`, `pause()`, `resume()`, `is_paused()`
+- Spawn-before-update: particles spawn at emitter then move during the same
+  frame's update pass. Expired particles removed via `retain(|p| remaining > 0.0)`.
+- `ParticleSection` added to `config.rs` TOML config — all ParticleConfig fields
+  as `Option<T>` for granular config file override
+- `FromStr` impl for `BlendMode` in `layers.rs` — parses blend mode names from
+  config strings, falls back to Normal on unknown
+- 12 unit tests: spawn, motion, expire, acceleration, spawn rate accumulator,
+  full lifecycle, color from config, no color default, pause/resume, clear,
+  negative dt, zero dt
+
 ### 4.5.2 — Keyframing
 
 Added per-layer keyframing to the `AnimationTimeline` widget:

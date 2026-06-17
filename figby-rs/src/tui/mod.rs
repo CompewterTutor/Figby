@@ -31,6 +31,7 @@ pub mod layers;
 pub mod layout;
 pub mod menu;
 pub mod palette;
+pub mod particles;
 pub mod render_mode;
 pub mod status;
 pub mod theme;

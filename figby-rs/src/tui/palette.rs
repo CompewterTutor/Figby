@@ -37,7 +37,9 @@ pub const CHAR_GROUPS: &[CharGroup] = &[
     CharGroup { name: "ascii",   chars: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~" },
     CharGroup { name: "braille", chars: "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿⡀⡁⡂⡃⡄⡅⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿" },
     CharGroup { name: "blocks",  chars: "▀▁▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟" },
-    CharGroup { name: "box",     chars: "─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬━┃┏┓┗┛┣┫┳┻╋╴╵╶╷" },
+    CharGroup { name: "box",     chars: "─━│┃┄┅┆┇┈┉┊┋┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╎╏═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿" },
+    CharGroup { name: "dithered", chars: "░▒▓" },
+    CharGroup { name: "geometric", chars: "■□▪▫▲△▶▷▼▽◀◁◆◇◈◊○◎●◐◑◦◯" },
     CharGroup { name: "ogham",   chars: " ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏᚐᚑᚒᚓᚔᚕᚖᚗᚘᚙᚚ᚛᚜" },
 ];
 
@@ -467,5 +469,146 @@ mod tests {
                 0x2580 + i as u32
             );
         }
+    }
+
+    // --- Box palette tests ---
+
+    #[test]
+    fn test_box_palette_count_128() {
+        let box_group = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "box")
+            .expect("box group should exist");
+        let count = box_group.chars.chars().count();
+        assert_eq!(
+            count, 128,
+            "box group should have exactly 128 chars, got {count}"
+        );
+    }
+
+    #[test]
+    fn test_box_palette_all_in_range() {
+        let box_group = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "box")
+            .expect("box group should exist");
+        for c in box_group.chars.chars() {
+            let cp = c as u32;
+            assert!(
+                (0x2500..=0x257F).contains(&cp),
+                "box char U+{cp:04X} outside U+2500–U+257F"
+            );
+        }
+    }
+
+    #[test]
+    fn test_box_palette_all_128_unique() {
+        let box_group = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "box")
+            .expect("box group should exist");
+        let mut cps: Vec<u32> = box_group.chars.chars().map(|c| c as u32).collect();
+        assert_eq!(cps.len(), 128, "should have 128 box chars");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 128, "should have 128 unique box codepoints");
+        assert_eq!(cps[0], 0x2500, "first codepoint should be U+2500");
+        assert_eq!(cps[127], 0x257F, "last codepoint should be U+257F");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2500 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2500 + i as u32
+            );
+        }
+    }
+
+    // --- Dithered palette tests ---
+
+    #[test]
+    fn test_dithered_palette_count_3() {
+        let dithered = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "dithered")
+            .expect("dithered group should exist");
+        let count = dithered.chars.chars().count();
+        assert_eq!(
+            count, 3,
+            "dithered group should have exactly 3 chars, got {count}"
+        );
+    }
+
+    #[test]
+    fn test_dithered_palette_all_in_range() {
+        let dithered = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "dithered")
+            .expect("dithered group should exist");
+        for c in dithered.chars.chars() {
+            let cp = c as u32;
+            assert!(
+                (0x2591..=0x2593).contains(&cp),
+                "dithered char U+{cp:04X} outside U+2591–U+2593"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dithered_palette_all_unique() {
+        let dithered = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "dithered")
+            .expect("dithered group should exist");
+        let mut cps: Vec<u32> = dithered.chars.chars().map(|c| c as u32).collect();
+        assert_eq!(cps.len(), 3, "should have 3 dithered chars");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 3, "should have 3 unique dithered codepoints");
+        assert_eq!(cps[0], 0x2591, "first should be U+2591");
+        assert_eq!(cps[2], 0x2593, "last should be U+2593");
+    }
+
+    // --- Geometric palette tests ---
+
+    #[test]
+    fn test_geometric_palette_count_23() {
+        let geometric = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "geometric")
+            .expect("geometric group should exist");
+        let count = geometric.chars.chars().count();
+        assert_eq!(
+            count, 23,
+            "geometric group should have exactly 23 chars, got {count}"
+        );
+    }
+
+    #[test]
+    fn test_geometric_palette_all_in_range() {
+        let geometric = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "geometric")
+            .expect("geometric group should exist");
+        for c in geometric.chars.chars() {
+            let cp = c as u32;
+            assert!(
+                (0x25A0..=0x25FF).contains(&cp),
+                "geometric char U+{cp:04X} outside U+25A0–U+25FF"
+            );
+        }
+    }
+
+    #[test]
+    fn test_geometric_palette_all_unique() {
+        let geometric = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "geometric")
+            .expect("geometric group should exist");
+        let mut cps: Vec<u32> = geometric.chars.chars().map(|c| c as u32).collect();
+        assert_eq!(cps.len(), 23, "should have 23 geometric chars");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 23, "should have 23 unique geometric codepoints");
     }
 }

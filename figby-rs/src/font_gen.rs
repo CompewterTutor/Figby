@@ -267,6 +267,30 @@ fn blocks_charset() -> &'static [&'static str] {
     })
 }
 
+/// Dithered/shade chars U+2591–U+2593 (░▒▓).
+fn dithered_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| make_charset_vec(0x2591u32..=0x2593u32))
+}
+
+/// Geometric shapes subset U+25A0–U+25FF: squares, triangles, diamonds, circles.
+fn geometric_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let cps: Vec<u32> = vec![
+            0x25A0, 0x25A1, 0x25AA, 0x25AB, // squares
+            0x25B2, 0x25B3, 0x25B6, 0x25B7, // triangles
+            0x25BC, 0x25BD, 0x25C0, 0x25C1, // triangles
+            0x25C6, 0x25C7, 0x25C8, // diamonds
+            0x25CA, // lozenge
+            0x25CB, 0x25CE, 0x25CF, // circles
+            0x25D0, 0x25D1, // half circles
+            0x25E6, 0x25EF, // white bullet, large circle
+        ];
+        make_charset_vec(cps.into_iter())
+    })
+}
+
 /// Box drawing + selected geometric shapes.
 fn box_charset() -> &'static [&'static str] {
     static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
@@ -297,13 +321,15 @@ fn deluxe_charset() -> &'static [&'static str] {
         v.extend_from_slice(box_charset());
         v.extend_from_slice(braille_charset());
         v.extend_from_slice(ogham_charset());
+        v.extend_from_slice(dithered_charset());
+        v.extend_from_slice(geometric_charset());
         v
     })
 }
 
 /// Resolve a charset name to a character slice for font generation.
 /// Built-in names: `block`, `default`, `slight`, `smooth`,
-/// `braille`, `blocks`, `box`, `ogham`, `deluxe`.
+/// `braille`, `blocks`, `box`, `ogham`, `deluxe`, `dithered`, `geometric`.
 pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
     Some(match name {
         "block" => charsets::BLOCK,
@@ -314,6 +340,8 @@ pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
         "blocks" => blocks_charset(),
         "box" => box_charset(),
         "ogham" => ogham_charset(),
+        "dithered" => dithered_charset(),
+        "geometric" => geometric_charset(),
         "deluxe" => deluxe_charset(),
         _ => return None,
     })
@@ -948,5 +976,77 @@ mod tests {
                 0x2580 + i as u32
             );
         }
+    }
+
+    // --- Dithered charset tests ---
+
+    #[test]
+    fn test_dithered_count_3() {
+        assert_eq!(dithered_charset().len(), 3);
+    }
+
+    #[test]
+    fn test_dithered_all_in_range() {
+        for s in dithered_charset() {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x2591..=0x2593).contains(&cp),
+                "dithered char U+{cp:04X} outside U+2591–U+2593"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dithered_all_unique() {
+        let chars = dithered_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 3, "should have 3 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 3, "should have 3 unique codepoints");
+        assert_eq!(cps[0], 0x2591, "first should be U+2591");
+        assert_eq!(cps[2], 0x2593, "last should be U+2593");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2591 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2591 + i as u32
+            );
+        }
+    }
+
+    // --- Geometric charset tests ---
+
+    #[test]
+    fn test_geometric_count_23() {
+        assert_eq!(geometric_charset().len(), 23);
+    }
+
+    #[test]
+    fn test_geometric_all_in_range() {
+        for s in geometric_charset() {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x25A0..=0x25FF).contains(&cp),
+                "geometric char U+{cp:04X} outside U+25A0–U+25FF"
+            );
+        }
+    }
+
+    #[test]
+    fn test_geometric_all_unique() {
+        let chars = geometric_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 23, "should have 23 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 23, "should have 23 unique codepoints");
     }
 }

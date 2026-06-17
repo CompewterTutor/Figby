@@ -1425,3 +1425,18 @@ ordered by luminance (light → dark). Removed space (U+0020) which was not a bl
 Updated `blocks` palette string in `palette.rs` to match. Added 3 verification tests in
 `font_gen.rs` (count=32, range check, unique/nogap all-32-codepoints) and 3 in `palette.rs`
 (same checks on the static group string). All blocks tests pass.
+
+### 4.2.3 — Box drawing + dithered charset
+
+Added three new charset functions to `font_gen.rs`:
+- `dithered_charset()` — U+2591–U+2593 (░▒▓), 3 chars, `OnceLock` pattern
+- `geometric_charset()` — 23 geometric shapes from U+25A0–U+25FF (squares, triangles, diamonds, circles)
+- `resolve_charset("dithered")` and `resolve_charset("geometric")` wired for font-gen use
+- `deluxe_charset()` extended with `dithered_charset()` and `geometric_charset()`
+
+Updated `palette.rs`:
+- `box` group expanded from 38-char subset to full 128-char range U+2500–U+257F
+- `dithered` group added: "░▒▓" (3 chars)
+- `geometric` group added: 23 geometric shapes matching `geometric_charset()`
+
+Added 6 verification tests in `font_gen.rs` (count, range, uniqueness for dithered [3 tests] and geometric [3 tests]) and 9 in `palette.rs` (count, range, uniqueness for box [3], dithered [3], geometric [3]). fmt and clippy pass clean.

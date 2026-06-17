@@ -97,7 +97,7 @@ with theming, modern status bar, and component architecture.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`
   - **Difficulty:** Low
 
-- [ ] `4.2.3` Box drawing + dithered charset
+- [x] `4.2.3` Box drawing + dithered charset
   - **Goal:** Add:
     - Box drawing: U+2500–U+257F (─│┌┐└┘├┤┬┴┼ and double/heavy variants)
     - Legacy dither/shade: U+2591–U+2593 (░▒▓)

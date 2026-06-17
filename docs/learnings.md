@@ -1,5 +1,11 @@
 # Figby — Learnings
 
+## 4.8.4 — Phase merge: release/4.8 → master
+
+- No code changes — merge brought in AnimationPlayer widget (4.8.0), terminal
+  capture (4.8.1), raw-mode playback (4.8.2), and player TUI integration (4.8.3)
+  from release/4.8 branch. Only docs, changelog, and metadata updated.
+
 ## 4.8.2 — Raw mode playback engine
 
 - `write!()` into `String` requires `use std::fmt::Write`, not `use std::io::Write`.

@@ -4,7 +4,10 @@
 ### Added
 - Phase 4.7: Animation Exporter (4.7.1–4.7.3) — frame-by-frame terminal capture,
   APNG export, ANSI escape sequence export.
+- Phase 4.11: Dynamic lighting system design document (4.11.1).
 ### Changed
+- Phase merge: release/4.11 → master. Phase 4.11 complete: dynamic lighting
+  system design (4.11.1).
 - Phase merge: release/4.8 → master. Phase 4.8 complete: AnimationPlayer widget
   (4.8.0), terminal capture for playback (4.8.1), raw mode playback engine (4.8.2),
   player integration into TUI (4.8.3).

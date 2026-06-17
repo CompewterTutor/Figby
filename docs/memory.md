@@ -1402,3 +1402,71 @@ open dialog (4.1.2), block mouse fall-through when dialog is open (4.1.3),
 welcome screen on startup (4.1.4), ZIP file browsing in file open dialog (4.1.5).
 All 5 subtasks (4.1.1–4.1.5) implemented, tested, merged. Phase 4.2 (Extended
 Charsets) is next.
+
+### 4.2.1 — Braille charset block
+
+Production code was already in place:
+- `braille_charset()` in `font_gen.rs` — all 256 codepoints U+2800–U+28FF, sorted
+  by dot count then codepoint, cached via `OnceLock`
+- `resolve_charset("braille")` — wired to `braille_charset()` for font-gen use
+- `deluxe_charset()` — includes braille via `extend_from_slice(braille_charset())`
+- `CHAR_GROUPS` in `palette.rs` — braille group with all 256 braille chars as
+  a static string, exposed for future canvas charset picker
+
+Added 7 verification tests (4 in `font_gen.rs`, 3 in `palette.rs`):
+- Count (256), range (U+2800–U+28FF), sort order (dot count, codepoint), unique
+  all-codepoints-no-gaps checks for both the charset function and the palette
+   group string. fmt and clippy pass clean.
+
+### 4.2.2 — Block elements charset
+
+Updated `blocks_charset()` in `font_gen.rs` to contain all 32 codepoints U+2580–U+259F,
+ordered by luminance (light → dark). Removed space (U+0020) which was not a block element.
+Updated `blocks` palette string in `palette.rs` to match. Added 3 verification tests in
+`font_gen.rs` (count=32, range check, unique/nogap all-32-codepoints) and 3 in `palette.rs`
+(same checks on the static group string). All blocks tests pass.
+
+### 4.2.4 — Ogham charset
+
+Production code was already in place:
+- `ogham_charset()` in `font_gen.rs` — 29 codepoints U+1680–U+169C, cached via `OnceLock`
+- `resolve_charset("ogham")` — wired to `ogham_charset()` for font-gen use
+- `deluxe_charset()` — includes ogham via `extend_from_slice(ogham_charset())`
+- `CHAR_GROUPS` in `palette.rs` — ogham group with 29 chars as a static string
+
+Fix applied: palette ogham group first char was U+0020 (regular space) instead of
+U+1680 (Ogham Space Mark). Changed to U+1680 to match `ogham_charset()` output.
+
+Added 6 verification tests (3 in `font_gen.rs`, 3 in `palette.rs`):
+- Count (29), range (U+1680–U+169F), unique all-codepoints-no-gaps checks for both
+  the charset function and the palette group string. fmt and clippy pass clean.
+
+### 4.2.3 — Box drawing + dithered charset
+
+Added three new charset functions to `font_gen.rs`:
+- `dithered_charset()` — U+2591–U+2593 (░▒▓), 3 chars, `OnceLock` pattern
+- `geometric_charset()` — 23 geometric shapes from U+25A0–U+25FF (squares, triangles, diamonds, circles)
+- `resolve_charset("dithered")` and `resolve_charset("geometric")` wired for font-gen use
+- `deluxe_charset()` extended with `dithered_charset()` and `geometric_charset()`
+
+Updated `palette.rs`:
+- `box` group expanded from 38-char subset to full 128-char range U+2500–U+257F
+- `dithered` group added: "░▒▓" (3 chars)
+- `geometric` group added: 23 geometric shapes matching `geometric_charset()`
+
+Added 6 verification tests in `font_gen.rs` (count, range, uniqueness for dithered [3 tests] and geometric [3 tests]) and 9 in `palette.rs` (count, range, uniqueness for box [3], dithered [3], geometric [3]). fmt and clippy pass clean.
+
+### 4.2.5 — "Deluxe" meta-charset
+
+Updated `palette.rs`:
+- "deluxe" `CharGroup` changed from descriptive string to explicit `concat!()` of all
+  566 characters: ASCII printable, blocks (with quadrants), box drawing, dither,
+  geometric shapes, braille, and Ogham.
+- "deluxe" listed first in `CHAR_GROUPS` as the richest set.
+
+Added 3 verification tests in `palette.rs`:
+- `test_deluxe_palette_count` — asserts exactly 566 chars
+- `test_deluxe_palette_contains_all_subset_chars` — asserts every char from every
+  other group appears in deluxe
+- `test_deluxe_palette_all_unique` — asserts 563 unique codepoints (3 dithered
+  are subset of blocks). fmt and clippy pass clean.

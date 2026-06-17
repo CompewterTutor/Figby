@@ -857,6 +857,23 @@ Three bugs found in phase merge review:
 - **`Selection::marquee`** creates rectangle selection from 2 points.
   For integration tests, create programmatically then set `app.editor.selection`.
 
+## 4.2.4 — Ogham charset
+
+- Palette static string in `CHAR_GROUPS` for ogham used U+0020 (regular space) as
+  the first character instead of U+1680 (Ogham Space Mark). This was a spec-compliance
+  bug: the `font_gen.rs` `ogham_charset()` includes U+1680 as the first codepoint,
+  but the palette display string used a regular space. Fix: replace the leading
+  U+0020 byte with the UTF-8 encoding of U+1680 (`E1 9A 80`).
+
+## 4.2.1 — Braille charset block
+
+- Production code (braille_charset, resolve_charset wiring, deluxe_charset
+  integration, CHAR_GROUPS static string) was already in place from earlier
+  font_gen development. Task deliverable was exclusively 7 verification tests.
+  This is an unusual pattern — typically tasks implement new production code.
+  When production code pre-exists, the task can focus solely on test coverage
+  and documentation.
+
 ## 3.3.2 — v3.0.0 RC cut
 
 - Crate version and FIGlet-compatible version are separate concerns.

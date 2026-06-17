@@ -247,20 +247,45 @@ fn braille_charset() -> &'static [&'static str] {
     })
 }
 
-/// Block elements + shade chars + vertical eighths.
+/// Block elements U+2580–U+259F, ordered by luminance (light → dark).
 fn blocks_charset() -> &'static [&'static str] {
     static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
     CELL.get_or_init(|| {
-        // Ordered light → dark for luminance mapping
         let cps: Vec<u32> = vec![
-            // Space (blank)
-            0x0020, // Shade chars (light → dark)
-            0x2591, 0x2592, 0x2593, // Vertical eighths ▁▂▃▄▅▆▇
-            0x2581, 0x2582, 0x2583, 0x2584, 0x2585, 0x2586, 0x2587, // Half-blocks
-            0x2596, 0x2597, 0x2598, 0x259A, 0x259D, 0x2599, 0x259B, 0x259C, 0x259E, 0x259F, 0x258F,
-            0x258E, 0x258D, 0x258C, 0x258B, 0x258A, 0x2589, 0x2580, 0x2584, 0x258C, 0x2590,
-            // Full block
+            // ~12.5% coverage
+            0x2581, 0x258F, 0x2594, 0x2595, // ~25% coverage
+            0x2582, 0x258E, 0x2596, 0x2597, 0x2598, 0x259D, // ~37.5% coverage
+            0x2583, 0x258D, // ~50% coverage
+            0x2584, 0x2580, 0x258C, 0x2590, 0x2591, 0x259A, 0x259E, // ~62.5% coverage
+            0x2585, 0x258B, // ~66% coverage
+            0x2592, // ~75% coverage
+            0x2586, 0x258A, 0x2593, 0x2599, 0x259B, 0x259C, 0x259F, // ~87.5% coverage
+            0x2587, 0x2589, // 100% coverage
             0x2588,
+        ];
+        make_charset_vec(cps.into_iter())
+    })
+}
+
+/// Dithered/shade chars U+2591–U+2593 (░▒▓).
+fn dithered_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| make_charset_vec(0x2591u32..=0x2593u32))
+}
+
+/// Geometric shapes subset U+25A0–U+25FF: squares, triangles, diamonds, circles.
+fn geometric_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let cps: Vec<u32> = vec![
+            0x25A0, 0x25A1, 0x25AA, 0x25AB, // squares
+            0x25B2, 0x25B3, 0x25B6, 0x25B7, // triangles
+            0x25BC, 0x25BD, 0x25C0, 0x25C1, // triangles
+            0x25C6, 0x25C7, 0x25C8, // diamonds
+            0x25CA, // lozenge
+            0x25CB, 0x25CE, 0x25CF, // circles
+            0x25D0, 0x25D1, // half circles
+            0x25E6, 0x25EF, // white bullet, large circle
         ];
         make_charset_vec(cps.into_iter())
     })
@@ -296,13 +321,15 @@ fn deluxe_charset() -> &'static [&'static str] {
         v.extend_from_slice(box_charset());
         v.extend_from_slice(braille_charset());
         v.extend_from_slice(ogham_charset());
+        v.extend_from_slice(dithered_charset());
+        v.extend_from_slice(geometric_charset());
         v
     })
 }
 
 /// Resolve a charset name to a character slice for font generation.
 /// Built-in names: `block`, `default`, `slight`, `smooth`,
-/// `braille`, `blocks`, `box`, `ogham`, `deluxe`.
+/// `braille`, `blocks`, `box`, `ogham`, `deluxe`, `dithered`, `geometric`.
 pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
     Some(match name {
         "block" => charsets::BLOCK,
@@ -313,6 +340,8 @@ pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
         "blocks" => blocks_charset(),
         "box" => box_charset(),
         "ogham" => ogham_charset(),
+        "dithered" => dithered_charset(),
+        "geometric" => geometric_charset(),
         "deluxe" => deluxe_charset(),
         _ => return None,
     })
@@ -838,5 +867,227 @@ mod tests {
             large.charheight,
             small.charheight
         );
+    }
+
+    // --- Braille charset tests ---
+
+    #[test]
+    fn test_braille_charset_count_256() {
+        assert_eq!(braille_charset().len(), 256);
+    }
+
+    #[test]
+    fn test_braille_charset_all_in_range() {
+        for s in braille_charset() {
+            let c = s.chars().next().expect("each entry should be one char");
+            let cp = c as u32;
+            assert!(
+                (0x2800..=0x28FF).contains(&cp),
+                "braille char U+{cp:04X} outside U+2800–U+28FF"
+            );
+        }
+    }
+
+    #[test]
+    fn test_braille_charset_sorted_by_dots() {
+        let chars = braille_charset();
+        let cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        for pair in cps.windows(2) {
+            let a = pair[0];
+            let b = pair[1];
+            let key_a = ((a & 0xFF).count_ones(), a);
+            let key_b = ((b & 0xFF).count_ones(), b);
+            assert!(
+                key_a <= key_b,
+                "sort violation: U+{:04X} (dots={}, code={}) before U+{:04X} (dots={}, code={})",
+                a,
+                (a & 0xFF).count_ones(),
+                a,
+                b,
+                (b & 0xFF).count_ones(),
+                b
+            );
+        }
+    }
+
+    #[test]
+    fn test_braille_charset_all_256_unique() {
+        let chars = braille_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 256, "should have 256 unique codepoints");
+        assert_eq!(cps[0], 0x2800, "first codepoint should be U+2800");
+        assert_eq!(cps[255], 0x28FF, "last codepoint should be U+28FF");
+        // Verify no gaps
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2800 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2800 + i as u32
+            );
+        }
+    }
+
+    #[test]
+    fn test_blocks_count_32() {
+        let chars = blocks_charset();
+        assert_eq!(chars.len(), 32, "blocks charset should have 32 entries");
+    }
+
+    #[test]
+    fn test_blocks_all_in_range() {
+        let chars = blocks_charset();
+        for s in chars {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x2580..=0x259F).contains(&cp),
+                "blocks char U+{cp:04X} outside U+2580–U+259F"
+            );
+        }
+    }
+
+    #[test]
+    fn test_blocks_all_unique() {
+        let chars = blocks_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 32, "should have 32 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 32, "should have 32 unique codepoints");
+        assert_eq!(cps[0], 0x2580, "first codepoint should be U+2580");
+        assert_eq!(cps[31], 0x259F, "last codepoint should be U+259F");
+        // Verify no gaps
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2580 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2580 + i as u32
+            );
+        }
+    }
+
+    // --- Dithered charset tests ---
+
+    #[test]
+    fn test_dithered_count_3() {
+        assert_eq!(dithered_charset().len(), 3);
+    }
+
+    #[test]
+    fn test_dithered_all_in_range() {
+        for s in dithered_charset() {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x2591..=0x2593).contains(&cp),
+                "dithered char U+{cp:04X} outside U+2591–U+2593"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dithered_all_unique() {
+        let chars = dithered_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 3, "should have 3 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 3, "should have 3 unique codepoints");
+        assert_eq!(cps[0], 0x2591, "first should be U+2591");
+        assert_eq!(cps[2], 0x2593, "last should be U+2593");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2591 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2591 + i as u32
+            );
+        }
+    }
+
+    // --- Geometric charset tests ---
+
+    #[test]
+    fn test_geometric_count_23() {
+        assert_eq!(geometric_charset().len(), 23);
+    }
+
+    #[test]
+    fn test_geometric_all_in_range() {
+        for s in geometric_charset() {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x25A0..=0x25FF).contains(&cp),
+                "geometric char U+{cp:04X} outside U+25A0–U+25FF"
+            );
+        }
+    }
+
+    #[test]
+    fn test_geometric_all_unique() {
+        let chars = geometric_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 23, "should have 23 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 23, "should have 23 unique codepoints");
+    }
+
+    // --- Ogham charset tests ---
+
+    #[test]
+    fn test_ogham_count() {
+        assert_eq!(ogham_charset().len(), 29);
+    }
+
+    #[test]
+    fn test_ogham_all_in_range() {
+        for s in ogham_charset() {
+            let cp = s.chars().next().unwrap() as u32;
+            assert!(
+                (0x1680..=0x169F).contains(&cp),
+                "ogham char U+{cp:04X} outside U+1680–U+169F"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ogham_all_unique() {
+        let chars = ogham_charset();
+        let mut cps: Vec<u32> = chars
+            .iter()
+            .map(|s| s.chars().next().unwrap() as u32)
+            .collect();
+        assert_eq!(cps.len(), 29, "should have 29 entries");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 29, "should have 29 unique codepoints");
+        assert_eq!(cps[0], 0x1680, "first codepoint should be U+1680");
+        assert_eq!(cps[28], 0x169C, "last codepoint should be U+169C");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x1680 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x1680 + i as u32
+            );
+        }
     }
 }

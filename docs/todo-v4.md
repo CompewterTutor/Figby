@@ -80,7 +80,7 @@ with theming, modern status bar, and component architecture.
 
 > Needed for font-gen, canvas work, and braille/block art modes.
 
-- [ ] `4.2.1` Braille charset block
+- [x] `4.2.1` Braille charset block
   - **Goal:** Add a "Braille" charset group covering all 256 Unicode Braille
     Pattern characters (U+2800–U+28FF). Expose in font-gen and canvas charset
     picker. Reference: `throbber-widgets-tui` uses these for spinners.
@@ -88,7 +88,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** All 256 braille cells available as canvas characters.
   - **Difficulty:** Low
 
-- [ ] `4.2.2` Block elements charset
+- [x] `4.2.2` Block elements charset
   - **Goal:** Add charset group for block elements:
     - Full/half blocks: U+2580–U+259F (▀▄█▌▐ etc.)
     - Quadrant blocks: U+2596–U+259F
@@ -97,7 +97,7 @@ with theming, modern status bar, and component architecture.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`
   - **Difficulty:** Low
 
-- [ ] `4.2.3` Box drawing + dithered charset
+- [x] `4.2.3` Box drawing + dithered charset
   - **Goal:** Add:
     - Box drawing: U+2500–U+257F (─│┌┐└┘├┤┬┴┼ and double/heavy variants)
     - Legacy dither/shade: U+2591–U+2593 (░▒▓)
@@ -105,13 +105,13 @@ with theming, modern status bar, and component architecture.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`
   - **Difficulty:** Low
 
-- [ ] `4.2.4` Ogham charset
+- [x] `4.2.4` Ogham charset
   - **Goal:** Add Ogham script block U+1680–U+169F for decorative use.
     Ogham characters are used in some ASCII art and terminal art styles.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`
   - **Difficulty:** Low
 
-- [ ] `4.2.5` "Deluxe" meta-charset
+- [x] `4.2.5` "Deluxe" meta-charset
   - **Goal:** Combine all of the above (ASCII printable + box drawing + block
     elements + dither + quadrants + braille + Ogham) into a single "Deluxe"
     preset selectable from the charset picker. Useful for maximum expressive

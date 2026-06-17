@@ -307,7 +307,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Export APNG, verify frame count + timing.
   - **Difficulty:** Medium
 
-- [ ] `4.7.3` ANSI escape sequence export
+- [x] `4.7.3` ANSI escape sequence export
   - **Goal:** Export animation as ANSI escape sequence file (`.ans` or
     `.txt` with escape codes). Each frame: cursor home + styled text.
     Frame separator (clear + delay escape). Compatible with `cat` + terminal.

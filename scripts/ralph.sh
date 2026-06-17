@@ -442,9 +442,9 @@ switch_to_phase() {
 task_block() {
   TASK_ID="$1"
   all_todo_lines | awk -v tid="$TASK_ID" '
-        BEGIN { pat = "^- \\[.\\] `" tid "`" }
+        BEGIN { pat = "^- \\[ \\] `" tid "`" }
         $0 ~ pat      { found=1; print; next }
-        found && /^- \[.\] `[0-9]/ { exit }
+        found && /^- \[ \] `[0-9]/ { exit }
         found         { print }
     '
 }

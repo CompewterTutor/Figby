@@ -3188,3 +3188,7 @@ All 4.11 tasks complete. Starting phase review.
 ## 2026-06-17 11:51
 
 PHASE_COMPLETE: 4.11 merged to main after review approval.
+
+## 2026-06-17 12:03
+
+DONE: 4.12.2 merged into release/4.12.

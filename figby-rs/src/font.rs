@@ -5,6 +5,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
+use std::path::Path;
 
 /// A single character glyph in a FIGfont.
 ///
@@ -483,6 +484,65 @@ fn extract_first_zip_entry(bytes: &[u8]) -> Result<Vec<u8>, FontError> {
 /// Parse font content as either FLF or TLF (delegates to parse_tlf_font).
 fn parse_font_bytes(content: &str) -> Result<FIGfont, FontError> {
     parse_tlf_font(content)
+}
+
+/// List font entries (.flf/.tlf) inside a ZIP archive.
+///
+/// Returns sorted list of entry names. Rejects entries with path separators
+/// (path traversal defense).
+pub fn list_zip_font_entries(path: &Path) -> Result<Vec<String>, FontError> {
+    use zip::ZipArchive;
+
+    let file = std::fs::File::open(path)?;
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| FontError::ZipError(format!("failed to open ZIP archive: {}", e)))?;
+
+    let mut entries = Vec::new();
+    for i in 0..archive.len() {
+        let entry = archive
+            .by_index(i)
+            .map_err(|e| FontError::ZipError(format!("failed to read ZIP entry {}: {}", i, e)))?;
+        let name = entry.name().to_string();
+        if name.contains('/') || name.contains('\\') {
+            continue;
+        }
+        let lower = name.to_lowercase();
+        if lower.ends_with(".flf") || lower.ends_with(".tlf") {
+            entries.push(name);
+        }
+    }
+
+    entries.sort();
+    Ok(entries)
+}
+
+/// Read a specific entry from a ZIP archive by name.
+///
+/// Rejects entry names with path separators (path traversal defense).
+pub fn read_zip_entry(path: &Path, entry_name: &str) -> Result<Vec<u8>, FontError> {
+    use std::io::Read;
+    use zip::ZipArchive;
+
+    if entry_name.contains('/') || entry_name.contains('\\') {
+        return Err(FontError::ZipError(
+            "entry name contains path separator".to_string(),
+        ));
+    }
+
+    let file = std::fs::File::open(path)?;
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| FontError::ZipError(format!("failed to open ZIP archive: {}", e)))?;
+
+    let mut entry = archive
+        .by_name(entry_name)
+        .map_err(|e| FontError::ZipError(format!("entry '{}' not found: {}", entry_name, e)))?;
+
+    let mut content = Vec::new();
+    entry.read_to_end(&mut content).map_err(|e| {
+        FontError::ZipError(format!("failed to read entry '{}': {}", entry_name, e))
+    })?;
+
+    Ok(content)
 }
 
 /// Load a font by name from a font directory, with ZIP archive fallback.
@@ -1417,6 +1477,157 @@ mod tests {
         std::fs::remove_file(fontdir.join("standard.flf")).unwrap();
         std::fs::remove_dir(&fontdir).unwrap();
         std::fs::remove_file(tmpdir.join("standard.flf")).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    fn build_test_zip(path: &std::path::Path, entries: &[(&str, &[u8])]) {
+        use std::io::Write;
+        let file = std::fs::File::create(path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        for (name, data) in entries {
+            zip.start_file::<&str, ()>(name, Default::default())
+                .unwrap();
+            zip.write_all(data).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn test_list_zip_font_entries() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let zip_path = tmpdir.join("fonts.zip");
+        build_test_zip(
+            &zip_path,
+            &[
+                ("font1.flf", b"flf2a$ 1 0 1 0 0\nA  @\n"),
+                ("font2.flf", b"flf2a$ 1 0 1 0 0\nB  @\n"),
+                ("font3.tlf", b"tlf2a$ 1 0 1 0 0\nC  @\n"),
+            ],
+        );
+
+        let entries = list_zip_font_entries(&zip_path).expect("should list entries");
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0], "font1.flf");
+        assert_eq!(entries[1], "font2.flf");
+        assert_eq!(entries[2], "font3.tlf");
+
+        std::fs::remove_file(&zip_path).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_list_zip_font_entries_skips_non_fonts() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let zip_path = tmpdir.join("mixed.zip");
+        build_test_zip(
+            &zip_path,
+            &[
+                ("font.flf", b"data"),
+                ("readme.txt", b"hello"),
+                ("icon.tlf", b"data"),
+                ("image.jpg", b"data"),
+            ],
+        );
+
+        let entries = list_zip_font_entries(&zip_path).expect("should list entries");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0], "font.flf");
+        assert_eq!(entries[1], "icon.tlf");
+
+        std::fs::remove_file(&zip_path).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_list_zip_font_entries_empty() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let zip_path = tmpdir.join("empty.zip");
+        build_test_zip(&zip_path, &[]);
+
+        let entries = list_zip_font_entries(&zip_path).expect("should list entries");
+        assert!(entries.is_empty());
+
+        std::fs::remove_file(&zip_path).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_list_zip_font_entries_rejects_path_separators() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let zip_path = tmpdir.join("traversal.zip");
+        let font_data = b"flf2a$ 1 0 1 0 0\nA  @\n";
+        build_test_zip(
+            &zip_path,
+            &[
+                ("../outside.flf", font_data),
+                ("sub/escaped.flf", font_data),
+                ("safe.flf", font_data),
+            ],
+        );
+
+        let entries = list_zip_font_entries(&zip_path).expect("should list entries");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0], "safe.flf");
+
+        std::fs::remove_file(&zip_path).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_read_zip_entry() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let zip_path = tmpdir.join("read_test.zip");
+        build_test_zip(
+            &zip_path,
+            &[("alpha.flf", b"alpha data"), ("beta.flf", b"beta data")],
+        );
+
+        let alpha = read_zip_entry(&zip_path, "alpha.flf").expect("should read alpha");
+        assert_eq!(alpha, b"alpha data");
+
+        let beta = read_zip_entry(&zip_path, "beta.flf").expect("should read beta");
+        assert_eq!(beta, b"beta data");
+
+        std::fs::remove_file(&zip_path).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_read_zip_entry_not_found() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let zip_path = tmpdir.join("notfound.zip");
+        build_test_zip(&zip_path, &[("existing.flf", b"data")]);
+
+        let result = read_zip_entry(&zip_path, "nonexistent.flf");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(FontError::ZipError(_))));
+
+        std::fs::remove_file(&zip_path).unwrap();
+        std::fs::remove_dir(&tmpdir).unwrap();
+    }
+
+    #[test]
+    fn test_read_zip_entry_path_traversal() {
+        let tmpdir = temp_dir_uniq();
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let zip_path = tmpdir.join("traversal_read.zip");
+        build_test_zip(&zip_path, &[("safe.flf", b"data")]);
+
+        let result = read_zip_entry(&zip_path, "../evil.flf");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(FontError::ZipError(_))));
+        assert!(
+            result.unwrap_err().to_string().contains("path separator"),
+            "error should mention path separator"
+        );
+
+        std::fs::remove_file(&zip_path).unwrap();
         std::fs::remove_dir(&tmpdir).unwrap();
     }
 

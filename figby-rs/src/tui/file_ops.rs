@@ -9,6 +9,15 @@ use std::path::{Path, PathBuf};
 use super::theme::Theme;
 use crate::font::FIGfont;
 
+#[derive(Debug, Clone)]
+pub enum OpenTarget {
+    File(PathBuf),
+    ZipEntry {
+        zip_path: PathBuf,
+        entry_name: String,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileOpsMode {
     Idle,
@@ -126,6 +135,8 @@ pub struct FileOpsDialog {
     pub selected_entry: usize,
     pub error_message: String,
     pub hide_dotfiles: bool,
+    pub browsing_zip: bool,
+    pub current_zip_path: PathBuf,
     pub theme: Theme,
     recent_files_for_display: Vec<String>,
 }
@@ -139,6 +150,8 @@ impl FileOpsDialog {
             selected_entry: 0,
             error_message: String::new(),
             hide_dotfiles: true,
+            browsing_zip: false,
+            current_zip_path: PathBuf::new(),
             theme: Theme::default(),
             recent_files_for_display: Vec::new(),
         }
@@ -174,6 +187,8 @@ impl FileOpsDialog {
         self.selected_entry = 0;
         self.error_message.clear();
         self.recent_files_for_display.clear();
+        self.browsing_zip = false;
+        self.current_zip_path.clear();
     }
 
     pub fn handle_paste(&mut self, text: &str) {
@@ -189,6 +204,19 @@ impl FileOpsDialog {
     fn refresh_directory(&mut self) {
         self.directory_entries.clear();
         self.selected_entry = 0;
+
+        if self.browsing_zip {
+            match crate::font::list_zip_font_entries(&self.current_zip_path) {
+                Ok(mut entries) => {
+                    entries.insert(0, "..".to_string());
+                    self.directory_entries = entries;
+                }
+                Err(e) => {
+                    self.error_message = format!("ZIP error: {e}");
+                }
+            }
+            return;
+        }
 
         let parent = if self.path_buffer.is_empty() {
             PathBuf::from(".")
@@ -218,15 +246,33 @@ impl FileOpsDialog {
             if self.hide_dotfiles && name.starts_with('.') {
                 continue;
             }
+            let lower = name.to_lowercase();
             let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-            let is_flf = name.ends_with(".flf") || name.ends_with(".tlf");
-            if is_dir || is_flf {
+            let is_flf = lower.ends_with(".flf") || lower.ends_with(".tlf");
+            let is_zip = lower.ends_with(".zip");
+            if is_dir || is_flf || is_zip {
                 entries.push(name);
             }
         }
 
         entries.sort();
         self.directory_entries = entries;
+    }
+
+    pub fn is_browsing_zip(&self) -> bool {
+        self.browsing_zip
+    }
+
+    pub fn resolve_open_target(&self) -> OpenTarget {
+        if self.browsing_zip {
+            let entry_name = self.directory_entries[self.selected_entry].clone();
+            OpenTarget::ZipEntry {
+                zip_path: self.current_zip_path.clone(),
+                entry_name,
+            }
+        } else {
+            OpenTarget::File(self.selected_path())
+        }
     }
 
     pub fn selected_path(&self) -> PathBuf {
@@ -245,7 +291,45 @@ impl FileOpsDialog {
     }
 
     fn select_entry(&mut self) {
-        let entry = &self.directory_entries[self.selected_entry];
+        let entry = &self.directory_entries[self.selected_entry].clone();
+
+        if self.browsing_zip {
+            if entry == ".." {
+                self.browsing_zip = false;
+                self.path_buffer = self
+                    .current_zip_path
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                self.current_zip_path.clear();
+                self.selected_entry = 0;
+                self.error_message.clear();
+                self.refresh_directory();
+            }
+            return;
+        }
+
+        if entry.to_lowercase().ends_with(".zip") {
+            let parent = if self.path_buffer.is_empty() {
+                PathBuf::from(".")
+            } else {
+                let p = PathBuf::from(&self.path_buffer);
+                if p.is_dir() {
+                    p
+                } else {
+                    p.parent()
+                        .map(|pp| pp.to_path_buf())
+                        .unwrap_or_else(|| PathBuf::from("."))
+                }
+            };
+            self.current_zip_path = parent.join(entry);
+            self.browsing_zip = true;
+            self.selected_entry = 0;
+            self.error_message.clear();
+            self.refresh_directory();
+            return;
+        }
+
         let parent = if self.path_buffer.is_empty() {
             PathBuf::from(".")
         } else {
@@ -276,6 +360,9 @@ impl FileOpsDialog {
     fn handle_key_open(&mut self, code: KeyCode) -> bool {
         match code {
             KeyCode::Char(c) if !c.is_control() && !c.is_ascii_digit() => {
+                if self.browsing_zip {
+                    return true;
+                }
                 self.path_buffer.push(c);
                 self.error_message.clear();
                 self.selected_entry = 0;
@@ -283,6 +370,10 @@ impl FileOpsDialog {
                 true
             }
             KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
+                if self.browsing_zip {
+                    self.browsing_zip = false;
+                    self.current_zip_path.clear();
+                }
                 let idx = (c as u8 - b'1') as usize;
                 if idx < self.recent_files_for_display.len() {
                     self.path_buffer = self.recent_files_for_display[idx].clone();
@@ -293,6 +384,19 @@ impl FileOpsDialog {
                 true
             }
             KeyCode::Backspace => {
+                if self.browsing_zip {
+                    self.browsing_zip = false;
+                    self.path_buffer = self
+                        .current_zip_path
+                        .parent()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    self.current_zip_path.clear();
+                    self.selected_entry = 0;
+                    self.error_message.clear();
+                    self.refresh_directory();
+                    return true;
+                }
                 self.path_buffer.pop();
                 self.error_message.clear();
                 self.selected_entry = 0;
@@ -320,19 +424,69 @@ impl FileOpsDialog {
                 true
             }
             KeyCode::Enter => {
+                if self.browsing_zip {
+                    if !self.directory_entries.is_empty() {
+                        let entry = &self.directory_entries[self.selected_entry].clone();
+                        if entry == ".." {
+                            self.browsing_zip = false;
+                            self.path_buffer = self
+                                .current_zip_path
+                                .parent()
+                                .map(|p| p.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            self.current_zip_path.clear();
+                            self.selected_entry = 0;
+                            self.error_message.clear();
+                            self.refresh_directory();
+                        } else {
+                            self.mode = FileOpsMode::Idle;
+                        }
+                    }
+                    return true;
+                }
+
                 if !self.path_buffer.trim().is_empty() {
                     let p = std::path::PathBuf::from(self.path_buffer.trim());
                     if p.is_file() {
-                        self.mode = FileOpsMode::Idle;
+                        if p.extension().map(|e| e == "zip").unwrap_or(false) {
+                            self.current_zip_path = p;
+                            self.browsing_zip = true;
+                            self.selected_entry = 0;
+                            self.error_message.clear();
+                            self.refresh_directory();
+                        } else {
+                            self.mode = FileOpsMode::Idle;
+                        }
                         return true;
                     }
                 }
                 if !self.directory_entries.is_empty() {
-                    let entry = &self.directory_entries[self.selected_entry];
-                    let is_font = entry.ends_with(".flf") || entry.ends_with(".tlf");
-                    self.select_entry();
-                    if is_font {
-                        self.mode = FileOpsMode::Idle;
+                    let entry = &self.directory_entries[self.selected_entry].clone();
+                    let lower = entry.to_lowercase();
+                    if lower.ends_with(".zip") {
+                        let parent = if self.path_buffer.is_empty() {
+                            PathBuf::from(".")
+                        } else {
+                            let p = PathBuf::from(&self.path_buffer);
+                            if p.is_dir() {
+                                p
+                            } else {
+                                p.parent()
+                                    .map(|pp| pp.to_path_buf())
+                                    .unwrap_or_else(|| PathBuf::from("."))
+                            }
+                        };
+                        self.current_zip_path = parent.join(entry);
+                        self.browsing_zip = true;
+                        self.selected_entry = 0;
+                        self.error_message.clear();
+                        self.refresh_directory();
+                    } else {
+                        let is_font = lower.ends_with(".flf") || lower.ends_with(".tlf");
+                        self.select_entry();
+                        if is_font {
+                            self.mode = FileOpsMode::Idle;
+                        }
                     }
                 }
                 true
@@ -418,7 +572,9 @@ impl FileOpsDialog {
             Style::default().add_modifier(Modifier::BOLD),
         )));
 
-        let path_display = if self.path_buffer.is_empty() {
+        let path_display = if self.browsing_zip {
+            format!("[ZIP] {}", self.current_zip_path.display())
+        } else if self.path_buffer.is_empty() {
             " (type path, browse with arrows, or paste)".to_string()
         } else {
             self.path_buffer.clone()
@@ -438,8 +594,13 @@ impl FileOpsDialog {
         lines.push(Line::from(""));
 
         if self.directory_entries.is_empty() {
+            let msg = if self.browsing_zip {
+                " (no .flf/.tlf files in this ZIP archive)"
+            } else {
+                " (no .flf/.tlf files in directory)"
+            };
             lines.push(Line::from(Span::styled(
-                " (no .flf/.tlf files in directory)",
+                msg,
                 Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
@@ -454,22 +615,26 @@ impl FileOpsDialog {
             for i in start..end {
                 let entry = &self.directory_entries[i];
                 let is_selected = i == self.selected_entry;
-                let parent = if self.path_buffer.is_empty() {
-                    PathBuf::from(".")
-                } else {
-                    let p = PathBuf::from(&self.path_buffer);
-                    if p.is_dir() {
-                        p
-                    } else {
-                        p.parent()
-                            .map(|pp| pp.to_path_buf())
-                            .unwrap_or_else(|| PathBuf::from("."))
-                    }
-                };
-                let is_dir = parent.join(entry).is_dir();
                 let prefix = if is_selected { " >" } else { "  " };
-                let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{prefix}{entry}{suffix}");
+                let text = if self.browsing_zip {
+                    format!("{prefix}{entry}")
+                } else {
+                    let parent = if self.path_buffer.is_empty() {
+                        PathBuf::from(".")
+                    } else {
+                        let p = PathBuf::from(&self.path_buffer);
+                        if p.is_dir() {
+                            p
+                        } else {
+                            p.parent()
+                                .map(|pp| pp.to_path_buf())
+                                .unwrap_or_else(|| PathBuf::from("."))
+                        }
+                    };
+                    let is_dir = parent.join(entry).is_dir();
+                    let suffix = if is_dir { "/" } else { "" };
+                    format!("{prefix}{entry}{suffix}")
+                };
                 let style = if is_selected {
                     Style::default().add_modifier(Modifier::REVERSED)
                 } else {

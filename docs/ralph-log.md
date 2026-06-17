@@ -2937,3 +2937,7 @@ All 4.0 tasks complete. Starting phase review.
 ## 2026-06-17 05:08
 
 MAJOR_RC_READY: rc/4.0.0-rc.1 + tag 4.0.0-rc.1 created from release/4.0. Awaiting human sign-off before merge to main.
+
+## 2026-06-17 05:23
+
+DONE: 4.1.4 merged into release/4.1.

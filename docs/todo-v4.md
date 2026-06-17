@@ -178,7 +178,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Group create, mask paint, verify composited result.
   - **Difficulty:** Medium
 
-- [ ] `4.4.4` Export with layers
+- [x] `4.4.4` Export with layers
   - **Goal:** Export flattened composite. Export individual layers as
     separate files. Export with transparency (space = transparent).
   - **Touches:** `figby-rs/src/tui/export.rs`

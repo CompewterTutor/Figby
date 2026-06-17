@@ -1598,3 +1598,26 @@ sampled from mask row 0.
 preserved after layer delete, empty/invalid index guards, create/remove/toggle mask,
 toggle enabled, paint pixel, out-of-bounds, composite with mask (fully hidden),
 composite with painted mask (revealed), composite with disabled mask, mask thumbnail.
+
+### 4.4.4 — Export with layers
+
+Added per-layer export and alpha transparency to the TUI export dialog:
+- `render_frame()` gained `transparent: bool` parameter — when true, space
+  cells are skipped (alpha=0) in the output, preserving transparency.
+- `export_cells_to_png_with_alpha()` — new public function exposing
+  transparent rendering to callers that need per-pixel alpha control.
+- `ExportDialog` gained `export_layers` and `use_transparency` bool fields.
+  `L` toggles per-layer export mode, `P` toggles alpha transparency.
+- `perform_layer_export()` — iterates visible layers, renders each to PNG
+  with optional alpha, writes to `{base_dir}/{sanitized_name}.png` files.
+  Duplicate names get numeric suffixes (`name_1.png`).
+- `sanitize_layer_name()` — strips non-alphanumeric chars (except `_`/`-`),
+  falls back to `"layer"` if result is empty.
+- All layer exports use PNG format regardless of the dialog's current format.
+- Layer mode dispatch in `TuiApp::start_export()`: when `export_layers` is
+  true and format is PNG, writes composite to the main path then calls
+  `perform_layer_export()` for individual layer files.
+
+11 unit tests: PNG alpha matches opaque output, transparent space has alpha=0,
+L/P toggle key handlers, sanitize (alphanumeric, special chars, underscore/hyphen,
+empty fallback). fmt and clippy pass clean.

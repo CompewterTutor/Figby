@@ -55,7 +55,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** Clicking background while dialog open does nothing.
   - **Difficulty:** Low
 
-- [ ] `4.1.4` Welcome screen on startup
+- [x] `4.1.4` Welcome screen on startup
   - **Goal:** On startup (no file loaded), show a centered welcome overlay with:
     recent files list (numbered shortcuts), keybindings for Open / New / Help / Config.
     Dismiss on any file load or Esc.

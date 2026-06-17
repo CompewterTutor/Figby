@@ -41,6 +41,7 @@ pub mod toolbox;
 pub mod tools;
 pub mod undo;
 pub mod undo_panel;
+pub mod welcome;
 
 pub use brush::BrushState;
 pub use component::Component;
@@ -329,6 +330,7 @@ pub struct TuiApp {
     dirty: bool,
     last_draw_time: Instant,
     pub show_keybindings: bool,
+    pub welcome_screen: welcome::WelcomeScreen,
     /// `F11` toggle: canvas fills entire terminal, minimal hint overlay.
     pub zen_mode: bool,
     /// Controls what the right drawer panel shows.
@@ -431,6 +433,7 @@ impl TuiApp {
             dirty: true,
             last_draw_time: Instant::now(),
             show_keybindings: false,
+            welcome_screen: welcome::WelcomeScreen::new(),
             zen_mode: false,
             right_drawer: layout::DrawerMode::Palette,
             editor: EditorState {
@@ -528,6 +531,20 @@ impl TuiApp {
     pub fn render(&mut self, frame: &mut Frame<'_>) {
         self.check_async_completion();
         self.throbber.tick();
+
+        // Welcome screen: full-screen overlay, dismisses on any constructive action
+        if self.welcome_screen.show {
+            let area = frame.area();
+            self.welcome_screen.render(
+                frame,
+                area,
+                self.dialogs.file_ops_comp.recent_files.list(),
+                env!("CARGO_PKG_VERSION"),
+                &self.theme,
+            );
+            self.render_overlays(frame);
+            return;
+        }
 
         // Single-pass layout computation — stored for mouse handlers next cycle.
         let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer);
@@ -1554,6 +1571,62 @@ impl TuiApp {
                 self.dialogs.settings.settings_open = false;
             }
             return None;
+        }
+
+        // Welcome screen: intercept before mode-specific dispatch
+        if self.welcome_screen.show {
+            let recent_count = self.dialogs.file_ops_comp.recent_files.len();
+            if let Some(action) = self
+                .welcome_screen
+                .handle_key(code, modifiers, recent_count)
+            {
+                use welcome::WelcomeAction;
+                match action {
+                    WelcomeAction::Dismiss => {
+                        self.welcome_screen.show = false;
+                        self.dirty = true;
+                    }
+                    WelcomeAction::OpenRecent(idx) => {
+                        if let Some(path) = self.dialogs.file_ops_comp.recent_files.get(idx) {
+                            self.dialogs.file_ops_comp.dialog.path_buffer =
+                                path.to_string_lossy().to_string();
+                            self.perform_open();
+                            self.welcome_screen.show = false;
+                            self.dirty = true;
+                        }
+                    }
+                    WelcomeAction::Open => {
+                        self.start_open();
+                        self.welcome_screen.show = false;
+                        self.dirty = true;
+                    }
+                    WelcomeAction::NewFile => {
+                        self.editor.font_editor_comp.editor.font = None;
+                        self.editor.font_editor_comp.editor.current_path = None;
+                        self.editor.undo.clear();
+                        self.editor.canvas_comp.canvas =
+                            crate::tui::canvas::CanvasWidget::new(32, 16);
+                        self.welcome_screen.show = false;
+                        self.dirty = true;
+                    }
+                    WelcomeAction::ToggleHelp => {
+                        self.show_keybindings = !self.show_keybindings;
+                        self.dirty = true;
+                    }
+                    WelcomeAction::OpenSettings => {
+                        self.dialogs.settings.canvas_width =
+                            self.editor.canvas_comp.canvas.buffer.width() as u16;
+                        self.dialogs.settings.canvas_height =
+                            self.editor.canvas_comp.canvas.buffer.height() as u16;
+                        self.dialogs.settings.show_grid =
+                            self.editor.canvas_comp.canvas.show_grid();
+                        self.dialogs.settings.settings_open = true;
+                        self.welcome_screen.show = false;
+                        self.dirty = true;
+                    }
+                }
+                return None;
+            }
         }
 
         // Font Editor mode: dispatch to font_editor before canvas/tools

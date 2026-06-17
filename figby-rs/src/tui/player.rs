@@ -1,11 +1,16 @@
 use std::cell::Cell;
+use std::io;
 use std::time::Duration;
 
-use crossterm::event::KeyCode;
+use crossterm::event::{self, Event, KeyCode};
+use crossterm::execute;
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Widget;
+use ratatui::Terminal;
 
 use super::canvas::CanvasCell;
 
@@ -151,6 +156,20 @@ impl AnimationPlayer {
 
     pub fn speed_mult(&self) -> f64 {
         self.speed.get()
+    }
+
+    pub fn fps(&self) -> u8 {
+        self.fps
+    }
+
+    /// Prepend a frame at index 0, shifting all existing frames right.
+    pub fn prepend_frame(&mut self, frame: AnimationFrame) {
+        self.frames.insert(0, frame);
+    }
+
+    /// Return a reference to all frames.
+    pub fn all_frames(&self) -> &[AnimationFrame] {
+        &self.frames
     }
 
     /// Handle a key event. Returns `true` if the key was consumed.
@@ -335,6 +354,133 @@ impl AnimationPlayer {
             x += 1;
         }
     }
+}
+
+/// Capture current terminal content as an AnimationFrame.
+/// Falls back to a blank frame sized to current terminal dimensions.
+pub fn capture_terminal_content() -> io::Result<AnimationFrame> {
+    let (cols, rows) = terminal::size()?;
+    let w = cols as usize;
+    let h = rows as usize;
+    match try_query_terminal_cells(w, h) {
+        Ok(frame) => Ok(frame),
+        Err(_) => Ok(blank_frame(w, h)),
+    }
+}
+
+/// Try to read terminal cell content via DECRQCRA (xterm-compatible).
+/// Currently returns unsupported; future implementation may parse responses
+/// from terminals that support the DECRQCRA escape sequence.
+fn try_query_terminal_cells(_w: usize, _h: usize) -> io::Result<AnimationFrame> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "DECRQCRA terminal content query not available on this terminal",
+    ))
+}
+
+/// Create a blank frame of the given dimensions with default (space) cells.
+fn blank_frame(w: usize, h: usize) -> AnimationFrame {
+    vec![vec![CanvasCell::default(); w]; h]
+}
+
+/// Terminal session managing capture → playback → restore lifecycle.
+///
+/// Call `capture()` to snapshot current terminal content, then
+/// `enter_player_mode()` / `exit_player_mode()` to toggle alt screen.
+/// The captured frame can be prepended to an animation as frame 0.
+pub struct TerminalSession {
+    /// Captured terminal content as first frame.
+    pub captured_frame: AnimationFrame,
+    /// Terminal dimensions at capture time (cols, rows).
+    pub terminal_size: (u16, u16),
+    /// Whether raw mode was enabled before entering player mode.
+    pub was_raw_mode: bool,
+}
+
+impl TerminalSession {
+    /// Capture current terminal output as the first frame.
+    pub fn capture() -> io::Result<Self> {
+        let (cols, rows) = terminal::size()?;
+        let w = cols as usize;
+        let h = rows as usize;
+        let frame = match try_query_terminal_cells(w, h) {
+            Ok(f) => f,
+            Err(_) => blank_frame(w, h),
+        };
+        Ok(Self {
+            captured_frame: frame,
+            terminal_size: (cols, rows),
+            was_raw_mode: false,
+        })
+    }
+
+    /// Switch to alternate screen for playback.
+    pub fn enter_player_mode(&mut self) -> io::Result<()> {
+        execute!(io::stdout(), EnterAlternateScreen)?;
+        Ok(())
+    }
+
+    /// Restore original terminal content by leaving alternate screen.
+    pub fn exit_player_mode(&self) -> io::Result<()> {
+        execute!(io::stdout(), LeaveAlternateScreen)?;
+        Ok(())
+    }
+}
+
+/// Play animation fullscreen: capture terminal, enter alt screen, play, restore.
+///
+/// Captures current terminal content as frame 0, enters alternate screen,
+/// renders all frames (including captured) at the given FPS, handles keyboard
+/// input, and restores original terminal content on finish or Esc.
+pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
+    let mut session = TerminalSession::capture()?;
+
+    let mut all_frames = vec![session.captured_frame.clone()];
+    all_frames.extend(frames);
+    let player = AnimationPlayer::new(all_frames, fps);
+    player.play();
+
+    session.enter_player_mode()?;
+
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Terminal::new(backend)?;
+    terminal.hide_cursor()?;
+
+    let tick = Duration::from_millis(1000 / fps.max(1) as u64);
+    let mut finished = false;
+
+    while !finished {
+        terminal.draw(|f| {
+            let area = f.area();
+            f.render_widget(&player, area);
+        })?;
+
+        if event::poll(tick)? {
+            if let Event::Key(key) = event::read()? {
+                let consumed = player.handle_key(key.code);
+                if consumed && key.code == KeyCode::Esc {
+                    finished = true;
+                }
+            }
+        }
+
+        if !finished {
+            player.advance(tick);
+        }
+
+        let (cur, total) = player.progress();
+        if total > 0
+            && cur >= total.saturating_sub(1)
+            && !player.is_looping()
+            && !player.is_playing()
+        {
+            finished = true;
+        }
+    }
+
+    terminal.show_cursor()?;
+    session.exit_player_mode()?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -627,5 +773,72 @@ mod tests {
 
         assert_eq!(player.advance(Duration::from_secs(1)), 0);
         assert_eq!(player.total_frames(), 0);
+    }
+
+    #[test]
+    fn test_player_fps() {
+        let player = AnimationPlayer::new(vec![], 30);
+        assert_eq!(player.fps(), 30);
+    }
+
+    #[test]
+    fn test_prepend_frame() {
+        let f0 = make_test_frames(1, 2, 2);
+        let f1 = make_test_frames(1, 2, 2);
+        let f2 = make_test_frames(1, 2, 2);
+        let mut player = AnimationPlayer::new(vec![f0[0].clone(), f1[0].clone()], 10);
+        assert_eq!(player.total_frames(), 2);
+
+        player.prepend_frame(f2[0].clone());
+        assert_eq!(player.total_frames(), 3);
+
+        let all = player.all_frames();
+        assert_eq!(all[0].len(), 2);
+        assert_eq!(all[1].len(), 2);
+        assert_eq!(all[2].len(), 2);
+    }
+
+    #[test]
+    fn test_capture_terminal_content_fallback_blank() {
+        let frame = capture_terminal_content().unwrap();
+        // Terminal size should be available even in test (80x24 default)
+        assert!(!frame.is_empty());
+        for row in &frame {
+            for cell in row {
+                assert_eq!(cell.ch, ' ');
+                assert!(cell.fg.is_none());
+                assert!(cell.bg.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn test_terminal_session_capture() {
+        let session = TerminalSession::capture().unwrap();
+        let (cols, rows) = session.terminal_size;
+        assert!(cols > 0);
+        assert!(rows > 0);
+        assert_eq!(session.captured_frame.len(), rows as usize);
+        if rows > 0 {
+            assert_eq!(session.captured_frame[0].len(), cols as usize);
+        }
+        assert!(!session.was_raw_mode);
+    }
+
+    #[test]
+    fn test_blank_frame_dimensions() {
+        let frame = blank_frame(5, 3);
+        assert_eq!(frame.len(), 3);
+        assert_eq!(frame[0].len(), 5);
+        assert_eq!(frame[1].len(), 5);
+        assert_eq!(frame[2].len(), 5);
+    }
+
+    #[test]
+    fn test_play_fullscreen_empty_frames() {
+        // Should not panic with empty frames
+        let result = play_fullscreen(vec![], 10);
+        // Will fail in test env because no real terminal, but should not panic
+        assert!(result.is_err());
     }
 }

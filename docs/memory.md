@@ -1933,3 +1933,16 @@ Updated `figby-rs/src/tui/theme.rs` default colors and `assets/tui/themes/defaul
 - Tests updated to verify new color values in parsed output
 
 2 files touched: `theme.rs`, `default.yaml`. fmt, clippy, and all tests pass clean.
+
+### 4.9.3 — App fade-in on launch (ratzilla-style)
+
+Added `AppFadeIn` struct in `figby-rs/src/tui/fx.rs` using `fx::fade_from(Color::Black, Color::Black, timer)` over 600ms QuadOut — full-screen black overlay that fades to transparent, revealing UI content underneath.
+
+Integrated into all three render paths in `figby-rs/src/tui/mod.rs`:
+- Welcome screen path (applied after welcome_fx on full area)
+- Zen mode path (applied after canvas + overlays)
+- Normal mode path (applied as final pass after all widgets)
+
+`app_fade_in` field is `Option<AppFadeIn>`, set to `Some` on construction, consumed to `None` when `done()` returns true. Effect runs once per cold launch then self-cleans.
+
+2 files touched: `fx.rs` (new struct), `mod.rs` (integration). fmt and clippy pass clean.

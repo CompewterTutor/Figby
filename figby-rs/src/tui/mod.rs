@@ -374,6 +374,7 @@ pub struct TuiApp {
     pub delta_time: Duration,
     fx_last_tick: Instant,
     pub welcome_fx: Option<fx::WelcomeFx>,
+    pub app_fade_in: Option<fx::AppFadeIn>,
     /// `F11` toggle: canvas fills entire terminal, minimal hint overlay.
     pub zen_mode: bool,
     /// Controls what the right drawer panel shows.
@@ -510,6 +511,7 @@ impl TuiApp {
             delta_time: Duration::ZERO,
             fx_last_tick: Instant::now(),
             welcome_fx: Some(fx::WelcomeFx::new()),
+            app_fade_in: Some(fx::AppFadeIn::new()),
             zen_mode: false,
             right_drawer: layout::DrawerMode::Palette,
             editor: {
@@ -640,6 +642,13 @@ impl TuiApp {
             }
 
             self.render_overlays(frame);
+            let area = frame.area();
+            if let Some(ref mut fade) = self.app_fade_in {
+                fade.process(self.delta_time, frame.buffer_mut(), area);
+                if fade.done() {
+                    self.app_fade_in = None;
+                }
+            }
             return;
         }
 
@@ -669,6 +678,13 @@ impl TuiApp {
             }
             // Still render overlays in zen mode
             self.render_overlays(frame);
+            let area = frame.area();
+            if let Some(ref mut fade) = self.app_fade_in {
+                fade.process(self.delta_time, frame.buffer_mut(), area);
+                if fade.done() {
+                    self.app_fade_in = None;
+                }
+            }
             return;
         }
 
@@ -778,6 +794,14 @@ impl TuiApp {
         frame.render_stateful_widget(&self.menu_bar, fl.menu, &mut self.menu_bar_state);
 
         self.render_overlays(frame);
+
+        let area = frame.area();
+        if let Some(ref mut fade) = self.app_fade_in {
+            fade.process(self.delta_time, frame.buffer_mut(), area);
+            if fade.done() {
+                self.app_fade_in = None;
+            }
+        }
     }
 
     /// Render the canvas (or font editor overview) inside `canvas_area`.

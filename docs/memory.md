@@ -1817,6 +1817,71 @@ Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal
 capture), 4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into
 the mainline. Next phase: 4.8 (Animation Player).
 
+### 4.8.3 — Player integration into TUI
+
+Added player launch points from Export dialog and Timeline:
+- `ExportDialog.play_requested` flag — set by `P` key in GIF/APNG mode, consumed
+  by `TuiApp` main loop to call `launch_player_from_export()`
+- `TuiApp::launch_player_from_export()` — captures timeline frames from current
+  layer state, calls `play_animation()` with export dialog's FPS and preview_frame
+- `TuiApp::play_animation()` — slices frames from `start_frame`, calls
+  `player::play_fullscreen()`, then re-enters alternate screen for TUI
+- Timeline `Enter` key handler — captures frames via `capture_timeline_frames()`,
+  calls `play_animation()` from current timeline position
+- Export dialog UI updated: `P` shows "Play Animation", `V` toggles preview play
+- `play_requested` resets to `false` on close() and after consumption
+
+Files touched: `export.rs`, `mod.rs`. 3 new unit tests in `export.rs`.
+
+### 4.8.2 — Raw mode playback engine
+
+Added raw mode playback engine to `player.rs`:
+- `play_raw()` — enters raw mode (no echo, no line buffering), renders frames
+  by writing pre-computed ANSI escape codes directly to stdout (bypasses
+  ratatui Terminal::draw diffing for speed)
+- `render_frame_raw()` — converts `AnimationFrame` to ANSI escape string with
+  CUP cursor positioning, skips blank cells for efficiency
+- `color_fg_ansi()` / `color_bg_ansi()` — ratatui `Color` to ANSI SGR code
+  conversion for all named, RGB, and indexed color variants
+- Frame timing via `std::thread::sleep` with speed multiplier
+- Keyboard: Space=pause, Esc=exit, Left/Right=seek, +/-=speed (also keeps
+  existing Up/Down for speed, L for loop)
+- `+`/`=` and `-`/`_` added to `AnimationPlayer::handle_key()` for speed
+- Progress bar rendered at bottom row during raw playback
+- 13 new unit tests: color ANSI conversions, render_frame_raw, handle_key
+  with +/-/=/-, play_raw empty frames
+
+### 4.8.1 — Terminal capture for playback
+
+Added terminal capture and restore lifecycle to `player.rs`:
+- `TerminalSession` — captures current terminal content (blank fallback since
+  DECRQCRA not implemented), manages alternate screen enter/exit
+- `capture_terminal_content()` — wraps `terminal::size()` + blank frame
+- `play_fullscreen()` — orchestrates capture → alt screen → ratatui render
+  loop → keyboard input → restore on Esc or playback end
+- `prepend_frame()` / `all_frames()` / `fps()` accessors on `AnimationPlayer`
+- Captured terminal content is prepended as frame 0, so user sees original
+  terminal before animation starts after alt screen transition
+- 6 unit tests covering fps, prepend, capture fallback, session, blank frame
+  dims, and play_fullscreen error handling (no panic on empty frames)
+
+### 4.8.0 — Custom ratatui widget: `AnimationPlayer`
+
+Created `figby-rs/src/tui/player.rs` with `AnimationPlayer` struct — standalone
+ratatui widget for playing back animation frames on the alternate screen:
+- Uses interior mutability (`Cell`) to implement `Widget for &AnimationPlayer`
+  (not `&mut`), matching ratatui's recommended reference-based widget pattern
+- Takes `Vec<AnimationFrame>` (2D grid of `CanvasCell`) and FPS rate
+- Supports play/pause, seek by frame index, loop toggle, speed control 0.25x–4x
+- `advance(delta)` — accumulator-based frame advancement at effective FPS
+- `handle_key(code)` — Space (play/pause), Left/Right (seek), Up/Down (speed),
+  `l`/`L` (loop toggle), Esc (pause+reset), Enter (play)
+- Implements `Widget for &AnimationPlayer` rendering frame content with FG/BG
+  colors and a progress bar on the bottom row (play icon, counter, bar, speed)
+- 16 unit tests covering advance, looping, seek, speed clamp, progress bar
+  rendering, frame content, empty frames, and all key handlers
+- No `.unwrap()` in production paths
+
 ### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
 
 Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),

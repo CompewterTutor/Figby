@@ -1,5 +1,19 @@
 # Figby — Learnings
 
+## 4.8.2 — Raw mode playback engine
+
+- `write!()` into `String` requires `use std::fmt::Write`, not `use std::io::Write`.
+  Using `format!()` avoids the trait ambiguity entirely.
+- `event::poll(Duration::ZERO)` works for non-blocking keyboard checks in raw mode.
+  Combined with `std::thread::sleep()` for frame timing, this avoids the coupling
+  between poll timeout and frame rate.
+- CUP escape sequence `\x1b[{row};{col}H` is 1-indexed (row 1, col 1 = top-left).
+- Skipping blank cells (space with no colors) in `render_frame_raw()` reduces
+  ANSI output size significantly for frames with lots of empty space.
+- ratatui `Color::Gray` and `Color::DarkGray` both map to ANSI `90m` (bright
+  black) — ratatui's distinction between them is not reflected in standard
+  ANSI, so both get the same SGR code.
+
 ## 4.6.1 — Particle system design
 
 - Spawn-before-update pattern: particles are created at the emitter position,
@@ -1036,6 +1050,34 @@ Three bugs found in phase merge review:
 - Merge completed cleanly — no conflicts. 4 files changed (CHANGELOG.md,
   docs/memory.md, docs/ralph-log.md, docs/todo-v4.md), 18 insertions, 2 deletions.
 - No code changes beyond merge.
+
+## 4.8.3 — Player integration into TUI
+
+- `play_fullscreen()` does its own alt screen lifecycle (EnterAlternateScreen
+  inside `enter_player_mode`, LeaveAlternateScreen inside `exit_player_mode`).
+  After it returns, `play_animation()` must call `EnterAlternateScreen` again to
+  restore the TUI's alt screen. This double-enter pattern is correct because
+  `play_fullscreen`'s `exit_player_mode` returns to the main screen.
+- The `Enter` key handler for timeline playback lives in the general key dispatch
+  (not gated by timeline focus) — any Enter press with non-empty `timeline_state.frames`
+  triggers playback. This is intentional but could surprise users expecting Enter
+  in dialogs to do other things (protected by dialog handler running first).
+- Using a boolean flag (`play_requested`) as a back-channel signal from ExportDialog
+  to TuiApp avoids coupling the dialog to the app's event loop directly. The flag
+  is consumed and reset in the same main-loop iteration.
+
+## 4.8.0 — AnimationPlayer widget
+
+- `Cell` interior mutability enables `Widget for &AnimationPlayer` (not `&mut`).
+  Ratatui's `Widget` trait takes `self` by value, so `&AnimationPlayer` is the
+  recommended pattern for widgets with state. `Cell` is safe for `Copy` types
+  (`usize`, `bool`, `f64`) and avoids `RefCell` runtime overhead.
+- Accumulator-based frame advancement: `advance(delta)` accumulates elapsed time
+  and only advances frames when the accumulated time exceeds `1/effective_fps`.
+  This prevents frame-skipping on variable frame-rate event loops.
+- Progress bar renders play icon (▶/⏸), frame counter (`cur/total`), filled bar
+  (█/░), and speed label in a single terminal row. Manual `cell_mut()` writes
+  avoid ratatui `Paragraph` overhead for fine-grained character control.
 
 ## 4.7.4 — Phase merge: release/4.7 → main
 

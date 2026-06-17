@@ -323,7 +323,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.8 — Animation Player (Standalone Widget)
 
-- [ ] `4.8.0` Custom ratatui widget: `AnimationPlayer`
+- [x] `4.8.0` Custom ratatui widget: `AnimationPlayer`
   - **Goal:** Standalone ratatui widget that plays back captured animation
     frames on the alternate screen. Implements `Widget for &AnimationPlayer`.
     Takes `Vec<Frame>` (styled cell arrays). Plays at specified FPS.
@@ -335,7 +335,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Play 10-frame animation, verify each frame renders in order.
   - **Difficulty:** Medium
 
-- [ ] `4.8.1` Terminal capture for playback
+- [x] `4.8.1` Terminal capture for playback
   - **Goal:** When player starts, capture current terminal output as the
     first frame. Switch to alternate screen. Play animation. On finish or
     exit, restore original terminal content from capture.
@@ -344,7 +344,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Capture → play → restore, verify content matches.
   - **Difficulty:** Medium
 
-- [ ] `4.8.2` Raw mode playback engine
+- [x] `4.8.2` Raw mode playback engine
   - **Goal:** Enter raw mode for playback (no echo, no line buffering).
     Render frames by writing pre-computed escape codes directly to stdout
     (bypass ratatui diffing for speed). Frame timing via `sleep` or
@@ -354,7 +354,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Play at 30fps, measure frame timing accuracy.
   - **Difficulty:** High
 
-- [ ] `4.8.3` Player integration into TUI
+- [x] `4.8.3` Player integration into TUI
   - **Goal:** Export dialog → "Play Animation" button triggers player.
     Timeline → play button triggers player from current frame. Player
     runs in separate thread/event loop, returns to TUI on exit.

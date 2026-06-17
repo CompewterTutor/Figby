@@ -527,7 +527,11 @@ impl LayerStack {
     }
 }
 
-fn blend_colors(top: Option<Color>, bottom: Option<Color>, opacity: u8) -> Option<Color> {
+pub(crate) fn blend_colors(
+    top: Option<Color>,
+    bottom: Option<Color>,
+    opacity: u8,
+) -> Option<Color> {
     match (top, bottom) {
         (Some(t), Some(b)) => {
             let f = opacity as f32 / 255.0;
@@ -566,7 +570,11 @@ fn blend_channel(top: u8, bottom: u8, mode: BlendMode) -> u8 {
     }
 }
 
-fn blend_mode_color(top: Option<Color>, bottom: Option<Color>, mode: BlendMode) -> Option<Color> {
+pub(crate) fn blend_mode_color(
+    top: Option<Color>,
+    bottom: Option<Color>,
+    mode: BlendMode,
+) -> Option<Color> {
     if mode == BlendMode::Normal {
         return top;
     }

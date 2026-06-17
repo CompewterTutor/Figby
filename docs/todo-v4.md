@@ -237,10 +237,10 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Tween between known keyframes, verify frame sequence.
   - **Difficulty:** Medium
 
-- [ ] `4.5.4` GIF export from timeline
+- [x] `4.5.4` GIF export from timeline
   - **Goal:** Render animation timeline to animated GIF. Frame delay per
     frame or global FPS setting. Loop count. Preview playback in TUI.
-  - **Touches:** `figby-rs/src/tui/export.rs`
+  - **Touches:** `figby-rs/src/tui/export.rs`, `figby-rs/src/output.rs`
   - **Success:** GIF matches timeline playback.
   - **Tests:** Export GIF, verify frame count + timing.
   - **Difficulty:** Medium

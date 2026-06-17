@@ -342,6 +342,7 @@ pub fn export_cells_to_gif(
     frame_cells: &[Vec<Vec<CanvasCell>>],
     frame_delays_cs: &[u16],
     font_size: u8,
+    loop_count: u16,
 ) -> Result<Vec<u8>, ExportError> {
     if frame_cells.is_empty() {
         return Err(ExportError::InvalidCells("no frames".to_string()));
@@ -358,8 +359,13 @@ pub fn export_cells_to_gif(
     {
         let mut encoder = GifEncoder::new(&mut buf, w, h, &[])
             .map_err(|e| ExportError::GifError(e.to_string()))?;
+        let repeat = if loop_count == 0 {
+            Repeat::Infinite
+        } else {
+            Repeat::Finite(loop_count)
+        };
         encoder
-            .set_repeat(Repeat::Infinite)
+            .set_repeat(repeat)
             .map_err(|e| ExportError::GifError(e.to_string()))?;
 
         for (i, cells) in frame_cells.iter().enumerate() {
@@ -515,7 +521,8 @@ mod tests {
     #[test]
     fn test_output_gif_single_frame() {
         let cells = make_buffer(2, 2, 'A', Some(Color::Red), None);
-        let gif_bytes = export_cells_to_gif(&[cells], &[10], 1).expect("GIF export should succeed");
+        let gif_bytes =
+            export_cells_to_gif(&[cells], &[10], 1, 0).expect("GIF export should succeed");
         let mut decoder = gif::DecodeOptions::new();
         decoder.set_color_output(gif::ColorOutput::RGBA);
         let mut reader = decoder
@@ -530,7 +537,7 @@ mod tests {
     fn test_output_gif_multi_frame() {
         let cells_a = make_buffer(1, 1, 'A', Some(Color::Red), None);
         let cells_b = make_buffer(1, 1, 'B', Some(Color::Blue), None);
-        let gif_bytes = export_cells_to_gif(&[cells_a, cells_b], &[10, 20], 1)
+        let gif_bytes = export_cells_to_gif(&[cells_a, cells_b], &[10, 20], 1, 0)
             .expect("GIF export should succeed");
         let mut decoder = gif::DecodeOptions::new();
         decoder.set_color_output(gif::ColorOutput::RGBA);
@@ -580,6 +587,33 @@ mod tests {
         let img_alpha = image::load_from_memory(&alpha).expect("decode alpha");
         assert_eq!(img_opaque.width(), img_alpha.width());
         assert_eq!(img_opaque.height(), img_alpha.height());
+    }
+
+    #[test]
+    fn test_output_gif_finite_loop() {
+        let cells = make_buffer(1, 1, 'A', Some(Color::Red), None);
+        let gif_bytes = export_cells_to_gif(std::slice::from_ref(&cells), &[10], 1, 3)
+            .expect("GIF export should succeed");
+        let mut decoder = gif::DecodeOptions::new();
+        decoder.set_color_output(gif::ColorOutput::RGBA);
+        let mut reader = decoder
+            .read_info(&gif_bytes[..])
+            .expect("should decode GIF");
+        // Verify we can read at least one frame
+        assert!(reader.next_frame_info().is_ok());
+    }
+
+    #[test]
+    fn test_output_gif_infinite_loop() {
+        let cells = make_buffer(1, 1, 'A', Some(Color::Red), None);
+        let gif_bytes = export_cells_to_gif(std::slice::from_ref(&cells), &[10], 1, 0)
+            .expect("GIF export should succeed");
+        let mut decoder = gif::DecodeOptions::new();
+        decoder.set_color_output(gif::ColorOutput::RGBA);
+        let mut reader = decoder
+            .read_info(&gif_bytes[..])
+            .expect("should decode GIF");
+        assert!(reader.next_frame_info().is_ok());
     }
 
     #[test]

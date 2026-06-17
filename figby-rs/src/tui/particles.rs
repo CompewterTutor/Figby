@@ -355,6 +355,42 @@ impl ParticleSystem {
             }
         }
     }
+
+    pub fn bake_to_buffer(&self, width: usize, height: usize) -> CanvasBuffer {
+        let mut buffer = CanvasBuffer::new(width, height);
+        let w = width as i16;
+        let h = height as i16;
+        for p in &self.active_particles {
+            let px = p.x.round() as i16;
+            let py = p.y.round() as i16;
+            if px < 0 || py < 0 || px >= w || py >= h {
+                continue;
+            }
+            if let Some(cell) = buffer.get_mut(px as usize, py as usize) {
+                cell.ch = p.character;
+                if let Some((r, g, b)) = p.color {
+                    cell.fg = Some(ratatui::style::Color::Rgb(r, g, b));
+                }
+            }
+        }
+        buffer
+    }
+
+    pub fn bake_frames(
+        &mut self,
+        num_frames: usize,
+        width: usize,
+        height: usize,
+        dt: f64,
+    ) -> Vec<CanvasBuffer> {
+        self.clear();
+        let mut frames = Vec::with_capacity(num_frames);
+        for _ in 0..num_frames {
+            self.update(dt);
+            frames.push(self.bake_to_buffer(width, height));
+        }
+        frames
+    }
 }
 
 /// Config panel field definitions for the emitter panel UI.
@@ -1099,5 +1135,91 @@ mod tests {
             let parsed: EmissionShape = serde_json::from_str(&json).unwrap();
             assert_eq!(*shape, parsed, "roundtrip failed for {shape:?}");
         }
+    }
+
+    // ── Bake to buffer tests ──────────────────────────────────
+
+    #[test]
+    fn test_bake_to_buffer_independence() {
+        let config = ParticleConfig {
+            spawn_rate: 10.0,
+            lifetime_min: 5.0,
+            lifetime_max: 5.0,
+            velocity_x_min: 10.0,
+            velocity_x_max: 10.0,
+            ..Default::default()
+        };
+        let mut system = ParticleSystem::new(config);
+        system.update(0.1);
+        let frame1 = system.bake_to_buffer(20, 20);
+        system.update(1.0);
+        let frame2 = system.bake_to_buffer(20, 20);
+        // Particles should have moved, so buffers differ
+        let mut any_diff = false;
+        for y in 0..20 {
+            for x in 0..20 {
+                if frame1.get(x, y) != frame2.get(x, y) {
+                    any_diff = true;
+                }
+            }
+        }
+        assert!(any_diff, "baked buffers should differ after update");
+    }
+
+    #[test]
+    fn test_bake_frames_count_and_independence() {
+        let config = ParticleConfig {
+            spawn_rate: 5.0,
+            lifetime_min: 5.0,
+            lifetime_max: 5.0,
+            velocity_x_min: 5.0,
+            velocity_x_max: 5.0,
+            ..Default::default()
+        };
+        let mut system = ParticleSystem::new(config);
+        let frames = system.bake_frames(10, 20, 20, 0.1);
+        assert_eq!(frames.len(), 10, "should produce exactly 10 frames");
+        let all_same = frames.windows(2).all(|w| {
+            for y in 0..20 {
+                for x in 0..20 {
+                    if w[0].get(x, y) != w[1].get(x, y) {
+                        return false;
+                    }
+                }
+            }
+            true
+        });
+        assert!(!all_same, "frames should not all be identical");
+    }
+
+    #[test]
+    fn test_bake_empty_system() {
+        let system = ParticleSystem::new(ParticleConfig::default());
+        let buffer = system.bake_to_buffer(10, 10);
+        for y in 0..10 {
+            for x in 0..10 {
+                let cell = buffer.get(x, y).unwrap();
+                assert_eq!(cell.ch, ' ', "cell at ({x},{y}) should be empty");
+                assert!(cell.fg.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn test_baked_frame_content() {
+        let config = ParticleConfig {
+            spawn_rate: 1.0,
+            lifetime_min: 10.0,
+            lifetime_max: 10.0,
+            emitter_x: 5.0,
+            emitter_y: 5.0,
+            character: '@',
+            ..Default::default()
+        };
+        let mut system = ParticleSystem::new(config);
+        system.update(0.1);
+        let buffer = system.bake_to_buffer(20, 20);
+        let cell = buffer.get(5, 5).expect("cell at emitter position");
+        assert_eq!(cell.ch, '@', "baked cell should have particle char");
     }
 }

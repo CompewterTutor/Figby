@@ -272,7 +272,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Emit particles, verify count and motion.
   - **Difficulty:** High
 
-- [ ] `4.6.3` Particle-to-layer baking
+- [x] `4.6.3` Particle-to-layer baking
   - **Goal:** Bake current particle frame(s) to a canvas layer. Generate
     frame-by-frame layer stack from particle animation. Toggle between
     live preview and baked layers.

@@ -954,6 +954,12 @@ Three bugs found in phase merge review:
   that import from the crate root. These must be maintained for public API
   compatibility even though the internal architecture changed.
 
+## 4.5.5 — Phase merge: release/4.5 → master
+
+- Merge completed cleanly — no conflicts. All documentation files merged automatically
+  (`docs/todo-v4.md`, `docs/memory.md`, `docs/learnings.md`, `docs/ralph-log.md`).
+- No code changes beyond merge.
+
 ## 4.4.5 — Phase merge: release/4.4 → master
 
 - Merge completed cleanly — no conflicts. All 11 files merged automatically

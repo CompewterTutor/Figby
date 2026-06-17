@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased] - 2026-06-17
+### Changed
+- Phase merge: release/4.5 → master. Phase 4.5 complete: AnimationTimeline widget
+  (4.5.0), frame management (4.5.1), keyframing (4.5.2), tweening (4.5.3),
+  GIF export from timeline (4.5.4).
+
 ## [3.0.0-rc.2] - 2026-06-17
 ### Changed
 - Phase merge: release/4.1 → main. Phase 4.1 complete: welcome screen (4.1.4),

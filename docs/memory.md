@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Phase 4.3 merged) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.5 merged) |
 
 ## Architectural Decisions
 
@@ -1670,6 +1670,12 @@ Merged release/4.4 branch into main at `d0a0967`. Brings 4.4.1 (Layer panel),
 4.4.2 (Per-layer blend modes), 4.4.3 (Layer groups/masks), and 4.4.4 (Export
 with layers/transparency) into the mainline. Next phase: 4.5 (Animation Timeline
 & Playback).
+
+## 4.5.5 — Phase merge: release/4.5 → master (2026-06-17)
+
+Merged release/4.5 branch into master. Brings 4.5.0 (AnimationTimeline widget),
+4.5.1 (Frame management), 4.5.2 (Keyframing), 4.5.3 (Tweening), and 4.5.4 (GIF export
+from timeline) into the mainline. Next phase: 4.6 (Particle Effect Creator).
 
 ### 4.5.2 — Keyframing
 

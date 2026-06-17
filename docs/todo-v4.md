@@ -144,7 +144,7 @@ with theming, modern status bar, and component architecture.
   - **Depends:** `4.3.1`
   - **Difficulty:** Medium–High
 
-- [ ] `4.3.3` Phase merge: release/4.3 → main
+- [x] `4.3.3` Phase merge: release/4.3 → main
   - **Difficulty:** Low
 
 ---

@@ -1817,6 +1817,20 @@ Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal
 capture), 4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into
 the mainline. Next phase: 4.8 (Animation Player).
 
+### 4.8.1 — Terminal capture for playback
+
+Added terminal capture and restore lifecycle to `player.rs`:
+- `TerminalSession` — captures current terminal content (blank fallback since
+  DECRQCRA not implemented), manages alternate screen enter/exit
+- `capture_terminal_content()` — wraps `terminal::size()` + blank frame
+- `play_fullscreen()` — orchestrates capture → alt screen → ratatui render
+  loop → keyboard input → restore on Esc or playback end
+- `prepend_frame()` / `all_frames()` / `fps()` accessors on `AnimationPlayer`
+- Captured terminal content is prepended as frame 0, so user sees original
+  terminal before animation starts after alt screen transition
+- 6 unit tests covering fps, prepend, capture fallback, session, blank frame
+  dims, and play_fullscreen error handling (no panic on empty frames)
+
 ### 4.8.0 — Custom ratatui widget: `AnimationPlayer`
 
 Created `figby-rs/src/tui/player.rs` with `AnimationPlayer` struct — standalone

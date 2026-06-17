@@ -20,6 +20,11 @@
   to specify the full `ParticleConfig` structure. The `ParticleConfig` defaults
   in `particles.rs` are separate from the TOML-level defaults.
 
+## 4.6.4 — Phase merge: release/4.6 → master
+
+- No code changes — merge was a no-op (release/4.6 already an ancestor of master
+  from 3 prior merge commits). Only docs, changelog, and metadata updated.
+
 ## 4.5.3 — Tweening
 
 - Standard bounce easing: 4 piecewise quadratic phases with decreasing amplitude.

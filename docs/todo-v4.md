@@ -447,7 +447,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.12 — Major Release
 
-- [ ] `4.12.1` Full regression against C FIGlet 2.2.5
+- [x] `4.12.1` Full regression against C FIGlet 2.2.5
   - **Goal:** All FIGlet features produce identical output. Image/TUI/
     animation verified via manual review.
   - **Touches:** Test infrastructure

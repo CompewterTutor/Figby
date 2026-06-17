@@ -485,6 +485,24 @@ Added auto-tween system to animation timeline:
 - 23 unit tests covering easing, tween generation, commit, discard, edge cases
 - No `.unwrap()` in production paths
 
+### 4.5.4 — GIF export from timeline
+
+Added GIF timeline export support to the TUI editor:
+- `export_cells_to_gif()` in `output.rs` now takes `loop_count: u16` parameter (0=infinite)
+- `ExportDialog` gained GIF-specific fields: `fps`, `loop_count`, `frame_delays`,
+  `preview_frame`, `preview_playing`, `timeline_available`, `timeline_frames`
+- `set_timeline(fps, count)` populates frame_delays from FPS (delay=100/fps cs)
+- `preview_tick()` advances preview_frame cyclically when `preview_playing`
+- GIF-specific key handlers: `F` cycles FPS presets (6/8/12/24/30/60), `L` cycles
+  loop presets (0/1/2/5/10), `P` toggles preview, `Space` steps frame when paused
+- GIF render shows FPS/Loop/Frames/Preview status lines; hides Layers/Alpha lines
+- `perform_export` in `mod.rs` composes timeline frames via keyframe interpolation
+  (position_offset, opacity, blend_mode) per layer per frame before spawning export thread
+- `blend_mode_color()` and `blend_colors()` made `pub(crate)` in `layers.rs` for reuse
+- 10 new tests: finite/infinite loop GIF, all GIF dialog key handlers, preview tick,
+  frame delay recalculation, set_timeline, mode-gating, space step
+- No `.unwrap()` in production paths
+
 ### 2.10.1 — Full regression against C FIGlet 2.2.5
 
 Added 23 new integration tests (28-50) covering all FIGlet 2.2.5 features:

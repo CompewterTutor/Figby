@@ -1037,6 +1037,19 @@ Three bugs found in phase merge review:
   docs/memory.md, docs/ralph-log.md, docs/todo-v4.md), 18 insertions, 2 deletions.
 - No code changes beyond merge.
 
+## 4.8.0 — AnimationPlayer widget
+
+- `Cell` interior mutability enables `Widget for &AnimationPlayer` (not `&mut`).
+  Ratatui's `Widget` trait takes `self` by value, so `&AnimationPlayer` is the
+  recommended pattern for widgets with state. `Cell` is safe for `Copy` types
+  (`usize`, `bool`, `f64`) and avoids `RefCell` runtime overhead.
+- Accumulator-based frame advancement: `advance(delta)` accumulates elapsed time
+  and only advances frames when the accumulated time exceeds `1/effective_fps`.
+  This prevents frame-skipping on variable frame-rate event loops.
+- Progress bar renders play icon (▶/⏸), frame counter (`cur/total`), filled bar
+  (█/░), and speed label in a single terminal row. Manual `cell_mut()` writes
+  avoid ratatui `Paragraph` overhead for fine-grained character control.
+
 ## 4.7.4 — Phase merge: release/4.7 → main
 
 - No code changes — merge was a no-op (release/4.7 already an ancestor of master

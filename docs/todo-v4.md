@@ -323,7 +323,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.8 — Animation Player (Standalone Widget)
 
-- [ ] `4.8.0` Custom ratatui widget: `AnimationPlayer`
+- [x] `4.8.0` Custom ratatui widget: `AnimationPlayer`
   - **Goal:** Standalone ratatui widget that plays back captured animation
     frames on the alternate screen. Implements `Widget for &AnimationPlayer`.
     Takes `Vec<Frame>` (styled cell arrays). Plays at specified FPS.

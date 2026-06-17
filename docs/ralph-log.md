@@ -3099,3 +3099,7 @@ DONE: 4.7.4 merged into release/4.7.
 ## 2026-06-17 10:02
 
 All 4.7 tasks complete. Starting phase review.
+
+## 2026-06-17 10:03
+
+PHASE_COMPLETE: 4.7 merged to main after review approval.

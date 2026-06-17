@@ -335,7 +335,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Play 10-frame animation, verify each frame renders in order.
   - **Difficulty:** Medium
 
-- [ ] `4.8.1` Terminal capture for playback
+- [x] `4.8.1` Terminal capture for playback
   - **Goal:** When player starts, capture current terminal output as the
     first frame. Switch to alternate screen. Play animation. On finish or
     exit, restore original terminal content from capture.

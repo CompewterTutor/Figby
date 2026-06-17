@@ -631,6 +631,30 @@ Three bugs found in phase merge review:
   - `test_fill_empty_region`: painted spaces on an already-space canvas, so
     flood fill had no boundary and filled the entire 5x5 instead of the 3x3
     center. Fix: fill border with `@` first.
+## 4.4.2 — Blending modes
+
+- `BlendMode::Normal` is a fast path in `composite()`: when both opacity=255
+  AND blend_mode=Normal, the top cell is written directly (no per-pixel math).
+  For Normal+opacity<255, the general path still computes blend_mode_color
+  (which returns top color for Normal) then alpha-composites — same result but
+  slightly more overhead.
+- `blend_mode_color()` early-returns `top` for Normal mode, avoiding the
+  `match` on Color variants entirely. This is an optimization for the common
+  case (Normal is the default).
+- Non-RGB `Color` variants (Indexed, AnsiValue, Reset, etc.) cannot be
+  numerically blended. The strategy is: blend mode returns `Some(top)` when
+  either color is non-RGB, preserving the top layer's color. This matches the
+  existing `blend_colors()` behavior.
+- Blend formulas use `u32` intermediate arithmetic to avoid overflow
+  (2*255*255/255 = 510 fits in u32, but 2*255*255 = 130050 exceeds u16's 65535).
+  The Overflow/light case computes `255 - 2*(255-top)*(255-bottom)/255` which
+  peaks at 255 (result always ≤ 255).
+- `blend_channel` for Subtract uses `bottom.saturating_sub(top)` (u8) not
+  `bottom - top` which would underflow. For Add, `top.saturating_add(bottom)`.
+- `b`/`B` keybindings in layer panel are active only when right drawer shows
+  Layers mode (DrawerMode::Layers). When switching to Palette/BrushKeys mode,
+  `b` returns to its normal function (Brush tool selection).
+
 ## 2.5.1 — Font mode scaffold: glyph grid overview
 
 - Search UX in font editor overview conflicts with keyboard shortcuts (tool select `b`/`v`/etc,

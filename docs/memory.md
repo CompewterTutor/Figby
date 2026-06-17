@@ -1546,3 +1546,27 @@ Theme expanded with `LayerTheme` struct (bg, fg, active_bg, border).
 
 17 unit tests in layers.rs covering all operations, composite order,
 opacity blending, visibility toggle, edge cases.
+
+### 4.4.2 — Blending modes
+
+Added `BlendMode` enum with 6 variants (Normal, Multiply, Overlay, Screen,
+Add, Subtract) implementing `next()`, `prev()`, `icon_key()`, `display_name()`.
+`Layer` struct gained `blend_mode: BlendMode` field (default Normal).
+`LayerStack` gained `set_blend_mode()`. `composite()` updated: fast path for
+opacity==255 + Normal overwrite, general path computes `blend_mode_color()` for
+the mode blend, then alpha-composites with bottom via `blend_colors()`.
+
+Blend math functions: `blend_channel(u8, u8, mode)` dispatches per-channel
+Multiply/Overlay/Screen/Add/Subtract formulas (all u32 arithmetic). `blend_mode_color()`
+handles non-RGB Color variants by falling back to top color.
+
+`LayerPanel` gained `icons: BTreeMap<String, String>` field. `handle_key()`:
+`b`/`B` cycle blend mode forward/backward. `render_with_stack()`: shows blend
+mode Nerd Font icon in each layer row. Help text updated with "Bbld" hint.
+
+Integration: `mod.rs` passes `icons.clone()` to `layer_panel.icons` at creation
+and on welcome-screen canvas reset.
+
+14 unit tests: multiply/overlay (dark+light)/screen/add/subtract channel math,
+composite with blend mode, composite with opacity+blend, cycle (next/prev six-step),
+set_blend_mode, icon_key, display_name, normal-returns-top.

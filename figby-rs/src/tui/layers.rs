@@ -8,6 +8,63 @@ use ratatui::Frame;
 use super::canvas::CanvasBuffer;
 use super::theme::Theme;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BlendMode {
+    #[default]
+    Normal,
+    Multiply,
+    Overlay,
+    Screen,
+    Add,
+    Subtract,
+}
+
+impl BlendMode {
+    pub fn next(&self) -> Self {
+        match self {
+            BlendMode::Normal => BlendMode::Multiply,
+            BlendMode::Multiply => BlendMode::Overlay,
+            BlendMode::Overlay => BlendMode::Screen,
+            BlendMode::Screen => BlendMode::Add,
+            BlendMode::Add => BlendMode::Subtract,
+            BlendMode::Subtract => BlendMode::Normal,
+        }
+    }
+
+    pub fn prev(&self) -> Self {
+        match self {
+            BlendMode::Normal => BlendMode::Subtract,
+            BlendMode::Multiply => BlendMode::Normal,
+            BlendMode::Overlay => BlendMode::Multiply,
+            BlendMode::Screen => BlendMode::Overlay,
+            BlendMode::Add => BlendMode::Screen,
+            BlendMode::Subtract => BlendMode::Add,
+        }
+    }
+
+    pub fn icon_key(&self) -> &str {
+        match self {
+            BlendMode::Normal => "blend_normal",
+            BlendMode::Multiply => "blend_multiply",
+            BlendMode::Overlay => "blend_overlay",
+            BlendMode::Screen => "blend_screen",
+            BlendMode::Add => "blend_add",
+            BlendMode::Subtract => "blend_subtract",
+        }
+    }
+
+    pub fn display_name(&self) -> &str {
+        match self {
+            BlendMode::Normal => "Normal",
+            BlendMode::Multiply => "Multiply",
+            BlendMode::Overlay => "Overlay",
+            BlendMode::Screen => "Screen",
+            BlendMode::Add => "Add",
+            BlendMode::Subtract => "Subtract",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Layer {
     pub buffer: CanvasBuffer,
@@ -15,6 +72,7 @@ pub struct Layer {
     pub visible: bool,
     pub locked: bool,
     pub opacity: u8,
+    pub blend_mode: BlendMode,
 }
 
 impl Layer {
@@ -25,6 +83,7 @@ impl Layer {
             visible: true,
             locked: false,
             opacity: 255,
+            blend_mode: BlendMode::Normal,
         }
     }
 
@@ -213,18 +272,30 @@ impl LayerStack {
                 continue;
             }
             let opacity = layer.opacity;
+            let blend_mode = layer.blend_mode;
             for y in 0..h.min(layer.buffer.height()) {
                 for x in 0..w.min(layer.buffer.width()) {
                     if let Some(top) = layer.buffer.get(x, y) {
                         if top.ch == ' ' && top.fg.is_none() && top.bg.is_none() {
                             continue;
                         }
-                        if opacity == 255 {
+                        if opacity == 255 && blend_mode == BlendMode::Normal {
                             result.set(x, y, *top);
                         } else if opacity > 0 {
                             let bottom = result.get(x, y).copied().unwrap_or_default();
-                            let blended = blend_cells(*top, bottom, opacity);
-                            result.set(x, y, blended);
+                            let blended_fg = blend_mode_color(top.fg, bottom.fg, blend_mode);
+                            let blended_bg = blend_mode_color(top.bg, bottom.bg, blend_mode);
+                            let final_fg = blend_colors(blended_fg, bottom.fg, opacity);
+                            let final_bg = blend_colors(blended_bg, bottom.bg, opacity);
+                            result.set(
+                                x,
+                                y,
+                                super::canvas::CanvasCell {
+                                    ch: top.ch,
+                                    fg: final_fg,
+                                    bg: final_bg,
+                                },
+                            );
                         }
                     }
                 }
@@ -250,6 +321,12 @@ impl LayerStack {
             layer.opacity = opacity;
         }
     }
+
+    pub fn set_blend_mode(&mut self, index: usize, mode: BlendMode) {
+        if let Some(layer) = self.layers.get_mut(index) {
+            layer.blend_mode = mode;
+        }
+    }
 }
 
 fn blend_colors(top: Option<Color>, bottom: Option<Color>, opacity: u8) -> Option<Color> {
@@ -272,21 +349,49 @@ fn blend_colors(top: Option<Color>, bottom: Option<Color>, opacity: u8) -> Optio
     }
 }
 
-fn blend_cells(
-    top: super::canvas::CanvasCell,
-    bottom: super::canvas::CanvasCell,
-    opacity: u8,
-) -> super::canvas::CanvasCell {
-    super::canvas::CanvasCell {
-        ch: top.ch,
-        fg: blend_colors(top.fg, bottom.fg, opacity),
-        bg: blend_colors(top.bg, bottom.bg, opacity),
+fn blend_channel(top: u8, bottom: u8, mode: BlendMode) -> u8 {
+    match mode {
+        BlendMode::Normal => top,
+        BlendMode::Multiply => ((top as u32) * (bottom as u32) / 255) as u8,
+        BlendMode::Overlay => {
+            if bottom < 128 {
+                ((2u32 * top as u32 * bottom as u32) / 255) as u8
+            } else {
+                (255u32 - (2u32 * (255u32 - top as u32) * (255u32 - bottom as u32)) / 255) as u8
+            }
+        }
+        BlendMode::Screen => {
+            (255u32 - ((255u32 - top as u32) * (255u32 - bottom as u32)) / 255) as u8
+        }
+        BlendMode::Add => top.saturating_add(bottom),
+        BlendMode::Subtract => bottom.saturating_sub(top),
+    }
+}
+
+fn blend_mode_color(top: Option<Color>, bottom: Option<Color>, mode: BlendMode) -> Option<Color> {
+    if mode == BlendMode::Normal {
+        return top;
+    }
+    match (top, bottom) {
+        (Some(t), Some(b)) => match (t, b) {
+            (Color::Rgb(tr, tg, tb), Color::Rgb(br, bg, bb)) => {
+                let r = blend_channel(tr, br, mode);
+                let g = blend_channel(tg, bg, mode);
+                let b = blend_channel(tb, bb, mode);
+                Some(Color::Rgb(r, g, b))
+            }
+            _ => Some(t),
+        },
+        (Some(t), None) => Some(t),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
     }
 }
 
 pub struct LayerPanel {
     pub scroll: u16,
     pub theme: Theme,
+    pub icons: std::collections::BTreeMap<String, String>,
 }
 
 impl LayerPanel {
@@ -294,6 +399,7 @@ impl LayerPanel {
         Self {
             scroll: 0,
             theme: Theme::default(),
+            icons: std::collections::BTreeMap::new(),
         }
     }
 
@@ -355,6 +461,16 @@ impl LayerPanel {
                 stack.move_down(stack.active);
                 true
             }
+            KeyCode::Char('b') => {
+                let mode = stack.layers[stack.active].blend_mode;
+                stack.layers[stack.active].blend_mode = mode.next();
+                true
+            }
+            KeyCode::Char('B') => {
+                let mode = stack.layers[stack.active].blend_mode;
+                stack.layers[stack.active].blend_mode = mode.prev();
+                true
+            }
             _ => false,
         }
     }
@@ -382,9 +498,9 @@ impl LayerPanel {
         let inner_y = inner.y;
         let inner_x = inner.x;
         let inner_h = inner.height as usize;
-        let name_max = (inner.width as usize).saturating_sub(8).max(4);
+        let name_max = (inner.width as usize).saturating_sub(11).max(4);
         let help_lines = [
-            "↑↓ sel ↵vis Llock ±opa",
+            "↑↓ sel ↵vis Llock ±opa Bbld",
             "Nnew Ddup Xdel Mmerge",
             ",↑ .↓ reorder",
         ];
@@ -430,12 +546,18 @@ impl LayerPanel {
 
             let vis_ch = if layer.visible { vis_icon } else { " " };
             let lock_ch = if layer.locked { "L" } else { " " };
+            let blend_icon = self
+                .icons
+                .get(layer.blend_mode.icon_key())
+                .map(|s| s.as_str())
+                .unwrap_or("");
 
             let label = format!(
-                " {} {} {} {:3}% {}",
+                " {} {} {} {} {:3}% {}",
                 vis_ch,
                 lock_ch,
                 if is_active { ">" } else { " " },
+                blend_icon,
                 (layer.opacity as f32 / 255.0 * 100.0).round() as u8,
                 truncate_str(&layer.name, name_max),
             );
@@ -679,5 +801,223 @@ mod tests {
         assert_eq!(stack.layers[0].name, "Background");
         assert_eq!(stack.layers[1].name, "Layer 2");
         assert_eq!(stack.layers[2].name, "Layer 3");
+    }
+
+    // --- Blend mode tests ---
+
+    fn rgb_cell(ch: char, r: u8, g: u8, b: u8) -> CanvasCell {
+        CanvasCell {
+            ch,
+            fg: Some(Color::Rgb(r, g, b)),
+            bg: None,
+        }
+    }
+
+    #[test]
+    fn test_blend_multiply() {
+        let top = rgb_cell('X', 200, 100, 50);
+        let bottom = rgb_cell('Y', 100, 200, 50);
+        let result = blend_mode_color(top.fg, bottom.fg, BlendMode::Multiply);
+        match result {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 78);
+                assert_eq!(g, 78);
+                assert_eq!(b, 9);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
+    }
+
+    #[test]
+    fn test_blend_overlay_dark() {
+        let top = rgb_cell('X', 200, 50, 50);
+        let bottom = rgb_cell('Y', 50, 100, 150);
+        let result = blend_mode_color(top.fg, bottom.fg, BlendMode::Overlay);
+        match result {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 78);
+                assert_eq!(g, 39);
+                assert_eq!(b, 87);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
+    }
+
+    #[test]
+    fn test_blend_overlay_light() {
+        let top = rgb_cell('X', 200, 50, 50);
+        let bottom = rgb_cell('Y', 200, 100, 50);
+        let result = blend_mode_color(top.fg, bottom.fg, BlendMode::Overlay);
+        match result {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 232);
+                assert_eq!(g, 39);
+                assert_eq!(b, 19);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
+    }
+
+    #[test]
+    fn test_blend_screen() {
+        let top = rgb_cell('X', 200, 100, 50);
+        let bottom = rgb_cell('Y', 100, 200, 50);
+        let result = blend_mode_color(top.fg, bottom.fg, BlendMode::Screen);
+        match result {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 222);
+                assert_eq!(g, 222);
+                assert_eq!(b, 91);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
+    }
+
+    #[test]
+    fn test_blend_add() {
+        let top = rgb_cell('X', 200, 100, 200);
+        let bottom = rgb_cell('Y', 100, 200, 50);
+        let result = blend_mode_color(top.fg, bottom.fg, BlendMode::Add);
+        match result {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 255);
+                assert_eq!(g, 255);
+                assert_eq!(b, 250);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
+    }
+
+    #[test]
+    fn test_blend_subtract() {
+        let top = rgb_cell('X', 200, 100, 50);
+        let bottom = rgb_cell('Y', 100, 200, 50);
+        let result = blend_mode_color(top.fg, bottom.fg, BlendMode::Subtract);
+        match result {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 0);
+                assert_eq!(g, 100);
+                assert_eq!(b, 0);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
+    }
+
+    #[test]
+    fn test_composite_blend_mode() {
+        let mut stack = make_stack(3, 3);
+        stack.add(3, 3);
+        stack.layers[0]
+            .buffer
+            .set(0, 0, rgb_cell('A', 200, 100, 50));
+        stack.layers[1]
+            .buffer
+            .set(0, 0, rgb_cell('B', 100, 200, 50));
+        stack.layers[1].blend_mode = BlendMode::Multiply;
+        let comp = stack.composite();
+        let cell = comp.get(0, 0).unwrap();
+        assert_eq!(cell.ch, 'B');
+        match cell.fg {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 78);
+                assert_eq!(g, 78);
+                assert_eq!(b, 9);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
+    }
+
+    #[test]
+    fn test_blend_mode_cycle() {
+        let mut mode = BlendMode::Normal;
+        mode = mode.next();
+        assert_eq!(mode, BlendMode::Multiply);
+        mode = mode.next();
+        assert_eq!(mode, BlendMode::Overlay);
+        mode = mode.next();
+        assert_eq!(mode, BlendMode::Screen);
+        mode = mode.next();
+        assert_eq!(mode, BlendMode::Add);
+        mode = mode.next();
+        assert_eq!(mode, BlendMode::Subtract);
+        mode = mode.next();
+        assert_eq!(mode, BlendMode::Normal);
+        // prev cycle
+        mode = mode.prev();
+        assert_eq!(mode, BlendMode::Subtract);
+        mode = mode.prev();
+        assert_eq!(mode, BlendMode::Add);
+        mode = mode.prev();
+        assert_eq!(mode, BlendMode::Screen);
+        mode = mode.prev();
+        assert_eq!(mode, BlendMode::Overlay);
+        mode = mode.prev();
+        assert_eq!(mode, BlendMode::Multiply);
+        mode = mode.prev();
+        assert_eq!(mode, BlendMode::Normal);
+    }
+
+    #[test]
+    fn test_set_blend_mode() {
+        let mut stack = make_stack(5, 5);
+        assert_eq!(stack.layers[0].blend_mode, BlendMode::Normal);
+        stack.set_blend_mode(0, BlendMode::Multiply);
+        assert_eq!(stack.layers[0].blend_mode, BlendMode::Multiply);
+        stack.set_blend_mode(0, BlendMode::Overlay);
+        assert_eq!(stack.layers[0].blend_mode, BlendMode::Overlay);
+    }
+
+    #[test]
+    fn test_blend_mode_icon_key() {
+        assert_eq!(BlendMode::Normal.icon_key(), "blend_normal");
+        assert_eq!(BlendMode::Multiply.icon_key(), "blend_multiply");
+        assert_eq!(BlendMode::Overlay.icon_key(), "blend_overlay");
+        assert_eq!(BlendMode::Screen.icon_key(), "blend_screen");
+        assert_eq!(BlendMode::Add.icon_key(), "blend_add");
+        assert_eq!(BlendMode::Subtract.icon_key(), "blend_subtract");
+    }
+
+    #[test]
+    fn test_blend_mode_display_name() {
+        assert_eq!(BlendMode::Normal.display_name(), "Normal");
+        assert_eq!(BlendMode::Multiply.display_name(), "Multiply");
+        assert_eq!(BlendMode::Overlay.display_name(), "Overlay");
+        assert_eq!(BlendMode::Screen.display_name(), "Screen");
+        assert_eq!(BlendMode::Add.display_name(), "Add");
+        assert_eq!(BlendMode::Subtract.display_name(), "Subtract");
+    }
+
+    #[test]
+    fn test_blend_mode_normal_returns_top() {
+        let top = rgb_cell('X', 100, 150, 200);
+        let bottom = rgb_cell('Y', 50, 100, 150);
+        let result = blend_mode_color(top.fg, bottom.fg, BlendMode::Normal);
+        assert_eq!(result, top.fg);
+    }
+
+    #[test]
+    fn test_composite_blend_mode_with_opacity() {
+        let mut stack = make_stack(3, 3);
+        stack.add(3, 3);
+        stack.layers[0]
+            .buffer
+            .set(0, 0, rgb_cell('A', 200, 100, 50));
+        stack.layers[1]
+            .buffer
+            .set(0, 0, rgb_cell('B', 100, 200, 50));
+        stack.layers[1].blend_mode = BlendMode::Multiply;
+        stack.layers[1].opacity = 128;
+        let comp = stack.composite();
+        let cell = comp.get(0, 0).unwrap();
+        assert_eq!(cell.ch, 'B');
+        // With opacity=128, result is lerp between bottom and multiply blend
+        match cell.fg {
+            Some(Color::Rgb(r, g, b)) => {
+                assert_eq!(r, 139);
+                assert_eq!(g, 89);
+                assert_eq!(b, 29);
+            }
+            _ => panic!("expected Some(Color::Rgb)"),
+        }
     }
 }

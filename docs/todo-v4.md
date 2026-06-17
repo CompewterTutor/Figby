@@ -161,11 +161,11 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Create, delete, reorder, merge layers.
   - **Difficulty:** High
 
-- [ ] `4.4.2` Blending modes
+- [x] `4.4.2` Blending modes
   - **Goal:** Per-layer blend mode: Normal, Multiply, Overlay, Screen,
     Add, Subtract. Render composited output in real time. Preview
     thumbnail per layer showing blend effect.
-  - **Touches:** `figby-rs/src/tui/layers.rs`
+  - **Touches:** `figby-rs/src/tui/layers.rs`, `figby-rs/src/tui/mod.rs`
   - **Success:** Blend modes produce correct composed output.
   - **Tests:** Multiply + Overlay blend with known test patterns.
   - **Difficulty:** High

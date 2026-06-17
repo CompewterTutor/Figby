@@ -1108,3 +1108,16 @@ Three bugs found in phase merge review:
   duration and quadratic-out easing — clean and ergonomic.
 - `Effect::done()` returns `true` when the effect has completed its full duration,
   allowing clean cleanup after animation finishes.
+
+## 4.9.3 — App fade-in on launch (ratzilla-style)
+
+- `fx::fade_from(bg, fg, timer)` (three-argument variant) applies a full-screen overlay
+  that transitions both background and foreground colors from the given values to
+  transparent — ideal for app-launch black-to-reveal effects. This differs from
+  `fx::fade_from_fg()` (used in 4.9.1) which only modifies foreground.
+- The effect must be applied AFTER rendering the UI content but BEFORE `frame.finish()`,
+  so the overlay draws on top of the rendered widgets. Calling `.process()` on
+  `frame.buffer_mut()` after all `frame.render_*` calls achieves this correctly.
+- The `Option<Effect>` + `if let Some(ref mut)` + `take()` on `done()` pattern works
+  for one-shot launch effects: the effect runs every frame during its duration, then
+  drops itself cleanly with no further overhead.

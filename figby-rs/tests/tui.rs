@@ -2075,7 +2075,7 @@ fn test_export_dialog_path_entry() {
     dialog.enter_export(figby::tui::ExportMode::Png);
     assert_eq!(dialog.path_buffer, "export.png");
 
-    // Type additional path chars (avoid 't' which toggles format)
+    // Type additional path chars (avoid 't','l','p' which toggle format/layers/alpha)
     dialog.handle_key(KeyCode::Char('/'));
     dialog.handle_key(KeyCode::Char('o'));
     dialog.handle_key(KeyCode::Char('u'));
@@ -2083,13 +2083,13 @@ fn test_export_dialog_path_entry() {
     dialog.handle_key(KeyCode::Char('/'));
     dialog.handle_key(KeyCode::Char('f'));
     dialog.handle_key(KeyCode::Char('i'));
-    dialog.handle_key(KeyCode::Char('l'));
     dialog.handle_key(KeyCode::Char('e'));
-    assert_eq!(dialog.path_buffer, "export.png/our/file");
+    dialog.handle_key(KeyCode::Char('s'));
+    assert_eq!(dialog.path_buffer, "export.png/our/fies");
 
     // Backspace
     dialog.handle_key(KeyCode::Backspace);
-    assert_eq!(dialog.path_buffer, "export.png/our/fil");
+    assert_eq!(dialog.path_buffer, "export.png/our/fie");
 
     // Esc closes dialog
     dialog.handle_key(KeyCode::Esc);

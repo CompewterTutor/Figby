@@ -27,6 +27,7 @@ pub mod file_ops;
 pub mod font_editor;
 pub mod image_editor;
 pub mod keymap;
+pub mod layers;
 pub mod layout;
 pub mod menu;
 pub mod palette;
@@ -99,12 +100,20 @@ pub struct EditorState {
     pub unsaved: bool,
     pub selection: Option<tools::selection::Selection>,
     pub clipboard: Option<tools::selection::Clipboard>,
+    pub layer_stack: layers::LayerStack,
+    pub layer_panel: layers::LayerPanel,
 }
 
 impl EditorState {
+    fn recomposite_canvas(&mut self) {
+        self.canvas.buffer = self.layer_stack.composite();
+    }
+
     fn push_undo_snapshot(&mut self, label: &str) {
-        self.undo
-            .push_snapshot(self.canvas.buffer.clone(), label.to_string());
+        self.undo.push_snapshot(
+            self.layer_stack.active_layer().buffer.clone(),
+            label.to_string(),
+        );
     }
 
     fn compute_canvas_rect(&self, inner: Rect) -> Rect {
@@ -147,12 +156,14 @@ impl EditorState {
             let h = ch.rows().len().max(1);
             if self.canvas.buffer.width() != w || self.canvas.buffer.height() != h {
                 self.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
+                self.layer_stack.resize_all(w, h);
             }
+            let mut buf = self.layer_stack.active_layer().buffer.clone();
             for y in 0..h {
                 let row = &ch.rows()[y];
                 for (x, c) in row.chars().enumerate() {
                     if x < w {
-                        self.canvas.buffer.set(
+                        buf.set(
                             x,
                             y,
                             canvas::CanvasCell {
@@ -164,6 +175,8 @@ impl EditorState {
                     }
                 }
             }
+            *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+            self.recomposite_canvas();
         }
     }
 
@@ -173,19 +186,25 @@ impl EditorState {
             let w = cells[0].len();
             if self.canvas.buffer.width() != w || self.canvas.buffer.height() != h {
                 self.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
+                self.layer_stack.resize_all(w, h);
             }
+            let mut buf = self.layer_stack.active_layer().buffer.clone();
             for (y, row) in cells.iter().enumerate() {
                 for (x, cell) in row.iter().enumerate() {
-                    self.canvas.buffer.set(x, y, *cell);
+                    buf.set(x, y, *cell);
                 }
             }
+            *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+            self.recomposite_canvas();
         }
     }
 
     fn move_selection(&mut self, dx: i16, dy: i16) {
         if let Some(ref mut sel) = self.selection {
             if sel.is_active() {
-                sel.move_selection(&mut self.canvas.buffer, dx, dy);
+                let mut buf = self.layer_stack.active_layer().buffer.clone();
+                sel.move_selection(&mut buf, dx, dy);
+                *self.layer_stack.active_layer_mut().buffer_mut() = buf;
             }
         }
     }
@@ -425,6 +444,13 @@ impl TuiApp {
         let mut toolbox = toolbox::Toolbox::new();
         toolbox.theme = theme.clone();
 
+        let canvas_w = canvas.buffer.width();
+        let canvas_h = canvas.buffer.height();
+        let layer_stack = layers::LayerStack::new(canvas_w, canvas_h);
+        let mut layer_panel = layers::LayerPanel::new();
+        layer_panel.theme = theme.clone();
+        layer_panel.icons = icons.clone();
+
         Self {
             mode: AppMode::FontEditor,
             should_quit: false,
@@ -469,18 +495,24 @@ impl TuiApp {
             welcome_screen: welcome::WelcomeScreen::new(),
             zen_mode: false,
             right_drawer: layout::DrawerMode::Palette,
-            editor: EditorState {
-                canvas,
-                toolbox,
-                brush,
-                palette,
-                font_editor,
-                image_editor: image_editor::ImageEditor::new(),
-                text_tool: tools::text::TextToolState::new("fonts"),
-                undo: undo::UndoSystem::new(config.tui.undo_limit.unwrap_or(50)),
-                unsaved: false,
-                selection: None,
-                clipboard: None,
+            editor: {
+                let mut editor = EditorState {
+                    canvas,
+                    toolbox,
+                    brush,
+                    palette,
+                    font_editor,
+                    image_editor: image_editor::ImageEditor::new(),
+                    text_tool: tools::text::TextToolState::new("fonts"),
+                    undo: undo::UndoSystem::new(config.tui.undo_limit.unwrap_or(50)),
+                    unsaved: false,
+                    selection: None,
+                    clipboard: None,
+                    layer_stack,
+                    layer_panel,
+                };
+                editor.recomposite_canvas();
+                editor
             },
             dialogs: DialogState {
                 file_ops,
@@ -663,6 +695,11 @@ impl TuiApp {
                 layout::DrawerMode::BrushKeys => {
                     self.render_brush_keys_panel(frame, rp);
                 }
+                layout::DrawerMode::Layers => {
+                    self.editor
+                        .layer_panel
+                        .render_with_stack(frame, rp, &self.editor.layer_stack);
+                }
                 layout::DrawerMode::Closed => {}
             }
         }
@@ -697,7 +734,7 @@ impl TuiApp {
         self.status_render_mode = self.render_mode.label();
         self.status_git_branch = self.git_branch.clone();
         self.status_clock_str = format_clock();
-        self.status_layer_count = 1;
+        self.status_layer_count = self.editor.layer_stack.len() as u8;
         self.status_animation_frame = 0;
         self.render_status_bar(frame, fl.status);
 
@@ -1295,24 +1332,26 @@ impl TuiApp {
                         bg: None,
                     };
                     self.editor.palette.apply_to_cell(&mut cell);
-                    tools::fill::flood_fill(&mut self.editor.canvas.buffer, bx, by, cell);
+                    let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                    tools::fill::flood_fill(&mut buf, bx, by, cell);
+                    *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                    self.editor.recomposite_canvas();
                     return;
                 }
                 if self.editor.toolbox.selected == Tool::Line {
                     self.editor.push_undo_snapshot("Line tool");
                     self.line_start = Some((bx, by));
-                    self.saved_buffer = Some(self.editor.canvas.buffer.clone());
+                    self.saved_buffer = Some(self.editor.layer_stack.active_layer().buffer.clone());
                     return;
                 }
                 if self.editor.toolbox.selected == Tool::Eraser {
                     self.editor.push_undo_snapshot("Eraser");
-                    tools::eraser::erase_stamp(
-                        &mut self.editor.canvas.buffer,
-                        bx,
-                        by,
-                        self.editor.brush.shape,
-                        self.editor.brush.size,
-                    );
+                    let shape = self.editor.brush.shape;
+                    let size = self.editor.brush.size;
+                    let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                    tools::eraser::erase_stamp(&mut buf, bx, by, shape, size);
+                    *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                    self.editor.recomposite_canvas();
                 } else if self.editor.toolbox.selected == Tool::Eyedropper {
                     if let Some(cell) =
                         tools::eyedropper::sample(&self.editor.canvas.buffer, bx, by)
@@ -1333,15 +1372,12 @@ impl TuiApp {
                     };
                     self.editor.palette.apply_to_cell(&mut cell);
                     let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
-                    tools::spray::spray_stamp(
-                        &mut self.editor.canvas.buffer,
-                        bx,
-                        by,
-                        self.editor.brush.size,
-                        self.editor.brush.density,
-                        cell,
-                        &mut rng,
-                    );
+                    let size = self.editor.brush.size;
+                    let density = self.editor.brush.density;
+                    let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                    tools::spray::spray_stamp(&mut buf, bx, by, size, density, cell, &mut rng);
+                    *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                    self.editor.recomposite_canvas();
                 } else {
                     self.editor.push_undo_snapshot("Brush");
                     let mut cell = canvas::CanvasCell {
@@ -1350,14 +1386,12 @@ impl TuiApp {
                         bg: None,
                     };
                     self.editor.palette.apply_to_cell(&mut cell);
-                    tools::brush::paint_stamp(
-                        &mut self.editor.canvas.buffer,
-                        bx,
-                        by,
-                        self.editor.brush.shape,
-                        self.editor.brush.size,
-                        cell,
-                    );
+                    let shape = self.editor.brush.shape;
+                    let size = self.editor.brush.size;
+                    let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                    tools::brush::paint_stamp(&mut buf, bx, by, shape, size, cell);
+                    *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                    self.editor.recomposite_canvas();
                 }
                 self.prev_mouse_buf = Some((bx, by));
             }
@@ -1384,38 +1418,33 @@ impl TuiApp {
                 }
 
                 if self.editor.toolbox.selected == Tool::Line {
-                    if let (Some((sx, sy)), Some(saved)) = (self.line_start, &self.saved_buffer) {
-                        self.editor.canvas.buffer = saved.clone();
+                    if let (Some((sx, sy)), Some(ref saved)) =
+                        (self.line_start, self.saved_buffer.clone())
+                    {
+                        let saved_clone = saved.clone();
                         let mut cell = canvas::CanvasCell {
                             ch: self.editor.brush.ch,
                             fg: None,
                             bg: None,
                         };
                         self.editor.palette.apply_to_cell(&mut cell);
-                        tools::line::draw_line_segment(
-                            &mut self.editor.canvas.buffer,
-                            sx,
-                            sy,
-                            bx,
-                            by,
-                            self.editor.brush.shape,
-                            self.editor.brush.size,
-                            cell,
-                        );
+                        let shape = self.editor.brush.shape;
+                        let size = self.editor.brush.size;
+                        let mut buf = saved_clone;
+                        tools::line::draw_line_segment(&mut buf, sx, sy, bx, by, shape, size, cell);
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                     }
                     return;
                 }
                 if let Some((px, py)) = self.prev_mouse_buf {
                     if self.editor.toolbox.selected == Tool::Eraser {
-                        tools::eraser::erase_line(
-                            &mut self.editor.canvas.buffer,
-                            px,
-                            py,
-                            bx,
-                            by,
-                            self.editor.brush.shape,
-                            self.editor.brush.size,
-                        );
+                        let shape = self.editor.brush.shape;
+                        let size = self.editor.brush.size;
+                        let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                        tools::eraser::erase_line(&mut buf, px, py, bx, by, shape, size);
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                     } else if self.editor.toolbox.selected == Tool::Spray {
                         let mut cell = canvas::CanvasCell {
                             ch: self.editor.brush.ch,
@@ -1424,17 +1453,14 @@ impl TuiApp {
                         };
                         self.editor.palette.apply_to_cell(&mut cell);
                         let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
+                        let size = self.editor.brush.size;
+                        let density = self.editor.brush.density;
+                        let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
                         tools::spray::spray_line(
-                            &mut self.editor.canvas.buffer,
-                            px,
-                            py,
-                            bx,
-                            by,
-                            self.editor.brush.size,
-                            self.editor.brush.density,
-                            cell,
-                            &mut rng,
+                            &mut buf, px, py, bx, by, size, density, cell, &mut rng,
                         );
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                     } else {
                         let mut cell = canvas::CanvasCell {
                             ch: self.editor.brush.ch,
@@ -1442,16 +1468,12 @@ impl TuiApp {
                             bg: None,
                         };
                         self.editor.palette.apply_to_cell(&mut cell);
-                        tools::brush::paint_line(
-                            &mut self.editor.canvas.buffer,
-                            px,
-                            py,
-                            bx,
-                            by,
-                            self.editor.brush.shape,
-                            self.editor.brush.size,
-                            cell,
-                        );
+                        let shape = self.editor.brush.shape;
+                        let size = self.editor.brush.size;
+                        let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                        tools::brush::paint_line(&mut buf, px, py, bx, by, shape, size, cell);
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                     }
                 }
                 self.prev_mouse_buf = Some((bx, by));
@@ -1706,6 +1728,19 @@ impl TuiApp {
             return None;
         }
 
+        // Layer panel: dispatch keys when drawer shows layers
+        if self.right_drawer == layout::DrawerMode::Layers
+            && self
+                .editor
+                .layer_panel
+                .handle_key(key, &mut self.editor.layer_stack)
+        {
+            self.editor.recomposite_canvas();
+            self.editor.unsaved = true;
+            self.dirty = true;
+            return None;
+        }
+
         // Welcome screen: intercept before mode-specific dispatch
         if self.welcome_screen.show {
             let recent_count = self.dialogs.recent_files.len();
@@ -1737,6 +1772,11 @@ impl TuiApp {
                         self.editor.font_editor.current_path = None;
                         self.editor.undo.clear();
                         self.editor.canvas = crate::tui::canvas::CanvasWidget::new(32, 16);
+                        self.editor.layer_stack = layers::LayerStack::new(32, 16);
+                        self.editor.layer_panel = layers::LayerPanel::new();
+                        self.editor.layer_panel.theme = self.theme.clone();
+                        self.editor.layer_panel.icons = self.icons.clone();
+                        self.editor.recomposite_canvas();
                         self.welcome_screen.show = false;
                         self.dirty = true;
                     }
@@ -1951,7 +1991,10 @@ impl TuiApp {
                 KeyCode::Delete | KeyCode::Backspace => {
                     self.editor.push_undo_snapshot("Delete selection");
                     if let Some(sel) = self.editor.selection.take() {
-                        sel.delete_from(&mut self.editor.canvas.buffer);
+                        let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                        sel.delete_from(&mut buf);
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                         self.editor.unsaved = true;
                     }
                     return None;
@@ -1970,8 +2013,10 @@ impl TuiApp {
                     KeyCode::Char('x') => {
                         self.editor.push_undo_snapshot("Cut selection");
                         if let Some(sel) = self.editor.selection.take() {
-                            self.editor.clipboard =
-                                Some(sel.cut_from(&mut self.editor.canvas.buffer));
+                            let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                            self.editor.clipboard = Some(sel.cut_from(&mut buf));
+                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                            self.editor.recomposite_canvas();
                             self.editor.unsaved = true;
                         }
                         return None;
@@ -1980,12 +2025,12 @@ impl TuiApp {
                         self.editor.push_undo_snapshot("Paste");
                         if let Some(ref clip) = self.editor.clipboard {
                             let (cx, cy) = self.editor.canvas.cursor();
+                            let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
                             tools::selection::Selection::paste_into(
-                                &mut self.editor.canvas.buffer,
-                                clip,
-                                cx as i16,
-                                cy as i16,
+                                &mut buf, clip, cx as i16, cy as i16,
                             );
+                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                            self.editor.recomposite_canvas();
                             self.editor.unsaved = true;
                         }
                         return None;
@@ -2190,15 +2235,17 @@ impl TuiApp {
                     bg: None,
                 };
                 self.editor.palette.apply_to_cell(&mut cell);
-                tools::fill::flood_fill(&mut self.editor.canvas.buffer, cx as i16, cy as i16, cell);
+                let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                tools::fill::flood_fill(&mut buf, cx as i16, cy as i16, cell);
+                *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.editor.recomposite_canvas();
             } else if self.editor.toolbox.selected == Tool::Eraser {
-                tools::eraser::erase_stamp(
-                    &mut self.editor.canvas.buffer,
-                    cx as i16,
-                    cy as i16,
-                    self.editor.brush.shape,
-                    self.editor.brush.size,
-                );
+                let shape = self.editor.brush.shape;
+                let size = self.editor.brush.size;
+                let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                tools::eraser::erase_stamp(&mut buf, cx as i16, cy as i16, shape, size);
+                *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.editor.recomposite_canvas();
             } else if self.editor.toolbox.selected == Tool::Spray {
                 let mut cell = canvas::CanvasCell {
                     ch: self.editor.brush.ch,
@@ -2207,15 +2254,14 @@ impl TuiApp {
                 };
                 self.editor.palette.apply_to_cell(&mut cell);
                 let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
+                let size = self.editor.brush.size;
+                let density = self.editor.brush.density;
+                let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
                 tools::spray::spray_stamp(
-                    &mut self.editor.canvas.buffer,
-                    cx as i16,
-                    cy as i16,
-                    self.editor.brush.size,
-                    self.editor.brush.density,
-                    cell,
-                    &mut rng,
+                    &mut buf, cx as i16, cy as i16, size, density, cell, &mut rng,
                 );
+                *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.editor.recomposite_canvas();
             } else {
                 let mut cell = canvas::CanvasCell {
                     ch: self.editor.brush.ch,
@@ -2223,14 +2269,12 @@ impl TuiApp {
                     bg: None,
                 };
                 self.editor.palette.apply_to_cell(&mut cell);
-                tools::brush::paint_stamp(
-                    &mut self.editor.canvas.buffer,
-                    cx as i16,
-                    cy as i16,
-                    self.editor.brush.shape,
-                    self.editor.brush.size,
-                    cell,
-                );
+                let shape = self.editor.brush.shape;
+                let size = self.editor.brush.size;
+                let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                tools::brush::paint_stamp(&mut buf, cx as i16, cy as i16, shape, size, cell);
+                *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.editor.recomposite_canvas();
             }
             self.editor.unsaved = true;
             return None;
@@ -2269,19 +2313,19 @@ impl TuiApp {
                 None
             }
             GA::Undo => {
-                let empty = canvas::CanvasBuffer::new(1, 1);
-                let cur = std::mem::replace(&mut self.editor.canvas.buffer, empty);
+                let cur = self.editor.layer_stack.active_layer().buffer.clone();
                 if let Some((buf, _)) = self.editor.undo.undo(cur) {
-                    self.editor.canvas.buffer = buf;
+                    *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                    self.editor.recomposite_canvas();
                     self.editor.unsaved = true;
                 }
                 Some(AppEvent::Undo)
             }
             GA::Redo => {
-                let empty = canvas::CanvasBuffer::new(1, 1);
-                let cur = std::mem::replace(&mut self.editor.canvas.buffer, empty);
+                let cur = self.editor.layer_stack.active_layer().buffer.clone();
                 if let Some((buf, _)) = self.editor.undo.redo(cur) {
-                    self.editor.canvas.buffer = buf;
+                    *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                    self.editor.recomposite_canvas();
                     self.editor.unsaved = true;
                 }
                 Some(AppEvent::Redo)
@@ -2467,6 +2511,13 @@ impl TuiApp {
         let format = self.dialogs.export_dialog.format;
         let font_size = self.dialogs.export_dialog.font_size;
         let path_buf = std::path::PathBuf::from(&self.dialogs.export_dialog.path_buffer);
+        let export_layers = self.dialogs.export_dialog.export_layers;
+        let use_transparency = self.dialogs.export_dialog.use_transparency;
+        let layer_stack = if export_layers {
+            Some(self.editor.layer_stack.clone())
+        } else {
+            None
+        };
         let (tx, rx) = mpsc::channel();
         self.async_rx = Some(rx);
         self.throbber.start("Exporting...");
@@ -2478,8 +2529,13 @@ impl TuiApp {
                 }
                 let bytes: Vec<u8> = match format {
                     crate::tui::export::ExportMode::Png => {
-                        crate::output::export_cells_to_png(&cells, font_size)
-                            .map_err(|e| e.to_string())?
+                        if use_transparency {
+                            crate::output::export_cells_to_png_with_alpha(&cells, font_size, true)
+                                .map_err(|e| e.to_string())?
+                        } else {
+                            crate::output::export_cells_to_png(&cells, font_size)
+                                .map_err(|e| e.to_string())?
+                        }
                     }
                     crate::tui::export::ExportMode::Txt => {
                         crate::output::export_cells_to_txt(&cells).into_bytes()
@@ -2490,6 +2546,18 @@ impl TuiApp {
                     }
                 };
                 std::fs::write(&path_buf, &bytes).map_err(|e| format!("IoError({e})"))?;
+                if let Some(stack) = layer_stack {
+                    let mode = format;
+                    if mode == crate::tui::export::ExportMode::Png {
+                        crate::tui::export::ExportDialog::perform_layer_export(
+                            &stack,
+                            &path_buf,
+                            font_size,
+                            use_transparency,
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
+                }
                 Ok(())
             })();
             let _ = tx.send(AsyncResult::ExportComplete(result));
@@ -2525,10 +2593,10 @@ impl TuiApp {
             }
             menu::MenuAction::EditUndo => {
                 if self.editor.undo.can_undo() {
-                    let empty = canvas::CanvasBuffer::new(1, 1);
-                    let cur = std::mem::replace(&mut self.editor.canvas.buffer, empty);
+                    let cur = self.editor.layer_stack.active_layer().buffer.clone();
                     if let Some((buf, _)) = self.editor.undo.undo(cur) {
-                        self.editor.canvas.buffer = buf;
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                         self.editor.unsaved = true;
                     }
                 }
@@ -2536,10 +2604,10 @@ impl TuiApp {
             }
             menu::MenuAction::EditRedo => {
                 if self.editor.undo.can_redo() {
-                    let empty = canvas::CanvasBuffer::new(1, 1);
-                    let cur = std::mem::replace(&mut self.editor.canvas.buffer, empty);
+                    let cur = self.editor.layer_stack.active_layer().buffer.clone();
                     if let Some((buf, _)) = self.editor.undo.redo(cur) {
-                        self.editor.canvas.buffer = buf;
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                         self.editor.unsaved = true;
                     }
                 }
@@ -2550,8 +2618,10 @@ impl TuiApp {
                     if sel.is_active() {
                         self.editor.push_undo_snapshot("Cut selection");
                         if let Some(sel_owned) = self.editor.selection.take() {
-                            self.editor.clipboard =
-                                Some(sel_owned.cut_from(&mut self.editor.canvas.buffer));
+                            let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                            self.editor.clipboard = Some(sel_owned.cut_from(&mut buf));
+                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                            self.editor.recomposite_canvas();
                             self.editor.unsaved = true;
                         }
                     }
@@ -2572,12 +2642,12 @@ impl TuiApp {
                     let clip = self.editor.clipboard.clone();
                     if let Some(ref clip_data) = clip {
                         let (cx, cy) = self.editor.canvas.cursor();
+                        let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
                         tools::selection::Selection::paste_into(
-                            &mut self.editor.canvas.buffer,
-                            clip_data,
-                            cx as i16,
-                            cy as i16,
+                            &mut buf, clip_data, cx as i16, cy as i16,
                         );
+                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.editor.recomposite_canvas();
                         self.editor.unsaved = true;
                     }
                 }
@@ -2626,6 +2696,8 @@ impl TuiApp {
         let h = self.dialogs.settings.canvas_height as usize;
         if self.editor.canvas.buffer.width() != w || self.editor.canvas.buffer.height() != h {
             self.editor.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
+            self.editor.layer_stack.resize_all(w, h);
+            self.editor.recomposite_canvas();
             self.editor.undo.clear();
         }
         if self.dialogs.settings.show_grid != self.editor.canvas.show_grid() {

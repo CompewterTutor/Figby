@@ -233,7 +233,11 @@ fn rasterize_char(
     result
 }
 
-fn render_frame(cells: &[Vec<CanvasCell>], scale: u8) -> Vec<Vec<(u8, u8, u8, u8)>> {
+fn render_frame(
+    cells: &[Vec<CanvasCell>],
+    scale: u8,
+    transparent: bool,
+) -> Vec<Vec<(u8, u8, u8, u8)>> {
     let sc = scale as usize;
     let char_w = 8 * sc;
     let char_h = 16 * sc;
@@ -249,6 +253,9 @@ fn render_frame(cells: &[Vec<CanvasCell>], scale: u8) -> Vec<Vec<(u8, u8, u8, u8
 
     for (cy, row) in cells.iter().enumerate() {
         for (cx, cell) in row.iter().enumerate() {
+            if transparent && cell.ch == ' ' {
+                continue;
+            }
             let ch = if cell.ch as u32 >= 32 && cell.ch as u32 <= 126 {
                 cell.ch
             } else if cell.ch == ' ' || cell.ch.is_ascii() {
@@ -276,7 +283,33 @@ pub fn export_cells_to_png(
     cells: &[Vec<CanvasCell>],
     font_size: u8,
 ) -> Result<Vec<u8>, ExportError> {
-    let pixels = render_frame(cells, font_size);
+    let pixels = render_frame(cells, font_size, false);
+    if pixels.is_empty() || pixels[0].is_empty() {
+        return Err(ExportError::InvalidCells("empty cell grid".to_string()));
+    }
+    let h = pixels.len() as u32;
+    let w = pixels[0].len() as u32;
+
+    let mut buf = Vec::new();
+    {
+        let encoder = image::codecs::png::PngEncoder::new(&mut buf);
+        let raw: Vec<u8> = pixels
+            .iter()
+            .flat_map(|row| row.iter().flat_map(|(r, g, b, a)| vec![*r, *g, *b, *a]))
+            .collect();
+        encoder
+            .write_image(&raw, w, h, image::ColorType::Rgba8)
+            .map_err(|e| ExportError::IoError(e.to_string()))?;
+    }
+    Ok(buf)
+}
+
+pub fn export_cells_to_png_with_alpha(
+    cells: &[Vec<CanvasCell>],
+    font_size: u8,
+    transparent: bool,
+) -> Result<Vec<u8>, ExportError> {
+    let pixels = render_frame(cells, font_size, transparent);
     if pixels.is_empty() || pixels[0].is_empty() {
         return Err(ExportError::InvalidCells("empty cell grid".to_string()));
     }
@@ -314,7 +347,7 @@ pub fn export_cells_to_gif(
         return Err(ExportError::InvalidCells("no frames".to_string()));
     }
 
-    let pixels = render_frame(&frame_cells[0], font_size);
+    let pixels = render_frame(&frame_cells[0], font_size, false);
     if pixels.is_empty() || pixels[0].is_empty() {
         return Err(ExportError::InvalidCells("empty cell grid".to_string()));
     }
@@ -330,7 +363,7 @@ pub fn export_cells_to_gif(
             .map_err(|e| ExportError::GifError(e.to_string()))?;
 
         for (i, cells) in frame_cells.iter().enumerate() {
-            let frame_pixels = render_frame(cells, font_size);
+            let frame_pixels = render_frame(cells, font_size, false);
             let raw: Vec<u8> = frame_pixels
                 .iter()
                 .flat_map(|row| {
@@ -536,5 +569,42 @@ mod tests {
         assert_eq!(xterm_to_rgb(231), (255, 255, 255));
         assert_eq!(xterm_to_rgb(232), (8, 8, 8));
         assert_eq!(xterm_to_rgb(255), (238, 238, 238));
+    }
+
+    #[test]
+    fn test_png_with_alpha_opaque_matches_png() {
+        let cells = make_buffer(2, 3, 'X', Some(Color::Red), None);
+        let opaque = export_cells_to_png(&cells, 1).expect("PNG export");
+        let alpha = export_cells_to_png_with_alpha(&cells, 1, false).expect("PNG with alpha");
+        let img_opaque = image::load_from_memory(&opaque).expect("decode opaque");
+        let img_alpha = image::load_from_memory(&alpha).expect("decode alpha");
+        assert_eq!(img_opaque.width(), img_alpha.width());
+        assert_eq!(img_opaque.height(), img_alpha.height());
+    }
+
+    #[test]
+    fn test_png_with_alpha_transparent_skip_space() {
+        let cells = vec![
+            vec![CanvasCell {
+                ch: 'A',
+                fg: Some(Color::Red),
+                bg: None,
+            }],
+            vec![CanvasCell {
+                ch: ' ',
+                fg: None,
+                bg: None,
+            }],
+        ];
+        let bytes = export_cells_to_png_with_alpha(&cells, 1, true).expect("PNG with alpha");
+        let img = image::load_from_memory(&bytes).expect("decode PNG");
+        let rgba = img.to_rgba8();
+        let space_row_y = 16u32;
+        let any_x = 0u32;
+        let pixel = rgba.get_pixel(any_x, space_row_y);
+        assert_eq!(
+            pixel[3], 0,
+            "space cell in transparent mode should have alpha=0"
+        );
     }
 }

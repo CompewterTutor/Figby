@@ -18,6 +18,25 @@ pub fn color_from_hex(hex: &str) -> Color {
 }
 
 #[derive(Debug, Clone)]
+pub struct LayerTheme {
+    pub bg: Color,
+    pub fg: Color,
+    pub active_bg: Color,
+    pub border: Color,
+}
+
+impl Default for LayerTheme {
+    fn default() -> Self {
+        Self {
+            bg: Color::Reset,
+            fg: Color::Reset,
+            active_bg: Color::Rgb(0x7a, 0xa2, 0xf7),
+            border: Color::DarkGray,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Theme {
     pub toolbox: ToolboxTheme,
     pub canvas: CanvasTheme,
@@ -26,6 +45,7 @@ pub struct Theme {
     pub menu: MenuTheme,
     pub dialog: DialogTheme,
     pub general: GeneralTheme,
+    pub layers: LayerTheme,
 }
 
 #[derive(Debug, Clone)]
@@ -141,11 +161,21 @@ impl Default for Theme {
                 error: Color::Red,
                 warning: Color::Yellow,
             },
+            layers: LayerTheme::default(),
         }
     }
 }
 
 // Intermediate YAML structs for serde deserialization
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct LayerYaml {
+    bg: Option<String>,
+    fg: Option<String>,
+    active_bg: Option<String>,
+    border: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 struct ThemeYaml {
@@ -156,6 +186,7 @@ struct ThemeYaml {
     menu: Option<MenuYaml>,
     dialog: Option<DialogYaml>,
     general: Option<GeneralYaml>,
+    layers: Option<LayerYaml>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -377,6 +408,24 @@ impl From<ThemeYaml> for Theme {
                 warning: merge_color(
                     y.general.as_ref().and_then(|t| t.warning.as_ref()),
                     base.general.warning,
+                ),
+            },
+            layers: LayerTheme {
+                bg: merge_color(
+                    y.layers.as_ref().and_then(|t| t.bg.as_ref()),
+                    base.layers.bg,
+                ),
+                fg: merge_color(
+                    y.layers.as_ref().and_then(|t| t.fg.as_ref()),
+                    base.layers.fg,
+                ),
+                active_bg: merge_color(
+                    y.layers.as_ref().and_then(|t| t.active_bg.as_ref()),
+                    base.layers.active_bg,
+                ),
+                border: merge_color(
+                    y.layers.as_ref().and_then(|t| t.border.as_ref()),
+                    base.layers.border,
                 ),
             },
         }

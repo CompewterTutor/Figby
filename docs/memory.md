@@ -1522,3 +1522,102 @@ Merged all Phase 4.3 work into default branch (master). Phase 4.3 complete:
 TUI architecture audit (4.3.1), ratatui architecture fixes — remove Component
 trait, flatten tui/, adopt native Widget pattern (4.3.2). All 2 subtasks
 implemented, tested, merged. Phase 4.4 (Layers, Blending & Compositing) is next.
+
+### 4.4.1 — Layer system
+
+Created `figby-rs/src/tui/layers.rs` with three core types:
+- `Layer` struct: owns `CanvasBuffer`, name, visibility, lock, opacity
+- `LayerStack` struct: `Vec<Layer>` with active index, composite rendering,
+  CRUD operations (add/delete/duplicate/merge/reorder), resize_all
+- `LayerPanel` struct: ratatui widget rendered in right drawer, keyboard
+  navigation (↑/↓ select, Enter toggle vis, L lock, ± opacity, N new,
+  D dup, X del, M merge, ,/. reorder)
+
+Integrated into EditorState: `layer_stack` and `layer_panel` fields replace
+direct `canvas.buffer` writes with active-layer routing. Tool operations
+(brush, eraser, fill, spray, line) redirected through clone-apply-recomposite
+pattern to write to active layer buffer then composite to canvas. Mouse
+painting, keyboard painting, selection (cut/copy/paste/delete), undo/redo
+all route through active layer.
+
+DrawerMode extended: Palette → BrushKeys → Layers → Closed cycle.
+Status bar shows actual layer count from `LayerStack::len()`.
+Theme expanded with `LayerTheme` struct (bg, fg, active_bg, border).
+
+17 unit tests in layers.rs covering all operations, composite order,
+opacity blending, visibility toggle, edge cases.
+
+### 4.4.2 — Blending modes
+
+Added `BlendMode` enum with 6 variants (Normal, Multiply, Overlay, Screen,
+Add, Subtract) implementing `next()`, `prev()`, `icon_key()`, `display_name()`.
+`Layer` struct gained `blend_mode: BlendMode` field (default Normal).
+`LayerStack` gained `set_blend_mode()`. `composite()` updated: fast path for
+opacity==255 + Normal overwrite, general path computes `blend_mode_color()` for
+the mode blend, then alpha-composites with bottom via `blend_colors()`.
+
+Blend math functions: `blend_channel(u8, u8, mode)` dispatches per-channel
+Multiply/Overlay/Screen/Add/Subtract formulas (all u32 arithmetic). `blend_mode_color()`
+handles non-RGB Color variants by falling back to top color.
+
+`LayerPanel` gained `icons: BTreeMap<String, String>` field. `handle_key()`:
+`b`/`B` cycle blend mode forward/backward. `render_with_stack()`: shows blend
+mode Nerd Font icon in each layer row. Help text updated with "Bbld" hint.
+
+Integration: `mod.rs` passes `icons.clone()` to `layer_panel.icons` at creation
+and on welcome-screen canvas reset.
+
+14 unit tests: multiply/overlay (dark+light)/screen/add/subtract channel math,
+composite with blend mode, composite with opacity+blend, cycle (next/prev six-step),
+set_blend_mode, icon_key, display_name, normal-returns-top.
+
+### 4.4.3 — Layer groups + masks
+
+Added `LayerMask` struct with `buffer: CanvasBuffer` and `enabled: bool`.
+Mask buffer initialized to spaces (fully transparent). Non-space cells = visible.
+Added `LayerGroup` struct with `name` and `collapsed` fields.
+
+`Layer` gained `mask: Option<LayerMask>` and `group: Option<usize>` fields.
+`LayerStack` gained `groups: Vec<LayerGroup>` plus methods: `create_group()`,
+`remove_group()`, `toggle_group_collapsed()`, `rename_group()`, `group_of_layer()`,
+`layers_in_group()`, `create_mask()`, `remove_mask()`, `toggle_mask()`,
+`toggle_mask_enabled()`, `set_mask_pixel()`, `get_mask_pixel()`.
+
+`composite()` checks mask per pixel: space cell in enabled mask → skip pixel.
+
+`LayerPanel::handle_key()` changed signature to accept `KeyEvent` (was `KeyCode`).
+New keybindings: `Ctrl+G` group, `Ctrl+Shift+G` ungroup, `→`/`←` expand/collapse,
+`M` toggle mask, `m` mask enable/disable (falls back to merge-down if no mask),
+`Tab` cycle focus across group boundaries.
+
+`render_with_stack()` renders group headers with `▶`/`▼` disclosure triangles,
+indents grouped layers by 2 spaces, shows 3-char mask thumbnail (`▓`/`░`/` `)
+sampled from mask row 0.
+
+22 unit tests: create/remove/toggle/rename group, group index shift after removal,
+preserved after layer delete, empty/invalid index guards, create/remove/toggle mask,
+toggle enabled, paint pixel, out-of-bounds, composite with mask (fully hidden),
+composite with painted mask (revealed), composite with disabled mask, mask thumbnail.
+
+### 4.4.4 — Export with layers
+
+Added per-layer export and alpha transparency to the TUI export dialog:
+- `render_frame()` gained `transparent: bool` parameter — when true, space
+  cells are skipped (alpha=0) in the output, preserving transparency.
+- `export_cells_to_png_with_alpha()` — new public function exposing
+  transparent rendering to callers that need per-pixel alpha control.
+- `ExportDialog` gained `export_layers` and `use_transparency` bool fields.
+  `L` toggles per-layer export mode, `P` toggles alpha transparency.
+- `perform_layer_export()` — iterates visible layers, renders each to PNG
+  with optional alpha, writes to `{base_dir}/{sanitized_name}.png` files.
+  Duplicate names get numeric suffixes (`name_1.png`).
+- `sanitize_layer_name()` — strips non-alphanumeric chars (except `_`/`-`),
+  falls back to `"layer"` if result is empty.
+- All layer exports use PNG format regardless of the dialog's current format.
+- Layer mode dispatch in `TuiApp::start_export()`: when `export_layers` is
+  true and format is PNG, writes composite to the main path then calls
+  `perform_layer_export()` for individual layer files.
+
+11 unit tests: PNG alpha matches opaque output, transparent space has alpha=0,
+L/P toggle key handlers, sanitize (alphanumeric, special chars, underscore/hyphen,
+empty fallback). fmt and clippy pass clean.

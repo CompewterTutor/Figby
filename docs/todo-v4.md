@@ -151,25 +151,26 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.4 — Layers, Blending & Compositing
 
-- [ ] `4.4.1` Layer system
+- [x] `4.4.1` Layer system
   - **Goal:** Layer panel: list of layers, visibility toggle, lock toggle,
     opacity slider, drag-to-reorder. New/delete/duplicate/merge layers.
     Each layer is an independent ASCII buffer.
-  - **Touches:** `figby-rs/src/tui/layers.rs`
+  - **Touches:** `figby-rs/src/tui/layers.rs`, `figby-rs/src/tui/mod.rs`,
+    `figby-rs/src/tui/layout.rs`, `figby-rs/src/tui/theme.rs`
   - **Success:** Layers render stacked. Layer operations work.
   - **Tests:** Create, delete, reorder, merge layers.
   - **Difficulty:** High
 
-- [ ] `4.4.2` Blending modes
+- [x] `4.4.2` Blending modes
   - **Goal:** Per-layer blend mode: Normal, Multiply, Overlay, Screen,
     Add, Subtract. Render composited output in real time. Preview
     thumbnail per layer showing blend effect.
-  - **Touches:** `figby-rs/src/tui/layers.rs`
+  - **Touches:** `figby-rs/src/tui/layers.rs`, `figby-rs/src/tui/mod.rs`
   - **Success:** Blend modes produce correct composed output.
   - **Tests:** Multiply + Overlay blend with known test patterns.
   - **Difficulty:** High
 
-- [ ] `4.4.3` Layer groups + masks
+- [x] `4.4.3` Layer groups + masks
   - **Goal:** Group layers into folders. Layer mask: paint on mask to
     hide/reveal parts of layer. Mask thumbnail in layer panel.
   - **Touches:** `figby-rs/src/tui/layers.rs`
@@ -177,7 +178,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Group create, mask paint, verify composited result.
   - **Difficulty:** Medium
 
-- [ ] `4.4.4` Export with layers
+- [x] `4.4.4` Export with layers
   - **Goal:** Export flattened composite. Export individual layers as
     separate files. Export with transparency (space = transparent).
   - **Touches:** `figby-rs/src/tui/export.rs`

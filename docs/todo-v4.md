@@ -111,7 +111,7 @@ with theming, modern status bar, and component architecture.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`
   - **Difficulty:** Low
 
-- [ ] `4.2.5` "Deluxe" meta-charset
+- [x] `4.2.5` "Deluxe" meta-charset
   - **Goal:** Combine all of the above (ASCII printable + box drawing + block
     elements + dither + quadrants + braille + Ogham) into a single "Deluxe"
     preset selectable from the charset picker. Useful for maximum expressive

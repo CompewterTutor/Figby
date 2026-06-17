@@ -31,9 +31,21 @@ pub struct CharGroup {
 }
 
 /// All palette char groups, ordered for display.
-/// "deluxe" is listed first as the richest set.
+/// "deluxe" is listed first as the richest set, combining ASCII printable,
+/// blocks, box drawing, dithered, geometric shapes, braille, and ogham.
 pub const CHAR_GROUPS: &[CharGroup] = &[
-    CharGroup { name: "deluxe",  chars: "Combines ASCII + blocks + box + braille + ogham (see font_gen)" },
+    CharGroup {
+        name: "deluxe",
+        chars: concat!(
+            " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
+            "▀▁▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟",
+            "─━│┃┄┅┆┇┈┉┊┋┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╎╏═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿",
+            "░▒▓",
+            "■□▪▫▲△▶▷▼▽◀◁◆◇◈◊○◎●◐◑◦◯",
+            "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿⡀⡁⡂⡃⡄⡅⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿",
+            " ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏᚐᚑᚒᚓᚔᚕᚖᚗᚘᚙᚚ᚛᚜",
+        ),
+    },
     CharGroup { name: "ascii",   chars: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~" },
     CharGroup { name: "braille", chars: "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿⡀⡁⡂⡃⡄⡅⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿" },
     CharGroup { name: "blocks",  chars: "▀▁▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟" },
@@ -663,5 +675,57 @@ mod tests {
                 0x1680 + i as u32
             );
         }
+    }
+
+    // --- Deluxe palette tests ---
+
+    #[test]
+    fn test_deluxe_palette_count() {
+        let deluxe = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "deluxe")
+            .expect("deluxe group should exist");
+        let count = deluxe.chars.chars().count();
+        assert_eq!(
+            count, 566,
+            "deluxe group should have exactly 566 chars, got {count}"
+        );
+    }
+
+    #[test]
+    fn test_deluxe_palette_contains_all_subset_chars() {
+        let deluxe = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "deluxe")
+            .expect("deluxe group should exist");
+        let deluxe_set: std::collections::HashSet<char> = deluxe.chars.chars().collect();
+        for group in CHAR_GROUPS.iter().filter(|g| g.name != "deluxe") {
+            for c in group.chars.chars() {
+                assert!(
+                    deluxe_set.contains(&c),
+                    "deluxe should contain char U+{:04X} from '{}' group",
+                    c as u32,
+                    group.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_deluxe_palette_all_unique() {
+        let deluxe = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "deluxe")
+            .expect("deluxe group should exist");
+        let mut cps: Vec<u32> = deluxe.chars.chars().map(|c| c as u32).collect();
+        assert_eq!(cps.len(), 566, "should have 566 deluxe chars");
+        cps.sort_unstable();
+        cps.dedup();
+        // Dups come from dithered subset of blocks (░▒▓ = U+2591-U+2593)
+        assert_eq!(
+            cps.len(),
+            563,
+            "should have 563 unique deluxe codepoints (3 dithered are subset of blocks)"
+        );
     }
 }

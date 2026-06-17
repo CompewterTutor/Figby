@@ -2969,3 +2969,7 @@ DONE: 4.2.2 merged into release/4.2.
 ## 2026-06-17 06:05
 
 DONE: 4.2.3 merged into release/4.2.
+
+## 2026-06-17 06:09
+
+DONE: 4.2.4 merged into release/4.2.

@@ -378,11 +378,11 @@ with theming, modern status bar, and component architecture.
   - **Success:** Working prototype with at least one animated transition.
   - **Difficulty:** Medium
 
-- [ ] `4.9.2` Default panel theme inspired by TachyonFX aesthetic
+- [x] `4.9.2` Default panel theme inspired by TachyonFX aesthetic
   - **Goal:** Update `tui/theme.rs` default colors to match the dark, neon-accent
     aesthetic of the TachyonFX showcase. Panel borders, selection highlights,
     dialog chrome. Keep configurable.
-  - **Touches:** `figby-rs/src/tui/theme.rs`
+  - **Touches:** `figby-rs/src/tui/theme.rs`, `assets/tui/themes/default.yaml`
   - **Success:** Side-by-side comparison shows obvious visual improvement.
   - **Difficulty:** Low
 

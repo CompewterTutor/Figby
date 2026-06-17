@@ -1921,3 +1921,15 @@ Modified `figby-rs/src/tui/mod.rs`:
 Modified `figby-rs/src/tui/welcome.rs`: made `centered_welcome()` `pub` for use by fx module.
 
 3 files touched: `Cargo.toml`, `fx.rs` (new), `mod.rs`. fmt and clippy pass clean.
+
+### 4.9.2 — Default panel theme inspired by TachyonFX aesthetic
+
+Updated `figby-rs/src/tui/theme.rs` default colors and `assets/tui/themes/default.yaml` to match the dark, neon-accent TachyonFX showcase aesthetic:
+- Darker backgrounds (`#0d0d1a` for toolboxes/menus, `#1a1a2e` for borders/grid)
+- Cyan primary (`#00d4ff`) for selection highlights, cursor, mode indicators
+- Magenta accent (`#ff0099`) for secondary/graphic mode elements
+- Green success (`#00ff87`) and red error (`#ff0044`) for dialogs
+- Warm orange (`#ffaa00`) for ASCII preview mode
+- Tests updated to verify new color values in parsed output
+
+2 files touched: `theme.rs`, `default.yaml`. fmt, clippy, and all tests pass clean.

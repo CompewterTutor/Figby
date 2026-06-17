@@ -3027,3 +3027,7 @@ DONE: 4.4.2 merged into release/4.4.
 ## 2026-06-17 07:55
 
 DONE: 4.4.3 merged into release/4.4.
+
+## 2026-06-17 08:07
+
+DONE: 4.4.5 merged into release/4.4.

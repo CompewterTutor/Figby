@@ -151,11 +151,12 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.4 — Layers, Blending & Compositing
 
-- [ ] `4.4.1` Layer system
+- [x] `4.4.1` Layer system
   - **Goal:** Layer panel: list of layers, visibility toggle, lock toggle,
     opacity slider, drag-to-reorder. New/delete/duplicate/merge layers.
     Each layer is an independent ASCII buffer.
-  - **Touches:** `figby-rs/src/tui/layers.rs`
+  - **Touches:** `figby-rs/src/tui/layers.rs`, `figby-rs/src/tui/mod.rs`,
+    `figby-rs/src/tui/layout.rs`, `figby-rs/src/tui/theme.rs`
   - **Success:** Layers render stacked. Layer operations work.
   - **Tests:** Create, delete, reorder, merge layers.
   - **Difficulty:** High

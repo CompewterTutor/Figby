@@ -419,7 +419,7 @@ with theming, modern status bar, and component architecture.
     App renders in browser.
   - **Difficulty:** High
 
-- [ ] `4.10.2` Phase merge: release/4.10 → main
+- [x] `4.10.2` Phase merge: release/4.10 → main
   - **Difficulty:** Low
 
 ---

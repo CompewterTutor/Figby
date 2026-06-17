@@ -377,6 +377,8 @@ pub struct TuiApp {
     pub particle_system: particles::ParticleSystem,
     pub emitter_active: bool,
     pub emitter_panel: particles::EmitterConfigPanel,
+    pub show_live_particles: bool,
+    pub baked_layer_indices: Vec<usize>,
 }
 
 impl TuiApp {
@@ -530,6 +532,8 @@ impl TuiApp {
             particle_system: particles::ParticleSystem::new(particles::ParticleConfig::default()),
             emitter_active: false,
             emitter_panel: particles::EmitterConfigPanel::new(),
+            show_live_particles: true,
+            baked_layer_indices: Vec::new(),
         }
     }
 
@@ -896,7 +900,7 @@ impl TuiApp {
                 self.editor.canvas.glyph_cursor = None;
             }
 
-            if self.emitter_active {
+            if self.emitter_active && self.show_live_particles {
                 let saved = self.editor.canvas.buffer.clone();
                 self.particle_system
                     .render_to_canvas(&mut self.editor.canvas.buffer);
@@ -2258,6 +2262,38 @@ impl TuiApp {
             if handled {
                 self.dirty = true;
                 return None;
+            }
+        }
+        // Emitter bake / toggle keybindings (active even when panel closed)
+        if self.emitter_active {
+            match code {
+                KeyCode::Char('b') => {
+                    let w = self.editor.canvas.buffer.width();
+                    let h = self.editor.canvas.buffer.height();
+                    let buf = self.particle_system.bake_to_buffer(w, h);
+                    let indices = self.editor.layer_stack.add_frozen_frames(vec![buf], "bake");
+                    self.baked_layer_indices.extend(indices);
+                    self.editor.recomposite_canvas();
+                    self.dirty = true;
+                    return None;
+                }
+                KeyCode::Char('B') => {
+                    let w = self.editor.canvas.buffer.width();
+                    let h = self.editor.canvas.buffer.height();
+                    let frames = self.particle_system.bake_frames(10, w, h, 0.1);
+                    let indices = self.editor.layer_stack.add_frozen_frames(frames, "bake");
+                    self.baked_layer_indices.extend(indices);
+                    self.editor.recomposite_canvas();
+                    self.show_live_particles = false;
+                    self.dirty = true;
+                    return None;
+                }
+                KeyCode::Char('v') => {
+                    self.show_live_particles = !self.show_live_particles;
+                    self.dirty = true;
+                    return None;
+                }
+                _ => {}
             }
         }
 

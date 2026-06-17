@@ -1737,3 +1737,14 @@ Added full particle emitter tool to the TUI toolbox:
 - Deactivation on tool switch handled via `AppEvent::Toolbox`
 - 15 new unit tests: emission shapes (point/circle/rect), spread angle, render to canvas, bounds clipping, config panel navigation, float editing, shape cycling
 - No `.unwrap()` in production — all fallible paths use `Option` or `Result` with user-facing error display
+
+### 4.6.3 — Particle-to-layer baking
+
+Added bake functionality to the particle system:
+- `ParticleSystem::bake_to_buffer(width, height)` — snapshots current particle state into a fresh `CanvasBuffer`, independent of the live particle system
+- `ParticleSystem::bake_frames(num_frames, width, height, dt)` — clears system, generates N sequential frames via `update(dt)` + `bake_to_buffer()`, returns independent snapshot vec
+- `LayerStack::add_frozen_frames(frames, base_name)` — pushes each buffer as a visible layer named `"{base_name} frame {i}"`, returns layer indices
+- `TuiApp.show_live_particles` field (default `true`) — controls whether live particle overlay renders; when false, canvas renders without particle overlay (baked layers visible via composite)
+- `TuiApp.baked_layer_indices` field — tracks indices of baked layers for potential cleanup
+- Keybindings when emitter is active: `b` bakes single frame to layer, `B` bakes 10 frames as layer stack and switches to baked view, `v` toggles live/baked preview
+- 6 new unit tests: bake independence, frame count + independence, empty system bake, content verification, 10-frame batch independence, layer stack insertion with independence

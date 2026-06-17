@@ -1007,3 +1007,15 @@ Three bugs found in phase merge review:
   mask buffer. This is a simplification over "sample near cursor" — the
   cursor position isn't available in the layer panel render path. Sampling
   from row 0 is sufficient for a visual mask presence indicator.
+
+## 4.6.3 — Particle-to-layer baking
+
+- `bake_frames()` calls `self.clear()` first, so frame generation starts from
+  a clean particle system. This means baked frames reflect N frames of fresh
+  emission, not a continuation of the current live state.
+- `add_frozen_frames()` sets `self.active` to the last frame's index after
+  inserting all frames. This makes the final frame active for immediate
+  display after insertion — intentional for the `B` keybinding flow.
+- `test_bake_frames_count_and_independence` uses `windows(2).all(...)` on the
+  frame vec to verify adjacent frames differ. This is O(N) without comparing
+  all O(N²) pairs — sufficient for proving non-identity across a sequence.

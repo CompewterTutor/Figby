@@ -2511,6 +2511,13 @@ impl TuiApp {
         let format = self.dialogs.export_dialog.format;
         let font_size = self.dialogs.export_dialog.font_size;
         let path_buf = std::path::PathBuf::from(&self.dialogs.export_dialog.path_buffer);
+        let export_layers = self.dialogs.export_dialog.export_layers;
+        let use_transparency = self.dialogs.export_dialog.use_transparency;
+        let layer_stack = if export_layers {
+            Some(self.editor.layer_stack.clone())
+        } else {
+            None
+        };
         let (tx, rx) = mpsc::channel();
         self.async_rx = Some(rx);
         self.throbber.start("Exporting...");
@@ -2522,8 +2529,13 @@ impl TuiApp {
                 }
                 let bytes: Vec<u8> = match format {
                     crate::tui::export::ExportMode::Png => {
-                        crate::output::export_cells_to_png(&cells, font_size)
-                            .map_err(|e| e.to_string())?
+                        if use_transparency {
+                            crate::output::export_cells_to_png_with_alpha(&cells, font_size, true)
+                                .map_err(|e| e.to_string())?
+                        } else {
+                            crate::output::export_cells_to_png(&cells, font_size)
+                                .map_err(|e| e.to_string())?
+                        }
                     }
                     crate::tui::export::ExportMode::Txt => {
                         crate::output::export_cells_to_txt(&cells).into_bytes()
@@ -2534,6 +2546,18 @@ impl TuiApp {
                     }
                 };
                 std::fs::write(&path_buf, &bytes).map_err(|e| format!("IoError({e})"))?;
+                if let Some(stack) = layer_stack {
+                    let mode = format;
+                    if mode == crate::tui::export::ExportMode::Png {
+                        crate::tui::export::ExportDialog::perform_layer_export(
+                            &stack,
+                            &path_buf,
+                            font_size,
+                            use_transparency,
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
+                }
                 Ok(())
             })();
             let _ = tx.send(AsyncResult::ExportComplete(result));

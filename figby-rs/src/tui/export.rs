@@ -6,7 +6,8 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::output::{
-    export_cells_to_gif, export_cells_to_png, export_cells_to_txt, ExportError, ExportFormat,
+    export_cells_to_gif, export_cells_to_png, export_cells_to_png_with_alpha, export_cells_to_txt,
+    ExportError, ExportFormat,
 };
 
 use super::canvas::CanvasCell;
@@ -58,6 +59,8 @@ pub struct ExportDialog {
     pub format: ExportMode,
     pub path_buffer: String,
     pub font_size: u8,
+    pub export_layers: bool,
+    pub use_transparency: bool,
     pub error_message: String,
     pub selected_entry: usize,
     pub directory_entries: Vec<String>,
@@ -71,6 +74,8 @@ impl ExportDialog {
             format: ExportMode::Png,
             path_buffer: String::new(),
             font_size: 2,
+            export_layers: false,
+            use_transparency: false,
             error_message: String::new(),
             selected_entry: 0,
             directory_entries: Vec::new(),
@@ -140,6 +145,14 @@ impl ExportDialog {
         match code {
             KeyCode::Char('T') | KeyCode::Char('t') => {
                 self.format = self.format.cycle();
+                true
+            }
+            KeyCode::Char('L') | KeyCode::Char('l') => {
+                self.export_layers = !self.export_layers;
+                true
+            }
+            KeyCode::Char('P') | KeyCode::Char('p') => {
+                self.use_transparency = !self.use_transparency;
                 true
             }
             KeyCode::Char(c) if !c.is_control() => {
@@ -227,6 +240,62 @@ impl ExportDialog {
         Ok(())
     }
 
+    fn sanitize_layer_name(name: &str) -> String {
+        let sanitized: String = name
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+            .collect();
+        if sanitized.is_empty() {
+            "layer".to_string()
+        } else {
+            sanitized
+        }
+    }
+
+    pub fn perform_layer_export(
+        stack: &super::layers::LayerStack,
+        base_path: &std::path::Path,
+        font_size: u8,
+        use_transparency: bool,
+    ) -> Result<(), ExportError> {
+        let ext = ".png";
+        let mut used_names: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+
+        for layer in stack.layers.iter() {
+            if !layer.visible {
+                continue;
+            }
+
+            let cells: Vec<Vec<super::canvas::CanvasCell>> = (0..layer.buffer.height())
+                .map(|y| {
+                    (0..layer.buffer.width())
+                        .map(|x| layer.buffer.get(x, y).copied().unwrap_or_default())
+                        .collect()
+                })
+                .collect();
+
+            let stem = Self::sanitize_layer_name(&layer.name);
+            let count = used_names.entry(stem.clone()).or_insert(0);
+            let filename = if *count > 0 {
+                format!("{}_{}{}", stem, count, ext)
+            } else {
+                format!("{}{}", stem, ext)
+            };
+            *count += 1;
+
+            let path = base_path.with_file_name(&filename);
+            let bytes = if use_transparency {
+                export_cells_to_png_with_alpha(&cells, font_size, true)?
+            } else {
+                export_cells_to_png(&cells, font_size)?
+            };
+            std::fs::write(&path, &bytes).map_err(|e| ExportError::IoError(e.to_string()))?;
+        }
+
+        Ok(())
+    }
+
     pub fn render(&self, frame: &mut Frame, area: Rect) {
         if !self.active {
             return;
@@ -256,6 +325,30 @@ impl ExportDialog {
                 " Size: {}x (z = char at {})",
                 self.font_size,
                 8 * self.font_size as u16 * 16 * self.font_size as u16
+            ),
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        lines.push(Line::from(Span::styled(
+            format!(
+                " Layers: [{}]  (L to toggle)",
+                if self.export_layers {
+                    "Per-Layer"
+                } else {
+                    "Single"
+                }
+            ),
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        lines.push(Line::from(Span::styled(
+            format!(
+                " Alpha: [{}]  (P to toggle)",
+                if self.use_transparency {
+                    "Transparent"
+                } else {
+                    "Opaque"
+                }
             ),
             Style::default().fg(self.theme.dialog.meta),
         )));
@@ -295,7 +388,7 @@ impl ExportDialog {
                 Style::default().add_modifier(Modifier::BOLD),
             )));
 
-            let max_visible = (inner.height as usize).saturating_sub(7).min(10);
+            let max_visible = (inner.height as usize).saturating_sub(9).min(10);
             let start = self.selected_entry.saturating_sub(max_visible / 2);
             let end = (start + max_visible).min(self.directory_entries.len());
             for i in start..end {
@@ -381,6 +474,30 @@ impl Widget for &ExportDialog {
         )));
 
         lines.push(Line::from(Span::styled(
+            format!(
+                " Layers: [{}]  (L to toggle)",
+                if self.export_layers {
+                    "Per-Layer"
+                } else {
+                    "Single"
+                }
+            ),
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        lines.push(Line::from(Span::styled(
+            format!(
+                " Alpha: [{}]  (P to toggle)",
+                if self.use_transparency {
+                    "Transparent"
+                } else {
+                    "Opaque"
+                }
+            ),
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        lines.push(Line::from(Span::styled(
             " Path:",
             Style::default().add_modifier(Modifier::BOLD),
         )));
@@ -415,7 +532,7 @@ impl Widget for &ExportDialog {
                 Style::default().add_modifier(Modifier::BOLD),
             )));
 
-            let max_visible = (inner.height as usize).saturating_sub(7).min(10);
+            let max_visible = (inner.height as usize).saturating_sub(9).min(10);
             let start = self.selected_entry.saturating_sub(max_visible / 2);
             let end = (start + max_visible).min(self.directory_entries.len());
             for i in start..end {
@@ -541,5 +658,53 @@ mod tests {
         assert_eq!(ExportMode::Png.extension(), ".png");
         assert_eq!(ExportMode::Txt.extension(), ".txt");
         assert_eq!(ExportMode::Gif.extension(), ".gif");
+    }
+
+    #[test]
+    fn test_export_dialog_toggle_layers() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Png);
+        assert!(!dialog.export_layers);
+        dialog.handle_key(KeyCode::Char('L'));
+        assert!(dialog.export_layers);
+        dialog.handle_key(KeyCode::Char('l'));
+        assert!(!dialog.export_layers);
+    }
+
+    #[test]
+    fn test_export_dialog_toggle_transparency() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Png);
+        assert!(!dialog.use_transparency);
+        dialog.handle_key(KeyCode::Char('P'));
+        assert!(dialog.use_transparency);
+        dialog.handle_key(KeyCode::Char('p'));
+        assert!(!dialog.use_transparency);
+    }
+
+    #[test]
+    fn test_sanitize_layer_name_alphanumeric() {
+        assert_eq!(ExportDialog::sanitize_layer_name("Layer1"), "Layer1");
+    }
+
+    #[test]
+    fn test_sanitize_layer_name_strips_special_chars() {
+        assert_eq!(
+            ExportDialog::sanitize_layer_name("hello/world:test"),
+            "helloworldtest"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_layer_name_underscore_and_hyphen() {
+        assert_eq!(
+            ExportDialog::sanitize_layer_name("my_layer-v2"),
+            "my_layer-v2"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_layer_name_empty_fallback() {
+        assert_eq!(ExportDialog::sanitize_layer_name("!@#$%"), "layer");
     }
 }

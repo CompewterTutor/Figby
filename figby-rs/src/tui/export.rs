@@ -6,8 +6,8 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::output::{
-    export_cells_to_gif, export_cells_to_png, export_cells_to_png_with_alpha, export_cells_to_txt,
-    ExportError, ExportFormat,
+    export_cells_to_apng, export_cells_to_gif, export_cells_to_png, export_cells_to_png_with_alpha,
+    export_cells_to_txt, ExportError, ExportFormat,
 };
 
 use super::canvas::{CanvasBuffer, CanvasCell};
@@ -18,22 +18,25 @@ use super::timeline::TimelineState;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportMode {
     Png,
-    Txt,
+    Apng,
     Gif,
+    Txt,
 }
 
 impl ExportMode {
     pub fn label(&self) -> &str {
         match self {
             ExportMode::Png => "PNG",
-            ExportMode::Txt => "TXT",
+            ExportMode::Apng => "APNG",
             ExportMode::Gif => "GIF",
+            ExportMode::Txt => "TXT",
         }
     }
 
     pub fn cycle(&self) -> Self {
         match self {
-            ExportMode::Png => ExportMode::Gif,
+            ExportMode::Png => ExportMode::Apng,
+            ExportMode::Apng => ExportMode::Gif,
             ExportMode::Gif => ExportMode::Txt,
             ExportMode::Txt => ExportMode::Png,
         }
@@ -42,16 +45,18 @@ impl ExportMode {
     pub fn to_export_format(&self) -> ExportFormat {
         match self {
             ExportMode::Png => ExportFormat::Png,
-            ExportMode::Txt => ExportFormat::Txt,
+            ExportMode::Apng => ExportFormat::Apng,
             ExportMode::Gif => ExportFormat::Gif,
+            ExportMode::Txt => ExportFormat::Txt,
         }
     }
 
     pub fn extension(&self) -> &str {
         match self {
             ExportMode::Png => ".png",
-            ExportMode::Txt => ".txt",
+            ExportMode::Apng => ".apng",
             ExportMode::Gif => ".gif",
+            ExportMode::Txt => ".txt",
         }
     }
 }
@@ -161,7 +166,7 @@ impl ExportDialog {
         if !self.active
             || !self.preview_playing
             || !self.timeline_available
-            || self.format != ExportMode::Gif
+            || (self.format != ExportMode::Gif && self.format != ExportMode::Apng)
         {
             return;
         }
@@ -216,8 +221,10 @@ impl ExportDialog {
     const LOOP_PRESETS: &'static [u16] = &[0, 1, 2, 5, 10];
 
     pub fn handle_key(&mut self, code: KeyCode) -> bool {
-        // GIF-specific keys (only when GIF mode + timeline available)
-        if self.format == ExportMode::Gif && self.timeline_available {
+        // Animation export keys (only when GIF/APNG mode + timeline available)
+        if (self.format == ExportMode::Gif || self.format == ExportMode::Apng)
+            && self.timeline_available
+        {
             match code {
                 KeyCode::Char('f') | KeyCode::Char('F') => {
                     let idx = Self::FPS_PRESETS
@@ -346,7 +353,7 @@ impl ExportDialog {
         let bytes: Vec<u8> = match self.format {
             ExportMode::Png => export_cells_to_png(cells, self.font_size)?,
             ExportMode::Txt => export_cells_to_txt(cells).into_bytes(),
-            ExportMode::Gif => {
+            ExportMode::Apng | ExportMode::Gif => {
                 let frame_slice: &[Vec<Vec<CanvasCell>>] =
                     if self.timeline_available && !self.timeline_frames.is_empty() {
                         self.timeline_frames.as_slice()
@@ -359,7 +366,11 @@ impl ExportDialog {
                     } else {
                         &[10]
                     };
-                export_cells_to_gif(frame_slice, delay_slice, self.font_size, self.loop_count)?
+                if self.format == ExportMode::Gif {
+                    export_cells_to_gif(frame_slice, delay_slice, self.font_size, self.loop_count)?
+                } else {
+                    export_cells_to_apng(frame_slice, delay_slice, self.font_size, self.loop_count)?
+                }
             }
         };
         std::fs::write(&path, &bytes).map_err(|e| ExportError::IoError(e.to_string()))?;
@@ -440,6 +451,8 @@ impl ExportDialog {
             return;
         }
 
+        let is_animation = self.format == ExportMode::Gif || self.format == ExportMode::Apng;
+
         let mut lines: Vec<Line> = Vec::new();
 
         lines.push(Line::from(Span::styled(
@@ -447,7 +460,7 @@ impl ExportDialog {
             Style::default().add_modifier(Modifier::BOLD),
         )));
 
-        if self.format == ExportMode::Gif && self.timeline_available {
+        if is_animation && self.timeline_available {
             lines.push(Line::from(Span::styled(
                 format!(" FPS: [{}]  (F to cycle preset)", self.fps),
                 Style::default().fg(self.theme.dialog.meta),
@@ -479,7 +492,7 @@ impl ExportDialog {
                 ),
                 Style::default().fg(self.theme.dialog.meta),
             )));
-        } else if self.format == ExportMode::Gif {
+        } else if is_animation {
             lines.push(Line::from(Span::styled(
                 " Timeline: No frames available",
                 Style::default().fg(self.theme.dialog.error),
@@ -495,7 +508,7 @@ impl ExportDialog {
             Style::default().fg(self.theme.dialog.meta),
         )));
 
-        if self.format != ExportMode::Gif || !self.timeline_available {
+        if !is_animation || !self.timeline_available {
             lines.push(Line::from(Span::styled(
                 format!(
                     " Layers: [{}]  (L to toggle)",
@@ -588,7 +601,7 @@ impl ExportDialog {
         }
 
         lines.push(Line::from(""));
-        let gif_hint = if self.format == ExportMode::Gif && self.timeline_available {
+        let gif_hint = if is_animation && self.timeline_available {
             " F:FPS  L:Loop  P:Play  Space:Step  "
         } else {
             ""
@@ -702,7 +715,9 @@ impl Widget for &ExportDialog {
             Style::default().add_modifier(Modifier::BOLD),
         )));
 
-        if self.format == ExportMode::Gif && self.timeline_available {
+        let is_animation = self.format == ExportMode::Gif || self.format == ExportMode::Apng;
+
+        if is_animation && self.timeline_available {
             lines.push(Line::from(Span::styled(
                 format!(" FPS: [{}]  (F to cycle preset)", self.fps),
                 Style::default().fg(self.theme.dialog.meta),
@@ -734,7 +749,7 @@ impl Widget for &ExportDialog {
                 ),
                 Style::default().fg(self.theme.dialog.meta),
             )));
-        } else if self.format == ExportMode::Gif {
+        } else if is_animation {
             lines.push(Line::from(Span::styled(
                 " Timeline: No frames available",
                 Style::default().fg(self.theme.dialog.error),
@@ -750,7 +765,7 @@ impl Widget for &ExportDialog {
             Style::default().fg(self.theme.dialog.meta),
         )));
 
-        if self.format != ExportMode::Gif || !self.timeline_available {
+        if !is_animation || !self.timeline_available {
             lines.push(Line::from(Span::styled(
                 format!(
                     " Layers: [{}]  (L to toggle)",
@@ -843,7 +858,7 @@ impl Widget for &ExportDialog {
         }
 
         lines.push(Line::from(""));
-        let gif_hint = if self.format == ExportMode::Gif && self.timeline_available {
+        let gif_hint = if is_animation && self.timeline_available {
             " F:FPS  L:Loop  P:Play  Space:Step  "
         } else {
             ""
@@ -891,6 +906,8 @@ mod tests {
         let mut dialog = ExportDialog::new();
         dialog.enter_export(ExportMode::Png);
         dialog.handle_key(KeyCode::Char('T'));
+        assert_eq!(dialog.format, ExportMode::Apng);
+        dialog.handle_key(KeyCode::Char('t'));
         assert_eq!(dialog.format, ExportMode::Gif);
         dialog.handle_key(KeyCode::Char('t'));
         assert_eq!(dialog.format, ExportMode::Txt);
@@ -939,15 +956,17 @@ mod tests {
     #[test]
     fn test_export_mode_labels() {
         assert_eq!(ExportMode::Png.label(), "PNG");
-        assert_eq!(ExportMode::Txt.label(), "TXT");
+        assert_eq!(ExportMode::Apng.label(), "APNG");
         assert_eq!(ExportMode::Gif.label(), "GIF");
+        assert_eq!(ExportMode::Txt.label(), "TXT");
     }
 
     #[test]
     fn test_export_mode_extensions() {
         assert_eq!(ExportMode::Png.extension(), ".png");
-        assert_eq!(ExportMode::Txt.extension(), ".txt");
+        assert_eq!(ExportMode::Apng.extension(), ".apng");
         assert_eq!(ExportMode::Gif.extension(), ".gif");
+        assert_eq!(ExportMode::Txt.extension(), ".txt");
     }
 
     #[test]

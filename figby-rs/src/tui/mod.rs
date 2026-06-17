@@ -2498,7 +2498,9 @@ impl TuiApp {
                     _ => export::ExportMode::Png,
                 };
                 self.dialogs.export_dialog.enter_export(mode);
-                if mode == export::ExportMode::Gif && !self.timeline_state.frames.is_empty() {
+                if (mode == export::ExportMode::Gif || mode == export::ExportMode::Apng)
+                    && !self.timeline_state.frames.is_empty()
+                {
                     self.dialogs
                         .export_dialog
                         .set_timeline(self.timeline_state.fps, self.timeline_state.frames.len());
@@ -2718,9 +2720,10 @@ impl TuiApp {
             None
         };
 
-        // Compose timeline frames if GIF + timeline has frames
-        let frames: Vec<Vec<Vec<canvas::CanvasCell>>> = if format
+        // Compose timeline frames if animation format + timeline has frames
+        let frames: Vec<Vec<Vec<canvas::CanvasCell>>> = if (format
             == crate::tui::export::ExportMode::Gif
+            || format == crate::tui::export::ExportMode::Apng)
             && timeline_available
             && !self.timeline_state.frames.is_empty()
         {
@@ -2836,6 +2839,21 @@ impl TuiApp {
                         )
                         .map_err(|e| e.to_string())?
                     }
+                    crate::tui::export::ExportMode::Apng => {
+                        let delay_slice: &[u16] = if timeline_available && !frame_delays.is_empty()
+                        {
+                            frame_delays.as_slice()
+                        } else {
+                            &[10]
+                        };
+                        crate::output::export_cells_to_apng(
+                            &frames,
+                            delay_slice,
+                            font_size,
+                            loop_count,
+                        )
+                        .map_err(|e| e.to_string())?
+                    }
                 };
                 std::fs::write(&path_buf, &bytes).map_err(|e| format!("IoError({e})"))?;
                 if let Some(stack) = layer_stack {
@@ -2877,7 +2895,9 @@ impl TuiApp {
                     _ => export::ExportMode::Png,
                 };
                 self.dialogs.export_dialog.enter_export(mode);
-                if mode == export::ExportMode::Gif && !self.timeline_state.frames.is_empty() {
+                if (mode == export::ExportMode::Gif || mode == export::ExportMode::Apng)
+                    && !self.timeline_state.frames.is_empty()
+                {
                     self.dialogs
                         .export_dialog
                         .set_timeline(self.timeline_state.fps, self.timeline_state.frames.len());

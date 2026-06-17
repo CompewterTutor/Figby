@@ -2053,17 +2053,21 @@ fn test_export_dialog_format_toggle() {
     // Start from Png
     assert_eq!(dialog.format, ExportMode::Png);
 
-    // Toggle: Png -> Gif
+    // Toggle: Png -> Apng
     dialog.handle_key(KeyCode::Char('t'));
-    assert_eq!(dialog.format, ExportMode::Gif, "first toggle: Png -> Gif");
+    assert_eq!(dialog.format, ExportMode::Apng, "first toggle: Png -> Apng");
+
+    // Toggle: Apng -> Gif
+    dialog.handle_key(KeyCode::Char('t'));
+    assert_eq!(dialog.format, ExportMode::Gif, "second toggle: Apng -> Gif");
 
     // Toggle: Gif -> Txt
     dialog.handle_key(KeyCode::Char('t'));
-    assert_eq!(dialog.format, ExportMode::Txt, "second toggle: Gif -> Txt");
+    assert_eq!(dialog.format, ExportMode::Txt, "third toggle: Gif -> Txt");
 
     // Toggle: Txt -> Png
     dialog.handle_key(KeyCode::Char('t'));
-    assert_eq!(dialog.format, ExportMode::Png, "third toggle: Txt -> Png");
+    assert_eq!(dialog.format, ExportMode::Png, "fourth toggle: Txt -> Png");
 }
 
 #[test]

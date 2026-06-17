@@ -9,12 +9,14 @@ pub enum ExportFormat {
     Png,
     Txt,
     Gif,
+    Apng,
 }
 
 #[derive(Debug)]
 pub enum ExportError {
     IoError(String),
     GifError(String),
+    PngError(String),
     InvalidCells(String),
 }
 
@@ -23,6 +25,7 @@ impl std::fmt::Display for ExportError {
         match self {
             ExportError::IoError(s) => write!(f, "IO error: {s}"),
             ExportError::GifError(s) => write!(f, "GIF error: {s}"),
+            ExportError::PngError(s) => write!(f, "PNG/APNG error: {s}"),
             ExportError::InvalidCells(s) => write!(f, "Invalid cells: {s}"),
         }
     }
@@ -393,6 +396,58 @@ pub fn export_cells_to_gif(
     Ok(buf)
 }
 
+pub fn export_cells_to_apng(
+    frame_cells: &[Vec<Vec<CanvasCell>>],
+    frame_delays_cs: &[u16],
+    font_size: u8,
+    loop_count: u16,
+) -> Result<Vec<u8>, ExportError> {
+    if frame_cells.is_empty() {
+        return Err(ExportError::InvalidCells("no frames".to_string()));
+    }
+
+    let pixels = render_frame(&frame_cells[0], font_size, false);
+    if pixels.is_empty() || pixels[0].is_empty() {
+        return Err(ExportError::InvalidCells("empty cell grid".to_string()));
+    }
+    let h = pixels.len() as u32;
+    let w = pixels[0].len() as u32;
+
+    let mut buf = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut buf, w, h);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .set_animated(frame_cells.len() as u32, loop_count.into())
+            .map_err(|e| ExportError::PngError(e.to_string()))?;
+
+        let mut writer = encoder
+            .write_header()
+            .map_err(|e| ExportError::PngError(e.to_string()))?;
+
+        for (i, cells) in frame_cells.iter().enumerate() {
+            let frame_pixels = render_frame(cells, font_size, false);
+            let raw: Vec<u8> = frame_pixels
+                .iter()
+                .flat_map(|row| row.iter().flat_map(|(r, g, b, a)| vec![*r, *g, *b, *a]))
+                .collect();
+            let delay = frame_delays_cs.get(i).copied().unwrap_or(10);
+            writer
+                .set_frame_delay(delay, 100)
+                .map_err(|e| ExportError::PngError(e.to_string()))?;
+            writer
+                .write_image_data(&raw)
+                .map_err(|e| ExportError::PngError(e.to_string()))?;
+        }
+
+        writer
+            .finish()
+            .map_err(|e| ExportError::PngError(e.to_string()))?;
+    }
+    Ok(buf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -640,5 +695,86 @@ mod tests {
             pixel[3], 0,
             "space cell in transparent mode should have alpha=0"
         );
+    }
+
+    #[test]
+    fn test_output_apng_single_frame() {
+        let cells = make_buffer(2, 2, 'A', Some(Color::Red), None);
+        let apng_bytes =
+            export_cells_to_apng(&[cells], &[10], 1, 0).expect("APNG export should succeed");
+        let img = image::load_from_memory(&apng_bytes).expect("should decode PNG");
+        assert_eq!(img.width(), 16);
+        assert_eq!(img.height(), 32);
+    }
+
+    #[test]
+    fn test_output_apng_multi_frame_timing() {
+        use std::io::{BufReader, Cursor};
+        let cells_a = make_buffer(1, 1, 'A', Some(Color::Red), None);
+        let cells_b = make_buffer(1, 1, 'B', Some(Color::Blue), None);
+        let apng_bytes = export_cells_to_apng(&[cells_a, cells_b], &[10, 20], 1, 0)
+            .expect("APNG export should succeed");
+        let cursor = Cursor::new(&apng_bytes[..]);
+        let decoder = png::Decoder::new(BufReader::new(cursor));
+        let mut reader = decoder.read_info().expect("should decode APNG header");
+        let buf_size = reader.output_buffer_size().unwrap_or(1024);
+        let mut buf = vec![0u8; buf_size];
+        // Read first frame
+        reader.next_frame(&mut buf).expect("should read frame 1");
+        // Get second frame info then read it
+        let fc = reader
+            .next_frame_info()
+            .expect("should have frame 2 control");
+        assert_eq!(fc.delay_num, 20);
+        assert_eq!(fc.delay_den, 100);
+        reader.next_frame(&mut buf).expect("should read frame 2");
+    }
+
+    #[test]
+    fn test_output_apng_infinite_loop() {
+        use std::io::{BufReader, Cursor};
+        let cells = make_buffer(1, 1, 'A', Some(Color::Red), None);
+        let apng_bytes =
+            export_cells_to_apng(&[cells], &[10], 1, 0).expect("APNG export should succeed");
+        let cursor = Cursor::new(&apng_bytes[..]);
+        let decoder = png::Decoder::new(BufReader::new(cursor));
+        let reader = decoder.read_info().expect("should decode APNG header");
+        let ac = reader
+            .info()
+            .animation_control
+            .as_ref()
+            .expect("APNG should have animation control");
+        assert_eq!(ac.num_plays, 0);
+    }
+
+    #[test]
+    fn test_output_apng_finite_loop() {
+        use std::io::{BufReader, Cursor};
+        let cells = make_buffer(1, 1, 'A', Some(Color::Red), None);
+        let apng_bytes =
+            export_cells_to_apng(&[cells], &[10], 1, 3).expect("APNG export should succeed");
+        let cursor = Cursor::new(&apng_bytes[..]);
+        let decoder = png::Decoder::new(BufReader::new(cursor));
+        let reader = decoder.read_info().expect("should decode APNG header");
+        let ac = reader
+            .info()
+            .animation_control
+            .as_ref()
+            .expect("APNG should have animation control");
+        assert_eq!(ac.num_plays, 3);
+    }
+
+    #[test]
+    fn test_output_apng_empty_frames_error() {
+        let result = export_cells_to_apng(&[], &[], 1, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_export_format_apng() {
+        assert_eq!(ExportFormat::Apng, ExportFormat::Apng);
+        assert_ne!(ExportFormat::Apng, ExportFormat::Png);
+        assert_ne!(ExportFormat::Apng, ExportFormat::Gif);
+        assert_ne!(ExportFormat::Apng, ExportFormat::Txt);
     }
 }

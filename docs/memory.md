@@ -1478,3 +1478,15 @@ braille charset block (4.2.1), block elements charset (4.2.2), box drawing +
 dithered charset (4.2.3), Ogham charset (4.2.4), "Deluxe" meta-charset (4.2.5).
 All 5 subtasks (4.2.1–4.2.5) implemented, tested, merged. Phase 4.3
 (Architecture Audit) is next.
+
+### 4.3.1 — TUI architecture deepdive vs ratatui best practices
+
+Audited `tui/components/` and `tui/mod.rs` component architecture against
+ratatui best-practice patterns (`Widget for &T`, `StatefulWidget`,
+`WidgetRef`, `Layout` + `Constraint`). Findings documented in
+`docs/tui-arch-audit.md` with 11 specific findings and prioritized
+refactor plan (P0–P7). Key deviations: custom `Component` trait with
+`&mut self` + `io::Result<()>` draw, state mutation inside render
+pass, four coexisting rendering patterns, dead `StatusBar` code,
+two-layer component wrappers adding no value, and transient drag
+state mixed in `EditorState`. No code changes — audit only.

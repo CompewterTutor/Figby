@@ -105,7 +105,7 @@ with theming, modern status bar, and component architecture.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`
   - **Difficulty:** Low
 
-- [ ] `4.2.4` Ogham charset
+- [x] `4.2.4` Ogham charset
   - **Goal:** Add Ogham script block U+1680–U+169F for decorative use.
     Ogham characters are used in some ASCII art and terminal art styles.
   - **Touches:** `figby-rs/src/font_gen.rs`, `figby-rs/src/tui/palette.rs`

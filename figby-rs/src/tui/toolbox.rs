@@ -3,7 +3,6 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, StatefulWidget, Widget};
-use ratatui::Frame;
 
 use super::theme::Theme;
 
@@ -143,10 +142,6 @@ impl Toolbox {
         let all = Tool::all();
         let idx = all.iter().position(|t| *t == self.selected).unwrap_or(0);
         self.selected = all[(idx + all.len() - 1) % all.len()];
-    }
-
-    pub fn render(&self, frame: &mut Frame<'_>, area: Rect) {
-        frame.render_widget(self, area);
     }
 }
 

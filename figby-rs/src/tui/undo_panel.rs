@@ -1,7 +1,8 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use ratatui::Frame;
 
 use super::theme::Theme;
@@ -98,6 +99,20 @@ impl UndoPanel {
         let paragraph = Paragraph::new(lines)
             .block(Block::default().title("Undo History").borders(Borders::ALL));
         frame.render_widget(paragraph, overlay);
+    }
+}
+
+impl Widget for &UndoPanel {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let block = Block::default().title("Undo History").borders(Borders::ALL);
+        let inner = block.inner(area);
+        Widget::render(block, area, buf);
+
+        let paragraph = Paragraph::new(Line::from(Span::styled(
+            " No undo history",
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+        Widget::render(paragraph, inner, buf);
     }
 }
 

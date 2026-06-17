@@ -1,155 +1,355 @@
-# TUI Architecture Audit — v3.1 Refactor Targets
+# TUI Architecture Audit: ratatui Best-Practice Gaps
 
-Audited against ratatui best practices. Each finding tagged with severity:
-- 🔴 High — causes borrow errors, makes refactor hard, or breaks idiomatic use
-- 🟡 Medium — tech debt, causes tight coupling
-- 🟢 Low — style / minor inconsistency
+Audit date: 2026-06-17
+Task: 4.3.1
+Auditor: Ralph (automated)
 
----
-
-## 1. Widget / StatefulWidget Implementations
-
-**`impl Widget` count:** 1
-- `canvas.rs:237` — `impl Widget for &CanvasWidget` ✅ correct ref form
-
-**`impl StatefulWidget` count:** 0 ❌
-
-Every widget that carries state (MenuBar, FileOpsDialog, ExportDialog, FontEditor,
-Palette, Toolbox, StatusBar, UndoPanel) uses ad-hoc `render(&mut self, frame, area)`
-methods instead of the `StatefulWidget` protocol. State is owned inside the widget
-struct, not separated into a `*State` type.
-
-### Findings
-
-| file:line | severity | problem |
-|-----------|----------|---------|
-| `menu.rs` whole | 🔴 | MenuBar has no `StatefulWidget` impl; dropdown hit rects stored on struct |
-| `font_editor.rs:322` | 🔴 | FontEditor::render takes `&mut self` — mutates during draw |
-| `export.rs:230` | 🟡 | ExportDialog::render takes `&mut self` |
-| `file_ops.rs:393` | 🟡 | FileOpsDialog::render takes `&mut self` |
-| `component.rs:24` | 🔴 | `Component::draw` is abstract with `&mut self` — bakes mutation into trait |
-| `toolbox.rs:169` | 🟡 | `render_stateful_widget(list, area, &mut state)` passes ListState directly — no wrapper StatefulWidget |
+Reference docs:
+- <https://docs.rs/ratatui/latest/ratatui/widgets/index.html#authoring-custom-widgets>
+- ratatui 0.30.1 (`figby-rs/Cargo.toml:20`)
 
 ---
 
-## 2. render_widget Call Audit
+## 1. Custom `Component` trait forces `&mut self` during draw
 
-Total: **47 calls**
-- 3 pass refs (`&T`) ✅
-- 44 pass values (consuming) ❌
+**File:** `figby-rs/src/tui/component.rs:9-23`
 
-Consuming render_widget means widgets are constructed in render, mutated inline, then
-discarded. This prevents caching, makes hit-testing impossible without side channels,
-and blocks `Widget for &T` migration.
+```rust
+pub trait Component {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> io::Result<()>;
+}
+```
 
-### Key consuming call sites
+**Problem:** `draw(&mut self, ...)` violates ratatui's read-only-render principle.
+Widgets should be renderable by reference (`Widget for &T` or `WidgetRef`).
+Taking `&mut self` prevents rendering from multiple borrows, blocks sharing
+state between widgets without `RefCell`, and misaligns with ratatui's
+architecture where rendering should never mutate widget data.
 
-| file | lines | notes |
-|------|-------|-------|
-| `mod.rs` | 363, 420, 487, 591, 603, 616, 622, 642, 647 | main render — inline widget construction |
-| `font_editor.rs` | 369, 378, 386, 394, 473, 532, 625, 706 | all consuming |
-| `file_ops.rs` | 402, 408, 512, 516, 522, 603 | consuming Paragraph/Block/List |
-| `menu.rs` | 230, 257, 298, 302, 333 | consuming spans/blocks |
-| `palette.rs` | 243, 349 | consuming |
-| `status.rs` | 68, 152, 155, 198 | consuming |
+**Affected impls (9 total):**
+- `CanvasComponent` — `components/canvas.rs:65`
+- `PaletteComponent` — `components/palette.rs:69`
+- `ToolboxComponent` — `components/toolbox.rs:72`
+- `FontEditorComponent` — `components/font_editor.rs:57`
+- `StatusBarComponent` — `components/status_bar.rs:64`
+- `ExportComponent` — `components/export.rs:48`
+- `FileOpsComponent` — `components/file_ops.rs:65`
+- `UndoPanelComponent` — `components/undo_panel.rs:41`
+- `ImageEditorComponent` — `components/image_editor.rs:39` (no-op)
 
----
-
-## 3. Rect Stored in Structs (Layout Coupling)
-
-These fields couple render-time geometry to event-time hit-testing. Correct pattern:
-compute all rects in a single `layout()` pass, store in a `FrameLayout` struct.
-
-| file:line | field | severity |
-|-----------|-------|----------|
-| `mod.rs:118` | `toolbox_area: Rect` | 🔴 |
-| `mod.rs:119` | `palette_area: Rect` | 🔴 |
-| `components/canvas.rs:12` | `canvas_inner_rect: Rect` | 🟡 |
-| `menu.rs:48` | `frame_area: Rect` | 🔴 |
+**Proposal:** Eliminate custom `Component` trait entirely. Replace with
+direct `Widget for &T` / `StatefulWidget` implementations on each inner type.
+Move event handling into `TuiApp`'s `handle_key_event` / `handle_mouse_event`
+dispatch (already done inline in `mod.rs` — see §5).
 
 ---
 
-## 4. Layout Usage
+## 2. State mutation inside render pass
 
-Only 4 `Layout::default()` sites — correct ratatui API used where layouts exist.
-Problem is coverage: many areas use hardcoded Rect arithmetic instead.
+### 2a — Canvas buffer sync during render
 
-| file:line | notes |
-|-----------|-------|
-| `mod.rs:326` | vertical split (menu/tabs/main/status) ✅ |
-| `mod.rs:365` | horizontal split (toolbox/canvas/palette) ✅ |
-| `mod.rs:374` | vertical tool/brush split ✅ |
-| `font_editor.rs:334` | font editor layout ✅ |
+**File:** `figby-rs/src/tui/mod.rs:733-738`
 
----
+```rust
+if self.mode == AppMode::FontEditor {
+    self.editor.sync_canvas_to_font_char();
+}
+if self.mode == AppMode::ImageEditor {
+    self.editor.sync_image_to_canvas();
+}
+```
 
-## 5. TuiApp God Struct
+Called from `render_canvas_area()` which is called from `render()`.
+These mutate `self.editor.canvas_comp.canvas.buffer` mid-render.
 
-`mod.rs`: **2136 lines**, **39 fields** on TuiApp (22 pub, 17 private).
+**File:** `figby-rs/src/tui/mod.rs:157-207` — `sync_canvas_to_font_char()` and
+`sync_image_to_canvas()` both create or replace `CanvasWidget` and write cells
+into the buffer.
 
-Fields span unrelated domains:
-- Canvas/editor state (undo, clipboard, selection, tool state)
-- Dialog state (file_ops_comp, export_comp, undo_panel_comp)
-- App meta (mode, theme, render_mode, dirty, fps, git_branch)
-- Layout cache (toolbox_area, palette_area)
-- Font editor (font_editor_comp)
+### 2b — Canvas component stores rendering geometry
 
-Target split per task 3.1.2:
-- `AppState` — mode, theme, render_mode, dirty, fps, git_branch
-- `DialogState` — file_ops_comp, export_comp, undo_panel_comp
-- `EditorState` — canvas, selection, clipboard, tool state, undo
+**File:** `figby-rs/src/tui/components/canvas.rs:77-80`
 
----
+```rust
+self.last_canvas_size = (buf_w, buf_h);
+self.canvas_inner_rect = centered;
+```
 
-## 6. Component / Action Protocol
+These fields (`canvas_inner_rect`, `last_canvas_size`) are mutated inside
+`CanvasComponent::draw()` then used in subsequent frame's mouse handlers.
 
-`component.rs:11` — `Component` trait:
-- `handle_key_event(&mut self, KeyEvent) -> Option<Action>`
-- `handle_mouse_event(&mut self, MouseEvent) -> Option<Action>`
-- `update(&mut self, Action) -> Option<Action>`
-- `draw(&mut self, frame, area)` — **abstract, &mut self** ❌
+**File:** `figby-rs/src/tui/components/canvas.rs:12-13` — field declarations.
 
-`action.rs:8` — `Action` enum: 16 variants. Actions like `FontEditorAction` carry no
-payload — dispatch must inspect component state separately to know what happened.
+### 2c — FontEditor::render takes `&mut self`
 
-Target per task 3.1.4: typed event enums (`FontEditorEvent`, `CanvasEvent`) returning
-`Option<AppEvent>`. Eliminates the weakly-typed Action intermediary.
+**File:** `figby-rs/src/tui/font_editor.rs:457`
 
----
+```rust
+pub fn render(&mut self, frame: &mut Frame, area: Rect) {
+```
 
-## 7. Render Methods with &mut self
+This is called from `FontEditorComponent::draw()` which is `&mut self`
+(through the `Component` trait). Even if the trait were fixed, `FontEditor::render`
+itself takes `&mut self`.
 
-13 render methods mutate self during draw. Correct pattern is `&self` (read-only) or
-`StatefulWidget` with external state mutation.
-
-| file:line | method |
-|-----------|--------|
-| `mod.rs:322` | TuiApp::render |
-| `font_editor.rs:322` | FontEditor::render |
-| `font_editor.rs:332` | render_overview |
-| `font_editor.rs:476` | render_smush_editor |
-| `font_editor.rs:535` | render_transform_editor |
-| `font_editor.rs:628` | render_header_editor |
-| `export.rs:230` | ExportDialog::render |
-| `file_ops.rs:393` | FileOpsDialog::render |
-| `file_ops.rs:401` | render_open |
-| `file_ops.rs:515` | render_save_as |
-| `menu.rs:268` | render_dropdown |
-| `tools/text.rs:78` | render_rows_from_buffer |
-| `tools/text.rs:263` | render_text_to_buffer |
+**Proposal:** Decompose into explicit "sync" phase before render pass.
+Make render read-only (`&self`). Move geometry fields out of component
+structs — compute inside the render closure and pass as parameters
+to widget calls.
 
 ---
 
-## Refactor Priority Order
+## 3. Four rendering patterns coexist
 
-Based on severity and task dependencies:
+### Pattern A (correct — `Widget for &T`)
+- `CanvasWidget` — `tui/canvas.rs:268`
+- `Palette` — `tui/palette.rs:260`
+- `Toolbox` — `tui/toolbox.rs:153`
+- `CanvasSettings` — `tui/status.rs:153`
+- `AnimationTimeline` — `tui/timeline.rs` (impl `Widget for &AnimationTimeline`)
+- `MenuBar` — `tui/menu.rs` (impl `StatefulWidget for &MenuBar` — also correct)
 
-1. **3.1.2** — Split TuiApp (39 fields, 2136 lines) into AppState/DialogState/EditorState
-2. **3.1.3** — Convert all render methods from `&mut self` to `Widget for &T`; zero StatefulWidget impls is the core gap
-3. **3.1.5** — `FrameLayout` struct: move toolbox_area, palette_area, frame_area out of structs
-4. **3.1.4** — Replace Action enum with typed event enums
-5. **3.1.7** — MenuBar as proper StatefulWidget (depends on 3.1.3 + 3.1.5)
-6. **3.1.8** — Keymap dispatch wired from 3.0.4 table
+These follow the ratatui recommended pattern: the widget holds state and
+renders via `&self` reference.
 
-The 44 consuming render_widget calls will be fixed as a side-effect of 3.1.3 (converting
-to `Widget for &T` means refs are passed to render_widget).
+### Pattern B — `render(&self, frame, area)` standalone method
+- `BrushState::render()` — `tui/brush.rs:159`
+- `ExportDialog::render()` — `tui/export.rs:230`
+- `FileOpsDialog::render()` — `tui/file_ops.rs:547`
+- `UndoPanel::render()` — `tui/undo_panel.rs:49`
+- `WelcomeScreen::render()` — `tui/welcome.rs:30`
+
+These could be simple `Widget for &T` impls instead.
+
+### Pattern C — `render(&mut self, frame, area)` standalone method
+- `FontEditor::render()` — `tui/font_editor.rs:457`
+
+Mutates state during render (e.g., search filtering, grid state changes).
+
+### Pattern D — `render()` forwarding methods on inner widgets
+- `Palette::render()` delegates to `frame.render_widget(self, area)` — `tui/palette.rs:255-257`
+- `Toolbox::render()` delegates to `frame.render_widget(self, area)` — `tui/toolbox.rs:148-150`
+- `CanvasSettings::render()` delegates to `frame.render_widget(self, area)` — `tui/status.rs:148-150`
+
+These are dead forwarding methods: they exist only because the outer
+Component wrapper calls `self.widget.render(frame, area)` instead of
+`frame.render_widget(&self.widget, area)`.
+
+**Proposal:** Unify all on `Widget for &T` / `StatefulWidget for &T`.
+Remove dead `render()` forwarding methods.
+
+---
+
+## 4. `io::Result<()>` in draw is dead complexity
+
+**File:** `figby-rs/src/tui/component.rs:22`
+
+```rust
+fn draw(&mut self, frame: &mut Frame, area: Rect) -> io::Result<()>;
+```
+
+Every single impl returns `Ok(())`. Ratatui rendering is infallible — the
+`Frame` and `Buffer` APIs never return `Result`. The `io::Result` wrapper
+provides no value and forces `let _ = component.draw(frame, area);` at
+every call site.
+
+**Affected call sites (all return ignored):**
+- `mod.rs:612` — `let _ = self.editor.toolbox_comp.draw(frame, tb_full);`
+- `mod.rs:632` — `let _ = self.editor.palette_comp.draw(frame, rp);`
+- `mod.rs:682` — `let _ = self.status_bar_comp.draw(frame, fl.status);`
+- `mod.rs:731` — `let _ = self.editor.font_editor_comp.draw(frame, inner);`
+
+**Proposal:** Remove `Result` from draw signatures. Change return to `()`.
+
+---
+
+## 5. Component wrapper layer adds no value
+
+Nine `components/*.rs` files wrap inner widgets (`PaletteComponent` wraps
+`Palette`, etc.) solely to satisfy the `Component` trait. Analysis of each:
+
+| File | Inner type | Lines | Behavior |
+|------|-----------|-------|----------|
+| `components/palette.rs` | `Palette` | 73 | `draw()` calls `self.palette.render()` |
+| `components/toolbox.rs` | `Toolbox` + `BrushState` | 79 | `draw()` calls `self.toolbox.render()` |
+| `components/canvas.rs` | `CanvasWidget` | 95 | `draw()` renders canvas + edge block, mutates geometry state |
+| `components/font_editor.rs` | `FontEditor` | 62 | `draw()` calls `self.editor.render()` |
+| `components/status_bar.rs` | (inline rendering) | 169 | Full render logic inline |
+| `components/export.rs` | `ExportDialog` | 60 | `draw()` calls `self.dialog.render()` |
+| `components/file_ops.rs` | `FileOpsDialog` | 77 | `draw()` calls `self.dialog.render()` |
+| `components/undo_panel.rs` | `UndoPanel` | 48 | `draw()` calls `self.panel.render()` |
+| `components/image_editor.rs` | `ImageEditor` | 42 | `draw()` is no-op |
+
+**Key finding:** Event handling for most of these already happens
+directly in `TuiApp::handle_key_event()` (`mod.rs:1462-2037`), not through
+`Component::handle_key_event()`. The event dispatch was already inlined
+into the app. The Component trait wrapper layer remains solely for the
+`draw()` method.
+
+Exceptions: `MenuBar` uses `StatefulWidget for &MenuBar` directly
+(no Component wrapper). `AnimationTimeline` uses `Widget for &AnimationTimeline`
+directly.
+
+**Proposal:** Remove `Component` trait and all 9 `*Component` wrapper structs.
+Inline rendering into `TuiApp::render()` using direct `frame.render_widget(&widget, area)`
+calls. This eliminates the two-layer architecture.
+
+---
+
+## 6. Dead `StatusBar` code
+
+**File:** `figby-rs/src/tui/status.rs:13-71`
+
+```rust
+pub struct StatusBar;
+
+impl StatusBar {
+    pub fn render(
+        frame: &mut Frame<'_>,
+        area: Rect,
+        ...
+    ) { ... }
+}
+```
+
+Old `StatusBar` struct with static `render()` method. Unused in the
+render path — `TuiApp::render()` uses `StatusBarComponent` (`components/status_bar.rs`)
+instead. The old `StatusBar::render()` is never called.
+
+**Proposal:** Remove dead `StatusBar` code (`status.rs:13-71`).
+
+---
+
+## 7. Frame layout stored as state causes stale-geometry coupling
+
+**File:** `figby-rs/src/tui/layout.rs:37-52` — `FrameLayout` struct stored on `TuiApp`.
+
+```rust
+pub struct TuiApp {
+    ...
+    frame_layout: layout::FrameLayout,
+    ...
+}
+```
+
+**File:** `figby-rs/src/tui/mod.rs:550-551` — stored each frame:
+```rust
+let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer);
+self.frame_layout = fl;
+```
+
+**Used in mouse handlers at:** `mod.rs:1062`
+```rust
+if let Some(tb) = self.frame_layout.toolbox_list { ... }
+```
+
+The mouse handler uses geometry from the *previous* frame's render pass.
+If the terminal was resized between frames, the coordinates are stale until
+the next render cycle.
+
+**Additional state:** `components/canvas.rs:12-13` — `canvas_inner_rect` and
+`last_canvas_size` stored on `CanvasComponent`, written during draw, read
+by mouse handlers.
+
+**Proposal:** Compute layout once per frame in `render()`, pass geometry
+as parameters to mouse handlers instead of reading from `self.frame_layout`.
+Or, compute layout inline in the mouse handler by reading current terminal
+size.
+
+---
+
+## 8. `EditorState` mixes permanent state with transient drag state
+
+**File:** `figby-rs/src/tui/mod.rs:114-119`
+
+```rust
+selection_drag_origin: Option<(i16, i16)>,
+selection_polygon_points: Vec<(i16, i16)>,
+selection_lasso_points: Vec<(i16, i16)>,
+prev_mouse_buf: Option<(i16, i16)>,
+line_start: Option<(i16, i16)>,
+saved_buffer: Option<canvas::CanvasBuffer>,
+```
+
+These fields are transient operation state — set during mouse-down, read
+during drag/move, cleared on mouse-up. They are not "editor state" in the
+persistent sense, but they live alongside permanent state like
+`canvas_comp`, `palette_comp`, `undo`, `selection`, `clipboard`.
+
+**Problem:** Makes `EditorState` harder to reason about. Every method on
+`EditorState` potentially touches transient fields. The `selection_polygon_points`
+is checked in multiple unrelated places (`mod.rs:506`, `mod.rs:754`, `mod.rs:1870-1890`).
+
+**Proposal:** Extract transient drag state into a separate struct
+(e.g., `DragState` or `InteractionState`) stored directly on `TuiApp`.
+Or, refactor into local variables scoped to the mouse event handler.
+
+---
+
+## 9. `WidgetRef` available but unused
+
+ratatui 0.30.1 supports `WidgetRef` (stable since 0.28). `WidgetRef` is
+an alternative to `Widget for &T` that uses an explicit `Ref` wrapper.
+Current code uses only `Widget for &T`.
+
+This is not a gap per se — `Widget for &T` is equally correct. However,
+`WidgetRef` provides a cleaner migration path for types that currently
+implement custom `render()` methods (Pattern B above), because the
+`WidgetRef` trait can be implemented on the value type directly rather
+than requiring a reference wrapper.
+
+**Proposal:** Not required, but worth noting as an alternative migration
+strategy. Using `Widget for &T` everywhere (fixing Pattern B and C) is
+equally correct and simpler for the current codebase.
+
+---
+
+## 10. `ratatui::init()` is acceptable but bare
+
+**File:** `figby-rs/src/tui/mod.rs:467`
+
+```rust
+let mut terminal = ratatui::init();
+```
+
+Uses the default `ratatui::init()` which calls `try_init()` with a default
+panic hook that restores the terminal on panic. Fine for simple apps, but
+a TUI editor may benefit from:
+- Custom panic hook that writes a log file
+- `AlternateScreenBackend` negotiation (e.g., fallback if alt screen unsupported)
+- Custom `Terminal` creation with `Viewport` control
+
+**Proposal:** Low priority. Consider custom terminal initialization
+for production robustness.
+
+---
+
+## 11. `AnimationTimeline` uses correct pattern (exemplary)
+
+**File:** `figby-rs/src/tui/timeline.rs`
+
+`AnimationTimeline` implements `Widget for &AnimationTimeline` and
+`StatefulWidget for &AnimationTimeline` — exactly the recommended pattern.
+State is separated into `TimelineState` (analogous to `ListState`).
+This is the model that all other widgets should follow.
+
+Similarly, `MenuBar` + `MenuBarState` (`tui/menu.rs`) correctly uses
+`StatefulWidget for &MenuBar` with separate state, and is rendered via
+`frame.render_stateful_widget()`.
+
+---
+
+## Summary: Concrete Refactors for 4.3.2
+
+Priority ordered:
+
+| # | Refactor | Impact | Files |
+|---|----------|--------|-------|
+| P0 | Remove `Component` trait. Inline `draw()` into `TuiApp::render()`. Replace with direct `Widget for &T` / `frame.render_widget()`. | **High** — eliminates two-layer wrapper pattern, fixes `&mut self` issue | `component.rs` (delete), all 9 `components/*.rs` (delete or inline), `mod.rs` (update render), `brush.rs`, `export.rs`, `file_ops.rs`, `undo_panel.rs`, `font_editor.rs`, `welcome.rs` (add `Widget for &T` impls) |
+| P1 | Remove `io::Result<()>` from draw/return types | **Low effort**, mechanical change | `component.rs`, `mod.rs` call sites |
+| P2 | Decompose sync phase out of render pass | **Medium** — requires separating state update from rendering | `mod.rs:733-738`, `mod.rs:157-207` |
+| P3 | Extract transient drag state from `EditorState` | **Medium** — refactors mouse handler | `mod.rs:114-119`, mouse handler methods |
+| P4 | Remove dead `StatusBar` code | **Low effort**, mechanical | `status.rs:13-71` |
+| P5 | Remove dead `render()` forwarding methods | **Low effort**, mechanical | `palette.rs:255-257`, `toolbox.rs:148-150`, `status.rs:148-150` |
+| P6 | Move geometry out of stored state into render params | **Medium** — affects layout + mouse handler coupling | `layout.rs`, `mod.rs` mouse handlers, `components/canvas.rs` |
+| P7 | Add `Widget for &BrushState`, `Widget for &ExportDialog`, etc. for Pattern B types | **Medium** — 5 types need `Widget` impls | `brush.rs`, `export.rs`, `file_ops.rs`, `undo_panel.rs`, `welcome.rs` |

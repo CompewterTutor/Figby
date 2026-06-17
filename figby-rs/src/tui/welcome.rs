@@ -1,8 +1,9 @@
 use crossterm::event::{KeyCode, KeyModifiers};
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 use ratatui::Frame;
 use std::path::PathBuf;
 
@@ -140,6 +141,30 @@ impl WelcomeScreen {
             }
             _ => None,
         }
+    }
+}
+
+impl Widget for &WelcomeScreen {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        Widget::render(Clear, area, buf);
+
+        let welcome_area = centered_welcome(area);
+        Widget::render(Clear, welcome_area, buf);
+
+        let block = Block::default().title(" Welcome ").borders(Borders::ALL);
+        let inner = block.inner(welcome_area);
+        Widget::render(block, welcome_area, buf);
+
+        let lines = vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                " Welcome to Figby",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+        ];
+        let paragraph = Paragraph::new(lines);
+        Widget::render(paragraph, inner, buf);
     }
 }
 

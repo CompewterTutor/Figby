@@ -343,6 +343,120 @@ impl Default for ExportDialog {
     }
 }
 
+use ratatui::buffer::Buffer;
+use ratatui::widgets::Widget;
+
+impl Widget for &ExportDialog {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        if !self.active {
+            return;
+        }
+
+        Widget::render(Clear, area, buf);
+        let block = Block::default()
+            .title(" Export ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(self.theme.dialog.border_success));
+        let inner = block.inner(area);
+        Widget::render(block, area, buf);
+
+        if inner.width < 24 || inner.height < 8 {
+            return;
+        }
+
+        let mut lines: Vec<Line> = Vec::new();
+
+        lines.push(Line::from(Span::styled(
+            format!(" Format: [{}]  (T to cycle)", self.format.label()),
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+
+        lines.push(Line::from(Span::styled(
+            format!(
+                " Size: {}x (z = char at {})",
+                self.font_size,
+                8 * self.font_size as u16 * 16 * self.font_size as u16
+            ),
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        lines.push(Line::from(Span::styled(
+            " Path:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+
+        let path_display = if self.path_buffer.is_empty() {
+            " (type path or use arrows to browse)".to_string()
+        } else {
+            self.path_buffer.clone()
+        };
+        lines.push(Line::from(Span::styled(
+            format!(" {}", path_display),
+            Style::default().fg(self.theme.dialog.border_path),
+        )));
+
+        if !self.error_message.is_empty() {
+            lines.push(Line::from(Span::styled(
+                format!(" Error: {}", self.error_message),
+                Style::default().fg(self.theme.dialog.error),
+            )));
+        }
+
+        lines.push(Line::from(""));
+
+        if self.directory_entries.is_empty() {
+            lines.push(Line::from(Span::styled(
+                " (empty directory)",
+                Style::default().fg(self.theme.dialog.meta),
+            )));
+        } else {
+            lines.push(Line::from(Span::styled(
+                " Directory:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+
+            let max_visible = (inner.height as usize).saturating_sub(7).min(10);
+            let start = self.selected_entry.saturating_sub(max_visible / 2);
+            let end = (start + max_visible).min(self.directory_entries.len());
+            for i in start..end {
+                let entry = &self.directory_entries[i];
+                let is_selected = i == self.selected_entry;
+                let parent = if self.path_buffer.is_empty() {
+                    std::path::PathBuf::from(".")
+                } else {
+                    let p = std::path::PathBuf::from(&self.path_buffer);
+                    if p.is_dir() {
+                        p
+                    } else {
+                        p.parent()
+                            .map(|pp| pp.to_path_buf())
+                            .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    }
+                };
+                let is_dir = parent.join(entry).is_dir();
+                let prefix = if is_selected { " >" } else { "  " };
+                let suffix = if is_dir { "/" } else { "" };
+                let text = format!("{prefix}{entry}{suffix}");
+                let style = if is_selected {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                lines.push(Line::from(Span::styled(text, style)));
+            }
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " T: format  Enter: export  Esc: cancel  \u{2191}\u{2193}: navigate  Tab: select",
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        let paragraph = Paragraph::new(lines);
+        Widget::render(paragraph, inner, buf);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

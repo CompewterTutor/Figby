@@ -1478,3 +1478,40 @@ braille charset block (4.2.1), block elements charset (4.2.2), box drawing +
 dithered charset (4.2.3), Ogham charset (4.2.4), "Deluxe" meta-charset (4.2.5).
 All 5 subtasks (4.2.1–4.2.5) implemented, tested, merged. Phase 4.3
 (Architecture Audit) is next.
+
+### 4.3.1 — TUI architecture deepdive vs ratatui best practices
+
+Audited `tui/components/` and `tui/mod.rs` component architecture against
+ratatui best-practice patterns (`Widget for &T`, `StatefulWidget`,
+`WidgetRef`, `Layout` + `Constraint`). Findings documented in
+`docs/tui-arch-audit.md` with 11 specific findings and prioritized
+refactor plan (P0–P7). Key deviations: custom `Component` trait with
+`&mut self` + `io::Result<()>` draw, state mutation inside render
+pass, four coexisting rendering patterns, dead `StatusBar` code,
+two-layer component wrappers adding no value, and transient drag
+state mixed in `EditorState`. No code changes — audit only.
+
+### 4.3.2 — Apply ratatui architecture fixes from audit
+
+Implemented all fixes from the 4.3.1 audit:
+- **Component trait eliminated** — all widgets use `impl Widget for &T` with
+  `frame.render_widget()` directly. `component.rs` and 9 component-wrapper
+  files (`components/*.rs`) deleted.
+- **Widget ownership/borrow patterns unified** — `BrushState`, `ExportDialog`,
+  `FileOpsDialog`, `UndoPanel`, `WelcomeScreen`, `FontEditor` all gained
+  `Widget for &T` impls. `FontEditor::render` changed to `&self` with a
+  new `before_render(&mut self)` step.
+- **Dead code removed** — `StatusBar` struct (old static render),
+  `Palette::render()`, `Toolbox::render()`, `CanvasSettings::render()`
+  forwarding methods deleted.
+- **Fields inlined** — `EditorState`/`DialogState`/`TuiApp` now hold widget
+  types directly (no `*Component` wrappers). Drag state
+  (`selection_drag_origin`, `selection_polygon_points`, etc.) extracted
+  from `EditorState` to `TuiApp`.
+- **Layout computed per-frame** — `frame_layout` removed from stored state;
+  computed as local `fl` in `render()` and recomputed in mouse handler
+  from terminal size. `canvas_inner_rect` no longer stored — computed
+  locally in both `render_canvas_area()` and `handle_mouse_event()`.
+- **Sync phase decomposed** — `sync_canvas_to_font_char()` and
+  `sync_image_to_canvas()` called explicitly before widget rendering
+  in `render_canvas_area()`.

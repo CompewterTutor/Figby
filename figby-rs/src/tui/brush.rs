@@ -202,6 +202,50 @@ impl Default for BrushState {
     }
 }
 
+use ratatui::buffer::Buffer;
+use ratatui::widgets::Widget;
+
+impl Widget for &BrushState {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let block = Block::default()
+            .title(" Brush ")
+            .borders(Borders::ALL)
+            .title_style(Style::default().add_modifier(Modifier::BOLD));
+        let inner = block.inner(area);
+        Widget::render(block, area, buf);
+
+        if inner.width < 2 || inner.height < 2 {
+            return;
+        }
+
+        let mut lines: Vec<Line<'_>> = Vec::new();
+
+        lines.push(Line::from(vec![
+            Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", self.ch)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", self.size)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", self.shape.name())),
+        ]));
+
+        lines.push(Line::from(Span::raw("")));
+
+        let preview = self.render_mini_preview();
+        let visible_height = inner.height.saturating_sub(lines.len() as u16 + 1);
+        for row in preview.iter().take(visible_height as usize) {
+            lines.push(Line::from(Span::raw(format!(" {}", row))));
+        }
+
+        let paragraph = Paragraph::new(lines);
+        Widget::render(paragraph, inner, buf);
+    }
+}
+
 fn render_square_preview(size: usize) -> Vec<String> {
     if size == 0 {
         return vec![String::new()];

@@ -126,7 +126,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.3 — Architecture Audit
 
-- [ ] `4.3.1` TUI architecture deepdive vs ratatui best practices
+- [x] `4.3.1` TUI architecture deepdive vs ratatui best practices
   - **Goal:** Compare current component architecture in `tui/components/` and
     `tui/mod.rs` against ratatui documentation patterns:
     `Widget for &T` (reference-based, non-consuming), `StatefulWidget`,
@@ -137,7 +137,7 @@ with theming, modern status bar, and component architecture.
     file:line findings and proposed fixes.
   - **Difficulty:** Medium
 
-- [ ] `4.3.2` Apply ratatui architecture fixes from audit
+- [x] `4.3.2` Apply ratatui architecture fixes from audit
   - **Goal:** Implement fixes identified in `4.3.1`. Priority: widget
     ownership/borrow patterns first, then layout constraints.
   - **Touches:** `figby-rs/src/tui/`

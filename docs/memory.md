@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Phase 4.5 merged) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.6 merged) |
 
 ## Architectural Decisions
 
@@ -1737,6 +1737,14 @@ Added full particle emitter tool to the TUI toolbox:
 - Deactivation on tool switch handled via `AppEvent::Toolbox`
 - 15 new unit tests: emission shapes (point/circle/rect), spread angle, render to canvas, bounds clipping, config panel navigation, float editing, shape cycling
 - No `.unwrap()` in production — all fallible paths use `Option` or `Result` with user-facing error display
+
+### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
+
+Merged release/4.6 branch into master at `aeddc56` (merge commit created on master via `--no-ff`).
+Brings 4.6.1 (Particle system data model and lifecycle), 4.6.2 (Particle emitter UI tool with
+config panel), and 4.6.3 (Particle-to-layer baking) into the mainline. Added `particles.rs`
+(1225 lines), config section for particle defaults, emitter tool variant in toolbox, and
+icons entry. Next phase: 4.7 (Animation Exporter).
 
 ### 4.6.3 — Particle-to-layer baking
 

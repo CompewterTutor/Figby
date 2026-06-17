@@ -26,6 +26,7 @@ pub mod events;
 pub mod export;
 pub mod file_ops;
 pub mod font_editor;
+pub mod fx;
 pub mod image_editor;
 pub mod keymap;
 pub mod layers;
@@ -370,6 +371,9 @@ pub struct TuiApp {
     last_draw_time: Instant,
     pub show_keybindings: bool,
     pub welcome_screen: welcome::WelcomeScreen,
+    pub delta_time: Duration,
+    fx_last_tick: Instant,
+    pub welcome_fx: Option<fx::WelcomeFx>,
     /// `F11` toggle: canvas fills entire terminal, minimal hint overlay.
     pub zen_mode: bool,
     /// Controls what the right drawer panel shows.
@@ -503,6 +507,9 @@ impl TuiApp {
             last_draw_time: Instant::now(),
             show_keybindings: false,
             welcome_screen: welcome::WelcomeScreen::new(),
+            delta_time: Duration::ZERO,
+            fx_last_tick: Instant::now(),
+            welcome_fx: Some(fx::WelcomeFx::new()),
             zen_mode: false,
             right_drawer: layout::DrawerMode::Palette,
             editor: {
@@ -609,6 +616,10 @@ impl TuiApp {
         self.check_async_completion();
         self.throbber.tick();
 
+        let now = Instant::now();
+        self.delta_time = now.duration_since(self.fx_last_tick);
+        self.fx_last_tick = now;
+
         // Welcome screen: full-screen overlay, dismisses on any constructive action
         if self.welcome_screen.show {
             let area = frame.area();
@@ -619,6 +630,15 @@ impl TuiApp {
                 env!("CARGO_PKG_VERSION"),
                 &self.theme,
             );
+
+            if let Some(ref mut welcome_fx) = self.welcome_fx {
+                let welcome_area = welcome::centered_welcome(area);
+                welcome_fx.process(self.delta_time, frame.buffer_mut(), welcome_area);
+                if welcome_fx.done() {
+                    self.welcome_fx = None;
+                }
+            }
+
             self.render_overlays(frame);
             return;
         }
@@ -1890,6 +1910,7 @@ impl TuiApp {
                 match action {
                     WelcomeAction::Dismiss => {
                         self.welcome_screen.show = false;
+                        self.welcome_fx = None;
                         self.dirty = true;
                     }
                     WelcomeAction::OpenRecent(idx) => {
@@ -1897,12 +1918,14 @@ impl TuiApp {
                             self.dialogs.file_ops.path_buffer = path.to_string_lossy().to_string();
                             self.perform_open();
                             self.welcome_screen.show = false;
+                            self.welcome_fx = None;
                             self.dirty = true;
                         }
                     }
                     WelcomeAction::Open => {
                         self.start_open();
                         self.welcome_screen.show = false;
+                        self.welcome_fx = None;
                         self.dirty = true;
                     }
                     WelcomeAction::NewFile => {
@@ -1916,6 +1939,7 @@ impl TuiApp {
                         self.editor.layer_panel.icons = self.icons.clone();
                         self.editor.recomposite_canvas();
                         self.welcome_screen.show = false;
+                        self.welcome_fx = None;
                         self.dirty = true;
                     }
                     WelcomeAction::ToggleHelp => {
@@ -1930,6 +1954,7 @@ impl TuiApp {
                         self.dialogs.settings.show_grid = self.editor.canvas.show_grid();
                         self.dialogs.settings.settings_open = true;
                         self.welcome_screen.show = false;
+                        self.welcome_fx = None;
                         self.dirty = true;
                     }
                 }

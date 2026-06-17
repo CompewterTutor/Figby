@@ -174,7 +174,7 @@ impl Default for WelcomeScreen {
     }
 }
 
-fn centered_welcome(area: Rect) -> Rect {
+pub fn centered_welcome(area: Rect) -> Rect {
     let w = (area.width / 5 * 3).min(60);
     let h = (area.height / 5 * 3).min(30);
     let x = area.x + (area.width.saturating_sub(w)) / 2;

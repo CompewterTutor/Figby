@@ -370,7 +370,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.9 — Visual Polish & TachyonFX
 
-- [ ] `4.9.1` Evaluate TachyonFX for UI animations
+- [x] `4.9.1` Evaluate TachyonFX for UI animations
   - **Goal:** Spike: add `tachyonfx` crate, prototype one animation (e.g. dialog
     fade-in, screen transition). Assess ergonomics and perf. Reference:
     https://ratatui.rs/ecosystem/tachyonfx/

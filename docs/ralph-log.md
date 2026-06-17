@@ -3136,3 +3136,7 @@ DONE: 4.8.4 merged into release/4.8.
 
 All 4.8 tasks complete. Starting phase review.
 >>>>>>> release/4.8
+
+## 2026-06-17 10:40
+
+PHASE_COMPLETE: 4.8 merged to main after review approval.

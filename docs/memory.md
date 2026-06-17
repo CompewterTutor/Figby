@@ -1901,3 +1901,23 @@ Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal cap
 4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into the mainline.
 No code changes — merge was a no-op (release/4.7 already an ancestor of master).
 Fixed stale merge conflict markers in ralph-log.md. Next phase: 4.8 (Animation Player).
+
+### 4.9.1 — TachyonFX spike: welcome screen fade-in
+
+Added `tachyonfx = { version = "0.25", features = ["std-duration"] }` dependency.
+
+Created `figby-rs/src/tui/fx.rs` with `WelcomeFx` struct wrapping a tachyonfx `Effect`
+that applies `fade_from_fg(Color::DarkGray, timer)` over 400ms with `QuadOut` easing
+to the welcome dialog area on startup.
+
+Modified `figby-rs/src/tui/mod.rs`:
+- Added `pub mod fx;` module declaration
+- Added `delta_time`, `fx_last_tick`, `welcome_fx` fields to `TuiApp`
+- `render()` computes delta_time each frame, applies `WelcomeFx::process()` to the
+  welcome area after rendering, clears `welcome_fx` when effect completes (done())
+- All 5 constructive welcome actions (Dismiss, OpenRecent, Open, NewFile, OpenSettings)
+  set `welcome_fx = None`
+
+Modified `figby-rs/src/tui/welcome.rs`: made `centered_welcome()` `pub` for use by fx module.
+
+3 files touched: `Cargo.toml`, `fx.rs` (new), `mod.rs`. fmt and clippy pass clean.

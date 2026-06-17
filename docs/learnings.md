@@ -1030,3 +1030,10 @@ Three bugs found in phase merge review:
 - Merge completed cleanly — no conflicts. 4 files changed (CHANGELOG.md,
   docs/memory.md, docs/ralph-log.md, docs/todo-v4.md), 18 insertions, 2 deletions.
 - No code changes beyond merge.
+
+## 4.7.4 — Phase merge: release/4.7 → main
+
+- No code changes — merge was a no-op (release/4.7 already an ancestor of master
+  from prior merge commits). Only docs, changelog, and metadata updated.
+- Fixed stale merge conflict markers in `docs/ralph-log.md` (leftover from 4.3.3
+  and 4.6.4 phase merges).

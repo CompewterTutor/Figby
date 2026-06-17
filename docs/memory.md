@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Phase 4.6 merged) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.7 merged) |
 
 ## Architectural Decisions
 
@@ -1816,3 +1816,10 @@ Integrated into TUI export system:
 Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),
 4.6.2 (Particle emitter UI tool with config panel), and 4.6.3 (Particle-to-layer baking) into
 the mainline. Next phase: 4.7 (Animation Exporter).
+
+### 4.7.4 — Phase merge: release/4.7 → main (2026-06-17)
+
+Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal capture),
+4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into the mainline.
+No code changes — merge was a no-op (release/4.7 already an ancestor of master).
+Fixed stale merge conflict markers in ralph-log.md. Next phase: 4.8 (Animation Player).

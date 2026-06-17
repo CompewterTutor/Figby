@@ -2,16 +2,18 @@
 
 ## [Unreleased] - 2026-06-17
 ### Added
-- Phase 4.6: Particle Effect Creator (4.6.1–4.6.3) — particle system data model,
-  emitter UI tool, particle-to-layer baking.
+- Phase 4.7: Animation Exporter (4.7.1–4.7.3) — frame-by-frame terminal capture,
+  APNG export, ANSI escape sequence export.
 ### Changed
+- Phase merge: release/4.7 → master. Phase 4.7 complete: frame-by-frame terminal
+  capture (4.7.1), APNG export (4.7.2), ANSI escape sequence export (4.7.3).
 - Phase merge: release/4.6 → master. Phase 4.6 complete: particle system data
   model (4.6.1), particle emitter UI tool (4.6.2), particle-to-layer baking
   (4.6.3).
 - Phase merge: release/4.5 → master. Phase 4.5 complete: AnimationTimeline widget
   (4.5.0), frame management (4.5.1), keyframing (4.5.2), tweening (4.5.3),
   GIF export from timeline (4.5.4).
-- Phase merge: release/4.6 → master — phase 4.6 complete.
+- Phase merge: release/4.7 → master — phase 4.7 complete.
 
 ## [3.0.0-rc.2] - 2026-06-17
 ### Changed

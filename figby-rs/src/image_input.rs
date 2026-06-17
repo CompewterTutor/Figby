@@ -7,6 +7,16 @@ pub const DEFAULT_CHAR_MAP: &str = " .-:=+*#%@";
 /// RGB pixel type alias: (red, green, blue) each 0-255.
 pub type RgbPixel = (u8, u8, u8);
 
+#[cfg(not(target_arch = "wasm32"))]
+fn get_terminal_width() -> Option<usize> {
+    crossterm::terminal::size().map(|(w, _)| w as usize).ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_terminal_width() -> Option<usize> {
+    None
+}
+
 /// Load an image from file and convert to grayscale luminance matrix.
 ///
 /// Returns `Vec<Vec<u8>>` where `matrix[y][x]` is the luminance (0-255)
@@ -182,11 +192,7 @@ pub fn image_to_ascii<P: AsRef<Path>>(
     let img = image::open(path)?;
     let matrix = luminance_from_dynamic(&img);
     let cmap = char_map.unwrap_or(DEFAULT_CHAR_MAP);
-    let width = target_width.unwrap_or_else(|| {
-        crossterm::terminal::size()
-            .map(|(w, _)| w as usize)
-            .unwrap_or(80)
-    });
+    let width = target_width.unwrap_or_else(|| get_terminal_width().unwrap_or(80));
     Ok(luminance_to_ascii(&matrix, width, cmap))
 }
 

@@ -2,7 +2,7 @@ use gif::{Encoder as GifEncoder, Repeat};
 use image::ImageEncoder;
 use ratatui::style::Color;
 
-use crate::tui::canvas::CanvasCell;
+use crate::CanvasCell;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportFormat {
@@ -489,7 +489,7 @@ pub fn export_cells_to_apng(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::canvas::CanvasCell;
+    use crate::CanvasCell;
 
     fn make_buffer(
         rows: usize,

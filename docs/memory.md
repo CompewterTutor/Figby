@@ -1971,3 +1971,48 @@ TachyonFX spike with welcome screen fade-in (4.9.1), dark neon-accent panel
 theme (4.9.2), app fade-in on launch (4.9.3), widget-based responsive status
 bar (4.9.4). All 4 subtasks implemented, tested, merged. Phase 4.10 (Web
 Target) is next.
+
+### 4.10.1 — WASM / web target via Ratzilla
+
+Added `wasm32-unknown-unknown` build target support using `ratzilla` crate:
+
+**Cargo.toml changes:**
+- Moved native-only deps (crossterm, font-kit, tachyonfx, rand, pathfinder_geometry) to
+  `[target.'cfg(not(target_arch = "wasm32"))'.dependencies]`
+- Added WASM-only deps: `ratzilla = "0.3"`, `getrandom = { features = ["js"] }`
+- ratatui split across targets: native gets `features = ["crossterm"]`, WASM gets `default-features = false`
+- `zip` uses `default-features = false, features = ["deflate"]` to avoid lzma-sys C dep on WASM
+- `flate2` uses `rust_backend` feature (pure Rust, no C cross-compilation)
+- `[lib]` crate-type includes `"cdylib"` for wasm-bindgen output
+- `rascii_art` moved to unconditional deps (pure Rust, compiles on WASM)
+
+**lib.rs:**
+- Added `#[cfg(target_arch = "wasm32")] pub mod web;`
+- `pub mod tui;` and `pub mod font_gen;` gated with `#[cfg(not(target_arch = "wasm32"))]`
+- `CanvasCell` type moved from `tui/canvas.rs` to crate root `canvas_inner` mod for
+  unconditional availability (needed by `output.rs` export functions)
+- `tui/canvas.rs` re-exports via `pub use crate::CanvasCell;`
+
+**web.rs (new):**
+- Ratzilla font preview app with `DomBackend`
+- Keyboard-driven text editing (char insert, backspace, delete, arrows, home/end)
+- Font selector via Up/Down arrows
+- Renders FIGlet output via `render_string()` in a ratatui `Paragraph` with Wrap
+- Three embedded fonts: standard, banner, big (via `include_bytes!`)
+- No crossterm imports — standalone web entry point
+- `run_web()` returns `io::Result<()>`
+
+**main.rs:**
+- `#[cfg(target_arch = "wasm32")] fn main()` stub calls `figby::web::run_web()`
+- Existing main gated with `#[cfg(not(target_arch = "wasm32"))]`
+- `get_columns()` has dual versions: crossterm for native, `None` for WASM
+
+**image_input.rs:**
+- Added `get_terminal_width()` helper with dual versions replacing direct crossterm call
+
+**Architectural decisions:**
+- Ratzilla 0.3.1 uses `DomBackend`, `WebRenderer` trait, `draw_web()` for rendering,
+  `on_key_event()` for keyboard. Compatible with ratatui 0.30.1.
+- `cargo build -p figby --lib --target wasm32-unknown-unknown` succeeds
+- Full `cargo build -p figby --target wasm32-unknown-unknown` succeeds (bin compiles with stub main)
+- Tested with `cargo clippy --all-targets --all-features -- -D warnings` (native + cross checks)

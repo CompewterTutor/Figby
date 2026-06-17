@@ -1720,3 +1720,20 @@ Added per-layer keyframing to the `AnimationTimeline` widget:
 - 21 new tests: set/remove keyframes, linear interpolation (position, opacity),
   blend mode step, before/after bounds, single keyframe, no keyframes, multi-layer,
   editor navigation, numeric edit, blend cycle, has_keyframe derivation
+
+### 4.6.2 — Particle emitter UI
+
+Added full particle emitter tool to the TUI toolbox:
+- `EmissionShape` enum (Point/CircleRadius/RectWH) with custom serde (string format for YAML config)
+- `spread_angle: f64` and `emission_shape: EmissionShape` fields on `ParticleConfig`
+- `Particle::new()` applies spread angle velocity cone randomization and emission shape position offset
+- `ParticleSystem::render_to_canvas()` writes particle chars to `CanvasBuffer` with bounds clipping (no unwrap)
+- `EmitterConfigPanel` struct with 17 editable fields (spawn rate, lifetime, velocity, acceleration, spread angle, emission shape, size, character, RGB color, opacity)
+- Config panel rendered as a right-side overlay with bordered list, field highlight, edit mode
+- `Emitter` tool variant added to `Tool` enum (shortcut `m`, display `"Em"`, icon `tool_emitter`)
+- `tool_emitter: ` icon entry in `icons.yaml`
+- Mouse click places emitter at buffer coords, opens config panel, starts particle animation
+- Particle system updates every frame via delta time, rendering particles onto canvas buffer (save/restore pattern prevents persistence artifacts)
+- Deactivation on tool switch handled via `AppEvent::Toolbox`
+- 15 new unit tests: emission shapes (point/circle/rect), spread angle, render to canvas, bounds clipping, config panel navigation, float editing, shape cycling
+- No `.unwrap()` in production — all fallible paths use `Option` or `Result` with user-facing error display

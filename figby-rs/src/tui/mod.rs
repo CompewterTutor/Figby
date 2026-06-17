@@ -374,6 +374,9 @@ pub struct TuiApp {
     pub editor: EditorState,
     pub dialogs: DialogState,
     pub timeline_state: timeline::TimelineState,
+    pub particle_system: particles::ParticleSystem,
+    pub emitter_active: bool,
+    pub emitter_panel: particles::EmitterConfigPanel,
 }
 
 impl TuiApp {
@@ -524,6 +527,9 @@ impl TuiApp {
                 settings,
             },
             timeline_state: timeline::TimelineState::default(),
+            particle_system: particles::ParticleSystem::new(particles::ParticleConfig::default()),
+            emitter_active: false,
+            emitter_panel: particles::EmitterConfigPanel::new(),
         }
     }
 
@@ -890,7 +896,15 @@ impl TuiApp {
                 self.editor.canvas.glyph_cursor = None;
             }
 
-            frame.render_widget(&self.editor.canvas, canvas_inner_rect);
+            if self.emitter_active {
+                let saved = self.editor.canvas.buffer.clone();
+                self.particle_system
+                    .render_to_canvas(&mut self.editor.canvas.buffer);
+                frame.render_widget(&self.editor.canvas, canvas_inner_rect);
+                self.editor.canvas.buffer = saved;
+            } else {
+                frame.render_widget(&self.editor.canvas, canvas_inner_rect);
+            }
         }
     }
 
@@ -923,6 +937,7 @@ impl TuiApp {
             Line::from("  d  Eyedropper"),
             Line::from("  a  Spray"),
             Line::from("  t  Text"),
+            Line::from("  m  Emitter"),
             Line::from(""),
             Line::from(Span::styled(
                 " Brush ",
@@ -1161,6 +1176,24 @@ impl TuiApp {
                 &timeline::TimelineTheme::default(),
             );
         }
+
+        // Emitter config panel overlay
+        if self.emitter_panel.open {
+            let area = frame.area();
+            let panel_w = area.width.clamp(30, 36);
+            let panel_x = area.x + area.width.saturating_sub(panel_w);
+            let panel_h = (area.height / 2).max(14).min(area.height - 3);
+            let panel_y = area.y + 1;
+            let panel_rect = Rect {
+                x: panel_x,
+                y: panel_y,
+                width: panel_w,
+                height: panel_h,
+            };
+            frame.render_widget(Clear, panel_rect);
+            self.emitter_panel
+                .render_config_panel(frame, panel_rect, &self.particle_system.config);
+        }
     }
 
     /// Build the mode name string for the status bar.
@@ -1335,6 +1368,7 @@ impl TuiApp {
                     | Tool::Fill
                     | Tool::Eyedropper
                     | Tool::Spray
+                    | Tool::Emitter
             )
         {
             self.prev_mouse_buf = None;
@@ -1425,6 +1459,15 @@ impl TuiApp {
                     tools::spray::spray_stamp(&mut buf, bx, by, size, density, cell, &mut rng);
                     *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
                     self.editor.recomposite_canvas();
+                } else if self.editor.toolbox.selected == Tool::Emitter {
+                    self.emitter_active = true;
+                    self.particle_system.config.emitter_x = bx as f64;
+                    self.particle_system.config.emitter_y = by as f64;
+                    self.particle_system =
+                        particles::ParticleSystem::new(self.particle_system.config.clone());
+                    self.emitter_panel = particles::EmitterConfigPanel::new();
+                    self.emitter_panel.open = true;
+                    self.dirty = true;
                 } else {
                     self.editor.push_undo_snapshot("Brush");
                     let mut cell = canvas::CanvasCell {
@@ -1635,6 +1678,18 @@ impl TuiApp {
         }
 
         self.check_async_completion();
+
+        // Update particle system if emitter is active
+        if self.emitter_active {
+            let now = Instant::now();
+            let dt = now
+                .saturating_duration_since(self.last_frame_time)
+                .as_secs_f64();
+            if dt > 0.0 {
+                self.particle_system.update(dt);
+                self.dirty = true;
+            }
+        }
 
         // Auto-save check
         if self.auto_save_interval > 0
@@ -2195,6 +2250,17 @@ impl TuiApp {
             }
         }
 
+        // Emitter config panel: dispatch when panel is open
+        if self.emitter_panel.open {
+            let handled = self
+                .emitter_panel
+                .handle_config_key(code, &mut self.particle_system.config);
+            if handled {
+                self.dirty = true;
+                return None;
+            }
+        }
+
         // Settings toggle
         if code == KeyCode::Char('S') && !modifiers.contains(KeyModifiers::CONTROL) {
             self.dialogs.settings.canvas_width = self.editor.canvas.buffer.width() as u16;
@@ -2310,6 +2376,8 @@ impl TuiApp {
             self.editor.toolbox.selected,
             Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Spray
         ) && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
+            // Emitter tool excluded from keyboard paint
+            && self.editor.toolbox.selected != Tool::Emitter
         {
             let (cx, cy) = self.editor.canvas.cursor();
             self.editor.push_undo_snapshot("Keyboard paint");

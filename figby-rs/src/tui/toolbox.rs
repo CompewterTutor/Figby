@@ -19,6 +19,7 @@ pub enum Tool {
     Eyedropper,
     Spray,
     Text,
+    Emitter,
 }
 
 impl Tool {
@@ -35,6 +36,7 @@ impl Tool {
             Tool::Eyedropper => "Ey",
             Tool::Spray => "Sp",
             Tool::Text => "Te",
+            Tool::Emitter => "Em",
         }
     }
 
@@ -51,6 +53,7 @@ impl Tool {
             Tool::Eyedropper => "Eyedrop",
             Tool::Spray => "Spray",
             Tool::Text => "Text",
+            Tool::Emitter => "Emitter",
         }
     }
 
@@ -67,6 +70,7 @@ impl Tool {
             Tool::Eyedropper => KeyCode::Char('d'),
             Tool::Spray => KeyCode::Char('a'),
             Tool::Text => KeyCode::Char('t'),
+            Tool::Emitter => KeyCode::Char('m'),
         }
     }
 
@@ -83,6 +87,7 @@ impl Tool {
             Tool::Eyedropper => "tool_eyedropper",
             Tool::Spray => "tool_spray",
             Tool::Text => "tool_text",
+            Tool::Emitter => "tool_emitter",
         }
     }
 
@@ -99,6 +104,7 @@ impl Tool {
             Tool::Eyedropper,
             Tool::Spray,
             Tool::Text,
+            Tool::Emitter,
         ]
     }
 }

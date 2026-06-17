@@ -262,7 +262,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Particle lifecycle: spawn → update → expire.
   - **Difficulty:** Medium
 
-- [ ] `4.6.2` Particle emitter UI
+- [x] `4.6.2` Particle emitter UI
   - **Goal:** Toolbox tool: place emitter on canvas. Emitter config panel:
     spawn rate (particles/sec), lifetime range, velocity range, acceleration,
     spread angle, emission shape (point/circle/rect). Preview emission in

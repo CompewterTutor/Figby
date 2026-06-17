@@ -3057,3 +3057,7 @@ GIF export from timeline (4.5.4). Phase 4.6 (Particle Effect Creator) is next.
 ## 2026-06-17 08:47
 
 PHASE_COMPLETE: 4.5 merged to main after review approval.
+
+## 2026-06-17 08:57
+
+DONE: 4.6.1 merged into release/4.6.

@@ -288,7 +288,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.7 — Animation Exporter
 
-- [ ] `4.7.1` Frame-by-frame terminal capture
+- [x] `4.7.1` Frame-by-frame terminal capture
   - **Goal:** Capture raw terminal output of each animation frame.
     Render each frame to a buffer, capture the rendered cells as styled
     text (char + FG + BG). Store as frame array in memory.

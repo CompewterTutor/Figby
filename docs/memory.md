@@ -1757,6 +1757,23 @@ Added bake functionality to the particle system:
 - Keybindings when emitter is active: `b` bakes single frame to layer, `B` bakes 10 frames as layer stack and switches to baked view, `v` toggles live/baked preview
 - 6 new unit tests: bake independence, frame count + independence, empty system bake, content verification, 10-frame batch independence, layer stack insertion with independence
 
+### 4.7.1 — Frame-by-frame terminal capture
+
+Added `capture_timeline_frames()` free function in `tui/export.rs` — extracts
+the timeline frame composition logic (previously inline in GIF export) into a
+reusable function. Takes `&TimelineState`, `&LayerStack`, width, height, returns
+`Vec<Vec<Vec<CanvasCell>>>`. Each frame composites all visible layers with keyframe-
+interpolated position offset, opacity, and blend mode. Layer ordering matches
+on-screen rendering: bottom layers first, top layers overlay via blend + opacity.
+
+Added `ExportDialog::populate_from_timeline()` — convenience wrapper that calls
+`capture_timeline_frames()` and stores the result in `self.timeline_frames`,
+sets `timeline_available = true`, and computes frame delays from current FPS.
+
+8 unit tests: empty timeline, single layer, two-layer composite, keyframe position
+offset, keyframe opacity, keyframe blend mode (Multiply), populate dialog, populate
+with empty timeline. All pass.
+
 ### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
 
 Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),

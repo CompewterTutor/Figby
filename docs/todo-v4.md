@@ -71,7 +71,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** User can open fonts directly from a `.zip` archive in the browser.
   - **Difficulty:** Medium
 
-- [ ] `4.1.6` Phase merge: release/4.1 → main
+- [x] `4.1.6` Phase merge: release/4.1 → main
   - **Difficulty:** Low
 
 ---

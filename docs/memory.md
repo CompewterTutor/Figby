@@ -1393,3 +1393,12 @@ Key change to `tui/mod.rs`:
 
 3 files touched: `font.rs`, `file_ops.rs`, `mod.rs`. 6 new ZIP browsing tests.
 fmt and clippy pass clean.
+
+### 4.1.6 — Phase merge: release/4.1 → main
+
+Merged all Phase 4.1 work into default branch (master). Phase 4.1 complete:
+remove auto-load of standard font on startup (4.1.1), fix OS Error 2 in file
+open dialog (4.1.2), block mouse fall-through when dialog is open (4.1.3),
+welcome screen on startup (4.1.4), ZIP file browsing in file open dialog (4.1.5).
+All 5 subtasks (4.1.1–4.1.5) implemented, tested, merged. Phase 4.2 (Extended
+Charsets) is next.

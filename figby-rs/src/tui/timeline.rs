@@ -1,9 +1,29 @@
+use crossterm::event::KeyCode;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
-use ratatui::widgets::{StatefulWidget, Widget};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, StatefulWidget, Widget};
+use ratatui::Frame;
 
 use super::canvas::CanvasBuffer;
+use super::layers::BlendMode;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LayerKeyframe {
+    pub position_offset: (i16, i16),
+    pub opacity: u8,
+    pub blend_mode: BlendMode,
+}
+
+impl Default for LayerKeyframe {
+    fn default() -> Self {
+        Self {
+            position_offset: (0, 0),
+            opacity: 255,
+            blend_mode: BlendMode::Normal,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TimelineFrame {
@@ -11,6 +31,7 @@ pub struct TimelineFrame {
     pub has_keyframe: bool,
     pub label: String,
     pub layer_state: Option<CanvasBuffer>,
+    pub layer_keyframes: Vec<Option<LayerKeyframe>>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +57,15 @@ impl Default for TimelineTheme {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct KeyframeEditState {
+    pub open: bool,
+    pub selected_layer: usize,
+    pub selected_property: usize,
+    pub edit_mode: bool,
+    pub edit_buffer: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct AnimationTimeline {
     pub frame_thumb_width: u16,
@@ -53,6 +83,7 @@ pub struct TimelineState {
     pub scroll_offset: usize,
     pub playing: bool,
     pub fps: u8,
+    pub keyframe_editor: KeyframeEditState,
 }
 
 impl Default for TimelineState {
@@ -63,6 +94,7 @@ impl Default for TimelineState {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         }
     }
 }
@@ -154,6 +186,295 @@ impl TimelineState {
             self.current_frame = old.saturating_add(1);
         }
         Ok(())
+    }
+
+    // ── Keyframing ────────────────────────────────────────────────────
+
+    pub fn set_keyframe(
+        &mut self,
+        frame_idx: usize,
+        layer_idx: usize,
+        props: LayerKeyframe,
+    ) -> bool {
+        let frame = match self.frames.get_mut(frame_idx) {
+            Some(f) => f,
+            None => return false,
+        };
+        while frame.layer_keyframes.len() <= layer_idx {
+            frame.layer_keyframes.push(None);
+        }
+        frame.layer_keyframes[layer_idx] = Some(props);
+        frame.has_keyframe = frame.layer_keyframes.iter().any(|k| k.is_some());
+        true
+    }
+
+    pub fn remove_keyframe(&mut self, frame_idx: usize, layer_idx: usize) -> bool {
+        let frame = match self.frames.get_mut(frame_idx) {
+            Some(f) => f,
+            None => return false,
+        };
+        if layer_idx < frame.layer_keyframes.len() {
+            frame.layer_keyframes[layer_idx] = None;
+            frame.has_keyframe = frame.layer_keyframes.iter().any(|k| k.is_some());
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_keyframe(&self, frame_idx: usize, layer_idx: usize) -> Option<LayerKeyframe> {
+        self.frames
+            .get(frame_idx)?
+            .layer_keyframes
+            .get(layer_idx)
+            .copied()
+            .flatten()
+    }
+
+    pub fn get_interpolated_properties(&self, frame_idx: usize, layer_idx: usize) -> LayerKeyframe {
+        let prev = (0..=frame_idx).rev().find_map(|i| {
+            let f = self.frames.get(i)?;
+            let kf = (*f.layer_keyframes.get(layer_idx)?)?;
+            Some((i, kf))
+        });
+        let next = (frame_idx..self.frames.len()).find_map(|i| {
+            let f = self.frames.get(i)?;
+            let kf = (*f.layer_keyframes.get(layer_idx)?)?;
+            Some((i, kf))
+        });
+        match (prev, next) {
+            (Some((pi, pk)), Some((_ni, _))) if pi == _ni => pk,
+            (Some((pi, pk)), Some((ni, nk))) => {
+                if frame_idx <= pi {
+                    pk
+                } else if frame_idx >= ni {
+                    nk
+                } else {
+                    let range = ni - pi;
+                    let offset = frame_idx.saturating_sub(pi);
+                    let t = if range == 0 {
+                        0.0
+                    } else {
+                        offset as f64 / range as f64
+                    };
+                    LayerKeyframe {
+                        position_offset: (
+                            lerp_i16(pk.position_offset.0, nk.position_offset.0, t),
+                            lerp_i16(pk.position_offset.1, nk.position_offset.1, t),
+                        ),
+                        opacity: lerp_u8(pk.opacity, nk.opacity, t),
+                        blend_mode: step_blend_mode(pk.blend_mode, nk.blend_mode, t),
+                    }
+                }
+            }
+            (Some((_, pk)), None) => pk,
+            (None, Some((_, nk))) => nk,
+            (None, None) => LayerKeyframe::default(),
+        }
+    }
+
+    pub fn handle_keyframe_editor_key(&mut self, code: KeyCode) -> bool {
+        if !self.keyframe_editor.open {
+            return false;
+        }
+        if self.keyframe_editor.edit_mode {
+            match code {
+                KeyCode::Esc => {
+                    self.keyframe_editor.edit_mode = false;
+                    self.keyframe_editor.edit_buffer.clear();
+                }
+                KeyCode::Enter => {
+                    let value_str = self.keyframe_editor.edit_buffer.trim().to_string();
+                    self.keyframe_editor.edit_mode = false;
+                    if !value_str.is_empty() {
+                        if let Ok(value) = value_str.parse::<i16>() {
+                            let current = self.get_interpolated_properties(
+                                self.current_frame,
+                                self.keyframe_editor.selected_layer,
+                            );
+                            let mut new_kf = current;
+                            match self.keyframe_editor.selected_property {
+                                0 => new_kf.position_offset.0 = value,
+                                1 => new_kf.position_offset.1 = value,
+                                2 => new_kf.opacity = value.clamp(0, 255) as u8,
+                                _ => {}
+                            }
+                            self.set_keyframe(
+                                self.current_frame,
+                                self.keyframe_editor.selected_layer,
+                                new_kf,
+                            );
+                        }
+                    }
+                    self.keyframe_editor.edit_buffer.clear();
+                }
+                KeyCode::Backspace => {
+                    self.keyframe_editor.edit_buffer.pop();
+                }
+                KeyCode::Char(c) if c.is_ascii_digit() || c == '-' => {
+                    self.keyframe_editor.edit_buffer.push(c);
+                }
+                _ => {}
+            }
+            return true;
+        }
+        match code {
+            KeyCode::Up if self.keyframe_editor.selected_layer > 0 => {
+                self.keyframe_editor.selected_layer -= 1;
+            }
+            KeyCode::Down => {
+                self.keyframe_editor.selected_layer += 1;
+            }
+            KeyCode::Left if self.keyframe_editor.selected_property > 0 => {
+                self.keyframe_editor.selected_property -= 1;
+            }
+            KeyCode::Right if self.keyframe_editor.selected_property < 3 => {
+                self.keyframe_editor.selected_property += 1;
+            }
+            KeyCode::Enter => {
+                if self.keyframe_editor.selected_property == 3 {
+                    let current = self.get_interpolated_properties(
+                        self.current_frame,
+                        self.keyframe_editor.selected_layer,
+                    );
+                    let next_blend = match current.blend_mode {
+                        BlendMode::Normal => BlendMode::Multiply,
+                        BlendMode::Multiply => BlendMode::Overlay,
+                        BlendMode::Overlay => BlendMode::Screen,
+                        BlendMode::Screen => BlendMode::Add,
+                        BlendMode::Add => BlendMode::Subtract,
+                        BlendMode::Subtract => BlendMode::Normal,
+                    };
+                    self.set_keyframe(
+                        self.current_frame,
+                        self.keyframe_editor.selected_layer,
+                        LayerKeyframe {
+                            blend_mode: next_blend,
+                            ..current
+                        },
+                    );
+                } else {
+                    self.keyframe_editor.edit_mode = true;
+                    self.keyframe_editor.edit_buffer.clear();
+                    let current = self.get_interpolated_properties(
+                        self.current_frame,
+                        self.keyframe_editor.selected_layer,
+                    );
+                    let val = match self.keyframe_editor.selected_property {
+                        0 => current.position_offset.0,
+                        1 => current.position_offset.1,
+                        _ => current.opacity as i16,
+                    };
+                    self.keyframe_editor.edit_buffer = val.to_string();
+                }
+            }
+            KeyCode::Esc => {
+                self.keyframe_editor.open = false;
+            }
+            _ => {}
+        }
+        true
+    }
+
+    pub fn render_keyframe_editor(&self, frame: &mut Frame, area: Rect, theme: &TimelineTheme) {
+        if !self.keyframe_editor.open || area.width < 20 || area.height < 6 {
+            return;
+        }
+        let block = Block::default()
+            .title(" Keyframe Editor ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(theme.keyframe));
+        let inner = block.inner(area);
+        frame.render_widget(Clear, area);
+        frame.render_widget(block, area);
+
+        let mut lines: Vec<String> = Vec::new();
+        let has_frames = !self.frames.is_empty();
+        if !has_frames {
+            lines.push(" No frames in timeline".to_string());
+            let para = Paragraph::new(lines.join("\n")).style(Style::default());
+            frame.render_widget(para, inner);
+            return;
+        }
+
+        let frame_idx = self.current_frame.min(self.frames.len().saturating_sub(1));
+        lines.push(format!(
+            " Frame: {}  Layer: {}",
+            frame_idx, self.keyframe_editor.selected_layer
+        ));
+        lines.push(String::new());
+
+        let max_layer = self
+            .frames
+            .first()
+            .map(|f| {
+                f.layer_keyframes
+                    .len()
+                    .max(self.keyframe_editor.selected_layer + 1)
+            })
+            .unwrap_or(4);
+
+        for layer_idx in 0..max_layer.min(6) {
+            let props = self.get_interpolated_properties(frame_idx, layer_idx);
+            let is_selected = layer_idx == self.keyframe_editor.selected_layer;
+            let prefix = if is_selected { '>' } else { ' ' };
+            lines.push(format!(" {} Layer {}:", prefix, layer_idx));
+
+            for prop_idx in 0..4 {
+                let is_prop_selected =
+                    is_selected && prop_idx == self.keyframe_editor.selected_property;
+                let prop_prefix = if is_prop_selected { '>' } else { ' ' };
+                let value_str = match prop_idx {
+                    0 => {
+                        if is_prop_selected && self.keyframe_editor.edit_mode {
+                            format!("Pos X: {}", self.keyframe_editor.edit_buffer)
+                        } else {
+                            format!("Pos X: {:4}", props.position_offset.0)
+                        }
+                    }
+                    1 => {
+                        if is_prop_selected && self.keyframe_editor.edit_mode {
+                            format!("Pos Y: {}", self.keyframe_editor.edit_buffer)
+                        } else {
+                            format!("Pos Y: {:4}", props.position_offset.1)
+                        }
+                    }
+                    2 => {
+                        if is_prop_selected && self.keyframe_editor.edit_mode {
+                            format!("Opacity: {}", self.keyframe_editor.edit_buffer)
+                        } else {
+                            format!("Opacity: {:3}", props.opacity)
+                        }
+                    }
+                    _ => format!("Blend: {}", props.blend_mode.display_name()),
+                };
+                lines.push(format!(" {}  {}", prop_prefix, value_str));
+            }
+        }
+
+        lines.push(String::new());
+        lines.push(
+            " \u{2191}\u{2193} layer  \u{2190}\u{2192} prop  Enter edit  Esc close".to_string(),
+        );
+
+        let para = Paragraph::new(lines.join("\n")).style(Style::default());
+        frame.render_widget(para, inner);
+    }
+}
+
+fn lerp_i16(a: i16, b: i16, t: f64) -> i16 {
+    (a as f64 + (b as f64 - a as f64) * t).round() as i16
+}
+
+fn lerp_u8(a: u8, b: u8, t: f64) -> u8 {
+    (a as f64 + (b as f64 - a as f64) * t).round() as u8
+}
+
+fn step_blend_mode(a: BlendMode, b: BlendMode, t: f64) -> BlendMode {
+    if t < 0.5 {
+        a
+    } else {
+        b
     }
 }
 
@@ -345,6 +666,7 @@ mod tests {
             has_keyframe: has_kf,
             label: label.to_string(),
             layer_state: None,
+            layer_keyframes: Vec::new(),
         }
     }
 
@@ -359,6 +681,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
 
         let area = Rect::new(0, 0, 20, 5);
@@ -380,6 +703,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
 
         let area = Rect::new(0, 0, 20, 5);
@@ -418,6 +742,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
 
         let slot_w = thumb_w + 1;
@@ -454,6 +779,7 @@ mod tests {
             scroll_offset: 10,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
 
         let area = Rect::new(0, 0, 5 * slot_w, 1 + 2 + 1 + 1);
@@ -491,6 +817,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
 
         let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
@@ -541,6 +868,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
 
         let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
@@ -579,6 +907,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
         let area = Rect::new(0, 0, 2 * slot_w, 1 + 2 + 1 + 1);
@@ -608,6 +937,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         state.insert_frame(0, make_frame(vec![vec!['Y'; 3]; 2], false, "inserted"));
         assert_eq!(state.frames.len(), 4);
@@ -625,6 +955,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         let removed = state.remove_frame(1).unwrap();
         assert_eq!(removed.label, "1");
@@ -641,6 +972,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         assert!(state.remove_frame(0).is_err());
     }
@@ -655,6 +987,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         assert!(state.remove_frame(5).is_err());
     }
@@ -669,6 +1002,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         state.duplicate_frame(1).unwrap();
         assert_eq!(state.frames.len(), 4);
@@ -696,6 +1030,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         state.reorder_frame(0, 2).unwrap();
         let labels: Vec<&str> = state.frames.iter().map(|f| f.label.as_str()).collect();
@@ -712,6 +1047,7 @@ mod tests {
             scroll_offset: 0,
             playing: false,
             fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
         };
         state.reorder_frame(3, 0).unwrap();
         let labels: Vec<&str> = state.frames.iter().map(|f| f.label.as_str()).collect();
@@ -724,5 +1060,356 @@ mod tests {
         state.add_frame(make_frame(vec![vec!['A'; 3]; 2], false, "a"));
         assert!(state.reorder_frame(0, 1).is_err());
         assert!(state.reorder_frame(2, 0).is_err());
+    }
+
+    // ─── Keyframing tests ────────────────────────────────────────────
+
+    fn make_keyframe(dx: i16, dy: i16, opacity: u8, blend: BlendMode) -> LayerKeyframe {
+        LayerKeyframe {
+            position_offset: (dx, dy),
+            opacity,
+            blend_mode: blend,
+        }
+    }
+
+    #[test]
+    fn test_set_keyframe_properties() {
+        let mut state = TimelineState {
+            frames: (0..5)
+                .map(|i| make_frame(vec![vec!['X'; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        let kf = make_keyframe(5, -3, 128, BlendMode::Screen);
+        assert!(state.set_keyframe(2, 0, kf));
+        let got = state.get_keyframe(2, 0).unwrap();
+        assert_eq!(got.position_offset, (5, -3));
+        assert_eq!(got.opacity, 128);
+        assert_eq!(got.blend_mode, BlendMode::Screen);
+        assert!(state.frames[2].has_keyframe);
+    }
+
+    #[test]
+    fn test_set_keyframe_out_of_bounds() {
+        let mut state = TimelineState::default();
+        let kf = make_keyframe(0, 0, 255, BlendMode::Normal);
+        assert!(!state.set_keyframe(0, 0, kf));
+    }
+
+    #[test]
+    fn test_interpolate_position_linear() {
+        let mut state = TimelineState {
+            frames: (0..11)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
+        state.set_keyframe(10, 0, make_keyframe(100, 50, 255, BlendMode::Normal));
+        let interp = state.get_interpolated_properties(5, 0);
+        assert_eq!(interp.position_offset, (50, 25));
+    }
+
+    #[test]
+    fn test_interpolate_opacity_linear() {
+        let mut state = TimelineState {
+            frames: (0..11)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
+        state.set_keyframe(10, 0, make_keyframe(0, 0, 0, BlendMode::Normal));
+        let at3 = state.get_interpolated_properties(3, 0);
+        let at7 = state.get_interpolated_properties(7, 0);
+        assert_eq!(at3.opacity, 179);
+        assert_eq!(at7.opacity, 77);
+    }
+
+    #[test]
+    fn test_interpolate_blend_mode_step() {
+        let mut state = TimelineState {
+            frames: (0..11)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
+        state.set_keyframe(10, 0, make_keyframe(0, 0, 255, BlendMode::Multiply));
+        for f in 0..5 {
+            let props = state.get_interpolated_properties(f, 0);
+            assert_eq!(
+                props.blend_mode,
+                BlendMode::Normal,
+                "frame {f} should be Normal"
+            );
+        }
+        for f in 5..10 {
+            let props = state.get_interpolated_properties(f, 0);
+            assert_eq!(
+                props.blend_mode,
+                BlendMode::Multiply,
+                "frame {f} should be Multiply"
+            );
+        }
+    }
+
+    #[test]
+    fn test_interpolate_before_first_keyframe() {
+        let mut state = TimelineState {
+            frames: (0..10)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(5, 0, make_keyframe(42, 99, 128, BlendMode::Screen));
+        let props = state.get_interpolated_properties(2, 0);
+        assert_eq!(props.position_offset, (42, 99));
+        assert_eq!(props.opacity, 128);
+        assert_eq!(props.blend_mode, BlendMode::Screen);
+    }
+
+    #[test]
+    fn test_interpolate_after_last_keyframe() {
+        let mut state = TimelineState {
+            frames: (0..10)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(3, 0, make_keyframe(10, 20, 200, BlendMode::Add));
+        let props = state.get_interpolated_properties(8, 0);
+        assert_eq!(props.position_offset, (10, 20));
+        assert_eq!(props.opacity, 200);
+        assert_eq!(props.blend_mode, BlendMode::Add);
+    }
+
+    #[test]
+    fn test_interpolate_single_keyframe() {
+        let mut state = TimelineState {
+            frames: (0..10)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(5, 0, make_keyframe(7, 8, 100, BlendMode::Overlay));
+        for f in 0..10 {
+            let props = state.get_interpolated_properties(f, 0);
+            assert_eq!(props.position_offset, (7, 8), "frame {f}");
+            assert_eq!(props.opacity, 100, "frame {f}");
+        }
+    }
+
+    #[test]
+    fn test_interpolate_no_keyframes() {
+        let state = TimelineState {
+            frames: (0..5)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        let props = state.get_interpolated_properties(2, 0);
+        assert_eq!(props.position_offset, (0, 0));
+        assert_eq!(props.opacity, 255);
+        assert_eq!(props.blend_mode, BlendMode::Normal);
+    }
+
+    #[test]
+    fn test_remove_keyframe() {
+        let mut state = TimelineState {
+            frames: (0..10)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
+        state.set_keyframe(5, 0, make_keyframe(50, 0, 128, BlendMode::Multiply));
+        state.set_keyframe(9, 0, make_keyframe(100, 0, 0, BlendMode::Screen));
+        assert!(state.remove_keyframe(5, 0));
+        let props = state.get_interpolated_properties(5, 0);
+        // After removal, interpolates between frame 0 (0,0) and frame 9 (100,0): lerp at t=5/9
+        assert_eq!(props.position_offset, (56, 0));
+    }
+
+    #[test]
+    fn test_keyframe_multi_layer() {
+        let mut state = TimelineState {
+            frames: (0..11)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(0, 0, make_keyframe(0, 0, 100, BlendMode::Normal));
+        state.set_keyframe(10, 0, make_keyframe(100, 0, 200, BlendMode::Normal));
+        state.set_keyframe(0, 1, make_keyframe(0, 50, 50, BlendMode::Screen));
+        state.set_keyframe(10, 1, make_keyframe(0, 100, 150, BlendMode::Add));
+        let l0 = state.get_interpolated_properties(5, 0);
+        let l1 = state.get_interpolated_properties(5, 1);
+        assert_eq!(l0.position_offset, (50, 0));
+        assert_eq!(l0.opacity, 150);
+        assert_eq!(l1.position_offset, (0, 75));
+        assert_eq!(l1.opacity, 100);
+        assert_eq!(l1.blend_mode, BlendMode::Add);
+    }
+
+    #[test]
+    fn test_keyframe_editor_open_close() {
+        let mut state = TimelineState::default();
+        assert!(!state.keyframe_editor.open);
+        state.keyframe_editor.open = true;
+        assert!(state.keyframe_editor.open);
+        state.handle_keyframe_editor_key(KeyCode::Esc);
+        assert!(!state.keyframe_editor.open);
+    }
+
+    #[test]
+    fn test_keyframe_editor_navigation() {
+        let mut state = TimelineState::default();
+        state.keyframe_editor.open = true;
+        state.keyframe_editor.selected_layer = 2;
+        state.handle_keyframe_editor_key(KeyCode::Up);
+        assert_eq!(state.keyframe_editor.selected_layer, 1);
+        state.handle_keyframe_editor_key(KeyCode::Down);
+        assert_eq!(state.keyframe_editor.selected_layer, 2);
+        state.handle_keyframe_editor_key(KeyCode::Left);
+        assert_eq!(state.keyframe_editor.selected_property, 0);
+        state.keyframe_editor.selected_property = 2;
+        state.handle_keyframe_editor_key(KeyCode::Right);
+        assert_eq!(state.keyframe_editor.selected_property, 3);
+        state.handle_keyframe_editor_key(KeyCode::Right);
+        assert_eq!(state.keyframe_editor.selected_property, 3);
+    }
+
+    #[test]
+    fn test_keyframe_editor_numeric_edit() {
+        let mut state = TimelineState {
+            frames: (0..5)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.keyframe_editor.open = true;
+        state.set_keyframe(0, 0, make_keyframe(10, 20, 128, BlendMode::Normal));
+        state.handle_keyframe_editor_key(KeyCode::Enter);
+        assert!(state.keyframe_editor.edit_mode);
+        state.handle_keyframe_editor_key(KeyCode::Backspace);
+        state.handle_keyframe_editor_key(KeyCode::Backspace);
+        state.handle_keyframe_editor_key(KeyCode::Char('3'));
+        state.handle_keyframe_editor_key(KeyCode::Char('0'));
+        state.handle_keyframe_editor_key(KeyCode::Enter);
+        assert!(!state.keyframe_editor.edit_mode);
+        let props = state.get_interpolated_properties(0, 0);
+        assert_eq!(props.position_offset.0, 30);
+    }
+
+    #[test]
+    fn test_keyframe_editor_blend_cycle() {
+        let mut state = TimelineState {
+            frames: (0..5)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
+        state.keyframe_editor.open = true;
+        state.keyframe_editor.selected_property = 3;
+        // Blend mode: Normal -> Multiply
+        state.handle_keyframe_editor_key(KeyCode::Enter);
+        let props = state.get_interpolated_properties(0, 0);
+        assert_eq!(props.blend_mode, BlendMode::Multiply);
+    }
+
+    #[test]
+    fn test_keyframe_has_keyframe_derived() {
+        let mut state = TimelineState {
+            frames: (0..3)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        assert!(!state.frames[0].has_keyframe);
+        state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
+        assert!(state.frames[0].has_keyframe);
+        state.remove_keyframe(0, 0);
+        assert!(!state.frames[0].has_keyframe);
+    }
+
+    #[test]
+    fn test_get_keyframe_nonexistent() {
+        let mut state = TimelineState::default();
+        state.add_frame(make_frame(vec![vec![' '; 3]; 2], false, "0"));
+        assert!(state.get_keyframe(0, 0).is_none());
+        assert!(state.get_keyframe(5, 0).is_none());
+    }
+
+    #[test]
+    fn test_interpolate_same_frame_keyframe() {
+        let mut state = TimelineState {
+            frames: (0..10)
+                .map(|i| make_frame(vec![vec![' '; 3]; 2], false, &format!("{}", i)))
+                .collect(),
+            current_frame: 0,
+            scroll_offset: 0,
+            playing: false,
+            fps: 12,
+            keyframe_editor: KeyframeEditState::default(),
+        };
+        state.set_keyframe(5, 0, make_keyframe(10, 20, 100, BlendMode::Overlay));
+        let props = state.get_interpolated_properties(5, 0);
+        assert_eq!(props.position_offset, (10, 20));
+        assert_eq!(props.opacity, 100);
+        assert_eq!(props.blend_mode, BlendMode::Overlay);
     }
 }

@@ -1,5 +1,21 @@
 # Figby — Learnings
 
+## 4.5.2 — Keyframing
+
+- `Vec<Option<LayerKeyframe>>` with `get(layer_idx)?` returns `Option<&Option<T>>`.
+  Dereferencing: `(*vec.get(i)?)?` extracts the inner `T` — cleaner than
+  `.and_then(|o| *o)` or `.copied().flatten()` which don't work because
+  `&Option<T>` is not an iterator.
+- When using struct-update syntax for test TimelineState constructors, adding
+  new fields to `Default` and using `..Default::default()` in existing tests
+  minimizes churn. With 14+ existing tests using struct literals, `replaceAll`
+  for the closing pattern `fps: 12,\n        };` → `fps: 12,\n        keyframe_editor: ...,\n        };`
+  is less risky than changing each test individually.
+- `clippy::collapsible_match` fires when a match arm body is `if guard { action }`.
+  Fix: move the `if` to a match guard: `Arm if guard => { action }`.
+- `clippy::manual_clamp` fires on `.min(max).max(min)` chains. Fix: `.clamp(min, max)`.
+  Note: clamps panic if min > max, so args must be ordered correctly (min then max).
+
 ## 1.1.2 — Core types
 
 - Serde + serde_json needed for round-trip tests even though "Touches" only listed

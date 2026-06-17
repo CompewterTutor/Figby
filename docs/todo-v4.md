@@ -228,7 +228,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Set keyframes, play, verify interpolation.
   - **Difficulty:** High
 
-- [ ] `4.5.3` Tweening
+- [x] `4.5.3` Tweening
   - **Goal:** Auto-tween: select start/end keyframes, generate
     intermediate frames. Easing functions: linear, ease-in, ease-out,
     bounce. Preview tween before committing.

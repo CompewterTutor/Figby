@@ -468,6 +468,23 @@ Second merge (this commit) brings 3 post-initial-merge commits from `release/2.0
 fix broken template tests, redesign `.ftmp` format (YAML frontmatter, defer to TUI),
 add `assets/tui/icons.yaml` for Phase 2.2, renumber 2.2.5→2.2.6.
 
+### 4.5.3 — Tweening
+
+Added auto-tween system to animation timeline:
+- `EasingFunction` enum (Linear, EaseIn, EaseOut, Bounce) with `apply(t)` cubic/bounce curves
+- `TweenConfig` struct (start/end frames, num_frames, easing) with Default
+- `TweenPreview` struct holds generated frames, valid flag, and field_index for UI nav
+- `open_tween()` creates preview from current frame
+- `compute_tween()` interpolates position (lerp_i16), opacity (lerp_u8), blend mode (step) between keyframed layers
+- `commit_tween()` inserts generated frames, shifts current_frame
+- `discard_tween()` clears preview
+- `render_tween_panel()` renders config UI in overlay panel
+- `handle_tween_key()` navigates fields, adjusts values, generates/commits/discards
+- Timeline widget renders preview frames as ghost thumbnails (Cyan color, dim style)
+- `T` key opens tween panel, Enter generates/commits, C commits, Esc discards
+- 23 unit tests covering easing, tween generation, commit, discard, edge cases
+- No `.unwrap()` in production paths
+
 ### 2.10.1 — Full regression against C FIGlet 2.2.5
 
 Added 23 new integration tests (28-50) covering all FIGlet 2.2.5 features:

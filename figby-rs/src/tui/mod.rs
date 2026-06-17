@@ -1137,6 +1137,27 @@ impl TuiApp {
                 &timeline::TimelineTheme::default(),
             );
         }
+
+        // Tween panel
+        if self.timeline_state.tween.is_some() {
+            let area = frame.area();
+            let panel_w = area.width.clamp(30, 42);
+            let panel_x = area.x + area.width.saturating_sub(panel_w);
+            let panel_h = (area.height / 2).max(10).min(area.height - 3);
+            let panel_y = area.y + 1;
+            let panel_rect = Rect {
+                x: panel_x,
+                y: panel_y,
+                width: panel_w,
+                height: panel_h,
+            };
+            frame.render_widget(Clear, panel_rect);
+            self.timeline_state.render_tween_panel(
+                frame,
+                panel_rect,
+                &timeline::TimelineTheme::default(),
+            );
+        }
     }
 
     /// Build the mode name string for the status bar.
@@ -1717,6 +1738,12 @@ impl TuiApp {
             return None;
         }
 
+        // Tween panel: intercept keys when open
+        if self.timeline_state.tween.is_some() && self.timeline_state.handle_tween_key(code) {
+            self.dirty = true;
+            return None;
+        }
+
         // Menu bar active: dispatch all keys to it
         if self.menu_bar_state.is_active() {
             self.menu_bar
@@ -2168,6 +2195,13 @@ impl TuiApp {
         // Toggle keyframe editor
         if code == KeyCode::Char('k') || code == KeyCode::Char('K') {
             self.timeline_state.keyframe_editor.open = !self.timeline_state.keyframe_editor.open;
+            self.dirty = true;
+            return None;
+        }
+
+        // Open tween panel
+        if code == KeyCode::Char('t') || code == KeyCode::Char('T') {
+            self.timeline_state.open_tween();
             self.dirty = true;
             return None;
         }

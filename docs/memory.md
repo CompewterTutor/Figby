@@ -2016,3 +2016,9 @@ Added `wasm32-unknown-unknown` build target support using `ratzilla` crate:
 - `cargo build -p figby --lib --target wasm32-unknown-unknown` succeeds
 - Full `cargo build -p figby --target wasm32-unknown-unknown` succeeds (bin compiles with stub main)
 - Tested with `cargo clippy --all-targets --all-features -- -D warnings` (native + cross checks)
+
+### 4.10.2 — Phase merge: release/4.10 → master
+
+Merged release/4.10 branch into master at `4265599` (merge commit created on master via `--no-ff`).
+Brings 4.10.1 (WASM/web target via Ratzilla) into the mainline. Phase 4.10 complete.
+No code changes — merge only. Next phase: 4.11 (Dynamic Lighting — Design Only).

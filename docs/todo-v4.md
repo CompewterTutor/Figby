@@ -428,7 +428,7 @@ with theming, modern status bar, and component architecture.
 
 > Long-horizon research item. No implementation until v4.x. Design only for now.
 
-- [ ] `4.11.1` Dynamic lighting system — initial design
+- [x] `4.11.1` Dynamic lighting system — initial design
   - **Goal:** Design spec for a "dynamic lighting" system:
     - Normal-map generation for a FIGfont or canvas ASCII image
     - Per-palette LUT for light/shadow color remapping

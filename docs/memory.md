@@ -2022,3 +2022,27 @@ Added `wasm32-unknown-unknown` build target support using `ratzilla` crate:
 Merged release/4.10 branch into master at `4265599` (merge commit created on master via `--no-ff`).
 Brings 4.10.1 (WASM/web target via Ratzilla) into the mainline. Phase 4.10 complete.
 No code changes — merge only. Next phase: 4.11 (Dynamic Lighting — Design Only).
+
+### 4.11.1 — Dynamic lighting system — initial design
+
+Created `docs/lighting-design.md` — design specification for a dynamic lighting
+system for the TUI ASCII canvas editor. Covers 6 core components:
+
+- **Normal-map generation** from FIGfont glyph fill-density (heightfield →
+  Sobel gradient → tangent-space normal) or user-painted height values
+- **Scene lights** as an enum with Ambient, Directional (parallel), and Point
+  (attenuated) variants, each with RGB color and intensity
+- **Shading model** using Lambertian diffuse with optional Blinn-Phong specular,
+  producing per-cell luminance `f32` and tint `Rgb`
+- **Shadow casting** via 2D DDA grid raycast (Amanatides & Woo) from fragment
+  toward each non-ambient light, binary occluded/visible output
+- **Per-object flags** `accepts_lighting` and `casts_shadow` on `Layer` struct
+  (design only — no code changes)
+- **Output pipeline**: shaded luminance → palette LUT lookup → character +
+  color remapping, hooked after layer compositing but before frame commit
+
+Document includes: data structures (Normal3, NormalMap, Scene, Light, LutEntry),
+data flow diagram, integration points (7 files), deferred features, open
+questions with recommendations, and future test strategy.
+
+Design-only task. No code touched. See `docs/lighting-design.md` for full spec.

@@ -24,6 +24,7 @@ rand = "0.8"
 gif = "0.13"
 png = "0.18"
 tachyonfx = { version = "0.25", features = ["std-duration"] }
+unicode-width = "0.2"
 
 [dev-dependencies]
 serde_json = "1"

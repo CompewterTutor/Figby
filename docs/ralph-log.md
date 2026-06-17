@@ -3152,3 +3152,11 @@ DONE: 4.9.2 merged into release/4.9.
 ## 2026-06-17 10:59
 
 DONE: 4.9.3 merged into release/4.9.
+
+## 2026-06-17 11:11
+
+DONE: 4.9.5 merged into release/4.9.
+
+## 2026-06-17 11:11
+
+All 4.9 tasks complete. Starting phase review.

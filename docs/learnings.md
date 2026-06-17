@@ -1,5 +1,11 @@
 # Figby — Learnings
 
+## 4.9.5 — Phase merge: release/4.9 → master
+
+- No code changes — merge brought in TachyonFX welcome fade-in (4.9.1), dark neon
+  theme (4.9.2), app fade-in on launch (4.9.3), and widget-based status bar (4.9.4)
+  from release/4.9 branch. Only docs, changelog, and metadata updated.
+
 ## 4.8.4 — Phase merge: release/4.8 → master
 
 - No code changes — merge brought in AnimationPlayer widget (4.8.0), terminal

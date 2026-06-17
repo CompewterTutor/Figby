@@ -4,6 +4,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
 use std::collections::BTreeMap;
+use unicode_width::UnicodeWidthStr;
 
 use super::super::theme::Theme;
 use super::super::AppMode;
@@ -12,6 +13,7 @@ pub struct StatusBarWidget<'a> {
     mode: AppMode,
     mode_name: &'a str,
     cursor: (u16, u16),
+    zoom: u8,
     tool_name: &'a str,
     unsaved: bool,
     font_name: Option<&'a str>,
@@ -33,6 +35,7 @@ impl<'a> StatusBarWidget<'a> {
         mode: AppMode,
         mode_name: &'a str,
         cursor: (u16, u16),
+        zoom: u8,
         tool_name: &'a str,
         unsaved: bool,
         font_name: Option<&'a str>,
@@ -51,6 +54,7 @@ impl<'a> StatusBarWidget<'a> {
             mode,
             mode_name,
             cursor,
+            zoom,
             tool_name,
             unsaved,
             font_name,
@@ -105,6 +109,11 @@ impl<'a> StatusBarWidget<'a> {
         let pos_icon = self.icon("status_position", "+");
         let cursor_text = format!(" {} X:{} Y:{} ", pos_icon, self.cursor.0, self.cursor.1);
         spans.push(Span::raw(cursor_text));
+
+        // Zoom level
+        let zoom_icon = self.icon("status_zoom", "Z");
+        let zoom_text = format!(" {} {}x ", zoom_icon, self.zoom);
+        spans.push(Span::raw(zoom_text));
 
         // Unsaved indicator
         if self.unsaved {
@@ -219,7 +228,7 @@ impl<'a> Widget for StatusBarWidget<'a> {
         let mut all_spans: Vec<Span<'a>> = Vec::new();
 
         all_spans.extend(self.build_p1());
-        let p1_len: usize = all_spans.iter().map(|s| s.content.len()).sum();
+        let p1_len: usize = all_spans.iter().map(|s| s.content.width()).sum();
 
         if p1_len >= width {
             // P1 doesn't even fit — truncate mode badge
@@ -244,13 +253,13 @@ impl<'a> Widget for StatusBarWidget<'a> {
             all_spans.extend(p2);
         }
 
-        let sofar: usize = all_spans.iter().map(|s| s.content.len()).sum();
+        let sofar: usize = all_spans.iter().map(|s| s.content.width()).sum();
         if sofar < width && width >= 80 {
             let p3 = self.build_p3();
             all_spans.extend(p3);
         }
 
-        let sofar: usize = all_spans.iter().map(|s| s.content.len()).sum();
+        let sofar: usize = all_spans.iter().map(|s| s.content.width()).sum();
         if sofar < width && width >= 100 {
             let p4 = self.build_p4();
             all_spans.extend(p4);

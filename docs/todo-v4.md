@@ -402,7 +402,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** Status bar looks polished; all info visible at typical terminal widths.
   - **Difficulty:** Medium
 
-- [ ] `4.9.5` Phase merge: release/4.9 → main
+- [x] `4.9.5` Phase merge: release/4.9 → main
   - **Difficulty:** Low
 
 ---

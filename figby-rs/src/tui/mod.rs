@@ -620,6 +620,15 @@ impl TuiApp {
             return;
         }
 
+        // App fade-in (runs outside welcome screen — covers zen + normal modes)
+        let area = frame.area();
+        if let Some(ref mut fade) = self.app_fade_in {
+            fade.process(self.delta_time, frame.buffer_mut(), area);
+            if fade.done() {
+                self.app_fade_in = None;
+            }
+        }
+
         // Single-pass layout computation — stored for mouse handlers next cycle.
         let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer);
 
@@ -646,13 +655,6 @@ impl TuiApp {
             }
             // Still render overlays in zen mode
             self.render_overlays(frame);
-            let area = frame.area();
-            if let Some(ref mut fade) = self.app_fade_in {
-                fade.process(self.delta_time, frame.buffer_mut(), area);
-                if fade.done() {
-                    self.app_fade_in = None;
-                }
-            }
             return;
         }
 
@@ -757,6 +759,7 @@ impl TuiApp {
                 self.mode,
                 &self.mode_name_string(),
                 self.editor.canvas.cursor(),
+                self.editor.canvas.zoom_level(),
                 self.editor.toolbox.selected.full_name(),
                 self.editor.unsaved,
                 status_font_name.as_deref(),
@@ -778,14 +781,6 @@ impl TuiApp {
         frame.render_stateful_widget(&self.menu_bar, fl.menu, &mut self.menu_bar_state);
 
         self.render_overlays(frame);
-
-        let area = frame.area();
-        if let Some(ref mut fade) = self.app_fade_in {
-            fade.process(self.delta_time, frame.buffer_mut(), area);
-            if fade.done() {
-                self.app_fade_in = None;
-            }
-        }
     }
 
     /// Render the canvas (or font editor overview) inside `canvas_area`.

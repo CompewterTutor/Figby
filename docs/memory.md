@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Phase 4.8 merged) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
 
 ## Architectural Decisions
 
@@ -1963,3 +1963,11 @@ unsaved, saved). 8 new icon entries in icons.yaml.
 
 Files touched: `status_bar.rs`, `components/mod.rs`, `mod.rs`, `theme.rs`, `layout.rs`,
 `icons.yaml`, `default.yaml`. fmt and clippy pass clean.
+
+### 4.9.5 — Phase merge: release/4.9 → master
+
+Merged all Phase 4.9 work into master (default branch). Phase 4.9 complete:
+TachyonFX spike with welcome screen fade-in (4.9.1), dark neon-accent panel
+theme (4.9.2), app fade-in on launch (4.9.3), widget-based responsive status
+bar (4.9.4). All 4 subtasks implemented, tested, merged. Phase 4.10 (Web
+Target) is next.

@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Phase 4.2 merged) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.3 merged) |
 
 ## Architectural Decisions
 
@@ -1515,3 +1515,10 @@ Implemented all fixes from the 4.3.1 audit:
 - **Sync phase decomposed** — `sync_canvas_to_font_char()` and
   `sync_image_to_canvas()` called explicitly before widget rendering
   in `render_canvas_area()`.
+
+### 4.3.3 — Phase merge: release/4.3 → master
+
+Merged all Phase 4.3 work into default branch (master). Phase 4.3 complete:
+TUI architecture audit (4.3.1), ratatui architecture fixes — remove Component
+trait, flatten tui/, adopt native Widget pattern (4.3.2). All 2 subtasks
+implemented, tested, merged. Phase 4.4 (Layers, Blending & Compositing) is next.

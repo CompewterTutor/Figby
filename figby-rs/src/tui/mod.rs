@@ -372,6 +372,7 @@ pub struct TuiApp {
     pub right_drawer: layout::DrawerMode,
     pub editor: EditorState,
     pub dialogs: DialogState,
+    pub timeline_state: timeline::TimelineState,
 }
 
 impl TuiApp {
@@ -521,6 +522,7 @@ impl TuiApp {
                 undo_panel,
                 settings,
             },
+            timeline_state: timeline::TimelineState::default(),
         }
     }
 
@@ -1114,6 +1116,27 @@ impl TuiApp {
                 .undo_panel
                 .render(frame, frame.area(), self.editor.undo.history_entries());
         }
+
+        // Keyframe editor panel
+        if self.timeline_state.keyframe_editor.open {
+            let area = frame.area();
+            let panel_w = area.width.clamp(30, 42);
+            let panel_x = area.x + area.width.saturating_sub(panel_w);
+            let panel_h = (area.height / 2).max(10).min(area.height - 3);
+            let panel_y = area.y + area.height.saturating_sub(panel_h + 3);
+            let panel_rect = Rect {
+                x: panel_x,
+                y: panel_y,
+                width: panel_w,
+                height: panel_h,
+            };
+            frame.render_widget(Clear, panel_rect);
+            self.timeline_state.render_keyframe_editor(
+                frame,
+                panel_rect,
+                &timeline::TimelineTheme::default(),
+            );
+        }
     }
 
     /// Build the mode name string for the status bar.
@@ -1686,6 +1709,14 @@ impl TuiApp {
             return None;
         }
 
+        // Keyframe editor: intercept all keys when open
+        if self.timeline_state.keyframe_editor.open
+            && self.timeline_state.handle_keyframe_editor_key(code)
+        {
+            self.dirty = true;
+            return None;
+        }
+
         // Menu bar active: dispatch all keys to it
         if self.menu_bar_state.is_active() {
             self.menu_bar
@@ -2130,6 +2161,13 @@ impl TuiApp {
             self.dialogs.settings.canvas_height = self.editor.canvas.buffer.height() as u16;
             self.dialogs.settings.show_grid = self.editor.canvas.show_grid();
             self.dialogs.settings.settings_open = true;
+            self.dirty = true;
+            return None;
+        }
+
+        // Toggle keyframe editor
+        if code == KeyCode::Char('k') || code == KeyCode::Char('K') {
+            self.timeline_state.keyframe_editor.open = !self.timeline_state.keyframe_editor.open;
             self.dirty = true;
             return None;
         }

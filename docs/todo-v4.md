@@ -219,7 +219,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Create frames, switch between them, verify state isolation.
   - **Difficulty:** High
 
-- [ ] `4.5.2` Keyframing
+- [x] `4.5.2` Keyframing
   - **Goal:** Keyframeable properties per layer: position offset, opacity,
     blend mode. Keyframe markers on timeline. Interpolation between
     keyframes (linear). Keyframe editor panel.

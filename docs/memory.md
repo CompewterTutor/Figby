@@ -1635,3 +1635,25 @@ Merged release/4.4 branch into main at `d0a0967`. Brings 4.4.1 (Layer panel),
 4.4.2 (Per-layer blend modes), 4.4.3 (Layer groups/masks), and 4.4.4 (Export
 with layers/transparency) into the mainline. Next phase: 4.5 (Animation Timeline
 & Playback).
+
+### 4.5.2 — Keyframing
+
+Added per-layer keyframing to the `AnimationTimeline` widget:
+- `LayerKeyframe` struct with `position_offset: (i16, i16)`, `opacity: u8`,
+  `blend_mode: BlendMode` — snapshots layer properties at a frame
+- `TimelineFrame.layer_keyframes: Vec<Option<LayerKeyframe>>` — per-layer keyframe
+  data for each frame. `has_keyframe` derived from `.any(|k| k.is_some())`
+- `KeyframeEditState` struct — editor panel state with layer/property navigation,
+  edit mode for numeric input, blend mode cycling via Enter
+- `TimelineState` methods: `set_keyframe()`, `remove_keyframe()`, `get_keyframe()`,
+  `get_interpolated_properties()`, `handle_keyframe_editor_key()`,
+  `render_keyframe_editor()`
+- Linear interpolation (`lerp_i16`, `lerp_u8`) for position and opacity between
+  nearest keyframes; step interpolation (`step_blend_mode`) for blend mode
+  (switches at t=0.5)
+- Before-first/after-last keyframe: clamp to nearest keyframe values
+- No keyframes: return defaults `((0,0), 255, Normal)`
+- `K` key toggles keyframe editor panel overlay in TUI (`mod.rs` integration)
+- 21 new tests: set/remove keyframes, linear interpolation (position, opacity),
+  blend mode step, before/after bounds, single keyframe, no keyframes, multi-layer,
+  editor navigation, numeric edit, blend cycle, has_keyframe derivation

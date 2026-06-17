@@ -66,6 +66,14 @@ status_mode:                                         # nf-fa-cube
 status_modified:                                     #nf-cod-diff_modified  nf-oct-diff_modified nf-fa-circle
 status_unsaved:                                      #nf-fa-exclamation_triangle
 status_saved:                                        # nf-fa-check
+status_git_branch:                                   # nf-oct-git_branch
+status_fps:                                          # nf-fa-clock_o
+status_render_mode:                                  # nf-fa-desktop
+status_clock:                                        # nf-fa-clock_o
+status_layer:                                        # nf-fa-bars
+status_undo:                                         # nf-fa-undo
+status_font:                                         # nf-fa-font
+status_glyph:                                        # nf-fa-bars
 
 # ── File Operations ───────────────────────────────
 file_new: 

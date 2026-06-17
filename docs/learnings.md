@@ -1091,3 +1091,33 @@ Three bugs found in phase merge review:
   from prior merge commits). Only docs, changelog, and metadata updated.
 - Fixed stale merge conflict markers in `docs/ralph-log.md` (leftover from 4.3.3
   and 4.6.4 phase merges).
+
+## 4.9.1 — TachyonFX spike: welcome screen fade-in
+
+- `fx::fade_from_fg()` returns `tachyonfx::Effect` (not `Box<dyn Shader>`). `Effect`
+  is a concrete struct wrapping a shader, with its own `process()`, `done()`,
+  `running()` methods directly. `Effect` does NOT implement the `Shader` trait.
+- `Effect` is `!Send` and `!Sync` by default (unless the `sendable` feature is enabled).
+  This is fine because `TuiApp` is neither `Send` nor `Sync`.
+- With `std-duration` feature, `tachyonfx::Duration` = `std::time::Duration`,
+  making it easy to use with Rust's standard `Instant` timing.
+- tachyonfx's `Shader::process(dt, buf, area)` takes a `Duration` step (delta-time
+  since last frame, not cumulative elapsed time). The effect's internal timer
+  accumulates these steps automatically.
+- `EffectTimer::from_ms(ms, Interpolation::QuadOut)` creates a timer with 400ms
+  duration and quadratic-out easing — clean and ergonomic.
+- `Effect::done()` returns `true` when the effect has completed its full duration,
+  allowing clean cleanup after animation finishes.
+
+## 4.9.3 — App fade-in on launch (ratzilla-style)
+
+- `fx::fade_from(bg, fg, timer)` (three-argument variant) applies a full-screen overlay
+  that transitions both background and foreground colors from the given values to
+  transparent — ideal for app-launch black-to-reveal effects. This differs from
+  `fx::fade_from_fg()` (used in 4.9.1) which only modifies foreground.
+- The effect must be applied AFTER rendering the UI content but BEFORE `frame.finish()`,
+  so the overlay draws on top of the rendered widgets. Calling `.process()` on
+  `frame.buffer_mut()` after all `frame.render_*` calls achieves this correctly.
+- The `Option<Effect>` + `if let Some(ref mut)` + `take()` on `done()` pattern works
+  for one-shot launch effects: the effect runs every frame during its duration, then
+  drops itself cleanly with no further overhead.

@@ -1,51 +1,57 @@
-# Default Figby TUI theme (Tokyo Night-inspired dark theme)
+# Default Figby TUI theme (TachyonFX-inspired dark theme)
 # Each value is a 6-digit RGB hex color with # prefix.
 # Omitted fields fall back to built-in defaults.
 
 toolbox:
-  bg: "#1a1b26"
-  fg: "#c0caf5"
-  selected: "#7aa2f7"
+  bg: "#0d0d1a"
+  fg: "#d4d4e8"
+  selected: "#00d4ff"
 
 canvas:
-  grid: "#3b4261"
-  cursor: "#c0caf5"
-  selection: "#7aa2f7"
-  edge: "#3b4261"
-  text_block: "#e0af68"
+  grid: "#1a1a2e"
+  cursor: "#00d4ff"
+  selection: "#00344d"
+  edge: "#1a1a2e"
+  text_block: "#ff0099"
 
 palette:
-  border: "#3b4261"
-  active_target: "#e0af68"
-  swatch_indicator: "#c0caf5"
-  cell_bg: "#3b4261"
+  border: "#1a1a2e"
+  active_target: "#00d4ff"
+  swatch_indicator: "#d4d4e8"
+  cell_bg: "#12121f"
 
 statusbar:
-  mode_font: "#7aa2f7"
-  mode_image: "#9ece6a"
-  mode_ascii: "#e0af68"
-  separator: "#3b4261"
-  label: "#c0caf5"
+  mode_font: "#00d4ff"
+  mode_image: "#ff0099"
+  mode_ascii: "#ffaa00"
+  separator: "#555577"
+  label: "#8888aa"
+  git_branch: "#555577"
+  font_name: "#8888aa"
+  fps: "#8888aa"
+  glyph_count: "#8888aa"
+  unsaved: "#ffaa00"
+  saved: "#00ff87"
 
 menu:
-  bg: "#1a1b26"
-  fg: "#c0caf5"
-  highlight: "#7aa2f7"
-  dim: "#3b4261"
-  dropdown_bg: "#1a1b26"
+  bg: "#0d0d1a"
+  fg: "#d4d4e8"
+  highlight: "#00d4ff"
+  dim: "#555577"
+  dropdown_bg: "#12121f"
 
 dialog:
-  border_success: "#9ece6a"
-  border_path: "#7aa2f7"
-  label: "#c0caf5"
-  meta: "#3b4261"
-  error: "#f7768e"
-  highlight: "#e0af68"
-  selected_bg: "#3b4261"
+  border_success: "#00ff87"
+  border_path: "#00d4ff"
+  label: "#d4d4e8"
+  meta: "#8888aa"
+  error: "#ff0044"
+  highlight: "#ff0099"
+  selected_bg: "#00344d"
 
 general:
-  primary: "#7aa2f7"
-  secondary: "#c0caf5"
-  success: "#9ece6a"
-  error: "#f7768e"
-  warning: "#e0af68"
+  primary: "#00d4ff"
+  secondary: "#ff0099"
+  success: "#00ff87"
+  error: "#ff0044"
+  warning: "#ffaa00"

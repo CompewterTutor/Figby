@@ -28,10 +28,10 @@ pub struct LayerTheme {
 impl Default for LayerTheme {
     fn default() -> Self {
         Self {
-            bg: Color::Reset,
-            fg: Color::Reset,
-            active_bg: Color::Rgb(0x7a, 0xa2, 0xf7),
-            border: Color::DarkGray,
+            bg: Color::Rgb(0x0d, 0x0d, 0x1a),
+            fg: Color::Rgb(0xd4, 0xd4, 0xe8),
+            active_bg: Color::Rgb(0x00, 0x34, 0x4d),
+            border: Color::Rgb(0x1a, 0x1a, 0x2e),
         }
     }
 }
@@ -79,6 +79,12 @@ pub struct StatusBarTheme {
     pub mode_ascii: Color,
     pub separator: Color,
     pub label: Color,
+    pub git_branch: Color,
+    pub font_name: Color,
+    pub fps: Color,
+    pub glyph_count: Color,
+    pub unsaved: Color,
+    pub saved: Color,
 }
 
 #[derive(Debug, Clone)]
@@ -114,52 +120,58 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             toolbox: ToolboxTheme {
-                bg: Color::Reset,
-                fg: Color::Reset,
-                selected: Color::Cyan,
+                bg: Color::Rgb(0x0d, 0x0d, 0x1a),
+                fg: Color::Rgb(0xd4, 0xd4, 0xe8),
+                selected: Color::Rgb(0x00, 0xd4, 0xff),
             },
             canvas: CanvasTheme {
-                grid: Color::DarkGray,
-                cursor: Color::Reset,
-                selection: Color::Cyan,
-                edge: Color::DarkGray,
-                text_block: Color::Yellow,
+                grid: Color::Rgb(0x1a, 0x1a, 0x2e),
+                cursor: Color::Rgb(0x00, 0xd4, 0xff),
+                selection: Color::Rgb(0x00, 0x34, 0x4d),
+                edge: Color::Rgb(0x1a, 0x1a, 0x2e),
+                text_block: Color::Rgb(0xff, 0x00, 0x99),
             },
             palette: PaletteTheme {
-                border: Color::DarkGray,
-                active_target: Color::Yellow,
-                swatch_indicator: Color::White,
-                cell_bg: Color::DarkGray,
+                border: Color::Rgb(0x1a, 0x1a, 0x2e),
+                active_target: Color::Rgb(0x00, 0xd4, 0xff),
+                swatch_indicator: Color::Rgb(0xd4, 0xd4, 0xe8),
+                cell_bg: Color::Rgb(0x12, 0x12, 0x1f),
             },
             statusbar: StatusBarTheme {
-                mode_font: Color::Blue,
-                mode_image: Color::Green,
-                mode_ascii: Color::Yellow,
-                separator: Color::Reset,
-                label: Color::Reset,
+                mode_font: Color::Rgb(0x00, 0xd4, 0xff),
+                mode_image: Color::Rgb(0xff, 0x00, 0x99),
+                mode_ascii: Color::Rgb(0xff, 0xaa, 0x00),
+                separator: Color::Rgb(0x55, 0x55, 0x77),
+                label: Color::Rgb(0x88, 0x88, 0xaa),
+                git_branch: Color::Rgb(0x55, 0x55, 0x77),
+                font_name: Color::Rgb(0x88, 0x88, 0xaa),
+                fps: Color::Rgb(0x88, 0x88, 0xaa),
+                glyph_count: Color::Rgb(0x88, 0x88, 0xaa),
+                unsaved: Color::Rgb(0xff, 0xaa, 0x00),
+                saved: Color::Rgb(0x00, 0xff, 0x87),
             },
             menu: MenuTheme {
-                bg: Color::Reset,
-                fg: Color::White,
-                highlight: Color::Blue,
-                dim: Color::DarkGray,
-                dropdown_bg: Color::DarkGray,
+                bg: Color::Rgb(0x0d, 0x0d, 0x1a),
+                fg: Color::Rgb(0xd4, 0xd4, 0xe8),
+                highlight: Color::Rgb(0x00, 0xd4, 0xff),
+                dim: Color::Rgb(0x55, 0x55, 0x77),
+                dropdown_bg: Color::Rgb(0x12, 0x12, 0x1f),
             },
             dialog: DialogTheme {
-                border_success: Color::Green,
-                border_path: Color::Cyan,
-                label: Color::Reset,
-                meta: Color::DarkGray,
-                error: Color::Red,
-                highlight: Color::Yellow,
-                selected_bg: Color::Reset,
+                border_success: Color::Rgb(0x00, 0xff, 0x87),
+                border_path: Color::Rgb(0x00, 0xd4, 0xff),
+                label: Color::Rgb(0xd4, 0xd4, 0xe8),
+                meta: Color::Rgb(0x88, 0x88, 0xaa),
+                error: Color::Rgb(0xff, 0x00, 0x44),
+                highlight: Color::Rgb(0xff, 0x00, 0x99),
+                selected_bg: Color::Rgb(0x00, 0x34, 0x4d),
             },
             general: GeneralTheme {
-                primary: Color::Blue,
-                secondary: Color::White,
-                success: Color::Green,
-                error: Color::Red,
-                warning: Color::Yellow,
+                primary: Color::Rgb(0x00, 0xd4, 0xff),
+                secondary: Color::Rgb(0xff, 0x00, 0x99),
+                success: Color::Rgb(0x00, 0xff, 0x87),
+                error: Color::Rgb(0xff, 0x00, 0x44),
+                warning: Color::Rgb(0xff, 0xaa, 0x00),
             },
             layers: LayerTheme::default(),
         }
@@ -224,6 +236,12 @@ struct StatusBarYaml {
     mode_ascii: Option<String>,
     separator: Option<String>,
     label: Option<String>,
+    git_branch: Option<String>,
+    font_name: Option<String>,
+    fps: Option<String>,
+    glyph_count: Option<String>,
+    unsaved: Option<String>,
+    saved: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -343,6 +361,30 @@ impl From<ThemeYaml> for Theme {
                 label: merge_color(
                     y.statusbar.as_ref().and_then(|t| t.label.as_ref()),
                     base.statusbar.label,
+                ),
+                git_branch: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.git_branch.as_ref()),
+                    base.statusbar.git_branch,
+                ),
+                font_name: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.font_name.as_ref()),
+                    base.statusbar.font_name,
+                ),
+                fps: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.fps.as_ref()),
+                    base.statusbar.fps,
+                ),
+                glyph_count: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.glyph_count.as_ref()),
+                    base.statusbar.glyph_count,
+                ),
+                unsaved: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.unsaved.as_ref()),
+                    base.statusbar.unsaved,
+                ),
+                saved: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.saved.as_ref()),
+                    base.statusbar.saved,
                 ),
             },
             menu: MenuTheme {
@@ -482,22 +524,22 @@ mod tests {
         );
         // Verify parsed to Rgb, not Reset
         if let Color::Rgb(r, g, b) = theme.toolbox.bg {
-            assert_eq!(r, 0x1a);
-            assert_eq!(g, 0x1b);
-            assert_eq!(b, 0x26);
+            assert_eq!(r, 0x0d);
+            assert_eq!(g, 0x0d);
+            assert_eq!(b, 0x1a);
         } else {
             panic!("toolbox.bg should be Color::Rgb");
         }
         if let Color::Rgb(r, g, b) = theme.statusbar.mode_font {
-            assert_eq!(r, 0x7a);
-            assert_eq!(g, 0xa2);
-            assert_eq!(b, 0xf7);
+            assert_eq!(r, 0x00);
+            assert_eq!(g, 0xd4);
+            assert_eq!(b, 0xff);
         } else {
             panic!("statusbar.mode_font should be Color::Rgb");
         }
         // Verify non-overridden defaults remain
-        assert_eq!(theme.general.primary, Color::Rgb(0x7a, 0xa2, 0xf7));
-        assert_eq!(theme.general.error, Color::Rgb(0xf7, 0x76, 0x8e));
+        assert_eq!(theme.general.primary, Color::Rgb(0x00, 0xd4, 0xff));
+        assert_eq!(theme.general.error, Color::Rgb(0xff, 0x00, 0x44));
     }
 
     #[test]

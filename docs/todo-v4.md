@@ -370,7 +370,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.9 — Visual Polish & TachyonFX
 
-- [ ] `4.9.1` Evaluate TachyonFX for UI animations
+- [x] `4.9.1` Evaluate TachyonFX for UI animations
   - **Goal:** Spike: add `tachyonfx` crate, prototype one animation (e.g. dialog
     fade-in, screen transition). Assess ergonomics and perf. Reference:
     https://ratatui.rs/ecosystem/tachyonfx/
@@ -378,15 +378,15 @@ with theming, modern status bar, and component architecture.
   - **Success:** Working prototype with at least one animated transition.
   - **Difficulty:** Medium
 
-- [ ] `4.9.2` Default panel theme inspired by TachyonFX aesthetic
+- [x] `4.9.2` Default panel theme inspired by TachyonFX aesthetic
   - **Goal:** Update `tui/theme.rs` default colors to match the dark, neon-accent
     aesthetic of the TachyonFX showcase. Panel borders, selection highlights,
     dialog chrome. Keep configurable.
-  - **Touches:** `figby-rs/src/tui/theme.rs`
+  - **Touches:** `figby-rs/src/tui/theme.rs`, `assets/tui/themes/default.yaml`
   - **Success:** Side-by-side comparison shows obvious visual improvement.
   - **Difficulty:** Low
 
-- [ ] `4.9.3` App fade-in on launch (ratzilla-style)
+- [x] `4.9.3` App fade-in on launch (ratzilla-style)
   - **Goal:** On startup, play a brief fade-in effect (TachyonFX or custom) that
     reveals the canvas/UI. Reference: https://ratatui.rs/ecosystem/ratzilla/
     See the fade-in demo as inspiration.
@@ -394,7 +394,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** Smooth fade-in visible on every cold launch.
   - **Difficulty:** Medium
 
-- [ ] `4.9.4` New status bar redesign
+- [x] `4.9.4` New status bar redesign
   - **Goal:** Redesign the bottom status bar. Show: mode, current tool, cursor
     position, font name + glyph count, unsaved indicator, git branch, FPS/render
     mode. Responsive layout: drops low-priority items at narrow widths.

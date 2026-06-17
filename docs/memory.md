@@ -1901,3 +1901,65 @@ Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal cap
 4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into the mainline.
 No code changes — merge was a no-op (release/4.7 already an ancestor of master).
 Fixed stale merge conflict markers in ralph-log.md. Next phase: 4.8 (Animation Player).
+
+### 4.9.1 — TachyonFX spike: welcome screen fade-in
+
+Added `tachyonfx = { version = "0.25", features = ["std-duration"] }` dependency.
+
+Created `figby-rs/src/tui/fx.rs` with `WelcomeFx` struct wrapping a tachyonfx `Effect`
+that applies `fade_from_fg(Color::DarkGray, timer)` over 400ms with `QuadOut` easing
+to the welcome dialog area on startup.
+
+Modified `figby-rs/src/tui/mod.rs`:
+- Added `pub mod fx;` module declaration
+- Added `delta_time`, `fx_last_tick`, `welcome_fx` fields to `TuiApp`
+- `render()` computes delta_time each frame, applies `WelcomeFx::process()` to the
+  welcome area after rendering, clears `welcome_fx` when effect completes (done())
+- All 5 constructive welcome actions (Dismiss, OpenRecent, Open, NewFile, OpenSettings)
+  set `welcome_fx = None`
+
+Modified `figby-rs/src/tui/welcome.rs`: made `centered_welcome()` `pub` for use by fx module.
+
+3 files touched: `Cargo.toml`, `fx.rs` (new), `mod.rs`. fmt and clippy pass clean.
+
+### 4.9.2 — Default panel theme inspired by TachyonFX aesthetic
+
+Updated `figby-rs/src/tui/theme.rs` default colors and `assets/tui/themes/default.yaml` to match the dark, neon-accent TachyonFX showcase aesthetic:
+- Darker backgrounds (`#0d0d1a` for toolboxes/menus, `#1a1a2e` for borders/grid)
+- Cyan primary (`#00d4ff`) for selection highlights, cursor, mode indicators
+- Magenta accent (`#ff0099`) for secondary/graphic mode elements
+- Green success (`#00ff87`) and red error (`#ff0044`) for dialogs
+- Warm orange (`#ffaa00`) for ASCII preview mode
+- Tests updated to verify new color values in parsed output
+
+2 files touched: `theme.rs`, `default.yaml`. fmt, clippy, and all tests pass clean.
+
+### 4.9.3 — App fade-in on launch (ratzilla-style)
+
+Added `AppFadeIn` struct in `figby-rs/src/tui/fx.rs` using `fx::fade_from(Color::Black, Color::Black, timer)` over 600ms QuadOut — full-screen black overlay that fades to transparent, revealing UI content underneath.
+
+Integrated into all three render paths in `figby-rs/src/tui/mod.rs`:
+- Welcome screen path (applied after welcome_fx on full area)
+- Zen mode path (applied after canvas + overlays)
+- Normal mode path (applied as final pass after all widgets)
+
+`app_fade_in` field is `Option<AppFadeIn>`, set to `Some` on construction, consumed to `None` when `done()` returns true. Effect runs once per cold launch then self-cleans.
+
+2 files touched: `fx.rs` (new struct), `mod.rs` (integration). fmt and clippy pass clean.
+
+### 4.9.4 — Status bar redesign (responsive, widget-based)
+
+Created `StatusBarWidget` in `figby-rs/src/tui/components/status_bar.rs` — replaces the inline
+`render_status_bar()` method on `TuiApp`. Responsive layout with 4 priority groups:
+- P1 (always): mode badge (colored), cursor position, tool name, unsaved indicator
+- P2 (≥60 cols): font name + glyph count, git branch
+- P3 (≥80 cols): FPS + render mode
+- P4 (≥100 cols): clock, layer count, undo count, throbber text
+
+All 17 `status_*` inline fields removed from `TuiApp` struct — status bar data passed as method
+parameters. Status bar height reduced from `Constraint::Length(3)` to `Constraint::Length(1)`
+(no borders). Theme extended with 6 new colors (git_branch, font_name, fps, glyph_count,
+unsaved, saved). 8 new icon entries in icons.yaml.
+
+Files touched: `status_bar.rs`, `components/mod.rs`, `mod.rs`, `theme.rs`, `layout.rs`,
+`icons.yaml`, `default.yaml`. fmt and clippy pass clean.

@@ -23,6 +23,7 @@ serde_yaml = "0.9"
 rand = "0.8"
 gif = "0.13"
 png = "0.18"
+tachyonfx = { version = "0.25", features = ["std-duration"] }
 
 [dev-dependencies]
 serde_json = "1"

@@ -9,7 +9,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v1 — Port | [memory-v1.md](memory-v1.md) | Active |
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
-| v4 — (in progress) | (in memory.md) | Active (Frame management) |
+| v4 — (in progress) | (in memory.md) | Active (Phase 4.2 merged) |
 
 ## Architectural Decisions
 
@@ -1469,4 +1469,12 @@ Added 3 verification tests in `palette.rs`:
 - `test_deluxe_palette_contains_all_subset_chars` — asserts every char from every
   other group appears in deluxe
 - `test_deluxe_palette_all_unique` — asserts 563 unique codepoints (3 dithered
-  are subset of blocks). fmt and clippy pass clean.
+   are subset of blocks). fmt and clippy pass clean.
+
+### 4.2.6 — Phase merge: release/4.2 → main
+
+Merged all Phase 4.2 work into default branch (master). Phase 4.2 complete:
+braille charset block (4.2.1), block elements charset (4.2.2), box drawing +
+dithered charset (4.2.3), Ogham charset (4.2.4), "Deluxe" meta-charset (4.2.5).
+All 5 subtasks (4.2.1–4.2.5) implemented, tested, merged. Phase 4.3
+(Architecture Audit) is next.

@@ -126,7 +126,7 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.3 — Architecture Audit
 
-- [ ] `4.3.1` TUI architecture deepdive vs ratatui best practices
+- [x] `4.3.1` TUI architecture deepdive vs ratatui best practices
   - **Goal:** Compare current component architecture in `tui/components/` and
     `tui/mod.rs` against ratatui documentation patterns:
     `Widget for &T` (reference-based, non-consuming), `StatefulWidget`,

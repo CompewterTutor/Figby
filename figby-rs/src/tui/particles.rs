@@ -559,7 +559,7 @@ impl EmitterConfigPanel {
                     self.edit_buffer.clear();
                     self.error_message.clear();
                     self.editing = true;
-                    self.start_editing(config);
+                    self.start_editing();
                     true
                 }
                 crossterm::event::KeyCode::Esc => {
@@ -572,11 +572,11 @@ impl EmitterConfigPanel {
         }
     }
 
-    fn start_editing(&mut self, config: &ParticleConfig) {
+    fn start_editing(&mut self) {
         if self.selected_field == 10 {
             return;
         }
-        self.edit_buffer = field_edit_value(config, self.selected_field);
+        self.edit_buffer.clear();
     }
 
     fn save_field(&mut self, config: &mut ParticleConfig) -> bool {
@@ -635,29 +635,6 @@ fn field_display_value(config: &ParticleConfig, idx: usize) -> String {
         8 => format_f64(config.acceleration_y),
         9 => format_f64(config.spread_angle),
         10 => config.emission_shape.display_value(),
-        11 => config.size.to_string(),
-        12 => config.character.to_string(),
-        13 => config.color_r.map(|v| v.to_string()).unwrap_or_default(),
-        14 => config.color_g.map(|v| v.to_string()).unwrap_or_default(),
-        15 => config.color_b.map(|v| v.to_string()).unwrap_or_default(),
-        16 => config.opacity.to_string(),
-        _ => String::new(),
-    }
-}
-
-fn field_edit_value(config: &ParticleConfig, idx: usize) -> String {
-    match idx {
-        0 => config.spawn_rate.to_string(),
-        1 => config.lifetime_min.to_string(),
-        2 => config.lifetime_max.to_string(),
-        3 => config.velocity_x_min.to_string(),
-        4 => config.velocity_x_max.to_string(),
-        5 => config.velocity_y_min.to_string(),
-        6 => config.velocity_y_max.to_string(),
-        7 => config.acceleration_x.to_string(),
-        8 => config.acceleration_y.to_string(),
-        9 => config.spread_angle.to_string(),
-        10 => String::new(),
         11 => config.size.to_string(),
         12 => config.character.to_string(),
         13 => config.color_r.map(|v| v.to_string()).unwrap_or_default(),
@@ -1217,7 +1194,7 @@ mod tests {
             ..Default::default()
         };
         let mut system = ParticleSystem::new(config);
-        system.update(0.1);
+        system.update(1.0);
         let buffer = system.bake_to_buffer(20, 20);
         let cell = buffer.get(5, 5).expect("cell at emitter position");
         assert_eq!(cell.ch, '@', "baked cell should have particle char");

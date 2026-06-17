@@ -13,7 +13,7 @@
 - Phase merge: release/4.5 → master. Phase 4.5 complete: AnimationTimeline widget
   (4.5.0), frame management (4.5.1), keyframing (4.5.2), tweening (4.5.3),
   GIF export from timeline (4.5.4).
-- Phase merge: release/4.6 → master — phase 4.6 complete.
+- Phase merge: release/4.7 → master — phase 4.7 complete.
 
 ## [3.0.0-rc.2] - 2026-06-17
 ### Changed

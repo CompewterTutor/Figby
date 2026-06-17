@@ -1822,3 +1822,10 @@ the mainline. Next phase: 4.8 (Animation Player).
 Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),
 4.6.2 (Particle emitter UI tool with config panel), and 4.6.3 (Particle-to-layer baking) into
 the mainline. Next phase: 4.7 (Animation Exporter).
+
+### 4.7.4 — Phase merge: release/4.7 → main (2026-06-17)
+
+Merged release/4.7 branch into master. Brings 4.7.1 (Frame-by-frame terminal capture),
+4.7.2 (APNG export), and 4.7.3 (ANSI escape sequence export) into the mainline.
+No code changes — merge was a no-op (release/4.7 already an ancestor of master).
+Fixed stale merge conflict markers in ralph-log.md. Next phase: 4.8 (Animation Player).

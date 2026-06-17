@@ -4,6 +4,7 @@ use crossterm::event::{
 };
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
+use crossterm::terminal::EnterAlternateScreen;
 use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
@@ -1792,6 +1793,11 @@ impl TuiApp {
                 let count = self.timeline_state.frames.len();
                 self.dialogs.export_dialog.set_timeline(fps, count);
             }
+            if self.dialogs.export_dialog.play_requested {
+                self.dialogs.export_dialog.play_requested = false;
+                self.launch_player_from_export();
+                return None;
+            }
             if !self.dialogs.export_dialog.active {
                 self.perform_export();
             }
@@ -2320,6 +2326,24 @@ impl TuiApp {
         if code == KeyCode::Char('T') {
             self.timeline_state.open_tween();
             self.dirty = true;
+            return None;
+        }
+
+        // Timeline: Enter to play animation from current frame
+        if code == KeyCode::Enter && !self.timeline_state.frames.is_empty() {
+            let w = self.editor.canvas.buffer.width();
+            let h = self.editor.canvas.buffer.height();
+            let frames = export::capture_timeline_frames(
+                &self.timeline_state,
+                &self.editor.layer_stack,
+                w,
+                h,
+            );
+            if !frames.is_empty() {
+                let fps = self.timeline_state.fps;
+                let start_frame = self.timeline_state.current_frame;
+                self.play_animation(frames, fps, start_frame);
+            }
             return None;
         }
 
@@ -2882,6 +2906,54 @@ impl TuiApp {
             })();
             let _ = tx.send(AsyncResult::ExportComplete(result));
         });
+    }
+
+    fn launch_player_from_export(&mut self) {
+        let w = self.editor.canvas.buffer.width();
+        let h = self.editor.canvas.buffer.height();
+        if self.timeline_state.frames.is_empty() {
+            return;
+        }
+        let frames =
+            export::capture_timeline_frames(&self.timeline_state, &self.editor.layer_stack, w, h);
+        if frames.is_empty() {
+            return;
+        }
+        let fps = self.dialogs.export_dialog.fps;
+        let start_frame = self.dialogs.export_dialog.preview_frame;
+        self.play_animation(frames, fps, start_frame);
+    }
+
+    fn play_animation(
+        &mut self,
+        frames: Vec<Vec<Vec<canvas::CanvasCell>>>,
+        fps: u8,
+        start_frame: usize,
+    ) {
+        let frames = if start_frame < frames.len() {
+            frames[start_frame..].to_vec()
+        } else {
+            frames
+        };
+
+        if frames.is_empty() {
+            return;
+        }
+
+        // play_fullscreen enters its own alt screen, so we leave TUI's alt screen first
+        if let Err(e) = player::play_fullscreen(frames, fps) {
+            // Non-fatal — TUI continues after playback
+            let _ = e;
+        }
+
+        // play_fullscreen's LeaveAlternateScreen leaves us in main screen
+        // Re-enter alt screen for TUI
+        if let Err(e) = execute!(io::stdout(), EnterAlternateScreen) {
+            // Non-fatal — TUI will redraw on next draw
+            let _ = e;
+        }
+
+        self.dirty = true;
     }
 
     fn handle_menu_action(&mut self, action: menu::MenuAction) {

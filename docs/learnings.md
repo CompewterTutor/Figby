@@ -1019,3 +1019,9 @@ Three bugs found in phase merge review:
 - `test_bake_frames_count_and_independence` uses `windows(2).all(...)` on the
   frame vec to verify adjacent frames differ. This is O(N) without comparing
   all O(N²) pairs — sufficient for proving non-identity across a sequence.
+
+## 4.6.4 — Phase merge: release/4.6 → main
+
+- Merge completed cleanly — no conflicts. 4 files changed (CHANGELOG.md,
+  docs/memory.md, docs/ralph-log.md, docs/todo-v4.md), 18 insertions, 2 deletions.
+- No code changes beyond merge.

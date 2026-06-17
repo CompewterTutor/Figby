@@ -12,6 +12,7 @@ pub struct StatusBarWidget<'a> {
     mode: AppMode,
     mode_name: &'a str,
     cursor: (u16, u16),
+    zoom: u8,
     tool_name: &'a str,
     unsaved: bool,
     font_name: Option<&'a str>,
@@ -33,6 +34,7 @@ impl<'a> StatusBarWidget<'a> {
         mode: AppMode,
         mode_name: &'a str,
         cursor: (u16, u16),
+        zoom: u8,
         tool_name: &'a str,
         unsaved: bool,
         font_name: Option<&'a str>,
@@ -51,6 +53,7 @@ impl<'a> StatusBarWidget<'a> {
             mode,
             mode_name,
             cursor,
+            zoom,
             tool_name,
             unsaved,
             font_name,
@@ -105,6 +108,11 @@ impl<'a> StatusBarWidget<'a> {
         let pos_icon = self.icon("status_position", "+");
         let cursor_text = format!(" {} X:{} Y:{} ", pos_icon, self.cursor.0, self.cursor.1);
         spans.push(Span::raw(cursor_text));
+
+        // Zoom level
+        let zoom_icon = self.icon("status_zoom", "Z");
+        let zoom_text = format!(" {} {}x ", zoom_icon, self.zoom);
+        spans.push(Span::raw(zoom_text));
 
         // Unsaved indicator
         if self.unsaved {

@@ -775,6 +775,231 @@ impl Default for FileOpsDialog {
     }
 }
 
+use ratatui::buffer::Buffer;
+use ratatui::widgets::Widget;
+
+impl Widget for &FileOpsDialog {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        match self.mode {
+            FileOpsMode::Open => {
+                Widget::render(Clear, area, buf);
+                let block = Block::default()
+                    .title(" Open Font ")
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(self.theme.dialog.border_path));
+                let inner = block.inner(area);
+                Widget::render(block, area, buf);
+
+                if inner.width < 24 || inner.height < 8 {
+                    return;
+                }
+
+                let mut lines: Vec<Line> = Vec::new();
+
+                lines.push(Line::from(Span::styled(
+                    " Path:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )));
+
+                let path_display = if self.browsing_zip {
+                    format!("[ZIP] {}", self.current_zip_path.display())
+                } else if self.path_buffer.is_empty() {
+                    " (type path, browse with arrows, or paste)".to_string()
+                } else {
+                    self.path_buffer.clone()
+                };
+                lines.push(Line::from(Span::styled(
+                    format!(" {}", path_display),
+                    Style::default().fg(self.theme.dialog.border_path),
+                )));
+
+                if !self.error_message.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        format!(" Error: {}", self.error_message),
+                        Style::default().fg(self.theme.dialog.error),
+                    )));
+                }
+
+                lines.push(Line::from(""));
+
+                if self.directory_entries.is_empty() {
+                    let msg = if self.browsing_zip {
+                        " (no .flf/.tlf files in this ZIP archive)"
+                    } else {
+                        " (no .flf/.tlf files in directory)"
+                    };
+                    lines.push(Line::from(Span::styled(
+                        msg,
+                        Style::default().fg(self.theme.dialog.meta),
+                    )));
+                } else {
+                    lines.push(Line::from(Span::styled(
+                        " Directory:",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )));
+
+                    let max_visible = (inner.height as usize).saturating_sub(6).min(8);
+                    let start = self.selected_entry.saturating_sub(max_visible / 2);
+                    let end = (start + max_visible).min(self.directory_entries.len());
+                    for i in start..end {
+                        let entry = &self.directory_entries[i];
+                        let is_selected = i == self.selected_entry;
+                        let prefix = if is_selected { " >" } else { "  " };
+                        let text = if self.browsing_zip {
+                            format!("{prefix}{entry}")
+                        } else {
+                            let parent = if self.path_buffer.is_empty() {
+                                PathBuf::from(".")
+                            } else {
+                                let p = PathBuf::from(&self.path_buffer);
+                                if p.is_dir() {
+                                    p
+                                } else {
+                                    p.parent()
+                                        .map(|pp| pp.to_path_buf())
+                                        .unwrap_or_else(|| PathBuf::from("."))
+                                }
+                            };
+                            let is_dir = parent.join(entry).is_dir();
+                            let suffix = if is_dir { "/" } else { "" };
+                            format!("{prefix}{entry}{suffix}")
+                        };
+                        let style = if is_selected {
+                            Style::default().add_modifier(Modifier::REVERSED)
+                        } else {
+                            Style::default()
+                        };
+                        lines.push(Line::from(Span::styled(text, style)));
+                    }
+                }
+
+                if !self.recent_files_for_display.is_empty() {
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(Span::styled(
+                        " Recent files:",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )));
+                    let max_recent = 9.min(self.recent_files_for_display.len());
+                    let recent_start = if self.recent_files_for_display.len() > 9 {
+                        self.recent_files_for_display.len() - 9
+                    } else {
+                        0
+                    };
+                    for i in recent_start..recent_start + max_recent {
+                        let display = &self.recent_files_for_display[i];
+                        let num = i + 1;
+                        let text = format!("  {num}. {display}");
+                        lines.push(Line::from(Span::styled(
+                            text,
+                            Style::default().fg(self.theme.dialog.meta),
+                        )));
+                    }
+                }
+
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    " Tab: select  Enter: open  Esc: cancel  1-9: recent  \u{2191}\u{2193}: navigate",
+                    Style::default().fg(self.theme.dialog.meta),
+                )));
+
+                let paragraph = Paragraph::new(lines);
+                Widget::render(paragraph, inner, buf);
+            }
+            FileOpsMode::SaveAs => {
+                Widget::render(Clear, area, buf);
+                let block = Block::default()
+                    .title(" Save Font As ")
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(self.theme.dialog.highlight));
+                let inner = block.inner(area);
+                Widget::render(block, area, buf);
+
+                if inner.width < 20 || inner.height < 6 {
+                    return;
+                }
+
+                let mut lines: Vec<Line> = Vec::new();
+
+                lines.push(Line::from(Span::styled(
+                    " Path:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )));
+
+                let path_display = if self.path_buffer.is_empty() {
+                    " (type path or use arrows to browse)".to_string()
+                } else {
+                    self.path_buffer.clone()
+                };
+                lines.push(Line::from(Span::styled(
+                    format!(" {}", path_display),
+                    Style::default().fg(self.theme.dialog.border_path),
+                )));
+
+                if !self.error_message.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        format!(" Error: {}", self.error_message),
+                        Style::default().fg(self.theme.dialog.error),
+                    )));
+                }
+
+                lines.push(Line::from(""));
+
+                if self.directory_entries.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        " (no .flf/.tlf files in directory)",
+                        Style::default().fg(self.theme.dialog.meta),
+                    )));
+                } else {
+                    lines.push(Line::from(Span::styled(
+                        " Directory contents:",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )));
+
+                    let max_visible = (inner.height as usize).saturating_sub(6).min(10);
+                    let start = self.selected_entry.saturating_sub(max_visible / 2);
+                    let end = (start + max_visible).min(self.directory_entries.len());
+                    let parent = if self.path_buffer.is_empty() {
+                        PathBuf::from(".")
+                    } else {
+                        let p = PathBuf::from(&self.path_buffer);
+                        if p.is_dir() {
+                            p
+                        } else {
+                            p.parent()
+                                .map(|pp| pp.to_path_buf())
+                                .unwrap_or_else(|| PathBuf::from("."))
+                        }
+                    };
+                    for i in start..end {
+                        let entry = &self.directory_entries[i];
+                        let is_selected = i == self.selected_entry;
+                        let is_dir = parent.join(entry).is_dir();
+                        let prefix = if is_selected { " >" } else { "  " };
+                        let suffix = if is_dir { "/" } else { "" };
+                        let text = format!("{prefix}{entry}{suffix}");
+                        let style = if is_selected {
+                            Style::default().add_modifier(Modifier::REVERSED)
+                        } else {
+                            Style::default()
+                        };
+                        lines.push(Line::from(Span::styled(text, style)));
+                    }
+                }
+
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    " Tab: select entry  Enter: save  Esc: cancel  \u{2191}\u{2193}: navigate",
+                    Style::default().fg(self.theme.dialog.meta),
+                )));
+
+                let paragraph = Paragraph::new(lines);
+                Widget::render(paragraph, inner, buf);
+            }
+            FileOpsMode::Idle => {}
+        }
+    }
+}
+
 pub fn save_font(font: &FIGfont, path: &Path) -> std::io::Result<()> {
     let content = crate::font_gen::generate_figfont(font);
     let tmp_path = {

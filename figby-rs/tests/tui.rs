@@ -26,6 +26,7 @@ fn test_tui_smoke_all_panels_render() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -68,6 +69,7 @@ fn test_tui_mode_switching() {
     assert!(app.should_quit);
 
     let mut app2 = TuiApp::new();
+    app2.welcome_screen.show = false;
     app2.handle_key_event(KeyCode::Esc);
     assert!(app2.should_quit);
 }
@@ -84,7 +86,7 @@ fn test_tui_app_default_mode() {
 fn test_tool_default_is_brush() {
     use figby::tui::{Tool, TuiApp};
     let app = TuiApp::new();
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox.selected, Tool::Brush);
 }
 
 #[test]
@@ -93,43 +95,40 @@ fn test_tool_selection_roundtrip() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('v'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Marquee);
+    assert_eq!(app.editor.toolbox.selected, Tool::Marquee);
 
     app.handle_key_event(KeyCode::Char('b'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('l'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Lasso);
+    assert_eq!(app.editor.toolbox.selected, Tool::Lasso);
 
     app.handle_key_event(KeyCode::Char('c'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::CircleSelect);
+    assert_eq!(app.editor.toolbox.selected, Tool::CircleSelect);
 
     app.handle_key_event(KeyCode::Char('p'));
-    assert_eq!(
-        app.editor.toolbox_comp.toolbox.selected,
-        Tool::PolygonSelect
-    );
+    assert_eq!(app.editor.toolbox.selected, Tool::PolygonSelect);
 
     app.handle_key_event(KeyCode::Char('g'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Fill);
+    assert_eq!(app.editor.toolbox.selected, Tool::Fill);
 
     app.handle_key_event(KeyCode::Char('i'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Line);
+    assert_eq!(app.editor.toolbox.selected, Tool::Line);
 
     app.handle_key_event(KeyCode::Char('e'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eraser);
+    assert_eq!(app.editor.toolbox.selected, Tool::Eraser);
 
     app.handle_key_event(KeyCode::Char('d'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eyedropper);
+    assert_eq!(app.editor.toolbox.selected, Tool::Eyedropper);
 
     app.handle_key_event(KeyCode::Char('t'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Text);
+    assert_eq!(app.editor.toolbox.selected, Tool::Text);
 
     app.handle_key_event(KeyCode::Char('B'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox.selected, Tool::Brush);
 }
 
 #[test]
@@ -139,6 +138,7 @@ fn test_toolbox_renders_tool_names() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -465,13 +465,13 @@ fn test_brush_size_up_down_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.editor.toolbox_comp.brush.size, 3);
+    assert_eq!(app.editor.brush.size, 3);
 
     app.handle_key_event(KeyCode::Char(']'));
-    assert_eq!(app.editor.toolbox_comp.brush.size, 4);
+    assert_eq!(app.editor.brush.size, 4);
 
     app.handle_key_event(KeyCode::Char('['));
-    assert_eq!(app.editor.toolbox_comp.brush.size, 3);
+    assert_eq!(app.editor.brush.size, 3);
 }
 
 #[test]
@@ -481,13 +481,13 @@ fn test_brush_shape_cycle_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.editor.toolbox_comp.brush.shape, BrushShape::Square);
+    assert_eq!(app.editor.brush.shape, BrushShape::Square);
 
     app.handle_key_event(KeyCode::Char('\\'));
-    assert_eq!(app.editor.toolbox_comp.brush.shape, BrushShape::Circle);
+    assert_eq!(app.editor.brush.shape, BrushShape::Circle);
 
     app.handle_key_event(KeyCode::Char('\\'));
-    assert_eq!(app.editor.toolbox_comp.brush.shape, BrushShape::SprayPaint);
+    assert_eq!(app.editor.brush.shape, BrushShape::SprayPaint);
 }
 
 #[test]
@@ -580,6 +580,7 @@ fn test_brush_render_contains_shape_name() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -596,7 +597,8 @@ fn test_palette_render_contains_labels() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.editor.palette_comp.palette.select_color(0);
+    app.welcome_screen.show = false;
+    app.editor.palette.select_color(0);
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -616,6 +618,7 @@ fn test_status_bar_shows_cursor_position() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     // Switch to ImageEditor so arrow keys move canvas cursor
     app.mode = AppMode::ImageEditor;
     app.handle_key_event(KeyCode::Right);
@@ -638,6 +641,7 @@ fn test_status_bar_shows_zoom_level() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     app.handle_key_event(KeyCode::Char('+'));
 
     let backend = TestBackend::new(80, 24);
@@ -656,6 +660,7 @@ fn test_status_bar_shows_tool_name() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     app.handle_key_event(KeyCode::Char('e'));
 
     let backend = TestBackend::new(80, 24);
@@ -673,6 +678,7 @@ fn test_status_bar_shows_mode_name() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -691,6 +697,7 @@ fn test_status_bar_unsaved_indicator() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     app.editor.unsaved = true;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -744,13 +751,13 @@ fn test_settings_changes_canvas_width() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.editor.canvas_comp.canvas.buffer.width(), 40);
+    assert_eq!(app.editor.canvas.buffer.width(), 40);
     app.handle_key_event(KeyCode::Tab); // switch to ImageEditor so S opens Settings, not Smushing
     app.handle_key_event(KeyCode::Char('S'));
     assert!(app.dialogs.settings.settings_open);
     app.handle_key_event(KeyCode::Right);
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.width(),
+        app.editor.canvas.buffer.width(),
         41,
         "canvas width should increase"
     );
@@ -768,10 +775,7 @@ fn test_settings_toggle_grid() {
         app.handle_key_event(KeyCode::Down);
     }
     app.handle_key_event(KeyCode::Enter);
-    assert!(
-        app.editor.canvas_comp.canvas.show_grid(),
-        "grid should be toggled on"
-    );
+    assert!(app.editor.canvas.show_grid(), "grid should be toggled on");
 }
 
 #[test]
@@ -803,10 +807,10 @@ fn test_fill_tool_keyboard() {
 
     // Select Fill tool via keyboard shortcut
     app.handle_key_event(KeyCode::Char('g'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Fill);
+    assert_eq!(app.editor.toolbox.selected, Tool::Fill);
 
     // Draw a 2x2 region of @
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         1,
         1,
         CanvasCell {
@@ -815,7 +819,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         1,
         2,
         CanvasCell {
@@ -824,7 +828,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         2,
         1,
         CanvasCell {
@@ -833,7 +837,7 @@ fn test_fill_tool_keyboard() {
             bg: None,
         },
     );
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         2,
         2,
         CanvasCell {
@@ -844,24 +848,24 @@ fn test_fill_tool_keyboard() {
     );
 
     // Move cursor to (1, 1)
-    app.editor.canvas_comp.canvas.set_cursor(1, 1);
+    app.editor.canvas.set_cursor(1, 1);
 
     // Press Space to flood fill
     app.handle_key_event(KeyCode::Char(' '));
 
     // The filled region should have been replaced with full block
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch,
+        app.editor.canvas.buffer.get(1, 1).unwrap().ch,
         '\u{2588}',
         "filled cell (1,1)"
     );
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(2, 2).unwrap().ch,
+        app.editor.canvas.buffer.get(2, 2).unwrap().ch,
         '\u{2588}',
         "filled cell (2,2)"
     );
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(0, 0).unwrap().ch,
+        app.editor.canvas.buffer.get(0, 0).unwrap().ch,
         ' ',
         "outside fill should remain space"
     );
@@ -1032,9 +1036,10 @@ fn test_font_editor_empty_font_no_panic() {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    let mut editor = FontEditor::new();
+    let editor = FontEditor::new();
 
     let backend = TestBackend::new(80, 24);
+
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| editor.render(f, f.area())).unwrap();
     let buffer = terminal.backend().buffer();
@@ -1630,16 +1635,16 @@ fn test_brush_tool_keyboard_paint() {
 
     // Select Brush tool
     app.handle_key_event(KeyCode::Char('b'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Brush);
+    assert_eq!(app.editor.toolbox.selected, Tool::Brush);
 
     // Move cursor to (2, 2)
-    app.editor.canvas_comp.canvas.set_cursor(2, 2);
+    app.editor.canvas.set_cursor(2, 2);
 
     // Press Space to paint stamp
     app.handle_key_event(KeyCode::Char(' '));
 
     // Cell should now be painted with full block char
-    let cell = app.editor.canvas_comp.canvas.buffer.get(2, 2).unwrap();
+    let cell = app.editor.canvas.buffer.get(2, 2).unwrap();
     assert_eq!(
         cell.ch, '\u{2588}',
         "brush should paint full block at cursor"
@@ -1655,7 +1660,7 @@ fn test_eraser_tool_keyboard_erase() {
     let mut app = TuiApp::new();
 
     // Place a cell
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         3,
         3,
         CanvasCell {
@@ -1664,23 +1669,20 @@ fn test_eraser_tool_keyboard_erase() {
             bg: None,
         },
     );
-    assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(3, 3).unwrap().ch,
-        'X'
-    );
+    assert_eq!(app.editor.canvas.buffer.get(3, 3).unwrap().ch, 'X');
 
     // Select Eraser tool
     app.handle_key_event(KeyCode::Char('e'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eraser);
+    assert_eq!(app.editor.toolbox.selected, Tool::Eraser);
 
     // Move cursor to (3, 3)
-    app.editor.canvas_comp.canvas.set_cursor(3, 3);
+    app.editor.canvas.set_cursor(3, 3);
 
     // Press Space to erase
     app.handle_key_event(KeyCode::Char(' '));
 
     // Cell should be space (cleared)
-    let cell = app.editor.canvas_comp.canvas.buffer.get(3, 3).unwrap();
+    let cell = app.editor.canvas.buffer.get(3, 3).unwrap();
     assert_eq!(cell.ch, ' ', "eraser should clear cell to space");
 }
 
@@ -1693,16 +1695,16 @@ fn test_line_tool_keyboard_paint() {
 
     // Select Line tool
     app.handle_key_event(KeyCode::Char('i'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Line);
+    assert_eq!(app.editor.toolbox.selected, Tool::Line);
 
     // Move cursor to (1, 1)
-    app.editor.canvas_comp.canvas.set_cursor(1, 1);
+    app.editor.canvas.set_cursor(1, 1);
 
     // Press Space to paint stamp (line keyboard is a stamp)
     app.handle_key_event(KeyCode::Char(' '));
 
     // Cell should be painted
-    let cell = app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap();
+    let cell = app.editor.canvas.buffer.get(1, 1).unwrap();
     assert_eq!(
         cell.ch, '\u{2588}',
         "line tool keyboard should paint full block at cursor"
@@ -1718,22 +1720,22 @@ fn test_spray_tool_keyboard_paint() {
 
     // Select SprayPaint tool
     app.handle_key_event(KeyCode::Char('a'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Spray);
+    assert_eq!(app.editor.toolbox.selected, Tool::Spray);
 
     // Move cursor to (5, 5)
-    app.editor.canvas_comp.canvas.set_cursor(5, 5);
+    app.editor.canvas.set_cursor(5, 5);
 
     // Press Space to spray paint
     app.handle_key_event(KeyCode::Char(' '));
 
     // At least some cells in the spray radius should be painted
-    let radius = app.editor.toolbox_comp.brush.size as i16 / 2;
+    let radius = app.editor.brush.size as i16 / 2;
     let mut painted_count = 0;
     for dy in -radius..=radius {
         for dx in -radius..=radius {
             let x = (5i16 + dx) as usize;
             let y = (5i16 + dy) as usize;
-            if let Some(cell) = app.editor.canvas_comp.canvas.buffer.get(x, y) {
+            if let Some(cell) = app.editor.canvas.buffer.get(x, y) {
                 if cell.ch != ' ' {
                     painted_count += 1;
                 }
@@ -1755,7 +1757,7 @@ fn test_eyedropper_tool_keyboard_does_not_paint() {
     let mut app = TuiApp::new();
 
     // Place a cell
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         0,
         0,
         CanvasCell {
@@ -1767,14 +1769,14 @@ fn test_eyedropper_tool_keyboard_does_not_paint() {
 
     // Select Eyedropper tool
     app.handle_key_event(KeyCode::Char('d'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eyedropper);
+    assert_eq!(app.editor.toolbox.selected, Tool::Eyedropper);
 
     // Move cursor to (0, 0) and press Space — should be a no-op
-    app.editor.canvas_comp.canvas.set_cursor(0, 0);
+    app.editor.canvas.set_cursor(0, 0);
     app.handle_key_event(KeyCode::Char(' '));
 
     // Buffer should be mostly unchanged (eyedropper is excluded from keyboard paint)
-    let cell = app.editor.canvas_comp.canvas.buffer.get(0, 0).unwrap();
+    let cell = app.editor.canvas.buffer.get(0, 0).unwrap();
     assert_eq!(cell.ch, ' ', "eyedropper keyboard should not change cell");
 }
 
@@ -1817,7 +1819,7 @@ fn test_selection_copy_delete_keyboard() {
 
     let mut app = TuiApp::new();
 
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         0,
         0,
         CanvasCell {
@@ -1828,21 +1830,16 @@ fn test_selection_copy_delete_keyboard() {
     );
 
     // Create selection and set clipboard manually
-    let sel = figby::tui::tools::selection::Selection::marquee(
-        &app.editor.canvas_comp.canvas.buffer,
-        0,
-        0,
-        1,
-        1,
-    );
-    let clip = sel.copy_from(&app.editor.canvas_comp.canvas.buffer);
+    let sel =
+        figby::tui::tools::selection::Selection::marquee(&app.editor.canvas.buffer, 0, 0, 1, 1);
+    let clip = sel.copy_from(&app.editor.canvas.buffer);
     app.editor.clipboard = Some(clip);
     app.editor.selection = Some(sel);
 
     // Delete selection via Delete key
     app.handle_key_event(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(0, 0).unwrap().ch,
+        app.editor.canvas.buffer.get(0, 0).unwrap().ch,
         ' ',
         "Delete should clear selected cells"
     );
@@ -1850,14 +1847,14 @@ fn test_selection_copy_delete_keyboard() {
     // Paste clipboard directly (no Ctrl+V since toolbox intercepts 'v')
     if let Some(ref clip_data) = app.editor.clipboard {
         figby::tui::tools::selection::Selection::paste_into(
-            &mut app.editor.canvas_comp.canvas.buffer,
+            &mut app.editor.canvas.buffer,
             clip_data,
             3,
             3,
         );
     }
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(3, 3).unwrap().ch,
+        app.editor.canvas.buffer.get(3, 3).unwrap().ch,
         'A',
         "paste should restore 'A' at new position"
     );
@@ -1870,7 +1867,7 @@ fn test_selection_cut_direct() {
 
     let mut app = TuiApp::new();
 
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         0,
         0,
         CanvasCell {
@@ -1880,16 +1877,11 @@ fn test_selection_cut_direct() {
         },
     );
 
-    let sel = figby::tui::tools::selection::Selection::marquee(
-        &app.editor.canvas_comp.canvas.buffer,
-        0,
-        0,
-        1,
-        1,
-    );
-    let clip = sel.cut_from(&mut app.editor.canvas_comp.canvas.buffer);
+    let sel =
+        figby::tui::tools::selection::Selection::marquee(&app.editor.canvas.buffer, 0, 0, 1, 1);
+    let clip = sel.cut_from(&mut app.editor.canvas.buffer);
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(0, 0).unwrap().ch,
+        app.editor.canvas.buffer.get(0, 0).unwrap().ch,
         ' ',
         "cut should clear cell"
     );
@@ -1934,17 +1926,17 @@ fn test_undo_redo_integration() {
     let mut app = TuiApp::new();
 
     // Paint a cell with brush
-    app.editor.canvas_comp.canvas.set_cursor(1, 1);
+    app.editor.canvas.set_cursor(1, 1);
     app.handle_key_event(KeyCode::Char(' '));
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch,
+        app.editor.canvas.buffer.get(1, 1).unwrap().ch,
         '\u{2588}',
         "cell should be painted"
     );
 
     // Undo via Ctrl+Z
     app.handle_key_event(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
-    let cell_after_undo = app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch;
+    let cell_after_undo = app.editor.canvas.buffer.get(1, 1).unwrap().ch;
     assert_eq!(
         cell_after_undo, ' ',
         "cell should be reverted to space after undo"
@@ -1952,7 +1944,7 @@ fn test_undo_redo_integration() {
 
     // Redo via Ctrl+Y
     app.handle_key_event(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL));
-    let cell_after_redo = app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch;
+    let cell_after_redo = app.editor.canvas.buffer.get(1, 1).unwrap().ch;
     assert_eq!(
         cell_after_redo, '\u{2588}',
         "cell should be restored after redo"
@@ -1967,7 +1959,7 @@ fn test_redo_via_ctrl_shift_z() {
     let mut app = TuiApp::new();
 
     // Paint a cell
-    app.editor.canvas_comp.canvas.set_cursor(2, 2);
+    app.editor.canvas.set_cursor(2, 2);
     app.handle_key_event(KeyCode::Char(' '));
 
     // Undo
@@ -1980,7 +1972,7 @@ fn test_redo_via_ctrl_shift_z() {
     ));
 
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(2, 2).unwrap().ch,
+        app.editor.canvas.buffer.get(2, 2).unwrap().ch,
         '\u{2588}',
         "cell should be restored after Ctrl+Shift+Z redo"
     );
@@ -2044,7 +2036,7 @@ fn test_export_dialog_open_via_ctrl_e() {
     // Ctrl+E should open export dialog
     app.handle_key_event(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL));
     assert!(
-        app.dialogs.export_comp.dialog.active,
+        app.dialogs.export_dialog.active,
         "Ctrl+E should open export dialog"
     );
     // Default format is mode-dependent; check dialog is active
@@ -2118,7 +2110,7 @@ fn test_image_editor_mode_switch_and_toggle() {
 
     // Default mode is Grayscale
     assert_eq!(
-        app.editor.image_editor_comp.editor.mode(),
+        app.editor.image_editor.mode(),
         AsciiMode::Grayscale,
         "ImageEditor should start in Grayscale mode"
     );
@@ -2126,7 +2118,7 @@ fn test_image_editor_mode_switch_and_toggle() {
     // Toggle to Color mode via 'C'
     app.handle_key_event(KeyCode::Char('c'));
     assert_eq!(
-        app.editor.image_editor_comp.editor.mode(),
+        app.editor.image_editor.mode(),
         AsciiMode::Color,
         "C key should toggle to Color mode"
     );
@@ -2134,7 +2126,7 @@ fn test_image_editor_mode_switch_and_toggle() {
     // Toggle back to Grayscale
     app.handle_key_event(KeyCode::Char('c'));
     assert_eq!(
-        app.editor.image_editor_comp.editor.mode(),
+        app.editor.image_editor.mode(),
         AsciiMode::Grayscale,
         "second C key should toggle back to Grayscale"
     );
@@ -2189,7 +2181,7 @@ fn test_menu_edit_redo_via_keyboard_nav() {
     let mut app = TuiApp::new();
 
     // Paint a cell then undo so there's something to redo
-    app.editor.canvas_comp.canvas.set_cursor(0, 0);
+    app.editor.canvas.set_cursor(0, 0);
     app.handle_key_event(KeyCode::Char(' '));
     app.handle_key_event(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
 
@@ -2251,6 +2243,7 @@ fn test_layout_drawer_cycle() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Default drawer is Palette
     assert_eq!(
@@ -2358,8 +2351,9 @@ fn test_selection_escape_deselects() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         0,
         0,
         CanvasCell {
@@ -2369,13 +2363,8 @@ fn test_selection_escape_deselects() {
         },
     );
 
-    let sel = figby::tui::tools::selection::Selection::marquee(
-        &app.editor.canvas_comp.canvas.buffer,
-        0,
-        0,
-        1,
-        1,
-    );
+    let sel =
+        figby::tui::tools::selection::Selection::marquee(&app.editor.canvas.buffer, 0, 0, 1, 1);
     app.editor.selection = Some(sel);
     assert!(
         app.editor.selection.as_ref().is_some_and(|s| s.is_active()),
@@ -2421,22 +2410,16 @@ fn test_canvas_grid_toggle_g_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert!(
-        !app.editor.canvas_comp.canvas.show_grid(),
-        "grid off by default"
-    );
+    assert!(!app.editor.canvas.show_grid(), "grid off by default");
 
     // G toggles grid on
     app.handle_key_event(KeyCode::Char('G'));
-    assert!(
-        app.editor.canvas_comp.canvas.show_grid(),
-        "G should toggle grid on"
-    );
+    assert!(app.editor.canvas.show_grid(), "G should toggle grid on");
 
     // G toggles grid off
     app.handle_key_event(KeyCode::Char('G'));
     assert!(
-        !app.editor.canvas_comp.canvas.show_grid(),
+        !app.editor.canvas.show_grid(),
         "second G should toggle grid off"
     );
 }
@@ -2454,7 +2437,7 @@ fn test_palette_fg_keyboard_shortcut() {
     assert_eq!(app.mode, figby::tui::AppMode::ImageEditor);
 
     assert_eq!(
-        app.editor.palette_comp.palette.target,
+        app.editor.palette.target,
         ColorTarget::Foreground,
         "default palette target should be FG"
     );
@@ -2462,7 +2445,7 @@ fn test_palette_fg_keyboard_shortcut() {
     // Toggle to BG via 'x'
     app.handle_key_event(KeyCode::Char('x'));
     assert_eq!(
-        app.editor.palette_comp.palette.target,
+        app.editor.palette.target,
         ColorTarget::Background,
         "'x' should toggle to BG"
     );
@@ -2470,7 +2453,7 @@ fn test_palette_fg_keyboard_shortcut() {
     // Direct FG via 'f' (both 'f' and 'F' set Foreground)
     app.handle_key_event(KeyCode::Char('f'));
     assert_eq!(
-        app.editor.palette_comp.palette.target,
+        app.editor.palette.target,
         ColorTarget::Foreground,
         "'f' should set FG"
     );
@@ -2478,7 +2461,7 @@ fn test_palette_fg_keyboard_shortcut() {
     // Toggle back to BG via 'x'
     app.handle_key_event(KeyCode::Char('x'));
     assert_eq!(
-        app.editor.palette_comp.palette.target,
+        app.editor.palette.target,
         ColorTarget::Background,
         "'x' should toggle back to BG"
     );
@@ -2494,7 +2477,7 @@ fn test_selection_perimeter_delete() {
     let mut app = TuiApp::new();
 
     // Paint cells inside and outside the selection area
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         1,
         1,
         CanvasCell {
@@ -2503,7 +2486,7 @@ fn test_selection_perimeter_delete() {
             bg: None,
         },
     );
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         2,
         2,
         CanvasCell {
@@ -2513,7 +2496,7 @@ fn test_selection_perimeter_delete() {
         },
     );
     // Cell outside selection (should survive)
-    app.editor.canvas_comp.canvas.buffer.set(
+    app.editor.canvas.buffer.set(
         5,
         5,
         CanvasCell {
@@ -2524,7 +2507,7 @@ fn test_selection_perimeter_delete() {
     );
 
     // Create marquee selection from (0,0) to (3,3)
-    let sel = Selection::marquee(&app.editor.canvas_comp.canvas.buffer, 0, 0, 3, 3);
+    let sel = Selection::marquee(&app.editor.canvas.buffer, 0, 0, 3, 3);
     app.editor.selection = Some(sel);
 
     // Delete selection
@@ -2532,19 +2515,19 @@ fn test_selection_perimeter_delete() {
 
     // Selected cells should be cleared
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap().ch,
+        app.editor.canvas.buffer.get(1, 1).unwrap().ch,
         ' ',
         "selected cell (1,1) should be cleared"
     );
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(2, 2).unwrap().ch,
+        app.editor.canvas.buffer.get(2, 2).unwrap().ch,
         ' ',
         "selected cell (2,2) should be cleared"
     );
 
     // Cell outside selection should remain
     assert_eq!(
-        app.editor.canvas_comp.canvas.buffer.get(5, 5).unwrap().ch,
+        app.editor.canvas.buffer.get(5, 5).unwrap().ch,
         'X',
         "cell outside selection should not be cleared"
     );
@@ -2566,7 +2549,7 @@ fn test_text_tool_enter_text_mode() {
     // Select Text tool
     app.handle_key_event(KeyCode::Char('t'));
     assert_eq!(
-        app.editor.toolbox_comp.toolbox.selected,
+        app.editor.toolbox.selected,
         figby::tui::Tool::Text,
         "should select Text tool"
     );
@@ -2633,6 +2616,7 @@ fn test_text_tool_cancel_text() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Select Text tool and enter text mode
     app.handle_key_event(KeyCode::Char('t'));
@@ -2670,11 +2654,7 @@ fn test_cli_dispatch_view_zoom_in_via_menu() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(
-        app.editor.canvas_comp.canvas.zoom_level(),
-        1,
-        "default zoom is 1"
-    );
+    assert_eq!(app.editor.canvas.zoom_level(), 1, "default zoom is 1");
 
     // Open View menu via Alt+V (index 2)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT));
@@ -2705,7 +2685,7 @@ fn test_cli_dispatch_tools_select_brush_via_menu() {
     // Switch to a different tool first so we can verify it changes
     app.handle_key_event(KeyCode::Char('e'));
     assert_eq!(
-        app.editor.toolbox_comp.toolbox.selected,
+        app.editor.toolbox.selected,
         Tool::Eraser,
         "should start with Eraser"
     );
@@ -2741,17 +2721,14 @@ fn test_multiple_widgets_interaction() {
     let mut app = TuiApp::new();
 
     // Step 1: Palette selects a color (index 2 = green)
-    app.editor.palette_comp.palette.select_color(2);
-    app.editor.palette_comp.palette.target = ColorTarget::Foreground;
-    assert_eq!(
-        app.editor.palette_comp.palette.selected_color,
-        Some(ANSI_16_COLORS[2])
-    );
+    app.editor.palette.select_color(2);
+    app.editor.palette.target = ColorTarget::Foreground;
+    assert_eq!(app.editor.palette.selected_color, Some(ANSI_16_COLORS[2]));
 
     // Step 2: Brush paints with that color at cursor
-    app.editor.canvas_comp.canvas.set_cursor(1, 1);
+    app.editor.canvas.set_cursor(1, 1);
     app.handle_key_event(KeyCode::Char(' ')); // paint stamp
-    let cell = app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap();
+    let cell = app.editor.canvas.buffer.get(1, 1).unwrap();
     assert_eq!(cell.ch, '\u{2588}', "brush should paint full block");
     assert_eq!(
         cell.fg,
@@ -2760,9 +2737,9 @@ fn test_multiple_widgets_interaction() {
     );
 
     // Step 3: Paint another cell at a different position
-    app.editor.canvas_comp.canvas.set_cursor(3, 1);
+    app.editor.canvas.set_cursor(3, 1);
     app.handle_key_event(KeyCode::Char(' '));
-    let cell2 = app.editor.canvas_comp.canvas.buffer.get(3, 1).unwrap();
+    let cell2 = app.editor.canvas.buffer.get(3, 1).unwrap();
     assert_eq!(cell2.ch, '\u{2588}', "second brush paint should work");
     assert_eq!(
         cell2.fg,
@@ -2772,10 +2749,10 @@ fn test_multiple_widgets_interaction() {
 
     // Step 4: Switch to Eraser tool and erase
     app.handle_key_event(KeyCode::Char('e'));
-    assert_eq!(app.editor.toolbox_comp.toolbox.selected, Tool::Eraser);
-    app.editor.canvas_comp.canvas.set_cursor(1, 1);
+    assert_eq!(app.editor.toolbox.selected, Tool::Eraser);
+    app.editor.canvas.set_cursor(1, 1);
     app.handle_key_event(KeyCode::Char(' '));
-    let erased = app.editor.canvas_comp.canvas.buffer.get(1, 1).unwrap();
+    let erased = app.editor.canvas.buffer.get(1, 1).unwrap();
     assert_eq!(erased.ch, ' ', "eraser should clear cell to space");
     assert_eq!(erased.fg, None, "eraser should clear foreground color");
 }

@@ -3,7 +3,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, StatefulWidget};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use ratatui::Frame;
 
 use std::path::PathBuf;
@@ -122,6 +122,10 @@ impl GlyphGridState {
     pub fn cols(&self) -> usize {
         self.cols
     }
+
+    pub fn set_cols(&mut self, cols: usize) {
+        self.cols = cols;
+    }
 }
 
 impl Default for GlyphGridState {
@@ -138,18 +142,13 @@ pub struct GlyphGridWidget<'a> {
     theme: &'a Theme,
 }
 
-impl StatefulWidget for &GlyphGridWidget<'_> {
-    type State = GlyphGridState;
-
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+impl Widget for &GlyphGridWidget<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let cell_w = (self.font.maxlength as u16 + 2).max(8) as usize;
         let cell_h = (self.font.charheight as u16 + 1) as usize;
         let cols = (area.width as usize / cell_w).max(1);
 
         let start_cell = self.grid_scroll as usize * cols;
-
-        state.cell_rects.clear();
-        state.cols = cols;
 
         let mut cell_idx = start_cell;
         let mut y_offset = 0u16;
@@ -158,18 +157,6 @@ impl StatefulWidget for &GlyphGridWidget<'_> {
         {
             let end = (cell_idx + cols).min(self.filtered.len());
             let chunk = &self.filtered[cell_idx..end];
-
-            for (ci, &code) in chunk.iter().enumerate() {
-                state.cell_rects.push((
-                    code,
-                    Rect::new(
-                        area.x + (ci * cell_w) as u16,
-                        area.y + y_offset,
-                        cell_w as u16,
-                        cell_h as u16,
-                    ),
-                ));
-            }
 
             for (ci, &code) in chunk.iter().enumerate() {
                 let abs_idx = cell_idx + ci;
@@ -454,19 +441,51 @@ impl FontEditor {
             .collect()
     }
 
-    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
-        match self.view {
-            FontEditorView::Overview => self.render_overview(frame, area),
-            FontEditorView::CharEditor(_) => {}
-            FontEditorView::HeaderEditor => self.render_header_editor(frame, area),
-            FontEditorView::SmushRuleEditor => self.render_smush_editor(frame, area),
-            FontEditorView::TransformEditor => self.render_transform_editor(frame, area),
+    pub fn before_render(&mut self, area: Rect) {
+        let Some(font) = self.font.as_ref() else {
+            return;
+        };
+        let cell_w = (font.maxlength as u16 + 2).max(8) as usize;
+        let cell_h = (font.charheight as u16 + 1) as usize;
+        let cols = (area.width as usize / cell_w).max(1);
+        self.grid_state.set_cols(cols);
+
+        let filtered = self.filtered_codes();
+        let start_cell = self.grid_scroll as usize * cols;
+
+        self.grid_state.cell_rects.clear();
+
+        let mut cell_idx = start_cell;
+        let mut y_offset = 0u16;
+
+        while cell_idx < filtered.len() && (y_offset as usize) + cell_h <= area.height as usize {
+            let end = (cell_idx + cols).min(filtered.len());
+            let chunk = &filtered[cell_idx..end];
+
+            for (ci, &code) in chunk.iter().enumerate() {
+                self.grid_state.cell_rects.push((
+                    code,
+                    Rect::new(
+                        area.x + (ci * cell_w) as u16,
+                        area.y + y_offset,
+                        cell_w as u16,
+                        cell_h as u16,
+                    ),
+                ));
+            }
+
+            y_offset += cell_h as u16;
+            cell_idx = end;
         }
     }
 
-    fn render_overview(&mut self, frame: &mut Frame, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect) {
+        frame.render_widget(self, area);
+    }
+    fn render_overview(&self, area: Rect, buf: &mut Buffer) {
         let prompt_height: u16 = 3;
         let preview_height = self.font.as_ref().map_or(0, |f| f.charheight as u16 + 2);
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -500,7 +519,7 @@ impl FontEditor {
                 }
             };
             let search = Paragraph::new(prompt).block(Block::default().borders(Borders::ALL));
-            frame.render_widget(search, chunks[0]);
+            Widget::render(&search, chunks[0], buf);
         } else {
             let search_display = if self.search_active {
                 format!(" Search: {}|", self.search_query)
@@ -509,7 +528,7 @@ impl FontEditor {
             };
             let search =
                 Paragraph::new(search_display).block(Block::default().borders(Borders::ALL));
-            frame.render_widget(search, chunks[0]);
+            Widget::render(&search, chunks[0], buf);
         }
 
         // Key hint footer
@@ -517,7 +536,7 @@ impl FontEditor {
             " \u{2191}\u{2193}\u{2190}\u{2192} Navigate  Type Search  Enter Edit  A Add  D Del  C Copy  H Header  S Smush  T Transform  Esc Close",
         )
         .style(Style::default().fg(self.theme.menu.dim));
-        frame.render_widget(hint, chunks[3]);
+        Widget::render(&hint, chunks[3], buf);
 
         let grid_area = chunks[1];
         let filtered = self.filtered_codes();
@@ -525,7 +544,7 @@ impl FontEditor {
         if filtered.is_empty() {
             let msg = Paragraph::new(" No characters match search.")
                 .block(Block::default().borders(Borders::ALL));
-            frame.render_widget(msg, grid_area);
+            Widget::render(&msg, grid_area, buf);
             return;
         }
 
@@ -538,7 +557,7 @@ impl FontEditor {
             grid_scroll: self.grid_scroll,
             theme: &self.theme,
         };
-        frame.render_stateful_widget(&widget, grid_area, &mut self.grid_state);
+        Widget::render(&widget, grid_area, buf);
 
         // Preview strip
         if preview_height > 0 {
@@ -548,12 +567,12 @@ impl FontEditor {
                     .borders(Borders::ALL)
                     .title(format!(" Preview: {} ", PREVIEW_STRING));
                 let paragraph = Paragraph::new(preview_rows.join("\n")).block(block);
-                frame.render_widget(paragraph, chunks[2]);
+                Widget::render(&paragraph, chunks[2], buf);
             }
         }
     }
 
-    fn render_smush_editor(&self, frame: &mut Frame, area: Rect) {
+    fn render_smush_editor(&self, area: Rect, buf: &mut Buffer) {
         let Some(font) = self.font.as_ref() else {
             return;
         };
@@ -609,10 +628,10 @@ impl FontEditor {
         )));
 
         let paragraph = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
-        frame.render_widget(paragraph, area);
+        Widget::render(&paragraph, area, buf);
     }
 
-    fn render_transform_editor(&self, frame: &mut Frame, area: Rect) {
+    fn render_transform_editor(&self, area: Rect, buf: &mut Buffer) {
         let _ = &self.font;
         let mut lines: Vec<Line> = Vec::new();
 
@@ -702,10 +721,10 @@ impl FontEditor {
         }
 
         let paragraph = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
-        frame.render_widget(paragraph, area);
+        Widget::render(&paragraph, area, buf);
     }
 
-    fn render_header_editor(&self, frame: &mut Frame, area: Rect) {
+    fn render_header_editor(&self, area: Rect, buf: &mut Buffer) {
         let Some(font) = self.font.as_ref() else {
             return;
         };
@@ -783,7 +802,7 @@ impl FontEditor {
         }
 
         let paragraph = Paragraph::new(lines).block(Block::default().borders(Borders::ALL));
-        frame.render_widget(paragraph, area);
+        Widget::render(&paragraph, area, buf);
     }
 
     pub fn handle_key(&mut self, code: KeyCode, modifiers: KeyModifiers, area_width: u16) -> bool {
@@ -1709,6 +1728,18 @@ impl Default for FontEditor {
     }
 }
 
+impl Widget for &FontEditor {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        match self.view {
+            FontEditorView::Overview => self.render_overview(area, buf),
+            FontEditorView::CharEditor(_) => {}
+            FontEditorView::HeaderEditor => self.render_header_editor(area, buf),
+            FontEditorView::SmushRuleEditor => self.render_smush_editor(area, buf),
+            FontEditorView::TransformEditor => self.render_transform_editor(area, buf),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2415,6 +2446,8 @@ mod tests {
     fn render_editor(editor: &mut FontEditor, w: u16, h: u16) {
         let backend = ratatui::backend::TestBackend::new(w, h);
         let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let area = Rect::new(0, 0, w, h);
+        editor.before_render(area);
         terminal
             .draw(|frame| {
                 editor.render(frame, frame.area());

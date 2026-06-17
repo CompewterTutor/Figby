@@ -84,36 +84,28 @@ fn regression_tui_toolbox_roundtrip() {
     assert_eq!(toolbox.selected, Tool::Line);
 }
 
-/// StatusBar widget round-trip: set all fields, render, verify content.
+/// CanvasSettings widget round-trip: construct, render, verify field labels.
 #[test]
-fn regression_tui_statusbar_roundtrip() {
-    use figby::tui::status::StatusBar;
-    use std::collections::BTreeMap;
+fn regression_tui_canvas_settings_roundtrip() {
+    use figby::tui::status::CanvasSettings;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
 
-    let icons: BTreeMap<String, String> = BTreeMap::new();
-
-    let backend = TestBackend::new(80, 3);
+    let backend = TestBackend::new(40, 10);
     let mut terminal = Terminal::new(backend).unwrap();
+    let mut settings = CanvasSettings::new();
+    settings.settings_open = true;
     terminal
         .draw(|f| {
-            StatusBar::render(
-                f,
-                f.area(),
-                (5, 3),
-                2,
-                "Brush",
-                "Font Editor",
-                false,
-                &icons,
-                None,
-            );
+            f.render_widget(&settings, f.area());
         })
         .unwrap();
     let buf = terminal.backend().buffer();
     let output: String = buf.content().iter().map(|c| c.symbol()).collect();
-    assert!(output.contains("Brush"), "StatusBar should show tool name");
-    assert!(output.contains("5"), "StatusBar should show X cursor");
-    assert!(output.contains("3"), "StatusBar should show Y cursor");
+    assert!(
+        output.contains("Settings"),
+        "CanvasSettings should render settings header"
+    );
 }
 
 /// MenuBar round-trip: construct, render, verify headers.

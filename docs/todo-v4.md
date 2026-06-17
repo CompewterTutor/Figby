@@ -344,7 +344,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Capture → play → restore, verify content matches.
   - **Difficulty:** Medium
 
-- [ ] `4.8.2` Raw mode playback engine
+- [x] `4.8.2` Raw mode playback engine
   - **Goal:** Enter raw mode for playback (no echo, no line buffering).
     Render frames by writing pre-computed escape codes directly to stdout
     (bypass ratatui diffing for speed). Frame timing via `sleep` or

@@ -1455,3 +1455,18 @@ Updated `palette.rs`:
 - `geometric` group added: 23 geometric shapes matching `geometric_charset()`
 
 Added 6 verification tests in `font_gen.rs` (count, range, uniqueness for dithered [3 tests] and geometric [3 tests]) and 9 in `palette.rs` (count, range, uniqueness for box [3], dithered [3], geometric [3]). fmt and clippy pass clean.
+
+### 4.2.5 — "Deluxe" meta-charset
+
+Updated `palette.rs`:
+- "deluxe" `CharGroup` changed from descriptive string to explicit `concat!()` of all
+  566 characters: ASCII printable, blocks (with quadrants), box drawing, dither,
+  geometric shapes, braille, and Ogham.
+- "deluxe" listed first in `CHAR_GROUPS` as the richest set.
+
+Added 3 verification tests in `palette.rs`:
+- `test_deluxe_palette_count` — asserts exactly 566 chars
+- `test_deluxe_palette_contains_all_subset_chars` — asserts every char from every
+  other group appears in deluxe
+- `test_deluxe_palette_all_unique` — asserts 563 unique codepoints (3 dithered
+  are subset of blocks). fmt and clippy pass clean.

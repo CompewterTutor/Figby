@@ -63,7 +63,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** App opens to welcome screen. Pressing 1-N opens recent file directly.
   - **Difficulty:** Medium
 
-- [ ] `4.1.5` ZIP file browsing in file open dialog
+- [x] `4.1.5` ZIP file browsing in file open dialog
   - **Goal:** In the open dialog, `.zip` files appear as navigable "directories".
     Selecting one lists the `.flf`/`.tlf` files inside. Selecting a font inside
     reads it from the ZIP via the existing compressed-font path.

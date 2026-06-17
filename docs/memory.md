@@ -1367,3 +1367,29 @@ Key design decisions:
 - Ctrl+N creates a new blank font (clears font, undo, path, resets canvas to 32×16)
 
 4 files touched: `welcome.rs` (new), `mod.rs` (modified). fmt and clippy pass clean.
+
+### 4.1.5 — ZIP file browsing in file open dialog
+
+Added ZIP archive browsing to the TUI file open dialog. `.zip` files appear as
+navigable entries in the file browser. Selecting a `.zip` enters ZIP browsing
+mode, listing the `.flf`/`.tlf` entries inside. Selecting a font reads it from
+the ZIP via `read_zip_entry()` and parses it with the existing parser.
+
+Key functions added to `font.rs`:
+- `list_zip_font_entries(path)` — enumerates `.flf`/`.tlf` files in a ZIP archive,
+  rejecting entries with path separators (path traversal defense)
+- `read_zip_entry(path, name)` — reads a specific entry from a ZIP by name,
+  also with path separator rejection
+
+Key changes to `tui/file_ops.rs`:
+- `OpenTarget` enum for dispatching file vs ZIP entry opens
+- `browsing_zip` / `current_zip_path` state fields on `FileOpsDialog`
+- `.zip` extension recognized as navigable in directory listings
+- Enter/click on `.zip` enters ZIP browse mode; `..` exits back to filesystem
+- `resolve_open_target()` returns `OpenTarget` for caller dispatch
+
+Key change to `tui/mod.rs`:
+- `perform_open()` dispatches to `read_zip_entry()` + parser for `ZipEntry` target
+
+3 files touched: `font.rs`, `file_ops.rs`, `mod.rs`. 6 new ZIP browsing tests.
+fmt and clippy pass clean.

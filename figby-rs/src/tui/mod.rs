@@ -1484,6 +1484,10 @@ impl TuiApp {
                         return Some(AppEvent::SaveAsRequested);
                     }
                     file_ops::FileOpsMode::Open => {
+                        if self.dialogs.file_ops_comp.dialog.is_browsing_zip() {
+                            self.perform_open();
+                            return Some(AppEvent::OpenRequested);
+                        }
                         if self
                             .dialogs
                             .file_ops_comp
@@ -2196,22 +2200,44 @@ impl TuiApp {
         if self.throbber.is_active() {
             return;
         }
-        let path = self.dialogs.file_ops_comp.dialog.selected_path();
-        let path_clone = path.clone();
+        let target = self.dialogs.file_ops_comp.dialog.resolve_open_target();
         let (tx, rx) = mpsc::channel();
         self.async_rx = Some(rx);
         self.throbber.start("Loading...");
         self.dirty = true;
-        std::thread::spawn(move || {
-            let result = (|| -> Result<(crate::font::FIGfont, std::path::PathBuf), String> {
-                let content = std::fs::read_to_string(&path_clone)
-                    .map_err(|e| format!("Cannot read file: {e}"))?;
-                let font = crate::font::parse_tlf_font(&content)
-                    .map_err(|e| format!("Parse error: {e}"))?;
-                Ok((font, path_clone))
-            })();
-            let _ = tx.send(AsyncResult::OpenComplete(result));
-        });
+        match target {
+            file_ops::OpenTarget::File(path) => {
+                let path_clone = path.clone();
+                std::thread::spawn(move || {
+                    let result =
+                        (|| -> Result<(crate::font::FIGfont, std::path::PathBuf), String> {
+                            let content = std::fs::read_to_string(&path_clone)
+                                .map_err(|e| format!("Cannot read file: {e}"))?;
+                            let font = crate::font::parse_tlf_font(&content)
+                                .map_err(|e| format!("Parse error: {e}"))?;
+                            Ok((font, path_clone))
+                        })();
+                    let _ = tx.send(AsyncResult::OpenComplete(result));
+                });
+            }
+            file_ops::OpenTarget::ZipEntry {
+                zip_path,
+                entry_name,
+            } => {
+                std::thread::spawn(move || {
+                    let result =
+                        (|| -> Result<(crate::font::FIGfont, std::path::PathBuf), String> {
+                            let bytes = crate::font::read_zip_entry(&zip_path, &entry_name)
+                                .map_err(|e| format!("ZIP read error: {e}"))?;
+                            let content = String::from_utf8_lossy(&bytes).into_owned();
+                            let font = crate::font::parse_tlf_font(&content)
+                                .map_err(|e| format!("Parse error: {e}"))?;
+                            Ok((font, zip_path))
+                        })();
+                    let _ = tx.send(AsyncResult::OpenComplete(result));
+                });
+            }
+        }
     }
 
     fn perform_export(&mut self) {

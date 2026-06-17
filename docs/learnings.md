@@ -1,5 +1,15 @@
 # Figby — Learnings
 
+## 4.5.3 — Tweening
+
+- Standard bounce easing: 4 piecewise quadratic phases with decreasing amplitude.
+  Reference implementation widely used in CSS/JS easing; formula verified against
+  common JavaScript libraries.
+- `filter(|t| ...)` on `Option` returns `Option` with same lifetime — useful for
+  conditional preview rendering without redundant matching.
+- `replaceAll` in edit tool is fragile when there are multiple match patterns;
+  better to use targeted `rg` to count instances then apply precise `oldString` patterns.
+
 ## 4.5.2 — Keyframing
 
 - `Vec<Option<LayerKeyframe>>` with `get(layer_idx)?` returns `Option<&Option<T>>`.

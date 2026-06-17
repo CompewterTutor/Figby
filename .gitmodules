@@ -1,3 +1,7 @@
+[submodule "figby-fonts"]
+	path = figby-fonts
+	url = git@github.com:CompewterTutor/figby-fonts.git
+
 [submodule "fonts-external"]
 	path = fonts-external
 	url = git@github.com:DoseOfGose/figlet-fonts.git

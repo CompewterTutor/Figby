@@ -36,7 +36,7 @@ pub const CHAR_GROUPS: &[CharGroup] = &[
     CharGroup { name: "deluxe",  chars: "Combines ASCII + blocks + box + braille + ogham (see font_gen)" },
     CharGroup { name: "ascii",   chars: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~" },
     CharGroup { name: "braille", chars: "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿⡀⡁⡂⡃⡄⡅⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿" },
-    CharGroup { name: "blocks",  chars: "░▒▓▁▂▃▄▅▆▇█▌▐▀▄▖▗▘▙▚▛▜▝▞▟" },
+    CharGroup { name: "blocks",  chars: "▀▁▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟" },
     CharGroup { name: "box",     chars: "─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬━┃┏┓┗┛┣┫┳┻╋╴╵╶╷" },
     CharGroup { name: "ogham",   chars: " ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏᚐᚑᚒᚓᚔᚕᚖᚗᚘᚙᚚ᚛᚜" },
 ];
@@ -414,6 +414,57 @@ mod tests {
                 0x2800 + i as u32,
                 "missing codepoint U+{:04X}",
                 0x2800 + i as u32
+            );
+        }
+    }
+
+    #[test]
+    fn test_blocks_palette_count_32() {
+        let blocks = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "blocks")
+            .expect("blocks group should exist");
+        let count = blocks.chars.chars().count();
+        assert_eq!(
+            count, 32,
+            "blocks group should have exactly 32 chars, got {count}"
+        );
+    }
+
+    #[test]
+    fn test_blocks_palette_all_in_range() {
+        let blocks = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "blocks")
+            .expect("blocks group should exist");
+        for c in blocks.chars.chars() {
+            let cp = c as u32;
+            assert!(
+                (0x2580..=0x259F).contains(&cp),
+                "blocks char U+{cp:04X} outside U+2580–U+259F"
+            );
+        }
+    }
+
+    #[test]
+    fn test_blocks_palette_all_32_unique() {
+        let blocks = CHAR_GROUPS
+            .iter()
+            .find(|g| g.name == "blocks")
+            .expect("blocks group should exist");
+        let mut cps: Vec<u32> = blocks.chars.chars().map(|c| c as u32).collect();
+        assert_eq!(cps.len(), 32, "should have 32 blocks chars");
+        cps.sort_unstable();
+        cps.dedup();
+        assert_eq!(cps.len(), 32, "should have 32 unique blocks codepoints");
+        assert_eq!(cps[0], 0x2580, "first codepoint should be U+2580");
+        assert_eq!(cps[31], 0x259F, "last codepoint should be U+259F");
+        for (i, &cp) in cps.iter().enumerate() {
+            assert_eq!(
+                cp,
+                0x2580 + i as u32,
+                "missing codepoint U+{:04X}",
+                0x2580 + i as u32
             );
         }
     }

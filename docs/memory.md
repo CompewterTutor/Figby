@@ -1416,4 +1416,12 @@ Production code was already in place:
 Added 7 verification tests (4 in `font_gen.rs`, 3 in `palette.rs`):
 - Count (256), range (U+2800–U+28FF), sort order (dot count, codepoint), unique
   all-codepoints-no-gaps checks for both the charset function and the palette
-  group string. fmt and clippy pass clean.
+   group string. fmt and clippy pass clean.
+
+### 4.2.2 — Block elements charset
+
+Updated `blocks_charset()` in `font_gen.rs` to contain all 32 codepoints U+2580–U+259F,
+ordered by luminance (light → dark). Removed space (U+0020) which was not a block element.
+Updated `blocks` palette string in `palette.rs` to match. Added 3 verification tests in
+`font_gen.rs` (count=32, range check, unique/nogap all-32-codepoints) and 3 in `palette.rs`
+(same checks on the static group string). All blocks tests pass.

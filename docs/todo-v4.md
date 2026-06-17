@@ -88,7 +88,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** All 256 braille cells available as canvas characters.
   - **Difficulty:** Low
 
-- [ ] `4.2.2` Block elements charset
+- [x] `4.2.2` Block elements charset
   - **Goal:** Add charset group for block elements:
     - Full/half blocks: U+2580–U+259F (▀▄█▌▐ etc.)
     - Quadrant blocks: U+2596–U+259F

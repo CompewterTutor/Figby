@@ -1946,3 +1946,20 @@ Integrated into all three render paths in `figby-rs/src/tui/mod.rs`:
 `app_fade_in` field is `Option<AppFadeIn>`, set to `Some` on construction, consumed to `None` when `done()` returns true. Effect runs once per cold launch then self-cleans.
 
 2 files touched: `fx.rs` (new struct), `mod.rs` (integration). fmt and clippy pass clean.
+
+### 4.9.4 — Status bar redesign (responsive, widget-based)
+
+Created `StatusBarWidget` in `figby-rs/src/tui/components/status_bar.rs` — replaces the inline
+`render_status_bar()` method on `TuiApp`. Responsive layout with 4 priority groups:
+- P1 (always): mode badge (colored), cursor position, tool name, unsaved indicator
+- P2 (≥60 cols): font name + glyph count, git branch
+- P3 (≥80 cols): FPS + render mode
+- P4 (≥100 cols): clock, layer count, undo count, throbber text
+
+All 17 `status_*` inline fields removed from `TuiApp` struct — status bar data passed as method
+parameters. Status bar height reduced from `Constraint::Length(3)` to `Constraint::Length(1)`
+(no borders). Theme extended with 6 new colors (git_branch, font_name, fps, glyph_count,
+unsaved, saved). 8 new icon entries in icons.yaml.
+
+Files touched: `status_bar.rs`, `components/mod.rs`, `mod.rs`, `theme.rs`, `layout.rs`,
+`icons.yaml`, `default.yaml`. fmt and clippy pass clean.

@@ -68,7 +68,7 @@ impl FrameLayout {
             Constraint::Length(1),
             Constraint::Length(3),
             Constraint::Fill(1),
-            Constraint::Length(3),
+            Constraint::Length(1),
         ])
         .split(area);
 

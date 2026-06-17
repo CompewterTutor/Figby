@@ -363,7 +363,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Launch player, exit, verify TUI state preserved.
   - **Difficulty:** Medium
 
-- [ ] `4.8.4` Phase merge: release/4.8 → main
+- [x] `4.8.4` Phase merge: release/4.8 → main
   - **Difficulty:** Low
 
 ---

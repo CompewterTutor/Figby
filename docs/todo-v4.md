@@ -454,7 +454,7 @@ with theming, modern status bar, and component architecture.
   - **Success:** 100% FIGlet output compatibility.
   - **Difficulty:** Medium
 
-- [ ] `4.12.2` v4 major milestone RC — human sign-off
+- [x] `4.12.2` v4 major milestone RC — human sign-off
   - **Goal:** RC for v4.0.0. Ralph halts. Human reviews.
   - **Touches:** RC branch, annotated tag
   - **Success:** `rc/4.0.0-rc.1` created. Human merges.

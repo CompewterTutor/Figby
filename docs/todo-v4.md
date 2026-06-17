@@ -297,11 +297,12 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Capture frame, compare cell-by-cell with live render.
   - **Difficulty:** Medium
 
-- [ ] `4.7.2` APNG export
+- [x] `4.7.2` APNG export
   - **Goal:** Export animation as animated PNG (APNG). Each frame is a
     PNG of the rasterized ASCII canvas at that point. Frame delay
     metadata. Loop count.
-  - **Touches:** `figby-rs/src/tui/export.rs`, `figby-rs/Cargo.toml`
+  - **Touches:** `figby-rs/src/output.rs`, `figby-rs/src/tui/export.rs`,
+    `figby-rs/src/tui/mod.rs`, `figby-rs/tests/tui.rs`, `figby-rs/Cargo.toml`
   - **Success:** APNG plays back correctly in browser/image viewer.
   - **Tests:** Export APNG, verify frame count + timing.
   - **Difficulty:** Medium

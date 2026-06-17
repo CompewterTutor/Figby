@@ -1774,6 +1774,28 @@ sets `timeline_available = true`, and computes frame delays from current FPS.
 offset, keyframe opacity, keyframe blend mode (Multiply), populate dialog, populate
 with empty timeline. All pass.
 
+### 4.7.2 — APNG export
+
+Added `export_cells_to_apng()` in `output.rs` — renders animation frames to animated
+PNG using the `png` crate's native APNG support. Takes `frame_cells`, `frame_delays_cs`,
+`font_size`, and `loop_count`. Sets up `png::Encoder` with `set_color(Rgba)`,
+`set_depth(Eight)`, and `set_animated()` for APNG metadata. Each frame: render via
+`render_frame()`, write RGBA pixel data, set frame delay via `set_frame_delay(delay, 100)`.
+`finish()` finalizes the PNG stream.
+
+Integrated into TUI export system:
+- `ExportMode::Apng` added to the format cycle (Png → Apng → Gif → Txt → Png)
+- `ExportDialog` handles APNG identically to GIF for animation controls (FPS, loop, preview)
+- Timeline frames composed and exported via `export_cells_to_apng()` in both dialog and
+  menu-driven export paths
+- `ExportFormat::Apng` variant added to `output.rs`
+- `ExportError::PngError(String)` variant for PNG/APNG error reporting
+- `png = "0.18"` added to Cargo.toml
+
+7 unit tests: single frame decode, multi-frame timing, infinite loop (num_plays=0),
+finite loop (num_plays=3), empty frames error, format enum equality.
+Integration tests in `tests/tui.rs` updated for new toggle order.
+
 ### 4.6.4 — Phase merge: release/4.6 → master (2026-06-17)
 
 Merged release/4.6 branch into master. Brings 4.6.1 (Particle system data model and lifecycle),

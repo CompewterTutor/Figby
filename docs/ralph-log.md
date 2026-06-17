@@ -2994,6 +2994,20 @@ PHASE_COMPLETE: 4.2 merged to main after review approval.
 
 DONE: 4.3.1 merged into release/4.3.
 
+<<<<<<< HEAD
 ## 2026-06-17 07:14
 
 DONE: 4.3.3 merged into release/4.3.
+=======
+## 2026-06-17 07:17
+
+DONE: 4.3.3 merged into release/4.3.
+
+## 2026-06-17 07:21
+
+DONE: 4.3.3 merged into release/4.3.
+
+## 2026-06-17 07:21
+
+All 4.3 tasks complete. Starting phase review.
+>>>>>>> release/4.3

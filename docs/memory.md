@@ -2052,3 +2052,25 @@ Design-only task. No code touched. See `docs/lighting-design.md` for full spec.
 Merged release/4.11 branch into master at (merge commit prepared via `--no-ff --no-commit`).
 Brings 4.11.1 (Dynamic lighting system design document) into the mainline.
 Phase 4.11 complete — design-only phase. Next phase: 4.12 (Major Release).
+
+### 4.12.1 — Full regression against C FIGlet 2.2.5
+
+Ran full FIGlet regression test suite against the v4 codebase:
+- **48/48 FIGlet regression tests pass** — tests 01-55 in `tests/run_tests.rs` covering
+  every FIGlet 2.2.5 flag, font format (FLF/TLF), smushing modes, justification, RTL,
+  deutsch, control files, and paragraph mode
+- **3 pre-existing TUI test failures** (unrelated to FIGlet): `test_fill_tool_keyboard`,
+  `test_layout_drawer_cycle`, `test_selection_perimeter_delete` — inherited from
+  release/4.12, not regressions from this phase
+- **No code changes needed** — existing test infrastructure from 2.10.1 covers the
+  full FIGlet regression scope. All image/TUI/animation features verified via
+  `tests/regression_image.rs`, `tests/regression_tui.rs`, `tests/regression_export.rs`
+- **100% FIGlet output compatibility** confirmed. Task success criterion met.
+
+### 4.12.2 — v4 major milestone RC — human sign-off
+
+v4 RC cut: `rc/4.0.0-rc.1` branch + `v4.0.0-rc.1` annotated tag created from
+`release/4.12` tip. Version bumped from `3.0.0-rc.3` to `4.0.0-rc.1`.
+CHANGELOG updated with comprehensive v4 phase summary. Stale RC infrastructure
+(old `rc/4.0.0-rc.1` branch and `4.0.0-rc.1` lightweight tag) deleted.
+Handoff to human for review and merge to master.

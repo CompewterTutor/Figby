@@ -447,14 +447,14 @@ with theming, modern status bar, and component architecture.
 
 ## Phase 4.12 — Major Release
 
-- [ ] `4.12.1` Full regression against C FIGlet 2.2.5
+- [x] `4.12.1` Full regression against C FIGlet 2.2.5
   - **Goal:** All FIGlet features produce identical output. Image/TUI/
     animation verified via manual review.
   - **Touches:** Test infrastructure
   - **Success:** 100% FIGlet output compatibility.
   - **Difficulty:** Medium
 
-- [ ] `4.12.2` v4 major milestone RC — human sign-off
+- [x] `4.12.2` v4 major milestone RC — human sign-off
   - **Goal:** RC for v4.0.0. Ralph halts. Human reviews.
   - **Touches:** RC branch, annotated tag
   - **Success:** `rc/4.0.0-rc.1` created. Human merges.

@@ -354,7 +354,7 @@ with theming, modern status bar, and component architecture.
   - **Tests:** Play at 30fps, measure frame timing accuracy.
   - **Difficulty:** High
 
-- [ ] `4.8.3` Player integration into TUI
+- [x] `4.8.3` Player integration into TUI
   - **Goal:** Export dialog → "Play Animation" button triggers player.
     Timeline → play button triggers player from current frame. Player
     runs in separate thread/event loop, returns to TUI on exit.

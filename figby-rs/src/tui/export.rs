@@ -84,6 +84,7 @@ pub struct ExportDialog {
     pub frame_delays: Vec<u16>,
     pub preview_frame: usize,
     pub preview_playing: bool,
+    pub play_requested: bool,
     pub timeline_available: bool,
     pub timeline_frames: Vec<Vec<Vec<CanvasCell>>>,
 }
@@ -106,6 +107,7 @@ impl ExportDialog {
             frame_delays: Vec::new(),
             preview_frame: 0,
             preview_playing: false,
+            play_requested: false,
             timeline_available: false,
             timeline_frames: Vec::new(),
         }
@@ -145,6 +147,7 @@ impl ExportDialog {
         self.timeline_frames.clear();
         self.preview_frame = 0;
         self.preview_playing = false;
+        self.play_requested = false;
     }
 
     pub fn populate_from_timeline(
@@ -252,6 +255,10 @@ impl ExportDialog {
                     return true;
                 }
                 KeyCode::Char('P') | KeyCode::Char('p') => {
+                    self.play_requested = true;
+                    return true;
+                }
+                KeyCode::Char('V') | KeyCode::Char('v') => {
                     self.preview_playing = !self.preview_playing;
                     return true;
                 }
@@ -500,11 +507,15 @@ impl ExportDialog {
             };
             lines.push(Line::from(Span::styled(
                 format!(
-                    " Preview: {} (frame {}/{})  (P to toggle, Space to step)",
+                    " Preview: {} (frame {}/{})  (V to toggle, Space to step)",
                     play_ch,
                     self.preview_frame + 1,
                     self.frame_delays.len().max(1)
                 ),
+                Style::default().fg(self.theme.dialog.meta),
+            )));
+            lines.push(Line::from(Span::styled(
+                " P: Play Animation",
                 Style::default().fg(self.theme.dialog.meta),
             )));
         } else if is_animation {
@@ -617,7 +628,7 @@ impl ExportDialog {
 
         lines.push(Line::from(""));
         let gif_hint = if is_animation && self.timeline_available {
-            " F:FPS  L:Loop  P:Play  Space:Step  "
+            " F:FPS  L:Loop  V:Preview  P:Play  Space:Step  "
         } else {
             ""
         };
@@ -758,11 +769,15 @@ impl Widget for &ExportDialog {
             };
             lines.push(Line::from(Span::styled(
                 format!(
-                    " Preview: {} (frame {}/{})  (P to toggle, Space to step)",
+                    " Preview: {} (frame {}/{})  (V to toggle, Space to step)",
                     play_ch,
                     self.preview_frame + 1,
                     self.frame_delays.len().max(1)
                 ),
+                Style::default().fg(self.theme.dialog.meta),
+            )));
+            lines.push(Line::from(Span::styled(
+                " P: Play Animation",
                 Style::default().fg(self.theme.dialog.meta),
             )));
         } else if is_animation {
@@ -875,7 +890,7 @@ impl Widget for &ExportDialog {
 
         lines.push(Line::from(""));
         let gif_hint = if is_animation && self.timeline_available {
-            " F:FPS  L:Loop  P:Play  Space:Step  "
+            " F:FPS  L:Loop  V:Preview  P:Play  Space:Step  "
         } else {
             ""
         };
@@ -1065,9 +1080,9 @@ mod tests {
         dialog.enter_export(ExportMode::Gif);
         dialog.set_timeline(12, 5);
         assert!(!dialog.preview_playing);
-        dialog.handle_key(KeyCode::Char('P'));
+        dialog.handle_key(KeyCode::Char('V'));
         assert!(dialog.preview_playing);
-        dialog.handle_key(KeyCode::Char('p'));
+        dialog.handle_key(KeyCode::Char('v'));
         assert!(!dialog.preview_playing);
     }
 
@@ -1147,6 +1162,43 @@ mod tests {
         assert_eq!(dialog.preview_frame, 1);
         dialog.handle_key(KeyCode::Char(' '));
         assert_eq!(dialog.preview_frame, 2);
+    }
+
+    // ── play_requested tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_export_play_button_in_gif_mode() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Gif);
+        dialog.set_timeline(12, 5);
+        assert!(!dialog.play_requested);
+        dialog.handle_key(KeyCode::Char('P'));
+        assert!(dialog.play_requested);
+        // Press again, should still be true (set each time)
+        dialog.play_requested = false;
+        dialog.handle_key(KeyCode::Char('p'));
+        assert!(dialog.play_requested);
+    }
+
+    #[test]
+    fn test_export_play_button_not_in_png_mode() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Png);
+        dialog.set_timeline(12, 5);
+        assert!(!dialog.play_requested);
+        dialog.handle_key(KeyCode::Char('P'));
+        assert!(!dialog.play_requested);
+    }
+
+    #[test]
+    fn test_export_play_button_resets_on_close() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Gif);
+        dialog.set_timeline(12, 5);
+        dialog.handle_key(KeyCode::Char('P'));
+        assert!(dialog.play_requested);
+        dialog.close();
+        assert!(!dialog.play_requested);
     }
 
     // ── capture_timeline_frames tests ──────────────────────────────────

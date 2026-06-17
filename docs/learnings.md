@@ -1051,6 +1051,21 @@ Three bugs found in phase merge review:
   docs/memory.md, docs/ralph-log.md, docs/todo-v4.md), 18 insertions, 2 deletions.
 - No code changes beyond merge.
 
+## 4.8.3 — Player integration into TUI
+
+- `play_fullscreen()` does its own alt screen lifecycle (EnterAlternateScreen
+  inside `enter_player_mode`, LeaveAlternateScreen inside `exit_player_mode`).
+  After it returns, `play_animation()` must call `EnterAlternateScreen` again to
+  restore the TUI's alt screen. This double-enter pattern is correct because
+  `play_fullscreen`'s `exit_player_mode` returns to the main screen.
+- The `Enter` key handler for timeline playback lives in the general key dispatch
+  (not gated by timeline focus) — any Enter press with non-empty `timeline_state.frames`
+  triggers playback. This is intentional but could surprise users expecting Enter
+  in dialogs to do other things (protected by dialog handler running first).
+- Using a boolean flag (`play_requested`) as a back-channel signal from ExportDialog
+  to TuiApp avoids coupling the dialog to the app's event loop directly. The flag
+  is consumed and reset in the same main-loop iteration.
+
 ## 4.8.0 — AnimationPlayer widget
 
 - `Cell` interior mutability enables `Widget for &AnimationPlayer` (not `&mut`).

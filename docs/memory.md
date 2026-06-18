@@ -2257,3 +2257,13 @@ swallowed (early return). When `error_message` is set, a left-click dismisses th
 and returns. All other ImageEditor states (adjustment_mode, normal canvas editing) fall
 through to the existing general mouse handlers — no code change needed for those paths.
 Only `figby-rs/src/tui/mod.rs` modified.
+
+### 5.4.3 — Image import dialog (rascii options)
+
+Added `RasciiImportDialog` in `figby-rs/src/tui/dialogs/rascii_import.rs` with file
+browser, options panel (charset/width/color mode), and preview. Activated by "Convert
+Image to ASCII" welcome action (`V` key or click). Supports 5 charsets (block, smooth,
+full, braille, deluxe), 3 color modes (Mono/256/Truecolor), adjustable output width
+(8-500). 256-color uses standard 6×6×6 ANSI cube quantization. Preview renders converted
+chars as inline text. Confirm loads result into canvas as a new layer and switches to
+Image Editor mode. No `.unwrap()` in production. 15 unit tests.

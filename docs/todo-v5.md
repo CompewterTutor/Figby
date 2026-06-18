@@ -198,7 +198,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** All tools usable with mouse in image editor.
   - **Difficulty:** Medium
 
-- [ ] `5.4.3` Image import dialog (rascii options)
+- [x] `5.4.3` Image import dialog (rascii options)
   - **Goal:** "Convert Image to ASCII" action opens file picker. On file select,
     show options dialog: charset picker (block/smooth/full/braille/deluxe),
     output width slider, color toggle (truecolor / 256 / mono). Preview rendered

@@ -601,6 +601,7 @@ impl TuiApp {
                 self.dialogs.recent_files.list(),
                 env!("CARGO_PKG_VERSION"),
                 &self.theme,
+                &self.icons,
             );
 
             if let Some(ref mut welcome_fx) = self.welcome_fx {
@@ -1157,6 +1158,113 @@ impl TuiApp {
         }
     }
 
+    fn dispatch_welcome_action(&mut self, action: welcome::WelcomeAction) {
+        use welcome::WelcomeAction;
+        match action {
+            WelcomeAction::Dismiss => {
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::OpenRecent(idx) => {
+                if let Some(path) = self.dialogs.recent_files.get(idx) {
+                    self.dialogs.file_ops.path_buffer = path.to_string_lossy().to_string();
+                    self.perform_open();
+                    self.welcome_screen.show = false;
+                    self.welcome_fx = None;
+                    self.dirty = true;
+                }
+            }
+            WelcomeAction::Open => {
+                self.start_open();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::NewFile => {
+                self.editor.font_editor.font = None;
+                self.editor.font_editor.current_path = None;
+                self.editor.undo.clear();
+                self.editor.canvas = crate::tui::canvas::CanvasWidget::new(32, 16);
+                self.editor.layer_stack = layers::LayerStack::new(32, 16);
+                self.editor.layer_panel = layers::LayerPanel::new();
+                self.editor.layer_panel.theme = self.theme.clone();
+                self.editor.layer_panel.icons = self.icons.clone();
+                self.editor.recomposite_canvas();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::ToggleHelp => {
+                self.show_keybindings = !self.show_keybindings;
+                self.dirty = true;
+            }
+            WelcomeAction::OpenSettings => {
+                self.dialogs.settings.canvas_width =
+                    self.editor.canvas.buffer.width() as u16;
+                self.dialogs.settings.canvas_height =
+                    self.editor.canvas.buffer.height() as u16;
+                self.dialogs.settings.show_grid = self.editor.canvas.show_grid();
+                self.dialogs.settings.settings_open = true;
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::ScrollUp => {
+                self.welcome_screen.scroll_up();
+                self.dirty = true;
+            }
+            WelcomeAction::ScrollDown => {
+                let count = self.dialogs.recent_files.len();
+                self.welcome_screen.scroll_down(count);
+                self.dirty = true;
+            }
+            WelcomeAction::FontOpen | WelcomeAction::FontNewFromFile | WelcomeAction::ImageOpenFigmap => {
+                self.start_open();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::FontNewBlank => {
+                self.editor.font_editor.font = None;
+                self.editor.font_editor.current_path = None;
+                self.editor.undo.clear();
+                self.editor.canvas = crate::tui::canvas::CanvasWidget::new(32, 16);
+                self.editor.layer_stack = layers::LayerStack::new(32, 16);
+                self.editor.layer_panel = layers::LayerPanel::new();
+                self.editor.layer_panel.theme = self.theme.clone();
+                self.editor.layer_panel.icons = self.icons.clone();
+                self.editor.recomposite_canvas();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::FontNewFromSystem | WelcomeAction::FontDuplicate => {
+                // TODO: system font picker / duplicate flow
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::ImageNewBlank => {
+                self.editor.canvas = crate::tui::canvas::CanvasWidget::new(80, 24);
+                self.editor.layer_stack = layers::LayerStack::new(80, 24);
+                self.editor.layer_panel = layers::LayerPanel::new();
+                self.editor.layer_panel.theme = self.theme.clone();
+                self.editor.layer_panel.icons = self.icons.clone();
+                self.editor.recomposite_canvas();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::ImageNewFromTemplate | WelcomeAction::ImageConvert => {
+                // TODO: template picker (5.0.4) / rascii convert dialog (5.4.3)
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+        }
+    }
+
     fn handle_mouse_event(&mut self, mouse: MouseEvent) {
         // Menu bar mouse event
         if self.menu_bar.handle_mouse_event(
@@ -1167,6 +1275,24 @@ impl TuiApp {
         ) {
             if let Some(action) = self.menu_bar_state.drain_actions() {
                 self.process_event(&AppEvent::Menu(action));
+            }
+            return;
+        }
+
+        // Welcome screen captures all mouse events while visible
+        if self.welcome_screen.show {
+            let recent_count = self.dialogs.recent_files.len();
+            let (action, hover_dirty) = self.welcome_screen.handle_mouse(
+                mouse.column,
+                mouse.row,
+                mouse.kind,
+                recent_count,
+            );
+            if hover_dirty {
+                self.dirty = true;
+            }
+            if let Some(action) = action {
+                self.dispatch_welcome_action(action);
             }
             return;
         }
@@ -1808,58 +1934,7 @@ impl TuiApp {
                 .welcome_screen
                 .handle_key(code, modifiers, recent_count)
             {
-                use welcome::WelcomeAction;
-                match action {
-                    WelcomeAction::Dismiss => {
-                        self.welcome_screen.show = false;
-                        self.welcome_fx = None;
-                        self.dirty = true;
-                    }
-                    WelcomeAction::OpenRecent(idx) => {
-                        if let Some(path) = self.dialogs.recent_files.get(idx) {
-                            self.dialogs.file_ops.path_buffer = path.to_string_lossy().to_string();
-                            self.perform_open();
-                            self.welcome_screen.show = false;
-                            self.welcome_fx = None;
-                            self.dirty = true;
-                        }
-                    }
-                    WelcomeAction::Open => {
-                        self.start_open();
-                        self.welcome_screen.show = false;
-                        self.welcome_fx = None;
-                        self.dirty = true;
-                    }
-                    WelcomeAction::NewFile => {
-                        self.editor.font_editor.font = None;
-                        self.editor.font_editor.current_path = None;
-                        self.editor.undo.clear();
-                        self.editor.canvas = crate::tui::canvas::CanvasWidget::new(32, 16);
-                        self.editor.layer_stack = layers::LayerStack::new(32, 16);
-                        self.editor.layer_panel = layers::LayerPanel::new();
-                        self.editor.layer_panel.theme = self.theme.clone();
-                        self.editor.layer_panel.icons = self.icons.clone();
-                        self.editor.recomposite_canvas();
-                        self.welcome_screen.show = false;
-                        self.welcome_fx = None;
-                        self.dirty = true;
-                    }
-                    WelcomeAction::ToggleHelp => {
-                        self.show_keybindings = !self.show_keybindings;
-                        self.dirty = true;
-                    }
-                    WelcomeAction::OpenSettings => {
-                        self.dialogs.settings.canvas_width =
-                            self.editor.canvas.buffer.width() as u16;
-                        self.dialogs.settings.canvas_height =
-                            self.editor.canvas.buffer.height() as u16;
-                        self.dialogs.settings.show_grid = self.editor.canvas.show_grid();
-                        self.dialogs.settings.settings_open = true;
-                        self.welcome_screen.show = false;
-                        self.welcome_fx = None;
-                        self.dirty = true;
-                    }
-                }
+                self.dispatch_welcome_action(action);
                 return None;
             }
         }

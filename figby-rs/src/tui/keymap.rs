@@ -117,20 +117,20 @@ pub static GLOBAL_DISPATCH: &[KeyDispatch] = &[
         key_code: KeyCode::Tab,
         action: GlobalAction::PrevMode,
     },
-    // Quit
+    // Quit — Esc removed; use Q / q / Ctrl+C (SIGINT)
     KeyDispatch {
         modifiers: KeyModifiers::NONE,
         key_code: KeyCode::Char('q'),
+        action: GlobalAction::Quit,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::Char('Q'),
         action: GlobalAction::Quit,
     },
     KeyDispatch {
         modifiers: KeyModifiers::CONTROL,
         key_code: KeyCode::Char('q'),
-        action: GlobalAction::Quit,
-    },
-    KeyDispatch {
-        modifiers: KeyModifiers::NONE,
-        key_code: KeyCode::Esc,
         action: GlobalAction::Quit,
     },
 ];
@@ -193,7 +193,7 @@ pub const KEYMAP: &[KeyBinding] = &[
         description: "Export",
     },
     KeyBinding {
-        keys: "Ctrl+Q",
+        keys: "q / Q",
         scope: Scope::Global,
         description: "Quit",
     },

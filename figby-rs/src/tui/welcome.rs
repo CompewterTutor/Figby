@@ -1,15 +1,32 @@
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEventKind};
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 use ratatui::Frame;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use super::theme::Theme;
 
 const MASCOT_RAW: &str = include_str!("../../../assets/img/figby.block.ascii.image.txt");
+
+/// (icon_key, key_char, label_suffix)  →  displays as `icon [K]label_suffix`
+const FONT_ACTIONS: &[(&str, char, &str)] = &[
+    ("file_new",       'N', "ew Font from System"),
+    ("file_import",    'I', "mport Font from File"),
+    ("font_header",    'B', "lank Font"),
+    ("file_open",      'O', "pen Font"),
+    ("edit_duplicate", 'D', "uplicate Font"),
+];
+
+const IMAGE_ACTIONS: &[(&str, char, &str)] = &[
+    ("image_import", 'C', "reate Image"),
+    ("nav_forward",  'T', "emplate"),
+    ("image_import", 'V', "iew as ASCII"),
+    ("file_open",    'F', "igmap"),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WelcomeAction {
@@ -19,32 +36,127 @@ pub enum WelcomeAction {
     NewFile,
     ToggleHelp,
     OpenSettings,
+    ScrollUp,
+    ScrollDown,
+    FontNewFromSystem,
+    FontNewFromFile,
+    FontNewBlank,
+    FontOpen,
+    FontDuplicate,
+    ImageNewBlank,
+    ImageNewFromTemplate,
+    ImageConvert,
+    ImageOpenFigmap,
 }
 
 pub struct WelcomeScreen {
     pub show: bool,
+    pub scroll_offset: usize,
     mascot_lines: Vec<Line<'static>>,
-    title_lines: Vec<String>,
+    mascot_width: u16,
+    title_lines_large: Vec<String>,
+    title_lines_small: Vec<String>,
+    // Hit-test rects (updated each render)
+    recent_rects: Vec<Rect>,
+    font_rects: Vec<Rect>,
+    image_rects: Vec<Rect>,
+    // Hover state
+    hovered_recent: Option<usize>,
+    hovered_font: Option<usize>,
+    hovered_image: Option<usize>,
 }
 
 impl WelcomeScreen {
     pub fn new() -> Self {
         let mascot_lines = parse_ansi_lines(MASCOT_RAW);
-        let title_lines = render_title_with_computerist();
+        let mascot_width = mascot_lines
+            .iter()
+            .map(|l| l.spans.iter().map(|s| s.content.chars().count()).sum::<usize>())
+            .max()
+            .unwrap_or(30) as u16;
+        let title_lines_large = render_title_with_font("Computerist-20");
+        let title_lines_small = {
+            let s = render_title_with_font("Computerist-12");
+            if s.is_empty() { ascii_fallback_title() } else { s }
+        };
         Self {
             show: true,
+            scroll_offset: 0,
             mascot_lines,
-            title_lines,
+            mascot_width,
+            title_lines_large,
+            title_lines_small,
+            recent_rects: Vec::new(),
+            font_rects: Vec::new(),
+            image_rects: Vec::new(),
+            hovered_recent: None,
+            hovered_font: None,
+            hovered_image: None,
+        }
+    }
+
+    pub fn scroll_up(&mut self) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(1);
+    }
+
+    pub fn scroll_down(&mut self, recent_count: usize) {
+        if self.scroll_offset + 1 < recent_count {
+            self.scroll_offset += 1;
+        }
+    }
+
+    pub fn handle_mouse(
+        &mut self,
+        col: u16,
+        row: u16,
+        kind: MouseEventKind,
+        recent_count: usize,
+    ) -> (Option<WelcomeAction>, bool) {
+        let hit = |rects: &[Rect]| {
+            rects.iter().position(|r| {
+                col >= r.x && col < r.x + r.width && row >= r.y && row < r.y + r.height
+            })
+        };
+
+        match kind {
+            MouseEventKind::Moved => {
+                let prev = (self.hovered_recent, self.hovered_font, self.hovered_image);
+                self.hovered_recent = hit(&self.recent_rects);
+                self.hovered_font = hit(&self.font_rects);
+                self.hovered_image = hit(&self.image_rects);
+                let dirty =
+                    (self.hovered_recent, self.hovered_font, self.hovered_image) != prev;
+                (None, dirty)
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(idx) = hit(&self.recent_rects) {
+                    let abs = self.scroll_offset + idx;
+                    if abs < recent_count {
+                        return (Some(WelcomeAction::OpenRecent(abs)), false);
+                    }
+                }
+                if let Some(idx) = hit(&self.font_rects) {
+                    return (Some(font_action_for(idx)), false);
+                }
+                if let Some(idx) = hit(&self.image_rects) {
+                    return (Some(image_action_for(idx)), false);
+                }
+                (None, false)
+            }
+            MouseEventKind::ScrollUp => (Some(WelcomeAction::ScrollUp), false),
+            MouseEventKind::ScrollDown => (Some(WelcomeAction::ScrollDown), false),
+            _ => (None, false),
         }
     }
 
     pub fn render(
-        &self,
+        &mut self,
         frame: &mut Frame,
         area: Rect,
         recent_files: &[PathBuf],
         version: &str,
         theme: &Theme,
+        icons: &BTreeMap<String, String>,
     ) {
         frame.render_widget(Clear, area);
 
@@ -52,104 +164,219 @@ impl WelcomeScreen {
         frame.render_widget(Clear, welcome_area);
 
         let block = Block::default()
-            .title(" Welcome to Figby ")
+            .title(format!(" Welcome to Figby  v{version} "))
             .borders(Borders::ALL)
             .style(Style::default().fg(theme.general.primary));
         let inner = block.inner(welcome_area);
         frame.render_widget(block, welcome_area);
 
-        // Split inner: banner row on top, content below
-        let mascot_height = self.mascot_lines.len().max(1) as u16;
-        let banner_height = mascot_height;
+        // --- Banner row ---
+        let title_area_width = inner.width.saturating_sub(self.mascot_width + 1);
+        let title_lines: &[String] = {
+            let large_w = self.title_lines_large
+                .iter()
+                .map(|l| l.chars().count())
+                .max()
+                .unwrap_or(0) as u16;
+            if !self.title_lines_large.is_empty() && large_w <= title_area_width {
+                &self.title_lines_large
+            } else {
+                &self.title_lines_small
+            }
+        };
+
+        let mascot_h = self.mascot_lines.len() as u16;
+        let title_h = title_lines.len() as u16;
+        let banner_height = mascot_h.max(title_h);
 
         let vert = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(banner_height), Constraint::Min(0)])
+            .constraints([
+                Constraint::Length(banner_height),
+                Constraint::Length(1),
+                Constraint::Min(0),
+            ])
             .split(inner);
 
-        // Banner: mascot left, FIGBY title right
-        let mascot_width = 30u16;
         let horiz = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(mascot_width + 1), Constraint::Min(0)])
+            .constraints([Constraint::Length(self.mascot_width + 1), Constraint::Min(0)])
             .split(vert[0]);
 
-        let mascot_para = Paragraph::new(self.mascot_lines.clone());
-        frame.render_widget(mascot_para, horiz[0]);
+        // Mascot — vertically centered
+        let mascot_top = (banner_height.saturating_sub(mascot_h)) / 2;
+        let mut mascot_para_lines: Vec<Line> =
+            (0..mascot_top).map(|_| Line::from("")).collect();
+        mascot_para_lines.extend(self.mascot_lines.clone());
+        frame.render_widget(Paragraph::new(mascot_para_lines), horiz[0]);
 
-        if !self.title_lines.is_empty() {
+        // Title — vertically and horizontally centered
+        if !title_lines.is_empty() {
             let title_color = theme.general.primary;
-            let title_para = Paragraph::new(
-                self.title_lines
-                    .iter()
-                    .map(|l| {
-                        Line::from(Span::styled(
-                            l.clone(),
-                            Style::default().fg(title_color),
-                        ))
-                    })
-                    .collect::<Vec<_>>(),
+            let title_top = (banner_height.saturating_sub(title_h)) / 2;
+            let mut lines: Vec<Line> = (0..title_top).map(|_| Line::from("")).collect();
+            lines.extend(title_lines.iter().map(|l| {
+                Line::from(Span::styled(l.clone(), Style::default().fg(title_color)))
+            }));
+            frame.render_widget(
+                Paragraph::new(lines).alignment(Alignment::Center),
+                horiz[1],
             );
-            frame.render_widget(title_para, horiz[1]);
         }
 
-        // Content section below banner
-        let content_area = vert[1];
+        // --- Two-column content area ---
+        let content_area = vert[2];
+        let cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(40), Constraint::Min(0)])
+            .split(content_area);
+
+        let right_rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Fill(1), Constraint::Fill(1)])
+            .split(cols[1]);
+
+        // Compute and store hit-test rects before rendering
+        self.recent_rects = panel_row_rects(cols[0], recent_files.len().saturating_sub(self.scroll_offset));
+        self.font_rects   = panel_row_rects(right_rows[0], FONT_ACTIONS.len());
+        self.image_rects  = panel_row_rects(right_rows[1], IMAGE_ACTIONS.len());
+
+        let hovered_recent = self.hovered_recent;
+        let hovered_font   = self.hovered_font;
+        let hovered_image  = self.hovered_image;
+
+        self.render_recent_files(frame, cols[0], recent_files, theme, hovered_recent);
+        self.render_font_panel(frame, right_rows[0], theme, icons, hovered_font);
+        self.render_image_panel(frame, right_rows[1], theme, icons, hovered_image);
+    }
+
+    fn render_recent_files(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        recent_files: &[PathBuf],
+        theme: &Theme,
+        hovered: Option<usize>,
+    ) {
+        let block = Block::default()
+            .title(" Recent Files ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(theme.general.secondary));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let visible_rows = inner.height as usize;
         let mut lines: Vec<Line> = Vec::new();
 
-        lines.push(Line::from(Span::styled(
-            format!("  v{version}  —  FIGfont Editor"),
-            Style::default().fg(theme.general.secondary),
-        )));
-        lines.push(Line::from(""));
-
-        if !recent_files.is_empty() {
+        if recent_files.is_empty() {
             lines.push(Line::from(Span::styled(
-                " Recent files:",
-                Style::default()
-                    .fg(theme.general.secondary)
-                    .add_modifier(Modifier::BOLD),
+                " No recent files",
+                Style::default().fg(theme.dialog.meta),
             )));
-            for (i, path) in recent_files.iter().enumerate().take(9) {
+        } else {
+            for (i, path) in recent_files
+                .iter()
+                .enumerate()
+                .skip(self.scroll_offset)
+                .take(visible_rows)
+            {
+                let local_idx = i - self.scroll_offset;
+                let selected = hovered == Some(local_idx);
                 let num = i + 1;
                 let display = path.to_string_lossy();
+                let max_w = inner.width.saturating_sub(5) as usize;
+                let label = if display.len() > max_w {
+                    format!("…{}", &display[display.len().saturating_sub(max_w)..])
+                } else {
+                    display.to_string()
+                };
+
+                let (num_style, path_style) = if selected {
+                    let hl = Style::default()
+                        .fg(theme.dialog.highlight)
+                        .bg(theme.dialog.selected_bg)
+                        .add_modifier(Modifier::BOLD);
+                    (hl, hl)
+                } else {
+                    (
+                        Style::default()
+                            .fg(theme.general.primary)
+                            .add_modifier(Modifier::BOLD),
+                        Style::default().fg(theme.dialog.meta),
+                    )
+                };
+
+                lines.push(Line::from(vec![
+                    Span::styled(format!(" {num}. "), num_style),
+                    Span::styled(label, path_style),
+                ]));
+            }
+
+            if recent_files.len() > visible_rows {
+                let total = recent_files.len();
+                let shown = (self.scroll_offset + visible_rows).min(total);
                 lines.push(Line::from(Span::styled(
-                    format!("  {num}. {display}"),
-                    Style::default().fg(theme.dialog.meta),
+                    format!(" ↑↓ {}-{}/{}", self.scroll_offset + 1, shown, total),
+                    Style::default().fg(theme.general.secondary),
                 )));
             }
-            lines.push(Line::from(""));
         }
 
-        lines.push(Line::from(Span::styled(
-            " Keybindings:",
-            Style::default()
-                .fg(theme.general.secondary)
-                .add_modifier(Modifier::BOLD),
-        )));
-        for (key, desc) in &[
-            ("  Ctrl+O", "Open font"),
-            ("  Ctrl+N", "New font"),
-            ("  S      ", "Settings"),
-            ("  ?      ", "Keybindings reference"),
-            ("  Esc    ", "Dismiss and start editing"),
-        ] {
-            lines.push(Line::from(vec![
-                Span::styled(
-                    key.to_string(),
-                    Style::default()
-                        .fg(theme.general.primary)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!("  {desc}"),
-                    Style::default().fg(theme.general.secondary),
-                ),
-            ]));
-        }
+        frame.render_widget(Paragraph::new(lines), inner);
+    }
 
-        let paragraph = Paragraph::new(lines);
-        frame.render_widget(paragraph, content_area);
+    fn render_font_panel(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        icons: &BTreeMap<String, String>,
+        hovered: Option<usize>,
+    ) {
+        let block = Block::default()
+            .title(" Font ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(theme.general.secondary));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let lines: Vec<Line> = FONT_ACTIONS
+            .iter()
+            .enumerate()
+            .map(|(i, (icon_key, key_char, suffix))| {
+                let icon = icons.get(*icon_key).map(|s| s.as_str()).unwrap_or(" ");
+                build_action_row(icon, *key_char, suffix, hovered == Some(i), theme)
+            })
+            .collect();
+
+        frame.render_widget(Paragraph::new(lines), inner);
+    }
+
+    fn render_image_panel(
+        &self,
+        frame: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        icons: &BTreeMap<String, String>,
+        hovered: Option<usize>,
+    ) {
+        let block = Block::default()
+            .title(" Image ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(theme.general.secondary));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let lines: Vec<Line> = IMAGE_ACTIONS
+            .iter()
+            .enumerate()
+            .map(|(i, (icon_key, key_char, suffix))| {
+                let icon = icons.get(*icon_key).map(|s| s.as_str()).unwrap_or(" ");
+                build_action_row(icon, *key_char, suffix, hovered == Some(i), theme)
+            })
+            .collect();
+
+        frame.render_widget(Paragraph::new(lines), inner);
     }
 
     pub fn handle_key(
@@ -160,8 +387,37 @@ impl WelcomeScreen {
     ) -> Option<WelcomeAction> {
         match code {
             KeyCode::Esc if modifiers == KeyModifiers::NONE => Some(WelcomeAction::Dismiss),
+            KeyCode::Up => Some(WelcomeAction::ScrollUp),
+            KeyCode::Down => Some(WelcomeAction::ScrollDown),
             KeyCode::Char('?') => Some(WelcomeAction::ToggleHelp),
-            KeyCode::Char('S') if !modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Char('N') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::FontNewFromSystem)
+            }
+            KeyCode::Char('I') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::FontNewFromFile)
+            }
+            KeyCode::Char('B') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::FontNewBlank)
+            }
+            KeyCode::Char('O') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::FontOpen)
+            }
+            KeyCode::Char('D') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::FontDuplicate)
+            }
+            KeyCode::Char('C') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::ImageNewBlank)
+            }
+            KeyCode::Char('T') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::ImageNewFromTemplate)
+            }
+            KeyCode::Char('V') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::ImageConvert)
+            }
+            KeyCode::Char('F') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::ImageOpenFigmap)
+            }
+            KeyCode::Char('S') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::OpenSettings)
             }
             KeyCode::Char(c) if modifiers == KeyModifiers::CONTROL => match c {
@@ -203,8 +459,7 @@ impl Widget for &WelcomeScreen {
             )),
             Line::from(""),
         ];
-        let paragraph = Paragraph::new(lines);
-        Widget::render(paragraph, inner, buf);
+        Widget::render(Paragraph::new(lines), inner, buf);
     }
 }
 
@@ -219,32 +474,95 @@ pub fn centered_welcome(area: Rect) -> Rect {
     let h = (area.height / 5 * 3).max(35).min(area.height.saturating_sub(2));
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
-    Rect {
-        x,
-        y,
-        width: w,
-        height: h,
+    Rect { x, y, width: w, height: h }
+}
+
+/// Compute row rects inside a panel area (borders ALL = 1px each side).
+/// Returns up to `count` single-row rects that fit inside the panel.
+fn panel_row_rects(panel_area: Rect, count: usize) -> Vec<Rect> {
+    let inner_x = panel_area.x + 1;
+    let inner_y = panel_area.y + 1;
+    let inner_w = panel_area.width.saturating_sub(2);
+    let inner_h = panel_area.height.saturating_sub(2);
+    (0..count as u16)
+        .filter(|&i| i < inner_h)
+        .map(|i| Rect { x: inner_x, y: inner_y + i, width: inner_w, height: 1 })
+        .collect()
+}
+
+fn font_action_for(idx: usize) -> WelcomeAction {
+    match idx {
+        0 => WelcomeAction::FontNewFromSystem,
+        1 => WelcomeAction::FontNewFromFile,
+        2 => WelcomeAction::FontNewBlank,
+        3 => WelcomeAction::FontOpen,
+        _ => WelcomeAction::FontDuplicate,
     }
 }
 
-fn render_title_with_computerist() -> Vec<String> {
-    let font_dirs = ["/usr/share/figlet", "/usr/local/share/figlet"];
-    for name in &["Computerist-12", "Computerist-20"] {
-        if let Ok(font) = crate::font::load_font(name, &font_dirs) {
-            let rows = crate::render::render_string(&font, "FIGBY");
-            let trimmed: Vec<String> = rows
-                .into_iter()
-                .map(|l| l.replace('\u{00A0}', " "))
-                .collect();
-            // strip trailing blank rows
-            let last_content = trimmed
-                .iter()
-                .rposition(|l| l.trim_end().len() > 0)
-                .unwrap_or(0);
-            return trimmed[..=last_content].to_vec();
-        }
+fn image_action_for(idx: usize) -> WelcomeAction {
+    match idx {
+        0 => WelcomeAction::ImageNewBlank,
+        1 => WelcomeAction::ImageNewFromTemplate,
+        2 => WelcomeAction::ImageConvert,
+        _ => WelcomeAction::ImageOpenFigmap,
     }
-    // fallback plain
+}
+
+/// Build a single action row: ` icon [K]suffix`, highlighted if selected.
+fn build_action_row<'a>(
+    icon: &'a str,
+    key_char: char,
+    suffix: &'a str,
+    selected: bool,
+    theme: &Theme,
+) -> Line<'a> {
+    let base = if selected {
+        Style::default()
+            .fg(theme.dialog.highlight)
+            .bg(theme.dialog.selected_bg)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let key_style = if selected {
+        base
+    } else {
+        Style::default()
+            .fg(theme.general.primary)
+            .add_modifier(Modifier::BOLD)
+    };
+    let suffix_style = if selected {
+        base
+    } else {
+        Style::default().fg(theme.dialog.meta)
+    };
+
+    Line::from(vec![
+        Span::styled(format!(" {icon} "), base),
+        Span::styled(format!("[{key_char}]"), key_style),
+        Span::styled(suffix.to_string(), suffix_style),
+    ])
+}
+
+fn render_title_with_font(name: &str) -> Vec<String> {
+    let font_dirs = ["/usr/share/figlet", "/usr/local/share/figlet"];
+    if let Ok(font) = crate::font::load_font(name, &font_dirs) {
+        let rows = crate::render::render_string(&font, "FIGBY");
+        let trimmed: Vec<String> = rows
+            .into_iter()
+            .map(|l| l.replace('\u{00A0}', " "))
+            .collect();
+        let last_content = trimmed
+            .iter()
+            .rposition(|l| l.trim_end().len() > 0)
+            .unwrap_or(0);
+        return trimmed[..=last_content].to_vec();
+    }
+    Vec::new()
+}
+
+fn ascii_fallback_title() -> Vec<String> {
     vec![
         " _____ _  ____ ______   __".to_string(),
         "|  ___| |/ ___|  _ \\ \\ / /".to_string(),
@@ -265,7 +583,6 @@ fn parse_ansi_lines(text: &str) -> Vec<Line<'static>> {
 
             while i < bytes.len() {
                 if bytes[i] == 0x1b && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
-                    // flush
                     if !current_text.is_empty() {
                         let style = current_color
                             .map_or(Style::default(), |c| Style::default().fg(c));
@@ -278,7 +595,7 @@ fn parse_ansi_lines(text: &str) -> Vec<Line<'static>> {
                         i += 1;
                     }
                     let seq = std::str::from_utf8(&bytes[start..i]).unwrap_or("");
-                    i += 1; // skip 'm'
+                    i += 1;
 
                     if seq == "0" || seq.is_empty() {
                         current_color = None;
@@ -291,7 +608,6 @@ fn parse_ansi_lines(text: &str) -> Vec<Line<'static>> {
                         }
                     }
                 } else {
-                    // multi-byte UTF-8: find char boundary
                     let ch_start = i;
                     i += 1;
                     while i < bytes.len() && (bytes[i] & 0xC0) == 0x80 {

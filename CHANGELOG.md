@@ -1,5 +1,21 @@
 # Changelog
 
+## [5.0.0] - 2026-06-18
+### Added
+- Welcome screen Phase 5.0 — complete overhaul
+- Banner: Computerist-20 FIGfont title with Computerist-12 fallback; both mascot
+  and title vertically centered in banner row; title horizontally centered
+- Two-column content layout: Recent Files (left, scrollable, ↑↓) + Font/Image
+  action panels (right)
+- Font panel: 5 actions with NerdFont icons in `[K]ey` inline format
+  (N/I/B/O/D shortcuts)
+- Image panel: 4 actions with NerdFont icons (C/T/V/F shortcuts)
+- Mouse hover highlight and click support on all welcome items via stored
+  hit-test rects updated each render cycle
+- `dispatch_welcome_action()` shared by keyboard and mouse paths
+- Esc → dismiss/back-out only (never quits); Q / q → quit from canvas;
+  Ctrl+C → quit via SIGINT
+
 ## [3.0.0-rc.4] - 2026-06-18
 ### Added
 - Multi-directory font search: `load_font()` now accepts `&[&str]`, searches

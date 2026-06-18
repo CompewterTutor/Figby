@@ -10,7 +10,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.0 — Welcome Screen Redesign
 
-- [ ] `5.0.1` Banner: center + wrap Computerist-20 FIGBY title
+- [x] `5.0.1` Banner: center + wrap Computerist-20 FIGBY title
   - **Goal:** Center the FIGBY FIGfont banner horizontally in the welcome box.
     If terminal too narrow for Computerist-20, fall back to Computerist-12.
     Mascot art left, title right — both vertically centered in banner row.
@@ -18,7 +18,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Banner looks balanced at 80, 120, and 200 col terminals.
   - **Difficulty:** Low
 
-- [ ] `5.0.2` Two-column layout: Recent Files (left) + Actions (right)
+- [x] `5.0.2` Two-column layout: Recent Files (left) + Actions (right)
   - **Goal:** Below banner, split into two columns using `Layout::horizontal`
     with `Flex::Start`. Left: Recent Files panel (scrollable numbered list,
     click or press number to open). Right: two labeled boxes — Font and Image.
@@ -26,7 +26,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Both columns render with labeled borders. Recent list scrollable.
   - **Difficulty:** Low
 
-- [ ] `5.0.3` Font action panel with NerdFont icons
+- [x] `5.0.3` Font action panel with NerdFont icons
   - **Goal:** Right column top box labeled "Font". Five actions, each with
     NerdFont icon from `icons.yaml`, key shortcut in bracket, and label:
     - `[N]` `file_new` New Font from System Font
@@ -39,7 +39,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** All five actions visible, keyboard shortcuts work, icons render.
   - **Difficulty:** Low
 
-- [ ] `5.0.4` Image action panel with NerdFont icons
+- [x] `5.0.4` Image action panel with NerdFont icons
   - **Goal:** Right column bottom box labeled "Image". Four actions:
     - `[C]` `image_import` New Image (blank canvas)
     - `[T]` `nav_forward` New from Template (shows grid of templates; ship with: Terminal Banner 80×24, Wide Banner 120×30, Square 40×40)
@@ -50,7 +50,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** All four actions visible and triggerable.
   - **Difficulty:** Medium
 
-- [ ] `5.0.5` Mouse click support on all welcome items
+- [x] `5.0.5` Mouse click support on all welcome items
   - **Goal:** Clicking on any action row in Font or Image panel, or any item
     in Recent Files list, triggers the corresponding `WelcomeAction`.
     Use `MouseEventKind::Down` hit-testing against rendered row areas.
@@ -58,7 +58,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Mouse clicks on welcome screen items work identically to keyboard.
   - **Difficulty:** Medium
 
-- [ ] `5.0.6` Esc = dismiss only; Q / Ctrl+C = quit
+- [x] `5.0.6` Esc = dismiss only; Q / Ctrl+C = quit
   - **Goal:** `Esc` anywhere in TUI means "back out one level" — dismiss dialog,
     close panel, return to canvas. Never quits. Quit only via `Q` (no modifier,
     not in text input) or `Ctrl+C`. Update welcome, canvas, all dialogs.
@@ -68,7 +68,7 @@ Source: `docs/4.0-manual-testing-notes.md`
     Q from canvas → quit. Ctrl+C anywhere → quit.
   - **Difficulty:** Low
 
-- [ ] `5.0.7` Phase merge: release/5.0 → main
+- [x] `5.0.7` Phase merge: release/5.0 → main
   - **Difficulty:** Low
 
 ---

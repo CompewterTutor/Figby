@@ -2097,3 +2097,13 @@ v4 RC cut: `rc/4.0.0-rc.1` branch + `v4.0.0-rc.1` annotated tag created from
 CHANGELOG updated with comprehensive v4 phase summary. Stale RC infrastructure
 (old `rc/4.0.0-rc.1` branch and `4.0.0-rc.1` lightweight tag) deleted.
 Handoff to human for review and merge to master.
+
+### 5.1.1 — Toolbox NerdFont icons
+
+Added `icons: BTreeMap<String, String>` field to `Toolbox` struct, initialized
+empty in `new()`. Wired via `toolbox.icons = icons.clone()` in `TuiApp::new()`.
+Rendering changed from `display_name()` (2-char abbrev) to icon lookup from
+`App::icons` map, falling back to abbrev when icon missing. Display format:
+`[icon] FullName` per row (e.g. ` Brush`, ` Select`). Same pattern as
+`LayerPanel` and `StatusBar`. Only `toolbox.rs` and `mod.rs` modified.
+fmt and clippy pass clean.

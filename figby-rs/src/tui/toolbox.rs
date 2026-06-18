@@ -112,6 +112,7 @@ impl Tool {
 pub struct Toolbox {
     pub selected: Tool,
     pub theme: Theme,
+    pub icons: std::collections::BTreeMap<String, String>,
 }
 
 impl Toolbox {
@@ -119,6 +120,7 @@ impl Toolbox {
         Self {
             selected: Tool::Brush,
             theme: Theme::default(),
+            icons: std::collections::BTreeMap::new(),
         }
     }
 
@@ -156,7 +158,14 @@ impl Widget for &Toolbox {
         let tools = Tool::all();
         let items: Vec<ListItem<'_>> = tools
             .iter()
-            .map(|t| ListItem::new(format!(" {}", t.display_name())))
+            .map(|t| {
+                let icon = self
+                    .icons
+                    .get(t.icon_key())
+                    .map(|s| s.as_str())
+                    .unwrap_or(t.display_name());
+                ListItem::new(format!(" {} {}", icon, t.full_name()))
+            })
             .collect();
 
         let selected_idx = tools.iter().position(|t| *t == self.selected).unwrap_or(0);

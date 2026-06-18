@@ -443,6 +443,7 @@ impl TuiApp {
         settings.theme = theme.clone();
         let mut toolbox = toolbox::Toolbox::new();
         toolbox.theme = theme.clone();
+        toolbox.icons = icons.clone();
 
         let canvas_w = canvas.buffer.width();
         let canvas_h = canvas.buffer.height();
@@ -1200,10 +1201,8 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::OpenSettings => {
-                self.dialogs.settings.canvas_width =
-                    self.editor.canvas.buffer.width() as u16;
-                self.dialogs.settings.canvas_height =
-                    self.editor.canvas.buffer.height() as u16;
+                self.dialogs.settings.canvas_width = self.editor.canvas.buffer.width() as u16;
+                self.dialogs.settings.canvas_height = self.editor.canvas.buffer.height() as u16;
                 self.dialogs.settings.show_grid = self.editor.canvas.show_grid();
                 self.dialogs.settings.settings_open = true;
                 self.welcome_screen.show = false;
@@ -1219,7 +1218,9 @@ impl TuiApp {
                 self.welcome_screen.scroll_down(count);
                 self.dirty = true;
             }
-            WelcomeAction::FontOpen | WelcomeAction::FontNewFromFile | WelcomeAction::ImageOpenFigmap => {
+            WelcomeAction::FontOpen
+            | WelcomeAction::FontNewFromFile
+            | WelcomeAction::ImageOpenFigmap => {
                 self.start_open();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
@@ -1282,12 +1283,9 @@ impl TuiApp {
         // Welcome screen captures all mouse events while visible
         if self.welcome_screen.show {
             let recent_count = self.dialogs.recent_files.len();
-            let (action, hover_dirty) = self.welcome_screen.handle_mouse(
-                mouse.column,
-                mouse.row,
-                mouse.kind,
-                recent_count,
-            );
+            let (action, hover_dirty) =
+                self.welcome_screen
+                    .handle_mouse(mouse.column, mouse.row, mouse.kind, recent_count);
             if hover_dirty {
                 self.dirty = true;
             }

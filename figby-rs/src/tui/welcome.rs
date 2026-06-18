@@ -14,18 +14,18 @@ const MASCOT_RAW: &str = include_str!("../../../assets/img/figby.block.ascii.ima
 
 /// (icon_key, key_char, label_suffix)  →  displays as `icon [K]label_suffix`
 const FONT_ACTIONS: &[(&str, char, &str)] = &[
-    ("file_new",       'N', "ew Font from System"),
-    ("file_import",    'I', "mport Font from File"),
-    ("font_header",    'B', "lank Font"),
-    ("file_open",      'O', "pen Font"),
+    ("file_new", 'N', "ew Font from System"),
+    ("file_import", 'I', "mport Font from File"),
+    ("font_header", 'B', "lank Font"),
+    ("file_open", 'O', "pen Font"),
     ("edit_duplicate", 'D', "uplicate Font"),
 ];
 
 const IMAGE_ACTIONS: &[(&str, char, &str)] = &[
     ("image_import", 'C', "reate Image"),
-    ("nav_forward",  'T', "emplate"),
+    ("nav_forward", 'T', "emplate"),
     ("image_import", 'V', "iew as ASCII"),
-    ("file_open",    'F', "igmap"),
+    ("file_open", 'F', "igmap"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,13 +71,22 @@ impl WelcomeScreen {
         let mascot_lines = parse_ansi_lines(MASCOT_RAW);
         let mascot_width = mascot_lines
             .iter()
-            .map(|l| l.spans.iter().map(|s| s.content.chars().count()).sum::<usize>())
+            .map(|l| {
+                l.spans
+                    .iter()
+                    .map(|s| s.content.chars().count())
+                    .sum::<usize>()
+            })
             .max()
             .unwrap_or(30) as u16;
         let title_lines_large = render_title_with_font("Computerist-20");
         let title_lines_small = {
             let s = render_title_with_font("Computerist-12");
-            if s.is_empty() { ascii_fallback_title() } else { s }
+            if s.is_empty() {
+                ascii_fallback_title()
+            } else {
+                s
+            }
         };
         Self {
             show: true,
@@ -124,8 +133,7 @@ impl WelcomeScreen {
                 self.hovered_recent = hit(&self.recent_rects);
                 self.hovered_font = hit(&self.font_rects);
                 self.hovered_image = hit(&self.image_rects);
-                let dirty =
-                    (self.hovered_recent, self.hovered_font, self.hovered_image) != prev;
+                let dirty = (self.hovered_recent, self.hovered_font, self.hovered_image) != prev;
                 (None, dirty)
             }
             MouseEventKind::Down(MouseButton::Left) => {
@@ -173,7 +181,8 @@ impl WelcomeScreen {
         // --- Banner row ---
         let title_area_width = inner.width.saturating_sub(self.mascot_width + 1);
         let title_lines: &[String] = {
-            let large_w = self.title_lines_large
+            let large_w = self
+                .title_lines_large
                 .iter()
                 .map(|l| l.chars().count())
                 .max()
@@ -200,13 +209,15 @@ impl WelcomeScreen {
 
         let horiz = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(self.mascot_width + 1), Constraint::Min(0)])
+            .constraints([
+                Constraint::Length(self.mascot_width + 1),
+                Constraint::Min(0),
+            ])
             .split(vert[0]);
 
         // Mascot — vertically centered
         let mascot_top = (banner_height.saturating_sub(mascot_h)) / 2;
-        let mut mascot_para_lines: Vec<Line> =
-            (0..mascot_top).map(|_| Line::from("")).collect();
+        let mut mascot_para_lines: Vec<Line> = (0..mascot_top).map(|_| Line::from("")).collect();
         mascot_para_lines.extend(self.mascot_lines.clone());
         frame.render_widget(Paragraph::new(mascot_para_lines), horiz[0]);
 
@@ -215,13 +226,12 @@ impl WelcomeScreen {
             let title_color = theme.general.primary;
             let title_top = (banner_height.saturating_sub(title_h)) / 2;
             let mut lines: Vec<Line> = (0..title_top).map(|_| Line::from("")).collect();
-            lines.extend(title_lines.iter().map(|l| {
-                Line::from(Span::styled(l.clone(), Style::default().fg(title_color)))
-            }));
-            frame.render_widget(
-                Paragraph::new(lines).alignment(Alignment::Center),
-                horiz[1],
+            lines.extend(
+                title_lines
+                    .iter()
+                    .map(|l| Line::from(Span::styled(l.clone(), Style::default().fg(title_color)))),
             );
+            frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), horiz[1]);
         }
 
         // --- Two-column content area ---
@@ -237,13 +247,16 @@ impl WelcomeScreen {
             .split(cols[1]);
 
         // Compute and store hit-test rects before rendering
-        self.recent_rects = panel_row_rects(cols[0], recent_files.len().saturating_sub(self.scroll_offset));
-        self.font_rects   = panel_row_rects(right_rows[0], FONT_ACTIONS.len());
-        self.image_rects  = panel_row_rects(right_rows[1], IMAGE_ACTIONS.len());
+        self.recent_rects = panel_row_rects(
+            cols[0],
+            recent_files.len().saturating_sub(self.scroll_offset),
+        );
+        self.font_rects = panel_row_rects(right_rows[0], FONT_ACTIONS.len());
+        self.image_rects = panel_row_rects(right_rows[1], IMAGE_ACTIONS.len());
 
         let hovered_recent = self.hovered_recent;
-        let hovered_font   = self.hovered_font;
-        let hovered_image  = self.hovered_image;
+        let hovered_font = self.hovered_font;
+        let hovered_image = self.hovered_image;
 
         self.render_recent_files(frame, cols[0], recent_files, theme, hovered_recent);
         self.render_font_panel(frame, right_rows[0], theme, icons, hovered_font);
@@ -399,9 +412,7 @@ impl WelcomeScreen {
             KeyCode::Char('B') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::FontNewBlank)
             }
-            KeyCode::Char('O') if modifiers == KeyModifiers::NONE => {
-                Some(WelcomeAction::FontOpen)
-            }
+            KeyCode::Char('O') if modifiers == KeyModifiers::NONE => Some(WelcomeAction::FontOpen),
             KeyCode::Char('D') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::FontDuplicate)
             }
@@ -470,11 +481,20 @@ impl Default for WelcomeScreen {
 }
 
 pub fn centered_welcome(area: Rect) -> Rect {
-    let w = (area.width / 5 * 3).max(70).min(area.width.saturating_sub(2));
-    let h = (area.height / 5 * 3).max(35).min(area.height.saturating_sub(2));
+    let w = (area.width / 5 * 3)
+        .max(70)
+        .min(area.width.saturating_sub(2));
+    let h = (area.height / 5 * 3)
+        .max(35)
+        .min(area.height.saturating_sub(2));
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
-    Rect { x, y, width: w, height: h }
+    Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    }
 }
 
 /// Compute row rects inside a panel area (borders ALL = 1px each side).
@@ -486,7 +506,12 @@ fn panel_row_rects(panel_area: Rect, count: usize) -> Vec<Rect> {
     let inner_h = panel_area.height.saturating_sub(2);
     (0..count as u16)
         .filter(|&i| i < inner_h)
-        .map(|i| Rect { x: inner_x, y: inner_y + i, width: inner_w, height: 1 })
+        .map(|i| Rect {
+            x: inner_x,
+            y: inner_y + i,
+            width: inner_w,
+            height: 1,
+        })
         .collect()
 }
 
@@ -555,7 +580,7 @@ fn render_title_with_font(name: &str) -> Vec<String> {
             .collect();
         let last_content = trimmed
             .iter()
-            .rposition(|l| l.trim_end().len() > 0)
+            .rposition(|l| !l.trim_end().is_empty())
             .unwrap_or(0);
         return trimmed[..=last_content].to_vec();
     }
@@ -584,8 +609,8 @@ fn parse_ansi_lines(text: &str) -> Vec<Line<'static>> {
             while i < bytes.len() {
                 if bytes[i] == 0x1b && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
                     if !current_text.is_empty() {
-                        let style = current_color
-                            .map_or(Style::default(), |c| Style::default().fg(c));
+                        let style =
+                            current_color.map_or(Style::default(), |c| Style::default().fg(c));
                         spans.push(Span::styled(current_text.clone(), style));
                         current_text.clear();
                     }
@@ -603,8 +628,7 @@ fn parse_ansi_lines(text: &str) -> Vec<Line<'static>> {
                         let parts: Vec<u8> =
                             seq.split(';').filter_map(|s| s.parse().ok()).collect();
                         if parts.len() == 5 && parts[0] == 38 && parts[1] == 2 {
-                            current_color =
-                                Some(Color::Rgb(parts[2], parts[3], parts[4]));
+                            current_color = Some(Color::Rgb(parts[2], parts[3], parts[4]));
                         }
                     }
                 } else {
@@ -620,8 +644,7 @@ fn parse_ansi_lines(text: &str) -> Vec<Line<'static>> {
             }
 
             if !current_text.is_empty() {
-                let style =
-                    current_color.map_or(Style::default(), |c| Style::default().fg(c));
+                let style = current_color.map_or(Style::default(), |c| Style::default().fg(c));
                 spans.push(Span::styled(current_text, style));
             }
 

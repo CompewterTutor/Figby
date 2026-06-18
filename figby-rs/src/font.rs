@@ -1408,8 +1408,7 @@ mod tests {
         write_standard_font(&tmpdir);
 
         let dirs = [tmpdir.to_str().unwrap()];
-        let font = load_font("standard", &dirs)
-            .expect("should load standard font from plain file");
+        let font = load_font("standard", &dirs).expect("should load standard font from plain file");
         assert_eq!(font.charheight, 6);
         assert_eq!(font.chars.len(), 325);
         assert_eq!(font.hardblank, '$');
@@ -1435,8 +1434,8 @@ mod tests {
         zip.finish().unwrap();
 
         let dirs = [tmpdir.to_str().unwrap()];
-        let font = load_font("standard", &dirs)
-            .expect("should load standard font from ZIP archive");
+        let font =
+            load_font("standard", &dirs).expect("should load standard font from ZIP archive");
         assert_eq!(font.charheight, 6);
         assert_eq!(font.chars.len(), 325);
         assert_eq!(font.hardblank, '$');
@@ -1476,8 +1475,7 @@ mod tests {
 
         // Load with fontdir pointing to tmpdir/fontdir
         let dirs = [fontdir.to_str().unwrap()];
-        let font = load_font("standard", &dirs)
-            .expect("should load font from fontdir");
+        let font = load_font("standard", &dirs).expect("should load font from fontdir");
         // Height=1 confirms fontdir version was picked
         assert_eq!(font.charheight, 1);
         assert_eq!(font.chars.len(), 102);

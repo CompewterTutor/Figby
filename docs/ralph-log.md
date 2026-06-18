@@ -6104,3 +6104,11 @@ DONE: 5.4.3 merged into release/5.4.
 ## 2026-06-18 17:00
 
 DONE: 5.4.4 merged into master.
+
+## 2026-06-18 17:02
+
+DONE: 5.4.4 merged into release/5.4.
+
+## 2026-06-18 17:02
+
+All 5.4 tasks complete. Starting phase review.

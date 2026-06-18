@@ -2270,7 +2270,7 @@ Image Editor mode. No `.unwrap()` in production. 15 unit tests.
 
 ### 5.4.4 — Phase merge: release/5.4 → master
 
-Merged release/5.4 into master. Phase 5.4 (Image Editor Fix) complete:
-mode switching fix (5.4.1), mouse event routing fix (5.4.2), rascii import
-dialog with charset/width/color options (5.4.3). All 3 subtasks implemented,
-tested, merged. Next phase: 5.5 (Animation Audit & Surface).
+Merged release/5.4 branch into master at `92b53d1` (merge commit created on master via `--no-ff`).
+Brings 5.4.1 (image editor mode switching fix), 5.4.2 (mouse events in image editor fix),
+and 5.4.3 (rascii import dialog) into the mainline. Phase 5.4 complete.
+Next phase: 5.5 (Animation Audit & Surface).

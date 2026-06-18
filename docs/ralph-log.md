@@ -6056,3 +6056,7 @@ BLOCKED on task 5.2.1: branch task-5.2.1 already exists. Resolve it manually bef
 ## 2026-06-18 15:10
 
 DONE: 5.2.1 merged into release/5.2.
+
+## 2026-06-18 15:19
+
+DONE: 5.2.2 merged into release/5.2.

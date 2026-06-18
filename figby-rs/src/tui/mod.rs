@@ -35,6 +35,7 @@ pub mod layers;
 pub mod layout;
 pub mod menu;
 pub mod palette;
+pub mod palette_editor;
 pub mod particles;
 pub mod player;
 pub mod render_mode;
@@ -377,6 +378,7 @@ pub struct TuiApp {
     pub particle_system: particles::ParticleSystem,
     pub emitter_active: bool,
     pub emitter_panel: particles::EmitterConfigPanel,
+    pub palette_editor: palette_editor::PaletteEditor,
     pub show_live_particles: bool,
     pub baked_layer_indices: Vec<usize>,
     pub timeline_visible: bool,
@@ -529,6 +531,7 @@ impl TuiApp {
             particle_system: particles::ParticleSystem::new(particles::ParticleConfig::default()),
             emitter_active: false,
             emitter_panel: particles::EmitterConfigPanel::new(),
+            palette_editor: palette_editor::PaletteEditor::new(),
             show_live_particles: true,
             baked_layer_indices: Vec::new(),
             timeline_visible: false,
@@ -1171,6 +1174,11 @@ impl TuiApp {
             frame.render_widget(Clear, panel_rect);
             self.emitter_panel
                 .render_config_panel(frame, panel_rect, &self.particle_system.config);
+        }
+
+        // Palette editor overlay
+        if self.palette_editor.open {
+            self.palette_editor.render(frame, frame.area(), &self.theme);
         }
     }
 
@@ -2044,6 +2052,19 @@ impl TuiApp {
             return None;
         }
 
+        // Palette editor: dispatch all keys when open
+        if self.palette_editor.open {
+            if self.palette_editor.handle_key(code) {
+                if self.palette_editor.modified {
+                    self.palette_editor
+                        .apply_to_palette(&mut self.editor.palette);
+                    self.palette_editor.modified = false;
+                }
+                self.dirty = true;
+            }
+            return None;
+        }
+
         // Menu bar active: dispatch all keys to it
         if self.menu_bar_state.is_active() {
             self.menu_bar
@@ -2554,6 +2575,18 @@ impl TuiApp {
         // Toggle keyframe editor (uppercase only to avoid conflict)
         if code == KeyCode::Char('K') {
             self.timeline_state.keyframe_editor.open = !self.timeline_state.keyframe_editor.open;
+            self.dirty = true;
+            return None;
+        }
+
+        // Ctrl+Shift+P: toggle palette editor
+        if code == KeyCode::Char('P') && modifiers == KeyModifiers::CONTROL | KeyModifiers::SHIFT {
+            self.palette_editor.open = !self.palette_editor.open;
+            if self.palette_editor.open {
+                self.palette_editor
+                    .load_current_from_palette(&self.editor.palette);
+                self.palette_editor.available_palettes();
+            }
             self.dirty = true;
             return None;
         }

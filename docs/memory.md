@@ -2367,3 +2367,36 @@ Files touched: `figby-rs/src/tui/palette.rs` (production + tests),
 `tests/tui.rs`, `tests/regression_tui.rs` (integration test updates).
 16 new unit tests: hue group mapping, flat palette completeness and ordering,
 navigation offset 5.
+
+### 5.6.3 — Palette editor panel (save / load / duplicate)
+
+Created `figby-rs/src/tui/palette_editor.rs` with palette save/load/duplicate
+overlay panel, accessible via `Ctrl+Shift+P` keybind:
+
+- `PaletteEditor` struct: `open`, `name_buffer`, `swatches`, `selected`,
+  `mode` (Idle/Naming/Loading), `file_list`, `file_scroll`, `message`, `modified`
+- `PaletteFile` / `Swatch` — JSON-serializable types for disk persistence
+- `save()` — writes `~/.config/figby/palettes/<name>.json` (path traversal
+  protection via `/`, `..`, `\\` rejection; validates non-empty name)
+- `load_file()` — reads and parses `.json` palette files
+- `duplicate()` — saves palette under a new name
+- `available_palettes()` — scans palettes dir for `.json` files, sorted
+- `load_current_from_palette()` — populates swatches from active palette state
+- `apply_to_palette()` — writes swatch colors back to palette's recent list
+- `render()` — centered overlay via `palette_editor_overlay()` helper in
+  `layout.rs` (42 cols wide, ~half height, centered). Shows swatches with
+  hex values, color preview blocks, selection indicator, mode-specific UI
+  (file list when Loading, message feed)
+- `handle_key()` — dispatches by `PanelMode`: Idle (Esc close, arrows select,
+  S save, L load, D duplicate), Naming (char input, Enter confirm,
+  Esc cancel), Loading (arrows pick file, Enter load, Esc cancel)
+- `color_to_hex()` / `hex_to_color()` — bidirectional Color↔`#RRGGBB` conversion
+- `ansi_to_rgb()` — maps indexed color 0..255 to (r,g,b) via 16-color table +
+  6x6x6 cube + grayscale ramp
+- `luminance()` — computes average RGB for readable foreground text on swatch
+- `serde_json = "1"` added to Cargo.toml
+
+Files touched: `palette_editor.rs` (new), `mod.rs`, `layout.rs`, `Cargo.toml`.
+8 unit tests: JSON roundtrip, duplicate independence, disk save/load,
+load from palette, palettes dir creation, hex conversion, apply to palette,
+path traversal rejection. No `.unwrap()` in production. fmt and clippy pass clean.

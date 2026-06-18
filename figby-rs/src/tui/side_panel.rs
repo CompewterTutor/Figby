@@ -6,8 +6,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use super::brush::BrushState;
+use super::canvas::CanvasCell;
 use super::layers::{LayerPanel, LayerStack};
+use super::particles::ParticleConfig;
 use super::theme::Theme;
+use super::toolbox::Tool;
 use super::tools::text::TextToolState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,13 +134,23 @@ impl SidePanel {
         None
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &self,
         frame: &mut Frame<'_>,
         area: Rect,
         layer_panel: Option<&LayerPanel>,
         layer_stack: Option<&LayerStack>,
+        active_tool: Tool,
+        brush: &BrushState,
         text_tool: Option<&TextToolState>,
+        eyedropper_sample: Option<CanvasCell>,
+        fill_threshold: u8,
+        emitter_config: Option<&ParticleConfig>,
+        canvas_width: u16,
+        canvas_height: u16,
+        font_name: Option<&str>,
+        zoom: u8,
     ) {
         let block = Block::default().borders(Borders::ALL).style(
             Style::default()
@@ -226,7 +240,21 @@ impl SidePanel {
                 }
             }
             TabId::Props => {
-                Self::render_props_content(frame, content_area, &self.theme);
+                Self::render_tool_props(
+                    frame,
+                    content_area,
+                    &self.theme,
+                    active_tool,
+                    brush,
+                    text_tool,
+                    eyedropper_sample,
+                    fill_threshold,
+                    emitter_config,
+                    canvas_width,
+                    canvas_height,
+                    font_name,
+                    zoom,
+                );
             }
             TabId::Text => {
                 if let Some(tt) = text_tool {
@@ -242,47 +270,242 @@ impl SidePanel {
         }
     }
 
-    fn render_props_content(frame: &mut Frame<'_>, area: Rect, theme: &Theme) {
-        let lines: Vec<Line> = vec![
-            Line::from(Span::styled(
-                " Tools ",
-                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            )),
-            Line::from("  b  Brush"),
-            Line::from("  e  Eraser"),
-            Line::from("  l  Lasso"),
-            Line::from("  v  Select"),
-            Line::from("  c  Circle sel."),
-            Line::from("  p  Polygon sel."),
-            Line::from("  g  Fill"),
-            Line::from("  i  Line"),
-            Line::from("  d  Eyedropper"),
-            Line::from("  a  Spray"),
-            Line::from("  t  Text"),
-            Line::from("  m  Emitter"),
-            Line::from(""),
-            Line::from(Span::styled(
-                " Brush ",
-                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            )),
-            Line::from("  [  Size down"),
-            Line::from("  ]  Size up"),
-            Line::from("  ;  Density down"),
-            Line::from("  '  Density up"),
-            Line::from(r"  \  Cycle shape"),
-            Line::from(""),
-            Line::from(Span::styled(
-                " View ",
-                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            )),
-            Line::from("  F11  Zen mode"),
-            Line::from("  ?    Toggle panel"),
-            Line::from("  ^K   All keybinds"),
-        ];
-        frame.render_widget(
-            Paragraph::new(lines).style(Style::default().fg(theme.menu.fg)),
-            area,
-        );
+    /// Dispatch tool property content based on active tool.
+    /// Image/font info always rendered at bottom.
+    #[allow(clippy::too_many_arguments)]
+    fn render_tool_props(
+        frame: &mut Frame<'_>,
+        area: Rect,
+        theme: &Theme,
+        active_tool: Tool,
+        brush: &BrushState,
+        text_tool: Option<&TextToolState>,
+        eyedropper_sample: Option<CanvasCell>,
+        fill_threshold: u8,
+        emitter_config: Option<&ParticleConfig>,
+        canvas_width: u16,
+        canvas_height: u16,
+        font_name: Option<&str>,
+        zoom: u8,
+    ) {
+        let mut lines: Vec<Line> = Vec::new();
+
+        match active_tool {
+            Tool::Brush | Tool::Spray | Tool::Eraser => {
+                Self::add_brush_props(&mut lines, brush);
+            }
+            Tool::Text => {
+                if let Some(tt) = text_tool {
+                    Self::add_text_props(&mut lines, tt);
+                }
+            }
+            Tool::Eyedropper => {
+                Self::add_eyedropper_props(&mut lines, eyedropper_sample);
+            }
+            Tool::Fill => {
+                Self::add_fill_props(&mut lines, fill_threshold);
+            }
+            Tool::Emitter => {
+                Self::add_emitter_props(&mut lines, emitter_config);
+            }
+            _ => {
+                Self::add_tool_keybinds(&mut lines);
+            }
+        }
+
+        // Separator + image/font info at bottom
+        lines.push(Line::from(""));
+        Self::add_image_font_info(&mut lines, canvas_width, canvas_height, font_name, zoom);
+
+        let para = Paragraph::new(lines).style(Style::default().fg(theme.menu.fg));
+        frame.render_widget(para, area);
+    }
+
+    fn add_brush_props(lines: &mut Vec<Line>, brush: &BrushState) {
+        lines.push(Line::from(Span::styled(
+            " Brush ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        lines.push(Line::from(vec![
+            Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", brush.size)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", brush.shape.name())),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Density:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}%", brush.density)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" '{}'", brush.ch)),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::raw(" [  Size down")));
+        lines.push(Line::from(Span::raw(" ]  Size up")));
+        lines.push(Line::from(Span::raw(r" \  Cycle shape")));
+        if matches!(brush.shape, crate::tui::brush::BrushShape::SprayPaint) {
+            lines.push(Line::from(Span::raw(" ;  Density down")));
+            lines.push(Line::from(Span::raw(" '  Density up")));
+        }
+    }
+
+    fn add_text_props(lines: &mut Vec<Line>, tt: &TextToolState) {
+        lines.push(Line::from(Span::styled(
+            " Text Tool ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        let font_name = if tt.font_index < tt.available_fonts.len() {
+            &tt.available_fonts[tt.font_index]
+        } else {
+            "?"
+        };
+        lines.push(Line::from(vec![
+            Span::styled("Font:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", font_name)),
+        ]));
+        let just_str = match tt.justification {
+            crate::render::Justification::Left => "Left",
+            crate::render::Justification::Center => "Center",
+            crate::render::Justification::Right => "Right",
+        };
+        lines.push(Line::from(vec![
+            Span::styled("Just:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", just_str)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Scale:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", tt.scale)),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::raw(" Click canvas to type")));
+    }
+
+    fn add_eyedropper_props(lines: &mut Vec<Line>, sample: Option<CanvasCell>) {
+        lines.push(Line::from(Span::styled(
+            " Eyedropper ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        match sample {
+            Some(cell) => {
+                lines.push(Line::from(vec![
+                    Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::raw(format!(" '{}'", cell.ch)),
+                ]));
+                lines.push(Line::from(vec![
+                    Span::styled("FG:", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::raw(format!(" {:?}", cell.fg)),
+                ]));
+                lines.push(Line::from(vec![
+                    Span::styled("BG:", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::raw(format!(" {:?}", cell.bg)),
+                ]));
+            }
+            None => {
+                lines.push(Line::from(Span::raw(" No sample yet")));
+                lines.push(Line::from(Span::raw(" Click canvas to sample")));
+            }
+        }
+    }
+
+    fn add_fill_props(lines: &mut Vec<Line>, threshold: u8) {
+        lines.push(Line::from(Span::styled(
+            " Fill ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        lines.push(Line::from(vec![
+            Span::styled("Threshold:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", threshold)),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::raw(" Click canvas to flood fill")));
+    }
+
+    fn add_emitter_props(lines: &mut Vec<Line>, config: Option<&ParticleConfig>) {
+        lines.push(Line::from(Span::styled(
+            " Emitter ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        if let Some(cfg) = config {
+            lines.push(Line::from(vec![
+                Span::styled("Rate:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {:.1}/s", cfg.spawn_rate)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("Lifetime:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {:.1}–{:.1}s", cfg.lifetime_min, cfg.lifetime_max)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", cfg.emission_shape.display_name())),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" '{}'", cfg.character)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", cfg.size)),
+            ]));
+        } else {
+            lines.push(Line::from(Span::raw(" No config")));
+        }
+    }
+
+    fn add_tool_keybinds(lines: &mut Vec<Line>) {
+        lines.push(Line::from(Span::styled(
+            " Tools ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        lines.push(Line::from("  b  Brush"));
+        lines.push(Line::from("  e  Eraser"));
+        lines.push(Line::from("  l  Lasso"));
+        lines.push(Line::from("  v  Select"));
+        lines.push(Line::from("  c  Circle sel."));
+        lines.push(Line::from("  p  Polygon sel."));
+        lines.push(Line::from("  g  Fill"));
+        lines.push(Line::from("  i  Line"));
+        lines.push(Line::from("  d  Eyedropper"));
+        lines.push(Line::from("  a  Spray"));
+        lines.push(Line::from("  t  Text"));
+        lines.push(Line::from("  m  Emitter"));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " View ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        lines.push(Line::from("  F11  Zen mode"));
+        lines.push(Line::from("  ?    Toggle panel"));
+        lines.push(Line::from("  ^K   All keybinds"));
+    }
+
+    fn add_image_font_info(
+        lines: &mut Vec<Line>,
+        canvas_width: u16,
+        canvas_height: u16,
+        font_name: Option<&str>,
+        zoom: u8,
+    ) {
+        lines.push(Line::from(Span::styled(
+            " Image / Font Info ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        lines.push(Line::from(vec![
+            Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}×{}", canvas_width, canvas_height)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Zoom:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}×", zoom)),
+        ]));
+        if let Some(name) = font_name {
+            lines.push(Line::from(vec![
+                Span::styled("Font:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", name)),
+            ]));
+        }
     }
 
     fn render_text_content(frame: &mut Frame<'_>, area: Rect, tt: &TextToolState, _theme: &Theme) {

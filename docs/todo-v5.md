@@ -140,7 +140,7 @@ Source: `docs/4.0-manual-testing-notes.md`
     Tab switching via keyboard and mouse click.
   - **Difficulty:** High
 
-- [ ] `5.2.3` Props tab: context-sensitive tool properties
+- [x] `5.2.3` Props tab: context-sensitive tool properties
   - **Goal:** Props tab content changes based on active tool:
     - Brush/Spray/Eraser: size, shape, density sliders
     - Text: font name, size, justify

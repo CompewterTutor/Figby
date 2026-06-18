@@ -508,6 +508,27 @@ Added auto-tween system to animation timeline:
 - 23 unit tests covering easing, tween generation, commit, discard, edge cases
 - No `.unwrap()` in production paths
 
+### 5.2.3 — Props tab: context-sensitive tool properties
+
+Replaced static keybinds cheat sheet in Props tab with context-sensitive dispatcher
+based on active `Tool`. Each tool group renders its own property panel:
+- Brush/Spray/Eraser: size, shape, density, char with keybind hints
+- Text: font name, justification, scale
+- Eyedropper: sample cell info (char, fg, bg) or "no sample yet"
+- Fill: threshold value
+- Emitter: rate, lifetime, shape, char, size (compact inline summary)
+- All other tools (Marquee, Lasso, etc.): fallback keybinds cheat sheet
+
+Image/font info (canvas dimensions, zoom, font name) always rendered at bottom
+of Props tab content, separated by blank line.
+
+`SidePanel::render()` signature expanded to accept `Tool`, `&BrushState`,
+`Option<CanvasCell>` (eyedropper sample), `u8` (fill threshold),
+`Option<&ParticleConfig>` (emitter config), canvas dimensions, font name, zoom.
+
+`EditorState` gained `fill_threshold: u8` (default 0) and
+`eyedropper_sample: Option<CanvasCell>` (default None) fields.
+
 ### 4.5.4 — GIF export from timeline
 
 Added GIF timeline export support to the TUI editor:

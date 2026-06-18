@@ -110,6 +110,8 @@ pub struct EditorState {
     pub clipboard: Option<tools::selection::Clipboard>,
     pub layer_stack: layers::LayerStack,
     pub layer_panel: layers::LayerPanel,
+    pub fill_threshold: u8,
+    pub eyedropper_sample: Option<canvas::CanvasCell>,
 }
 
 impl EditorState {
@@ -502,6 +504,8 @@ impl TuiApp {
                     clipboard: None,
                     layer_stack,
                     layer_panel,
+                    fill_threshold: 0,
+                    eyedropper_sample: None,
                 };
                 editor.recomposite_canvas();
                 editor
@@ -742,12 +746,36 @@ impl TuiApp {
 
         // Right drawer: side panel
         if let Some(rp) = fl.right_panel {
+            let font_name = self.editor.font_editor.font.as_ref().and_then(|_f| {
+                let name = if self.editor.font_editor.font_storage_name.is_empty() {
+                    self.editor
+                        .font_editor
+                        .current_path
+                        .as_ref()
+                        .and_then(|p| p.file_stem())
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Untitled")
+                        .to_string()
+                } else {
+                    self.editor.font_editor.font_storage_name.clone()
+                };
+                (!name.is_empty()).then_some(name)
+            });
             self.side_panel.render(
                 frame,
                 rp,
                 Some(&self.editor.layer_panel),
                 Some(&self.editor.layer_stack),
+                self.editor.toolbox.selected,
+                &self.editor.brush,
                 Some(&self.editor.text_tool),
+                self.editor.eyedropper_sample,
+                self.editor.fill_threshold,
+                Some(&self.particle_system.config),
+                self.editor.canvas.buffer.width() as u16,
+                self.editor.canvas.buffer.height() as u16,
+                font_name.as_deref(),
+                self.editor.canvas.zoom_level(),
             );
         }
 

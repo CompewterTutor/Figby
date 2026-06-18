@@ -2189,3 +2189,10 @@ gains `palette: Option<Rect>` field. `FrameLayout::compute()` takes
 since palette no longer lives in right panel. Click handler updated to
 target `fl.palette` rect instead of right panel + drawer mode check.
 fmt and clippy pass clean.
+
+### 5.2.4 — Phase merge: release/5.2 → main
+
+Fast-forward merge of release/5.2 into master — brings phase 5.2 features
+(palette under tools, tabbed right panel, context-sensitive props) into
+mainline. Task checked off in todo-v5.md. Next phase: 5.3 (Status Bar
+Redesign).

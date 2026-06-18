@@ -153,7 +153,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Switching tools updates Props tab content immediately.
   - **Difficulty:** Medium
 
-- [ ] `5.2.4` Phase merge: release/5.2 → main
+- [x] `5.2.4` Phase merge: release/5.2 → main
   - **Difficulty:** Low
 
 ---

@@ -2308,3 +2308,20 @@ Added timeline panel to main editor layout:
 - Keybindings: `←/→` switch frame, `A` add frame, `Delete` delete frame, `Enter` play
 - `Shift+T` opens tween panel (was `T` — moved to `Shift+T` to free bare `T` for toggle)
 - `ToggleTimeline` global action added to keymap dispatch
+
+### 5.5.3 — Verify animation export end-to-end
+
+Added 5-frame animation export tests for GIF, APNG, and ANSI formats in both
+`output.rs` (raw export functions) and `tui/export.rs` (ExportDialog integration):
+- `test_output_gif_5_frames` / `test_output_apng_5_frames` / `test_output_ansi_5_frames`
+  verify per-frame delay correctness for each export function directly.
+- `test_perform_export_gif_5_frames` / `test_perform_export_apng_5_frames` /
+  `test_perform_export_ansi_5_frames` verify end-to-end export via the dialog,
+  including filesystem write and decode round-trip.
+- `test_export_cycle_reaches_animation_formats` verifies `T` key cycles through PNG →
+  APNG → GIF → TXT → ANSI → PNG (all three animation-adjacent modes reachable).
+- Removed the dead `Widget for &ExportDialog` impl (identified as gap P2 in 5.5.1
+  audit). The `render(&self, frame, area)` method was already the active rendering
+  path — the Widget impl was never registered in mod.rs.
+- Added `set_per_frame_delays()` public method on `ExportDialog` for tests to inject
+  custom per-frame delay values.

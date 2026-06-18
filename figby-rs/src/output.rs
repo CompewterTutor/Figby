@@ -927,4 +927,82 @@ mod tests {
         let result = export_cells_to_ansi_multi(&[], &[]);
         assert!(result.is_empty());
     }
+
+    #[test]
+    fn test_output_gif_5_frames() {
+        let chars = ['A', 'B', 'C', 'D', 'E'];
+        let frames: Vec<Vec<Vec<CanvasCell>>> = chars
+            .iter()
+            .map(|&ch| make_buffer(1, 1, ch, Some(Color::Red), None))
+            .collect();
+        let delays = vec![10, 20, 30, 40, 50];
+        let gif_bytes =
+            export_cells_to_gif(&frames, &delays, 1, 0).expect("GIF export should succeed");
+        let mut decoder = gif::DecodeOptions::new();
+        decoder.set_color_output(gif::ColorOutput::RGBA);
+        let mut reader = decoder
+            .read_info(&gif_bytes[..])
+            .expect("should decode GIF");
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 10);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 20);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 30);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 40);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 50);
+        assert!(reader.next_frame_info().is_err() || reader.next_frame_info().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_output_apng_5_frames() {
+        use std::io::{BufReader, Cursor};
+        let chars = ['A', 'B', 'C', 'D', 'E'];
+        let frames: Vec<Vec<Vec<CanvasCell>>> = chars
+            .iter()
+            .map(|&ch| make_buffer(1, 1, ch, Some(Color::Red), None))
+            .collect();
+        let delays = vec![10, 20, 30, 40, 50];
+        let apng_bytes =
+            export_cells_to_apng(&frames, &delays, 1, 0).expect("APNG export should succeed");
+        let cursor = Cursor::new(&apng_bytes[..]);
+        let decoder = png::Decoder::new(BufReader::new(cursor));
+        let mut reader = decoder.read_info().expect("should decode APNG header");
+        let buf_size = reader.output_buffer_size().unwrap_or(1024);
+        let mut buf = vec![0u8; buf_size];
+        reader.next_frame(&mut buf).expect("should read frame 1");
+        let fc2 = reader
+            .next_frame_info()
+            .expect("should have frame 2 control");
+        assert_eq!(fc2.delay_num, 20);
+        reader.next_frame(&mut buf).expect("should read frame 2");
+        let fc3 = reader
+            .next_frame_info()
+            .expect("should have frame 3 control");
+        assert_eq!(fc3.delay_num, 30);
+        reader.next_frame(&mut buf).expect("should read frame 3");
+        let fc4 = reader
+            .next_frame_info()
+            .expect("should have frame 4 control");
+        assert_eq!(fc4.delay_num, 40);
+        reader.next_frame(&mut buf).expect("should read frame 4");
+        let fc5 = reader
+            .next_frame_info()
+            .expect("should have frame 5 control");
+        assert_eq!(fc5.delay_num, 50);
+        reader.next_frame(&mut buf).expect("should read frame 5");
+    }
+
+    #[test]
+    fn test_output_ansi_5_frames() {
+        let chars = ['A', 'B', 'C', 'D', 'E'];
+        let frames: Vec<Vec<Vec<CanvasCell>>> = chars
+            .iter()
+            .map(|&ch| make_buffer(1, 1, ch, Some(Color::Red), None))
+            .collect();
+        let result = export_cells_to_ansi_multi(&frames, &[10, 20, 30, 40, 50]);
+        assert_eq!(result.matches("\x1b[2J").count(), 5);
+        assert!(result.contains('A'));
+        assert!(result.contains('B'));
+        assert!(result.contains('C'));
+        assert!(result.contains('D'));
+        assert!(result.contains('E'));
+    }
 }

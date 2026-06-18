@@ -150,6 +150,10 @@ impl ExportDialog {
         self.play_requested = false;
     }
 
+    pub fn set_per_frame_delays(&mut self, delays: Vec<u16>) {
+        self.frame_delays = delays;
+    }
+
     pub fn populate_from_timeline(
         &mut self,
         timeline: &TimelineState,
@@ -711,200 +715,6 @@ pub fn capture_timeline_frames(
                 .collect()
         })
         .collect()
-}
-
-use ratatui::buffer::Buffer;
-use ratatui::widgets::Widget;
-
-impl Widget for &ExportDialog {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if !self.active {
-            return;
-        }
-
-        Widget::render(Clear, area, buf);
-        let block = Block::default()
-            .title(" Export ")
-            .borders(Borders::ALL)
-            .style(Style::default().fg(self.theme.dialog.border_success));
-        let inner = block.inner(area);
-        Widget::render(block, area, buf);
-
-        if inner.width < 24 || inner.height < 8 {
-            return;
-        }
-
-        let mut lines: Vec<Line> = Vec::new();
-
-        lines.push(Line::from(Span::styled(
-            format!(" Format: [{}]  (T to cycle)", self.format.label()),
-            Style::default().add_modifier(Modifier::BOLD),
-        )));
-
-        let is_animation = self.format == ExportMode::Gif || self.format == ExportMode::Apng;
-        let is_ansi = self.format == ExportMode::Ansi;
-
-        if is_animation && self.timeline_available {
-            lines.push(Line::from(Span::styled(
-                format!(" FPS: [{}]  (F to cycle preset)", self.fps),
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-            let loop_label = if self.loop_count == 0 {
-                "Infinite".to_string()
-            } else {
-                format!("{}x", self.loop_count)
-            };
-            lines.push(Line::from(Span::styled(
-                format!(" Loop: [{}]  (L to cycle)", loop_label),
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-            lines.push(Line::from(Span::styled(
-                format!(" Frames: [{}]", self.frame_delays.len()),
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-            let play_ch = if self.preview_playing {
-                "\u{23F8}"
-            } else {
-                "\u{25B6}"
-            };
-            lines.push(Line::from(Span::styled(
-                format!(
-                    " Preview: {} (frame {}/{})  (V to toggle, Space to step)",
-                    play_ch,
-                    self.preview_frame + 1,
-                    self.frame_delays.len().max(1)
-                ),
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-            lines.push(Line::from(Span::styled(
-                " P: Play Animation",
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-        } else if is_animation {
-            lines.push(Line::from(Span::styled(
-                " Timeline: No frames available",
-                Style::default().fg(self.theme.dialog.error),
-            )));
-        }
-
-        lines.push(Line::from(Span::styled(
-            format!(
-                " Size: {}x (z = char at {})",
-                self.font_size,
-                8 * self.font_size as u16 * 16 * self.font_size as u16
-            ),
-            Style::default().fg(self.theme.dialog.meta),
-        )));
-
-        if (!is_animation || !self.timeline_available) && !is_ansi {
-            lines.push(Line::from(Span::styled(
-                format!(
-                    " Layers: [{}]  (L to toggle)",
-                    if self.export_layers {
-                        "Per-Layer"
-                    } else {
-                        "Single"
-                    }
-                ),
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-
-            lines.push(Line::from(Span::styled(
-                format!(
-                    " Alpha: [{}]  (P to toggle)",
-                    if self.use_transparency {
-                        "Transparent"
-                    } else {
-                        "Opaque"
-                    }
-                ),
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-        }
-
-        lines.push(Line::from(Span::styled(
-            " Path:",
-            Style::default().add_modifier(Modifier::BOLD),
-        )));
-
-        let path_display = if self.path_buffer.is_empty() {
-            " (type path or use arrows to browse)".to_string()
-        } else {
-            self.path_buffer.clone()
-        };
-        lines.push(Line::from(Span::styled(
-            format!(" {}", path_display),
-            Style::default().fg(self.theme.dialog.border_path),
-        )));
-
-        if !self.error_message.is_empty() {
-            lines.push(Line::from(Span::styled(
-                format!(" Error: {}", self.error_message),
-                Style::default().fg(self.theme.dialog.error),
-            )));
-        }
-
-        lines.push(Line::from(""));
-
-        if self.directory_entries.is_empty() {
-            lines.push(Line::from(Span::styled(
-                " (empty directory)",
-                Style::default().fg(self.theme.dialog.meta),
-            )));
-        } else {
-            lines.push(Line::from(Span::styled(
-                " Directory:",
-                Style::default().add_modifier(Modifier::BOLD),
-            )));
-
-            let max_visible = (inner.height as usize).saturating_sub(9).min(10);
-            let start = self.selected_entry.saturating_sub(max_visible / 2);
-            let end = (start + max_visible).min(self.directory_entries.len());
-            for i in start..end {
-                let entry = &self.directory_entries[i];
-                let is_selected = i == self.selected_entry;
-                let parent = if self.path_buffer.is_empty() {
-                    std::path::PathBuf::from(".")
-                } else {
-                    let p = std::path::PathBuf::from(&self.path_buffer);
-                    if p.is_dir() {
-                        p
-                    } else {
-                        p.parent()
-                            .map(|pp| pp.to_path_buf())
-                            .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    }
-                };
-                let is_dir = parent.join(entry).is_dir();
-                let prefix = if is_selected { " >" } else { "  " };
-                let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{prefix}{entry}{suffix}");
-                let style = if is_selected {
-                    Style::default().add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default()
-                };
-                lines.push(Line::from(Span::styled(text, style)));
-            }
-        }
-
-        lines.push(Line::from(""));
-        let gif_hint = if is_animation && self.timeline_available {
-            " F:FPS  L:Loop  V:Preview  P:Play  Space:Step  "
-        } else {
-            ""
-        };
-        lines.push(Line::from(Span::styled(
-            format!(
-                " T:format  Enter:export  Esc:cancel  \u{2191}\u{2193}:navigate  Tab:select{}",
-                gif_hint
-            ),
-            Style::default().fg(self.theme.dialog.meta),
-        )));
-
-        let paragraph = Paragraph::new(lines);
-        Widget::render(paragraph, inner, buf);
-    }
 }
 
 #[cfg(test)]
@@ -1493,5 +1303,152 @@ mod tests {
         assert!(!dialog.export_layers);
         dialog.handle_key(KeyCode::Char('L'));
         assert!(dialog.export_layers);
+    }
+
+    fn make_single_cell(
+        rows: usize,
+        cols: usize,
+        ch: char,
+        fg: Option<Color>,
+        bg: Option<Color>,
+    ) -> Vec<Vec<CanvasCell>> {
+        (0..rows)
+            .map(|_| (0..cols).map(|_| CanvasCell { ch, fg, bg }).collect())
+            .collect()
+    }
+
+    #[test]
+    fn test_perform_export_gif_5_frames() {
+        let tmpdir = std::env::temp_dir();
+        let path = tmpdir.join("test_perform_export_gif_5_frames.gif");
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Gif);
+        dialog.path_buffer = path.to_string_lossy().to_string();
+        let chars = ['A', 'B', 'C', 'D', 'E'];
+        let frames: Vec<Vec<Vec<CanvasCell>>> = chars
+            .iter()
+            .map(|&ch| make_single_cell(1, 1, ch, Some(Color::Red), None))
+            .collect();
+        dialog.timeline_frames = frames;
+        dialog.timeline_available = true;
+        dialog.set_per_frame_delays(vec![10, 20, 30, 40, 50]);
+        let single_cell = vec![vec![CanvasCell {
+            ch: ' ',
+            fg: None,
+            bg: None,
+        }]];
+        let result = dialog.perform_export(&single_cell);
+        assert!(result.is_ok());
+        let bytes = std::fs::read(&path).unwrap_or_default();
+        let mut decoder = gif::DecodeOptions::new();
+        decoder.set_color_output(gif::ColorOutput::RGBA);
+        let mut reader = decoder.read_info(&bytes[..]).expect("should decode GIF");
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 10);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 20);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 30);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 40);
+        assert_eq!(reader.next_frame_info().unwrap().unwrap().delay, 50);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_perform_export_apng_5_frames() {
+        use std::io::{BufReader, Cursor};
+        let tmpdir = std::env::temp_dir();
+        let path = tmpdir.join("test_perform_export_apng_5_frames.apng");
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Apng);
+        dialog.path_buffer = path.to_string_lossy().to_string();
+        let chars = ['A', 'B', 'C', 'D', 'E'];
+        let frames: Vec<Vec<Vec<CanvasCell>>> = chars
+            .iter()
+            .map(|&ch| make_single_cell(1, 1, ch, Some(Color::Red), None))
+            .collect();
+        dialog.timeline_frames = frames;
+        dialog.timeline_available = true;
+        dialog.set_per_frame_delays(vec![10, 20, 30, 40, 50]);
+        let single_cell = vec![vec![CanvasCell {
+            ch: ' ',
+            fg: None,
+            bg: None,
+        }]];
+        let result = dialog.perform_export(&single_cell);
+        assert!(result.is_ok());
+        let bytes = std::fs::read(&path).unwrap_or_default();
+        let cursor = Cursor::new(&bytes[..]);
+        let decoder = png::Decoder::new(BufReader::new(cursor));
+        let mut reader = decoder.read_info().expect("should decode APNG header");
+        let buf_size = reader.output_buffer_size().unwrap_or(1024);
+        let mut buf = vec![0u8; buf_size];
+        reader.next_frame(&mut buf).expect("frame 1");
+        let fc2 = reader.next_frame_info().expect("frame 2 control");
+        assert_eq!(fc2.delay_num, 20);
+        reader.next_frame(&mut buf).expect("frame 2");
+        let fc3 = reader.next_frame_info().expect("frame 3 control");
+        assert_eq!(fc3.delay_num, 30);
+        reader.next_frame(&mut buf).expect("frame 3");
+        let fc4 = reader.next_frame_info().expect("frame 4 control");
+        assert_eq!(fc4.delay_num, 40);
+        reader.next_frame(&mut buf).expect("frame 4");
+        let fc5 = reader.next_frame_info().expect("frame 5 control");
+        assert_eq!(fc5.delay_num, 50);
+        reader.next_frame(&mut buf).expect("frame 5");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_perform_export_ansi_5_frames() {
+        let tmpdir = std::env::temp_dir();
+        let path = tmpdir.join("test_perform_export_ansi_5_frames.ans");
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Ansi);
+        dialog.path_buffer = path.to_string_lossy().to_string();
+        let chars = ['A', 'B', 'C', 'D', 'E'];
+        let frames: Vec<Vec<Vec<CanvasCell>>> = chars
+            .iter()
+            .map(|&ch| make_single_cell(1, 1, ch, Some(Color::Red), None))
+            .collect();
+        dialog.timeline_frames = frames;
+        dialog.timeline_available = true;
+        dialog.set_per_frame_delays(vec![10, 20, 30, 40, 50]);
+        let single_cell = vec![vec![CanvasCell {
+            ch: ' ',
+            fg: None,
+            bg: None,
+        }]];
+        let result = dialog.perform_export(&single_cell);
+        assert!(result.is_ok());
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        assert_eq!(content.matches("\x1b[2J").count(), 5);
+        assert!(content.contains('A'));
+        assert!(content.contains('B'));
+        assert!(content.contains('C'));
+        assert!(content.contains('D'));
+        assert!(content.contains('E'));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_export_cycle_reaches_animation_formats() {
+        let mut dialog = ExportDialog::new();
+        dialog.enter_export(ExportMode::Png);
+        let mut saw_apng = false;
+        let mut saw_gif = false;
+        let mut saw_ansi = false;
+        for _ in 0..10 {
+            dialog.handle_key(KeyCode::Char('T'));
+            match dialog.format {
+                ExportMode::Apng => saw_apng = true,
+                ExportMode::Gif => saw_gif = true,
+                ExportMode::Ansi => saw_ansi = true,
+                _ => {}
+            }
+        }
+        assert!(saw_apng, "Apng should be reachable");
+        assert!(saw_gif, "Gif should be reachable");
+        assert!(saw_ansi, "Ansi should be reachable");
+        assert_eq!(ExportMode::Apng.label(), "APNG");
+        assert_eq!(ExportMode::Gif.label(), "GIF");
+        assert_eq!(ExportMode::Ansi.label(), "ANSI");
     }
 }

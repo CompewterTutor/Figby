@@ -234,7 +234,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Press T → timeline appears. Add frames, switch, see content change.
   - **Difficulty:** Medium
 
-- [ ] `5.5.3` Verify animation export end-to-end
+- [x] `5.5.3` Verify animation export end-to-end
   - **Goal:** Test GIF export, APNG export, ANSI export from a 5-frame animation.
     Fix any broken paths identified in `5.5.1`. Export dialog must reach all
     three formats.

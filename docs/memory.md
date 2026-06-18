@@ -2267,3 +2267,10 @@ full, braille, deluxe), 3 color modes (Mono/256/Truecolor), adjustable output wi
 (8-500). 256-color uses standard 6×6×6 ANSI cube quantization. Preview renders converted
 chars as inline text. Confirm loads result into canvas as a new layer and switches to
 Image Editor mode. No `.unwrap()` in production. 15 unit tests.
+
+### 5.4.4 — Phase merge: release/5.4 → master
+
+Merged release/5.4 branch into master at `92b53d1` (merge commit created on master via `--no-ff`).
+Brings 5.4.1 (image editor mode switching fix), 5.4.2 (mouse events in image editor fix),
+and 5.4.3 (rascii import dialog) into the mainline. Phase 5.4 complete.
+Next phase: 5.5 (Animation Audit & Surface).

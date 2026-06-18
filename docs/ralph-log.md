@@ -6096,3 +6096,11 @@ DONE: 5.4.1 merged into release/5.4.
 ## 2026-06-18 16:45
 
 DONE: 5.4.2 merged into release/5.4.
+
+## 2026-06-18 16:54
+
+DONE: 5.4.3 merged into release/5.4.
+
+## 2026-06-18 17:00
+
+DONE: 5.4.4 merged into master.

@@ -609,10 +609,11 @@ Then list what must be fixed before the merge can proceed." \
         _conflicts="$(git diff --name-only --diff-filter=U 2>/dev/null || true)"
         for _f in $_conflicts; do
           case "$_f" in
-          docs/*.md)
-            # Accept both sides of docs conflicts (they're additive)
+          docs/*.md | CHANGELOG.md)
+            # Release branch is always more current for these additive files
+            git checkout --theirs "$_f"
             git add "$_f"
-            good "Resolved $_f (both sides)."
+            good "Resolved $_f (took release branch version)."
             ;;
           *)
             warn "Non-docs conflict in $_f — manual resolution required."

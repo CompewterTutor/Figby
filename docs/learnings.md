@@ -1177,6 +1177,11 @@ Three bugs found in phase merge review:
   for one-shot launch effects: the effect runs every frame during its duration, then
   drops itself cleanly with no further overhead.
 
+## 5.2.4 — Phase merge: release/5.2 → main
+
+- **Branch name mismatch:** AGENTS.md says "merge to main" but the default branch is `master`. Merge commit message says "into main". No functional impact, but conventions are inconsistent. Worth deciding: rename default branch to `main` or update docs.
+- Version bumped to 5.2.0 (minor) — phase 5.2 adds major layout restructure.
+
 ## 5.2.1 — Palette moved under tools (left column)
 
 - `Constraint::Min(0)` for palette allocation is preferred over `Constraint::Fill(1)`:

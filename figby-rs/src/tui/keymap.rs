@@ -14,6 +14,7 @@ pub enum GlobalAction {
     ToggleZenMode,
     CycleDrawer,
     ToggleKeybindings,
+    ToggleTimeline,
     NextMode,
     PrevMode,
     Quit,
@@ -96,6 +97,12 @@ pub static GLOBAL_DISPATCH: &[KeyDispatch] = &[
         key_code: KeyCode::Char('?'),
         action: GlobalAction::CycleDrawer,
     },
+    // Timeline
+    KeyDispatch {
+        modifiers: KeyModifiers::NONE,
+        key_code: KeyCode::Char('T'),
+        action: GlobalAction::ToggleTimeline,
+    },
     // Mode cycling
     KeyDispatch {
         modifiers: KeyModifiers::NONE,
@@ -150,6 +157,7 @@ pub enum Scope {
     FontOverview,
     FontCharEditor,
     Dialog,
+    Timeline,
 }
 
 impl Scope {
@@ -160,6 +168,7 @@ impl Scope {
             Scope::FontOverview => "Font Overview",
             Scope::FontCharEditor => "Font Char Editor",
             Scope::Dialog => "Dialog",
+            Scope::Timeline => "Timeline",
         }
     }
 }
@@ -379,6 +388,37 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "G",
         scope: Scope::FontCharEditor,
         description: "Generate from system font",
+    },
+    // Timeline
+    KeyBinding {
+        keys: "T",
+        scope: Scope::Global,
+        description: "Toggle timeline panel",
+    },
+    KeyBinding {
+        keys: "Shift+T",
+        scope: Scope::Global,
+        description: "Open tween panel",
+    },
+    KeyBinding {
+        keys: "← / →",
+        scope: Scope::Timeline,
+        description: "Switch frame",
+    },
+    KeyBinding {
+        keys: "A",
+        scope: Scope::Timeline,
+        description: "Add frame",
+    },
+    KeyBinding {
+        keys: "Delete",
+        scope: Scope::Timeline,
+        description: "Delete frame",
+    },
+    KeyBinding {
+        keys: "Enter",
+        scope: Scope::Timeline,
+        description: "Play animation",
     },
     // Dialog
     KeyBinding {

@@ -2,6 +2,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Borders;
 
 pub const TOOLBOX_BRUSH_HEIGHT: u16 = 10;
+pub const TIMELINE_HEIGHT: u16 = 8;
 const DRAWER_WIDTH: u16 = 22;
 
 /// Collapsed borders for the toolbox list panel (top portion of left column).
@@ -36,6 +37,8 @@ pub struct FrameLayout {
     pub canvas: Rect,
     /// Right drawer. None when drawer closed or zen mode.
     pub right_panel: Option<Rect>,
+    /// Timeline panel at bottom of canvas. None when timeline hidden.
+    pub timeline: Option<Rect>,
 }
 
 impl FrameLayout {
@@ -57,6 +60,7 @@ impl FrameLayout {
         side_panel_open: bool,
         toolbox_width: u16,
         toolbox_h: u16,
+        timeline_visible: bool,
     ) -> Self {
         let vert = Layout::vertical([
             Constraint::Length(1),
@@ -84,8 +88,18 @@ impl FrameLayout {
                 palette: None,
                 canvas: area,
                 right_panel: None,
+                timeline: None,
             };
         }
+
+        let (main_area, timeline_area) = if timeline_visible {
+            let v = Layout::vertical([Constraint::Fill(1), Constraint::Length(TIMELINE_HEIGHT)])
+                .spacing(0)
+                .split(main);
+            (v[0], Some(v[1]))
+        } else {
+            (main, None)
+        };
 
         let h_areas = if side_panel_open {
             Layout::horizontal([
@@ -94,11 +108,11 @@ impl FrameLayout {
                 Constraint::Length(DRAWER_WIDTH),
             ])
             .spacing(0)
-            .split(main)
+            .split(main_area)
         } else {
             Layout::horizontal([Constraint::Length(toolbox_width), Constraint::Fill(1)])
                 .spacing(0)
-                .split(main)
+                .split(main_area)
         };
 
         let toolbox_full = h_areas[0];
@@ -136,6 +150,7 @@ impl FrameLayout {
             palette: Some(palette_rect),
             canvas,
             right_panel,
+            timeline: timeline_area,
         }
     }
 
@@ -146,17 +161,31 @@ impl FrameLayout {
     /// Shared TOP/BOTTOM edges with toolbox/right panel panels are drawn
     /// by both (inherent to ratatui's block model for side-by-side blocks).
     pub fn canvas_borders(&self) -> Borders {
-        match (self.toolbox_full.is_some(), self.right_panel.is_some()) {
-            (true, true) => Borders::TOP | Borders::BOTTOM,
-            (true, false) => Borders::TOP | Borders::RIGHT | Borders::BOTTOM,
-            (false, true) => Borders::TOP | Borders::LEFT | Borders::BOTTOM,
-            (false, false) => Borders::ALL,
+        match (
+            self.toolbox_full.is_some(),
+            self.right_panel.is_some(),
+            self.timeline.is_some(),
+        ) {
+            (true, true, false) => Borders::TOP | Borders::BOTTOM,
+            (true, true, true) => Borders::TOP,
+            (true, false, false) => Borders::TOP | Borders::RIGHT | Borders::BOTTOM,
+            (true, false, true) => Borders::TOP | Borders::RIGHT,
+            (false, true, false) => Borders::TOP | Borders::LEFT | Borders::BOTTOM,
+            (false, true, true) => Borders::TOP | Borders::LEFT,
+            (false, false, false) => Borders::ALL,
+            (false, false, true) => Borders::TOP | Borders::LEFT | Borders::RIGHT,
         }
+    }
+
+    /// Borders for the timeline panel block.
+    /// Omits TOP — shared with canvas's bottom edge.
+    pub fn timeline_borders(&self) -> Borders {
+        Borders::LEFT | Borders::RIGHT | Borders::BOTTOM
     }
 }
 
 impl Default for FrameLayout {
     fn default() -> Self {
-        Self::compute(Rect::new(0, 0, 80, 24), false, false, 8, 0)
+        Self::compute(Rect::new(0, 0, 80, 24), false, false, 8, 0, false)
     }
 }

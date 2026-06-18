@@ -839,6 +839,20 @@ fn ease_bounce(t: f64) -> f64 {
     }
 }
 
+impl AnimationTimeline {
+    /// Create an `AnimationTimeline` configured for the bottom timeline panel.
+    pub fn panel_instance() -> Self {
+        Self {
+            frame_thumb_width: 8,
+            frame_thumb_height: 3,
+            frame_gap: 1,
+            visible_frames: 20,
+            theme: TimelineTheme::default(),
+            onion_skinning: true,
+        }
+    }
+}
+
 impl Widget for &AnimationTimeline {
     fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width == 0 || area.height == 0 {

@@ -2262,19 +2262,19 @@ fn test_layout_drawer_cycle() {
     let mut app = TuiApp::new();
     app.welcome_screen.show = false;
 
-    // Default drawer is Palette
-    assert_eq!(
-        app.right_drawer,
-        figby::tui::layout::DrawerMode::Palette,
-        "default drawer should be Palette"
-    );
-
-    // '?' cycles to BrushKeys
-    app.handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
+    // Default drawer is BrushKeys
     assert_eq!(
         app.right_drawer,
         figby::tui::layout::DrawerMode::BrushKeys,
-        "'?' should cycle drawer to BrushKeys"
+        "default drawer should be BrushKeys"
+    );
+
+    // '?' cycles to Layers
+    app.handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
+    assert_eq!(
+        app.right_drawer,
+        figby::tui::layout::DrawerMode::Layers,
+        "'?' should cycle drawer to Layers"
     );
 
     // '?' cycles to Closed
@@ -2285,12 +2285,12 @@ fn test_layout_drawer_cycle() {
         "second '?' should cycle drawer to Closed"
     );
 
-    // '?' cycles back to Palette
+    // '?' cycles back to BrushKeys
     app.handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
     assert_eq!(
         app.right_drawer,
-        figby::tui::layout::DrawerMode::Palette,
-        "third '?' should cycle drawer back to Palette"
+        figby::tui::layout::DrawerMode::BrushKeys,
+        "third '?' should cycle drawer back to BrushKeys"
     );
 }
 

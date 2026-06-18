@@ -2129,3 +2129,15 @@ edge block (dim style, canvas.edge color) with `BorderType::Double` block using
 `canvas.border` color (accent cyan) and `.title(format!(" {}x{} ", w, h))`
 showing canvas buffer dimensions. `BorderType` added to ratatui widget imports.
 fmt and clippy pass clean.
+
+### 5.2.1 — Palette moved under tools (left column)
+
+Moved palette from right drawer to left column below toolbox. `FrameLayout`
+gains `palette: Option<Rect>` field. `FrameLayout::compute()` takes
+`toolbox_h: u16` param, splits toolbox column vertically with
+`[Length(toolbox_h), Min(0)]` — palette gets remaining space. Default
+`DrawerMode` changed from `Palette` to `BrushKeys`; cycle skips Palette
+(Closed → BrushKeys). Right drawer match uses `_ => {}` for Palette/Closed
+since palette no longer lives in right panel. Click handler updated to
+target `fl.palette` rect instead of right panel + drawer mode check.
+fmt and clippy pass clean.

@@ -484,7 +484,7 @@ impl TuiApp {
             welcome_fx: Some(fx::WelcomeFx::new()),
             app_fade_in: Some(fx::AppFadeIn::new()),
             zen_mode: false,
-            right_drawer: layout::DrawerMode::Palette,
+            right_drawer: layout::DrawerMode::BrushKeys,
             editor: {
                 let mut editor = EditorState {
                     canvas,
@@ -638,7 +638,14 @@ impl TuiApp {
             .editor
             .toolbox
             .required_width(self.editor.brush.required_outer_width());
-        let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer, tw);
+        let toolbox_h = Tool::all().len() as u16 + 1 + layout::TOOLBOX_BRUSH_HEIGHT;
+        let fl = layout::FrameLayout::compute(
+            frame.area(),
+            self.zen_mode,
+            self.right_drawer,
+            tw,
+            toolbox_h,
+        );
 
         // --- Zen mode: canvas only, hint overlay ---
         if self.zen_mode {
@@ -719,19 +726,21 @@ impl TuiApp {
             }
         }
 
+        // Palette / settings panel below toolbox (left column)
+        if let Some(palette_rect) = fl.palette {
+            if self.dialogs.settings.settings_open {
+                frame.render_widget(&self.dialogs.settings, palette_rect);
+            } else {
+                frame.render_widget(&self.editor.palette, palette_rect);
+            }
+        }
+
         // Canvas / font editor area
         self.render_canvas_area(frame, fl.canvas);
 
         // Right drawer
         if let Some(rp) = fl.right_panel {
             match self.right_drawer {
-                layout::DrawerMode::Palette => {
-                    if self.dialogs.settings.settings_open {
-                        frame.render_widget(&self.dialogs.settings, rp);
-                    } else {
-                        frame.render_widget(&self.editor.palette, rp);
-                    }
-                }
                 layout::DrawerMode::BrushKeys => {
                     self.render_brush_keys_panel(frame, rp);
                 }
@@ -740,7 +749,7 @@ impl TuiApp {
                         .layer_panel
                         .render_with_stack(frame, rp, &self.editor.layer_stack);
                 }
-                layout::DrawerMode::Closed => {}
+                _ => {}
             }
         }
 
@@ -807,7 +816,14 @@ impl TuiApp {
             .editor
             .toolbox
             .required_width(self.editor.brush.required_outer_width());
-        let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer, tw);
+        let toolbox_h = Tool::all().len() as u16 + 1 + layout::TOOLBOX_BRUSH_HEIGHT;
+        let fl = layout::FrameLayout::compute(
+            frame.area(),
+            self.zen_mode,
+            self.right_drawer,
+            tw,
+            toolbox_h,
+        );
 
         let mode_title = match self.mode {
             AppMode::ImageEditor => {
@@ -1366,11 +1382,13 @@ impl TuiApp {
                 .editor
                 .toolbox
                 .required_width(self.editor.brush.required_outer_width());
+            let toolbox_h = Tool::all().len() as u16 + 1 + layout::TOOLBOX_BRUSH_HEIGHT;
             layout::FrameLayout::compute(
                 Rect::new(0, 0, cols, rows),
                 self.zen_mode,
                 self.right_drawer,
                 tw,
+                toolbox_h,
             )
         };
         let canvas_inner_rect = self.editor.compute_canvas_rect(
@@ -1397,15 +1415,14 @@ impl TuiApp {
             }
         }
 
-        // Palette panel click
+        // Palette panel click (left column, below toolbox)
         if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
-            if let Some(rp) = mouse_fl.right_panel {
-                if self.right_drawer == layout::DrawerMode::Palette
-                    && !self.dialogs.settings.settings_open
+            if let Some(palette_rect) = mouse_fl.palette {
+                if !self.dialogs.settings.settings_open
                     && self
                         .editor
                         .palette
-                        .handle_click(mouse.column, mouse.row, rp)
+                        .handle_click(mouse.column, mouse.row, palette_rect)
                 {
                     use crate::tui::events::PaletteEvent;
                     let color = self.editor.palette.selected_color;

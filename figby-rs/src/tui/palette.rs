@@ -270,7 +270,7 @@ impl Palette {
             if rel_col < 5 {
                 self.target = ColorTarget::Foreground;
                 return true;
-            } else if rel_col >= 6 && rel_col < 11 {
+            } else if (6..11).contains(&rel_col) {
                 self.target = ColorTarget::Background;
                 return true;
             }
@@ -280,7 +280,7 @@ impl Palette {
         if self.show_extended {
             // Row 1: "Ext pg:N" — not clickable
             // Rows 2-3: 8 swatches each, 2 cols wide
-            if rel_row >= 2 && rel_row <= 3 {
+            if (2..=3).contains(&rel_row) {
                 let swatch_col = (rel_col / 2) as usize;
                 if swatch_col < 8 {
                     let idx = (rel_row as usize - 2) * 8 + swatch_col;

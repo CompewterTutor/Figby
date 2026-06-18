@@ -117,7 +117,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.2 — Layout Restructure
 
-- [ ] `5.2.1` Palette moved under tools (left column)
+- [x] `5.2.1` Palette moved under tools (left column)
   - **Goal:** Left column is currently just the toolbox. Stack toolbox on top,
     palette drawer below it. Use `Layout::vertical` with
     `[Constraint::Length(toolbox_h), Constraint::Min(0)]`. Palette gets

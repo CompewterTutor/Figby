@@ -364,10 +364,10 @@ fn test_palette_select_color_updates_selected() {
 
     let mut palette = Palette::new();
     palette.select_color(1);
-    assert_eq!(palette.selected_color, Some(ANSI_16_COLORS[1]));
+    assert_eq!(palette.selected_color, Some(ANSI_16_COLORS[7]));
 
     palette.select_color(7);
-    assert_eq!(palette.selected_color, Some(ANSI_16_COLORS[7]));
+    assert_eq!(palette.selected_color, Some(ANSI_16_COLORS[11]));
 }
 
 #[test]
@@ -379,15 +379,15 @@ fn test_palette_select_pushes_recent() {
 
     palette.select_color(1);
     assert_eq!(palette.recent.len(), 1);
-    assert_eq!(palette.recent[0], ANSI_16_COLORS[1]);
+    assert_eq!(palette.recent[0], ANSI_16_COLORS[7]);
 
     palette.select_color(5);
     assert_eq!(palette.recent.len(), 2);
-    assert_eq!(palette.recent[1], ANSI_16_COLORS[5]);
+    assert_eq!(palette.recent[1], ANSI_16_COLORS[9]);
 
     palette.select_color(1);
     assert_eq!(palette.recent.len(), 2);
-    assert_eq!(palette.recent[1], ANSI_16_COLORS[1]);
+    assert_eq!(palette.recent[1], ANSI_16_COLORS[7]);
 }
 
 #[test]
@@ -410,7 +410,7 @@ fn test_palette_apply_to_cell_fg() {
     palette.select_color(2);
     let mut cell = CanvasCell::default();
     palette.apply_to_cell(&mut cell);
-    assert_eq!(cell.fg, Some(ANSI_16_COLORS[2]));
+    assert_eq!(cell.fg, Some(ANSI_16_COLORS[8]));
     assert_eq!(cell.bg, None);
 }
 
@@ -425,7 +425,7 @@ fn test_palette_apply_to_cell_bg() {
     let mut cell = CanvasCell::default();
     palette.apply_to_cell(&mut cell);
     assert_eq!(cell.fg, None);
-    assert_eq!(cell.bg, Some(ANSI_16_COLORS[4]));
+    assert_eq!(cell.bg, Some(ANSI_16_COLORS[1]));
 }
 
 #[test]
@@ -2733,10 +2733,10 @@ fn test_multiple_widgets_interaction() {
 
     let mut app = TuiApp::new();
 
-    // Step 1: Palette selects a color (index 2 = green)
+    // Step 1: Palette selects a color (index 2 = Bright Black)
     app.editor.palette.select_color(2);
     app.editor.palette.target = ColorTarget::Foreground;
-    assert_eq!(app.editor.palette.selected_color, Some(ANSI_16_COLORS[2]));
+    assert_eq!(app.editor.palette.selected_color, Some(ANSI_16_COLORS[8]));
 
     // Step 2: Brush paints with that color at cursor
     app.editor.canvas.set_cursor(1, 1);
@@ -2745,7 +2745,7 @@ fn test_multiple_widgets_interaction() {
     assert_eq!(cell.ch, '\u{2588}', "brush should paint full block");
     assert_eq!(
         cell.fg,
-        Some(ANSI_16_COLORS[2]),
+        Some(ANSI_16_COLORS[8]),
         "brush should use palette color"
     );
 
@@ -2756,7 +2756,7 @@ fn test_multiple_widgets_interaction() {
     assert_eq!(cell2.ch, '\u{2588}', "second brush paint should work");
     assert_eq!(
         cell2.fg,
-        Some(ANSI_16_COLORS[2]),
+        Some(ANSI_16_COLORS[8]),
         "second paint should use same color"
     );
 

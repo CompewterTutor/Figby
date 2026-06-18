@@ -1,5 +1,9 @@
 # Figby — Learnings
 
+## 5.6.2 — 5-per-row hue-grouped palette layout
+
+- Switching from 2×8 grid to hue-grouped layout roughly triples the rendered line count (2 data rows → 8 group headers + 8 data rows + FG/BG + custom hex + recent = ~18 lines). Integration tests using fixed terminal sizes like 10 or 12 rows fail because they no longer fit. Always check test terminal dimensions when layout vertical density changes significantly.
+
 ## 5.5.2 — Surface timeline panel in main layout
 
 - `T` key was previously bound to `open_tween()`. Since `T` is now the timeline toggle,

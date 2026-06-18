@@ -260,7 +260,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Hovering any swatch shows its name; moving away clears it.
   - **Difficulty:** Low
 
-- [ ] `5.6.2` 5-per-row hue-grouped palette layout
+- [x] `5.6.2` 5-per-row hue-grouped palette layout
   - **Goal:** Replace the current 8-per-row flat grid with a hue-grouped layout:
     5 swatches per row, rows grouped by hue family (Reds, Oranges, Yellows,
     Greens, Cyans, Blues, Purples, Neutrals). Group membership computed via

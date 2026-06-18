@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.4.0] - 2026-06-18
+### Changed
+- Phase merge: release/5.4 → master. Phase 5.4 (Image Editor Fix) complete:
+  mode switching fix (5.4.1), mouse event routing fix (5.4.2), rascii import
+  dialog with charset/width/color options (5.4.3).
+
 ## [5.3.0] - 2026-06-18
 ### Added
 - Phase 5.3 status bar redesign — flat item-based layout with StatusItem priority system

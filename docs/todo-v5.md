@@ -208,7 +208,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Image converted with chosen options appears on canvas.
   - **Difficulty:** High
 
-- [ ] `5.4.4` Phase merge: release/5.4 → main
+- [x] `5.4.4` Phase merge: release/5.4 → main
   - **Difficulty:** Low
 
 ---

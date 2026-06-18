@@ -335,6 +335,10 @@ impl SidePanel {
             Span::raw(format!(" {}", brush.shape.name())),
         ]));
         lines.push(Line::from(vec![
+            Span::styled("Mode:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", brush.sub_mode.name())),
+        ]));
+        lines.push(Line::from(vec![
             Span::styled("Density:", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!(" {}%", brush.density)),
         ]));

@@ -1,5 +1,13 @@
 # Figby — Learnings
 
+## 5.6.5 — Marker brush mode
+
+- `BrushSubMode` enum lives in `brush.rs` (alongside `BrushState`), but the task's
+  "Touches" only listed `palette.rs`, `tools/brush.rs`, and `mod.rs`. Both
+  `brush.rs` (enum definition, sub_mode field) and `side_panel.rs` (Mode display
+  line) are necessary supporting changes that should be listed. Touches = files
+  directly modified, not just the "main" ones.
+
 ## 5.6.4 — Palette import: common formats
 
 - Rust 2021 edition: `r#"..."#` raw string delimiters break when content contains

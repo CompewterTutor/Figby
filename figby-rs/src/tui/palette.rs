@@ -173,6 +173,8 @@ pub struct Palette {
     show_extended: bool,
     extended_page: u8,
     pub hover_index: Option<usize>,
+    pub multi_select_indices: Vec<usize>,
+    multi_select_active: bool,
     pub theme: Theme,
 }
 
@@ -188,6 +190,8 @@ impl Palette {
             show_extended: false,
             extended_page: 0,
             hover_index: None,
+            multi_select_indices: Vec::new(),
+            multi_select_active: false,
             theme: Theme::default(),
         }
     }
@@ -201,6 +205,28 @@ impl Palette {
         self.selected_index = index;
         self.selected_color = Some(color);
         self.push_recent(color);
+        self.multi_select_indices.clear();
+    }
+
+    pub fn toggle_multi_select_color(&mut self, index: usize) {
+        if let Some(pos) = self.multi_select_indices.iter().position(|i| *i == index) {
+            self.multi_select_indices.remove(pos);
+        } else {
+            self.multi_select_indices.push(index);
+        }
+    }
+
+    pub fn has_multi_select(&self) -> bool {
+        self.multi_select_indices.len() >= 2
+    }
+
+    pub fn selected_color_array(&self) -> Vec<Color> {
+        let flat = build_flat_palette();
+        self.multi_select_indices
+            .iter()
+            .filter_map(|i| flat.get(*i))
+            .map(|e| e.1)
+            .collect()
     }
 
     fn current_color(&self, index: usize) -> Color {
@@ -331,8 +357,19 @@ impl Palette {
                 }
                 true
             }
+            KeyCode::Tab => {
+                self.multi_select_active = !self.multi_select_active;
+                if self.multi_select_active {
+                    self.multi_select_indices.clear();
+                }
+                true
+            }
             KeyCode::Enter => {
-                self.select_color(self.selected_index);
+                if self.multi_select_active {
+                    self.toggle_multi_select_color(self.selected_index);
+                } else {
+                    self.select_color(self.selected_index);
+                }
                 true
             }
             _ => false,
@@ -521,6 +558,13 @@ impl Widget for &Palette {
         };
         lines.push(Line::from(vec![fg_label, Span::raw(" "), bg_label]));
 
+        if self.multi_select_active {
+            lines.push(Line::from(Span::styled(
+                " Sel:",
+                Style::default().fg(self.theme.general.secondary),
+            )));
+        }
+
         if self.show_extended {
             lines.push(Line::from(Span::raw(format!(
                 " Ext pg:{}",
@@ -533,13 +577,16 @@ impl Widget for &Palette {
                     let idx = row * 5 + col;
                     if idx < 16 {
                         let color = extended_color(self.extended_page, idx as u8);
+                        let is_multi = self.multi_select_indices.contains(&idx);
                         let swatch = if idx == self.selected_index {
-                            Span::styled(
-                                "██",
-                                Style::default()
-                                    .bg(color)
-                                    .fg(self.theme.palette.swatch_indicator),
-                            )
+                            let fg = if is_multi {
+                                Color::White
+                            } else {
+                                self.theme.palette.swatch_indicator
+                            };
+                            Span::styled("██", Style::default().bg(color).fg(fg))
+                        } else if is_multi {
+                            Span::styled("██", Style::default().bg(color).fg(Color::White))
                         } else {
                             Span::styled("  ", Style::default().bg(color))
                         };
@@ -573,13 +620,16 @@ impl Widget for &Palette {
                     let mut spans = Vec::new();
                     for entry in chunk {
                         let (_orig_idx, color, _name) = **entry;
+                        let is_multi = self.multi_select_indices.contains(&visual_idx);
                         let swatch = if visual_idx == self.selected_index {
-                            Span::styled(
-                                "██",
-                                Style::default()
-                                    .bg(color)
-                                    .fg(self.theme.palette.swatch_indicator),
-                            )
+                            let fg = if is_multi {
+                                Color::White
+                            } else {
+                                self.theme.palette.swatch_indicator
+                            };
+                            Span::styled("██", Style::default().bg(color).fg(fg))
+                        } else if is_multi {
+                            Span::styled("██", Style::default().bg(color).fg(Color::White))
                         } else {
                             Span::styled("  ", Style::default().bg(color))
                         };

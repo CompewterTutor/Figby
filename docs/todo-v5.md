@@ -127,7 +127,7 @@ Source: `docs/4.0-manual-testing-notes.md`
     Right panel freed from palette duty.
   - **Difficulty:** Medium
 
-- [ ] `5.2.2` Right panel: tabbed prop/info/library/effects drawer
+- [x] `5.2.2` Right panel: tabbed prop/info/library/effects drawer
   - **Goal:** Replace right panel with a tabbed component. Tabs (NerdFont icons):
     - `Layers` `layer_new` — layer stack (already exists, just move here)
     - `Props` `settings_open` — tool properties, brush settings, image/font info

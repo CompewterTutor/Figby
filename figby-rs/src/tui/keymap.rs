@@ -220,7 +220,7 @@ pub const KEYMAP: &[KeyBinding] = &[
     KeyBinding {
         keys: "?",
         scope: Scope::Global,
-        description: "Cycle right drawer (palette/brush keys/closed)",
+        description: "Toggle right panel (tabbed drawer)",
     },
     KeyBinding {
         keys: "Ctrl+K",

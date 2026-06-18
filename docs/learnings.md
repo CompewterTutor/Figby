@@ -1281,3 +1281,20 @@ Three bugs found in phase merge review:
   wildcard. This is correct but means clippy's `wildcard_enum_match_arm` won't
   fire because not all arms are explicitly matched. The wildcard is deliberate:
   Palette no longer has a right-panel rendering path.
+
+## 5.6.6 — Phase merge: release/5.6 → main
+
+- TUI dispatch logic in `main()` had an incomplete guard: it only checked for
+  `--create-font`, `--render-template`, `-I`, and `-v` before launching the TUI.
+  FIGlet processing flags (`-L`, `-R`, `-f`, `-w`, etc.) were not checked, causing
+  `figby -L` to launch the TUI and crash in non-TTY environments. Adding
+  `has_figlet_flags()` + `std::io::stdin().is_terminal()` fixed all integration tests.
+- `std::io::IsTerminal` trait must be imported separately on Rust 1.70+ — it's
+  not part of `std::io::prelude`. The `is_terminal()` method is provided by the trait.
+- Tests that modify process-wide env vars (`XDG_CONFIG_HOME`) race in parallel test
+  execution. A `std::sync::Mutex` in the test module serializes access. Use
+  `OnceLock` to lazily initialize the mutex.
+- `2.7_f64 - 2.0_f64 = 0.7000000000000002` due to IEEE 754 representation.
+  Floating point comparisons should use `1e-10` tolerance, not `f64::EPSILON`,
+  when the expected value is a common decimal fraction that is not exactly
+  representable.

@@ -223,7 +223,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Written audit. Gap list ready for 5.5.2.
   - **Difficulty:** Low
 
-- [ ] `5.5.2` Surface timeline panel in main layout
+- [x] `5.5.2` Surface timeline panel in main layout
   - **Goal:** Timeline panel is currently inaccessible from the main UI (no keybind,
     no menu entry visible). Add: `T` toggles timeline panel at bottom of canvas.
     Timeline expands to ~8 rows when open, collapses otherwise. Frame thumbnails,

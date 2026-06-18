@@ -1504,6 +1504,20 @@ impl TuiApp {
             }
         }
 
+        // Palette hover (mouse move over swatches)
+        if mouse.kind == MouseEventKind::Moved {
+            if let Some(palette_rect) = mouse_fl.palette {
+                if !self.dialogs.settings.settings_open
+                    && self
+                        .editor
+                        .palette
+                        .handle_hover(mouse.column, mouse.row, palette_rect)
+                {
+                    self.dirty = true;
+                }
+            }
+        }
+
         // Text tool: hit-test blocks or enter text mode
         if self.editor.toolbox.selected == Tool::Text {
             if let MouseEventKind::Down(_) = mouse.kind {

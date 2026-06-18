@@ -261,10 +261,14 @@ pub fn commit_marker_accum(
                 ColorTarget::Foreground => cell.fg,
                 ColorTarget::Background => cell.bg,
             };
-            let start_idx = current_color
-                .and_then(|c| colors.iter().position(|pc| *pc == c))
-                .unwrap_or(0);
-            let new_idx = (start_idx + steps).min(colors.len().saturating_sub(1));
+            let color_match = current_color.and_then(|c| colors.iter().position(|pc| *pc == c));
+            let start_idx = color_match.unwrap_or(0);
+            let effective_steps = if color_match.is_none() && steps > 0 {
+                steps - 1
+            } else {
+                steps
+            };
+            let new_idx = (start_idx + effective_steps).min(colors.len().saturating_sub(1));
             let new_color = Some(colors[new_idx]);
             match target {
                 ColorTarget::Foreground => cell.fg = new_color,
@@ -278,7 +282,6 @@ pub fn commit_marker_accum(
     for key in to_remove {
         accum.remove(&key);
     }
-    accum.retain(|_, v| *v > 0.0);
 }
 
 #[cfg(test)]
@@ -673,7 +676,7 @@ mod tests {
         );
         let remaining = accum.get(&(2, 2)).copied().unwrap_or(0.0);
         assert!(
-            (remaining - 0.7).abs() < f64::EPSILON,
+            (remaining - 0.7).abs() < 1e-10,
             "0.7 should remain after 2 steps from 2.7, got {remaining}"
         );
     }

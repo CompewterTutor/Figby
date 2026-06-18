@@ -312,5 +312,5 @@ Source: `docs/4.0-manual-testing-notes.md`
     darkest selected swatch and clamps. No effect on blank cells.
   - **Difficulty:** High
 
-- [ ] `5.6.6` Phase merge: release/5.6 → main
+- [x] `5.6.6` Phase merge: release/5.6 → main
   - **Difficulty:** Low

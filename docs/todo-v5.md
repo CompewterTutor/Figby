@@ -178,7 +178,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** At 80 cols: mode/tool/pos + filename + unsaved. At 40 cols: mode + pos.
   - **Difficulty:** Low
 
-- [ ] `5.3.3` Phase merge: release/5.3 → main
+- [x] `5.3.3` Phase merge: release/5.3 → master
   - **Difficulty:** Low
 
 ---

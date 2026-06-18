@@ -1360,6 +1360,23 @@ impl TuiApp {
             }
         }
 
+        // Image editor: handle state-dependent mouse events
+        if self.mode == AppMode::ImageEditor {
+            if self.editor.image_editor.entering_path() {
+                // Swallow all mouse events while user is typing a file path
+                self.dirty = true;
+                return;
+            }
+            if self.editor.image_editor.error_message().is_some() {
+                if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                    self.editor.image_editor.clear_error();
+                    self.dirty = true;
+                    return;
+                }
+            }
+            // adjustment_mode and other states: fall through to general handlers
+        }
+
         // Toolbox click: select tool by row
         let mouse_fl = {
             let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));

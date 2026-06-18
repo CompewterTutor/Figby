@@ -2248,3 +2248,12 @@ and `ImageConvert` now at least set the mode flag (template picker and rascii
 dialog are TODO in later tasks). Mode toggle keybind (Tab) already worked because
 `image_editor` is initialized at TuiApp construction — only the welcome screen
 dispatch path was broken.
+
+### 5.4.2 — Fix mouse events in image editor
+
+Added ImageEditor state checks in `handle_mouse_event` before the general canvas/toolbox
+handlers. When `entering_path` is true (user typing a file path), all mouse events are
+swallowed (early return). When `error_message` is set, a left-click dismisses the error
+and returns. All other ImageEditor states (adjustment_mode, normal canvas editing) fall
+through to the existing general mouse handlers — no code change needed for those paths.
+Only `figby-rs/src/tui/mod.rs` modified.

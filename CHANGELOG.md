@@ -1,8 +1,10 @@
 # Changelog
 
 ## [5.3.0] - 2026-06-18
-### Changed
-- Phase merge: release/5.3 → master. Phase 5.3 complete: powerline status bar with three-section layout (5.3.1), responsive item dropping at narrow widths (5.3.2).
+### Added
+- Phase 5.3 status bar redesign — flat item-based layout with StatusItem priority system
+- Three informal sections (left/middle/right) with pipe separators
+- Responsive dropping of low-priority items at narrow widths
 
 ## [5.2.0] - 2026-06-18
 ### Added

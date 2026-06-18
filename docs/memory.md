@@ -2197,21 +2197,23 @@ Fast-forward merge of release/5.2 into master — brings phase 5.2 features
 mainline. Task checked off in todo-v5.md. Next phase: 5.3 (Status Bar
 Redesign).
 
-### 5.3.1 — Powerline-style three-section layout
+### 5.3.1 — Flat item-based status bar with section grouping
 
 Redesigned `StatusBarWidget` from a single-line concatenation of four parts
-into a proper three-section powerline layout using `Layout::horizontal`:
+into a flat item list using `build_all_items()` which returns `Vec<StatusItem>`.
+Each item has `spans`, `width`, and `keep` fields.
 
-- **Left:** mode badge (icon + name, bold, mode-color foreground), tool name,
+Three informal sections grouped within the flat list:
+- **Left:** mode (icon + name, bold, mode-color foreground), tool name,
   cursor position (X:Y), zoom level
-- **Middle** (`Constraint::Fill(1)`): filename (font name), unsaved/saved
-  indicator, glyph count
+- **Middle:** font name, unsaved/saved indicator, glyph count (only when font active)
 - **Right:** git branch, FPS, clock, render mode, layer/undo counts, throbber
 
-Powerline triangle `\u{e0b0}` separators between sections using
-`self.theme.statusbar.separator` color. When terminal too narrow for all
-three sections, drops right section and renders left + middle only. At
-minimum widths (<10), renders truncated mode badge.
+Pipe `│` separators (`\u{2502}`) between items using
+`self.theme.statusbar.separator` color. No powerline separators or
+`Layout::horizontal` — items rendered as a single `Line` via
+`buf.set_line()`. At very narrow widths (<10 cols), renders truncated
+mode badge.
 
 No changes to `StatusBarWidget::new()` signature — all existing callers in
 `tui/mod.rs` work unchanged. No `unwrap()` in production paths.
@@ -2229,7 +2231,6 @@ position. Separator uses `\u{2502}` instead of powerline triangle `\u{e0b0}`.
 
 ### 5.3.3 — Phase merge: release/5.3 → master
 
-Merged release/5.3 branch into master at `1551f4d`. Brings 5.3.1 (Powerline
-three-section status bar layout) and 5.3.2 (Responsive item dropping at narrow
-widths) into the mainline. Task checked off in todo-v5.md. Next phase: 5.4
-(Image Editor Fix).
+Merged release/5.3 into master. Task checked off in todo-v5.md.
+Version bumped from 5.2.0 to 5.3.0. No code changes — admin re-application
+of reverted bookkeeping after merge. Next phase: 5.4 (Image Editor Fix).

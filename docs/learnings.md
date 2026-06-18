@@ -1,20 +1,26 @@
 # Figby — Learnings
 
-## 5.3.1 — Powerline-style three-section layout
+## 5.3.3 — Phase merge: release/5.3 → master
 
-- When restructuring a Widget's internal layout (e.g., from single-Line concatenation
-  to `Layout::horizontal` with 5 chunks), every field in the struct must be consumed
+- Phase merge bookkeeping was accidentally reverted after the merge commit
+  (likely from a `git reset` or branch switch that discarded uncommitted docs
+  changes). Had to re-apply version bump, memory entry, ralph-log entry, and
+  todo check-off. Lesson: commit bookkeeping before merging, or do docs + merge
+  in a single atomic commit.
+
+## 5.3.1 — Flat item-based status bar with section grouping
+
+- When restructuring a Widget's internal layout, every struct field must be consumed
   somewhere to avoid `dead_code` lint. Old fields that were dropped (like `zoom`,
-  `render_mode`, `layer_count`, `undo_count`, `throbber_text`) must either be absorbed
+  `render_mode`, `layer_count`, `undo_count`, `throbber_text`) must be absorbed
   into the new sections or the struct signature must change.
-- `Layout::horizontal` with `[Length, Length(1), Fill(1), Length(1), Length]` cleanly
-  separates sections with powerline separator slots. The separator `\u{e0b0}` is
-  rendered at the boundary via `buf.set_string()` overwriting whatever cell is there.
-- When terminal is too narrow for all three sections, a fallback layout
-  `[Length(left), Length(1), Fill(1)]` drops the right section gracefully.
-- The `POWERLINE_TRIANGLE` constant `\u{e0b0}` is a single-width NerdFont character.
-  It will render as a box/glyph in terminals without a patched font — consistent with
-  other NerdFont icons in the project.
+- A flat item list with `StatusItem { spans, width, keep }` is more flexible than
+  fixed `Layout::horizontal` sections — items with `keep: false` can be dropped
+  right-to-left when space runs out without redoing the layout.
+- Pipe separator `\u{2502}` with `sep_style` between items is rendered inline in
+  the final `Line`, avoiding per-chunk `buf.set_line()` calls needed by powerline.
+- Initial implementation used powerline triangles with `Layout::horizontal` (5 chunks),
+  but this was replaced by the flat item approach for better responsiveness.
 
 ## 3.0.0-rc.4 — Multi-font-directory search + font generation improvements
 

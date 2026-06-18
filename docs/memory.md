@@ -2215,3 +2215,14 @@ minimum widths (<10), renders truncated mode badge.
 
 No changes to `StatusBarWidget::new()` signature — all existing callers in
 `tui/mod.rs` work unchanged. No `unwrap()` in production paths.
+
+### 5.3.2 — Responsive: drop low-priority items at narrow widths
+
+Replaced the fixed three-section powerline layout with a flat item-based
+approach. Each status element is a `StatusItem { spans, width, keep }`.
+Items with `keep: false` are dropped right-to-left (via `rposition`) when
+total width exceeds available area.
+
+Dropable items (in drop order): throbber, undo count, layer count, render
+mode, clock, FPS, git branch, font group, zoom, tool. Non-dropable: mode,
+position. Separator uses `\u{2502}` instead of powerline triangle `\u{e0b0}`.

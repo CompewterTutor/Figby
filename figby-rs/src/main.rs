@@ -1211,6 +1211,12 @@ fn main() {
         return;
     }
 
+    if args.flag_v {
+        let mut stdout = io::stdout().lock();
+        let _ = writeln!(stdout, "figby {}", env!("CARGO_PKG_VERSION"));
+        process::exit(0);
+    }
+
     let config_file = config::load_config();
     let config = CliConfig::from_args_with_config(args, &config_file);
 

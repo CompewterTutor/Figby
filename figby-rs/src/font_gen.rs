@@ -147,14 +147,15 @@ pub fn list_monospace_fonts() -> Result<Vec<FontFamilyInfo>, FontGenError> {
 /// Format: `flf2a<hardblank> <height> <baseline> <max_length> <old_layout> <comment_lines> [<print_direction> [<full_layout> [<codetag_count>]]]`
 ///
 /// Generated header uses old_layout=0 (full-size), comment_lines=0,
-/// print_direction=-1 (unset), and codetag_count=0.
+/// print_direction (from the font struct), and codetag_count=0.
 pub fn generate_figfont_header(font: &FIGfont) -> String {
     format!(
-        "flf2a{hb} {h} {b} {ml} 0 0 -1 {fl} 0",
+        "flf2a{hb} {h} {b} {ml} 0 0 {pd} {fl} 0",
         hb = font.hardblank,
         h = font.charheight,
         b = font.baseline,
         ml = font.maxlength,
+        pd = font.print_direction,
         fl = font.full_layout,
     )
 }
@@ -310,7 +311,20 @@ fn ogham_charset() -> &'static [&'static str] {
     CELL.get_or_init(|| make_charset_vec(0x1680u32..=0x169Cu32))
 }
 
+/// Full: ASCII printable + blocks, with full block at the end.
+/// Clean gradient from space → █ without cluttering Unicode symbols.
+fn full_charset() -> &'static [&'static str] {
+    static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let mut v: Vec<&'static str> = Vec::new();
+        v.extend(make_charset_vec(0x0020u32..=0x007Eu32));
+        v.extend_from_slice(blocks_charset());
+        v
+    })
+}
+
 /// Deluxe: ASCII printable + blocks + box + braille + ogham.
+/// Full block U+2588 is forced to the end so darkest pixels fill solid.
 fn deluxe_charset() -> &'static [&'static str] {
     static CELL: OnceLock<Vec<&'static str>> = OnceLock::new();
     CELL.get_or_init(|| {
@@ -323,13 +337,16 @@ fn deluxe_charset() -> &'static [&'static str] {
         v.extend_from_slice(ogham_charset());
         v.extend_from_slice(dithered_charset());
         v.extend_from_slice(geometric_charset());
+        // Full block last so darkest pixels always fill solid
+        v.push("█");
         v
     })
 }
 
 /// Resolve a charset name to a character slice for font generation.
 /// Built-in names: `block`, `default`, `slight`, `smooth`,
-/// `braille`, `blocks`, `box`, `ogham`, `deluxe`, `dithered`, `geometric`.
+/// `braille`, `blocks`, `box`, `ogham`, `deluxe`, `full`,
+/// `dithered`, `geometric`.
 pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
     Some(match name {
         "block" => charsets::BLOCK,
@@ -343,6 +360,7 @@ pub fn resolve_charset(name: &str) -> Option<&'static [&'static str]> {
         "dithered" => dithered_charset(),
         "geometric" => geometric_charset(),
         "deluxe" => deluxe_charset(),
+        "full" => full_charset(),
         _ => return None,
     })
 }
@@ -513,7 +531,7 @@ fn render_font_glyphs(
             maxlength,
             old_layout: 0,
             full_layout: 64,
-            print_direction: -1,
+            print_direction: 0,
             comment_lines: 0,
             chars: figchars,
             codetag_count: 0,

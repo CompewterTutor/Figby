@@ -2584,7 +2584,8 @@ fn test_text_tool_commit_text() {
 
     // Load a font manually so commit_block can render
     let font_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
-    if let Ok(font) = load_font("standard", font_dir) {
+    let dirs = [font_dir];
+    if let Ok(font) = load_font("standard", &dirs) {
         app.editor.text_tool.font = Some(font);
     }
 

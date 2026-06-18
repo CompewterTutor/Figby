@@ -455,6 +455,12 @@ with theming, modern status bar, and component architecture.
   - **Difficulty:** Medium
 
 - [x] `4.12.2` v4 major milestone RC — human sign-off
+- [x] `4.12.3` Multi-directory font search + mac font dir
+  - **Touches:** `figby-rs/src/font.rs`, `main.rs`, `template.rs`, TUI callers
+  - **Success:** Fonts found in `/usr/local/share/figlet` without env var.
+- [x] `4.12.4` Full charset for `--create-font` + ChicagoFLF font
+  - **Touches:** `figby-rs/src/font_gen.rs`, `figby-fonts/new_fonts/ChicagoFLF.flf`
+  - **Success:** `--create-font-charset full` produces clean ASCII + █ output.
   - **Goal:** RC for v4.0.0. Ralph halts. Human reviews.
   - **Touches:** RC branch, annotated tag
   - **Success:** `rc/4.0.0-rc.1` created. Human merges.

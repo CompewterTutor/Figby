@@ -68,7 +68,9 @@ impl TextToolState {
         }
         let idx = self.font_index.min(self.available_fonts.len() - 1);
         let name = &self.available_fonts[idx];
-        if let Ok(f) = load_font(name, &self.font_dir) {
+        let mut dirs: Vec<&str> = vec![&self.font_dir];
+        dirs.extend(crate::font::DEFAULT_FONT_DIRS);
+        if let Ok(f) = load_font(name, &dirs) {
             self.font = Some(f);
         } else {
             self.font = None;

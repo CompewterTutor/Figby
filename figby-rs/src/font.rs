@@ -419,29 +419,33 @@ fn has_path_separator(name: &str) -> bool {
 }
 
 /// Generate candidate font paths in the order FIGopen() tries them.
-fn font_candidates(name: &str, fontdir: &str) -> Vec<String> {
+fn font_candidates(name: &str, fontdirs: &[&str]) -> Vec<String> {
     use std::path::Path;
     let mut candidates = Vec::new();
     if has_path_separator(name) {
         candidates.push(name.to_string());
     } else {
-        let dir = Path::new(fontdir);
-        candidates.push(
-            dir.join(format!("{}.flf", name))
-                .to_string_lossy()
-                .into_owned(),
-        );
+        for dir in fontdirs {
+            let d = Path::new(dir);
+            candidates.push(
+                d.join(format!("{}.flf", name))
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
     }
     candidates.push(format!("{}.flf", name));
     if has_path_separator(name) {
         candidates.push(format!("{}.tlf", name));
     } else {
-        let dir = Path::new(fontdir);
-        candidates.push(
-            dir.join(format!("{}.tlf", name))
-                .to_string_lossy()
-                .into_owned(),
-        );
+        for dir in fontdirs {
+            let d = Path::new(dir);
+            candidates.push(
+                d.join(format!("{}.tlf", name))
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
     }
     candidates
 }
@@ -545,19 +549,20 @@ pub fn read_zip_entry(path: &Path, entry_name: &str) -> Result<Vec<u8>, FontErro
     Ok(content)
 }
 
-/// Load a font by name from a font directory, with ZIP archive fallback.
+/// Default font directories searched when no explicit font directory is given.
+pub const DEFAULT_FONT_DIRS: &[&str] = &[
+    "/usr/local/share/figlet", // macOS (Homebrew, user-installed)
+    "/usr/share/figlet",       // Linux (system-wide)
+];
+
+/// Load a font by name from one or more font directories.
 ///
-/// Search order mirrors C's `FIGopen()`:
-/// 1. `fontdir/name.flf` (if `name` has no path separator)
-/// 2. `name.flf`
-/// 3. `fontdir/name.tlf` (if `name` has no path separator)
-/// 4. `name.tlf`
+/// For each directory in `fontdirs`, tries `dir/name.flf`, then `dir/name.tlf`.
+/// Also tries bare `name.flf` and `name.tlf` (relative/CWD) as a fallback.
 ///
-/// Each candidate is checked for existence. If found and is a ZIP archive,
-/// the first entry is extracted and parsed. Otherwise the file is parsed
-/// directly.
-pub fn load_font(name: &str, fontdir: &str) -> Result<FIGfont, FontError> {
-    let candidates = font_candidates(name, fontdir);
+/// If a candidate file is a ZIP archive, the first entry is extracted and parsed.
+pub fn load_font(name: &str, fontdirs: &[&str]) -> Result<FIGfont, FontError> {
+    let candidates = font_candidates(name, fontdirs);
     for path in &candidates {
         match read_font_bytes(path) {
             Ok(bytes) => {
@@ -1402,7 +1407,8 @@ mod tests {
         std::fs::create_dir_all(&tmpdir).unwrap();
         write_standard_font(&tmpdir);
 
-        let font = load_font("standard", tmpdir.to_str().unwrap())
+        let dirs = [tmpdir.to_str().unwrap()];
+        let font = load_font("standard", &dirs)
             .expect("should load standard font from plain file");
         assert_eq!(font.charheight, 6);
         assert_eq!(font.chars.len(), 325);
@@ -1428,7 +1434,8 @@ mod tests {
         zip.write_all(font_bytes).unwrap();
         zip.finish().unwrap();
 
-        let font = load_font("standard", tmpdir.to_str().unwrap())
+        let dirs = [tmpdir.to_str().unwrap()];
+        let font = load_font("standard", &dirs)
             .expect("should load standard font from ZIP archive");
         assert_eq!(font.charheight, 6);
         assert_eq!(font.chars.len(), 325);
@@ -1468,7 +1475,8 @@ mod tests {
         std::fs::write(tmpdir.join("standard.flf"), full_bytes).unwrap();
 
         // Load with fontdir pointing to tmpdir/fontdir
-        let font = load_font("standard", fontdir.to_str().unwrap())
+        let dirs = [fontdir.to_str().unwrap()];
+        let font = load_font("standard", &dirs)
             .expect("should load font from fontdir");
         // Height=1 confirms fontdir version was picked
         assert_eq!(font.charheight, 1);
@@ -1636,7 +1644,8 @@ mod tests {
         let tmpdir = temp_dir_uniq();
         std::fs::create_dir_all(&tmpdir).unwrap();
 
-        let result = load_font("nonexistent_font_xyzzy", tmpdir.to_str().unwrap());
+        let dirs = [tmpdir.to_str().unwrap()];
+        let result = load_font("nonexistent_font_xyzzy", &dirs);
         assert!(result.is_err(), "should return error for nonexistent font");
         match &result {
             Err(FontError::ParseError(msg)) => {

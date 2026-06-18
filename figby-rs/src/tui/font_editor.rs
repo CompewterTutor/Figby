@@ -1237,7 +1237,8 @@ impl FontEditor {
     }
 
     fn transform_copy_glyph_from(&mut self, font_source: &str, fontdir: &str, code: u32) {
-        let external = match load_font(font_source, fontdir) {
+        let dirs = [fontdir];
+        let external = match load_font(font_source, &dirs) {
             Ok(f) => f,
             Err(_) => {
                 self.error_message = format!("Could not load font: {font_source}");
@@ -1272,7 +1273,8 @@ impl FontEditor {
     }
 
     fn transform_import_font(&mut self, name: &str, fontdir: &str) {
-        let external = match load_font(name, fontdir) {
+        let dirs = [fontdir];
+        let external = match load_font(name, &dirs) {
             Ok(f) => f,
             Err(_) => {
                 self.error_message = format!("Could not load font: {name}");

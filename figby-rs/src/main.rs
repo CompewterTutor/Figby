@@ -293,7 +293,7 @@ struct CliArgs {
     #[arg(
         long = "create-font-charset",
         default_value = "smooth",
-        help = "Charset for --create-font: block, default, slight, smooth, or comma-separated"
+        help = "Charset for --create-font: block, default, slight, smooth, full, deluxe, or comma-separated"
     )]
     create_font_charset: String,
     #[arg(
@@ -757,7 +757,9 @@ fn flush_output_line(
 }
 
 fn run(config: CliConfig, message: Vec<String>) {
-    let font = match font::load_font(&config.fontname, &config.fontdirname) {
+    let mut dirs: Vec<&str> = vec![&config.fontdirname];
+    dirs.extend(font::DEFAULT_FONT_DIRS);
+    let font = match font::load_font(&config.fontname, &dirs) {
         Ok(f) => f,
         Err(e) => {
             eprintln!("Error: {e}");
@@ -1169,10 +1171,10 @@ fn main() {
             if !val.is_empty() {
                 val
             } else {
-                "/usr/share/figlet".to_string()
+                font::DEFAULT_FONT_DIRS[0].to_string()
             }
         } else {
-            "/usr/share/figlet".to_string()
+            font::DEFAULT_FONT_DIRS[0].to_string()
         };
 
         let term_width = get_columns().unwrap_or(80) as u32;

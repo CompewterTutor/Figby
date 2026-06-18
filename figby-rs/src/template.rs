@@ -545,7 +545,9 @@ pub fn render_template(
 
     let mut font_cache: HashMap<String, FIGfont> = HashMap::new();
     for name in &font_names {
-        font_cache.insert(name.clone(), load_font(name, &config.font_dir)?);
+        let mut dirs: Vec<&str> = vec![config.font_dir.as_str()];
+        dirs.extend(crate::font::DEFAULT_FONT_DIRS);
+        font_cache.insert(name.clone(), load_font(name, &dirs)?);
     }
 
     // Sort layers by z (ascending), then body_index (ascending).

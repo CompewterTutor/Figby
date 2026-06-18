@@ -39,6 +39,29 @@ issues (truncation, extreme values) as C does.
 Use `clap` with derive macros for CLI parsing, replacing `getopt`.
 FIGlet flag semantics preserved exactly.
 
+### Multi-font-directory search
+- `font_candidates()` and `load_font()` changed from `&str` (single dir) to
+  `&[&str]` (multiple dirs). All callers updated: `main.rs`, `template.rs`,
+  `tui/tools/text.rs`, `tui/font_editor.rs`, `tests/tui.rs`, and `font.rs` tests.
+- `DEFAULT_FONT_DIRS` constant: `["/usr/local/share/figlet", "/usr/share/figlet"]`.
+  CLI render path searches `[user_dir, ...DEFAULTS]` so fonts in `/usr/local/share/figlet`
+  are found automatically on macOS without `FIGLET_FONTDIR`.
+- Template path similarly searches `[config.font_dir, ...DEFAULTS]`.
+
+### Full charset for font generation
+- Added `full_charset()` preset: ASCII printable (0x20-0x7E) + `blocks_charset()`
+  with `█` (U+2588) as the last/darkest entry. No intermediate braille/box/ogham
+  sets to avoid drowning out the full block.
+- `resolve_charset()` updated with `"full"` alias.
+- `--create-font-charset` help text updated to list `"full"`.
+- In `deluxe_charset()`, `█` is now explicitly pushed at the end after all other
+  sets, ensuring darkest pixels always fill solid regardless of set ordering.
+
+### Generated font print_direction
+- `print_direction` in `render_font_glyphs()` changed from `-1` to `0` (explicit LTR).
+- `generate_figfont_header()` now uses `font.print_direction` field value instead
+  of hardcoded `-1`, making headers reflect the actual struct state.
+
 ## Task History
 ### 1.1.1 — Create `figby` crate in workspace
 

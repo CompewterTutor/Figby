@@ -1,5 +1,32 @@
 # Figby — Learnings
 
+## 3.0.0-rc.4 — Multi-font-directory search + font generation improvements
+
+- When `load_font` signature changes from `(&str, &str)` to `(&str, &[&str])`,
+  ALL callers must be updated — including integration tests (`tests/tui.rs`) and
+  submodule test files. Using `rg "load_font\("` to find every call site before
+  changing the signature prevents broken builds.
+- macOS SIP (System Integrity Protection) blocks writes to `/usr/share/` since
+  El Capitan. `/usr/local/share/` is the standard writable equivalent. The default
+  font dir search order `["/usr/local/share/figlet", "/usr/share/figlet"]` puts
+  the macOS path first, so font files installed there are found without env vars.
+- `FontFamilyInfo` returned by `list_system_fonts()` includes both family name
+  and available style descriptions. The font name passed to `--create-font` must
+  match the system family name exactly (case-sensitive).
+- In `deluxe_charset()`, combining multiple sub-charsets (braille, box, ogham, etc.)
+  buries `█` in the middle — the last charset in the concatenation determines the
+  darkest character. The `full` charset (ASCII printable + blocks with `█` last)
+  avoids this issue entirely by keeping the charset small and focused.
+- `generate_figfont_header()` previously hardcoded `print_direction: -1` in the
+  format string. Changed to use `font.print_direction` field so header generation
+  is consistent with the struct's actual value. Tests that construct fonts via
+  `FIGfont::default()` (print_direction=-1) continue to get `-1` in the header.
+- `rasterize_glyph()` with `RasterizationOptions::GrayscaleAa` produces 0-255
+  alpha values. The `rascii_art` crate maps these linearly across the charset.
+  With the `smooth` charset (18 chars), each char covers ~5.5% of the luminance
+  range. Adding `█` at the end of `full` (127 chars) gives each char ~0.8%
+  coverage — much finer gradation.
+
 ## 4.9.5 — Phase merge: release/4.9 → master
 
 - No code changes — merge brought in TachyonFX welcome fade-in (4.9.1), dark neon

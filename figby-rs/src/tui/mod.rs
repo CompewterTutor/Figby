@@ -37,6 +37,7 @@ pub mod palette;
 pub mod particles;
 pub mod player;
 pub mod render_mode;
+pub mod side_panel;
 pub mod status;
 pub mod theme;
 pub mod throbber;
@@ -54,6 +55,7 @@ pub use menu::{MenuBar, MenuBarState};
 pub use palette::Palette;
 pub use player::AnimationPlayer;
 pub use render_mode::RenderMode;
+pub use side_panel::{SidePanel, TabId};
 pub use status::CanvasSettings;
 pub use throbber::ThrobberState;
 pub use toolbox::Tool;
@@ -362,8 +364,8 @@ pub struct TuiApp {
     pub app_fade_in: Option<fx::AppFadeIn>,
     /// `F11` toggle: canvas fills entire terminal, minimal hint overlay.
     pub zen_mode: bool,
-    /// Controls what the right drawer panel shows.
-    pub right_drawer: layout::DrawerMode,
+    /// Tabbed side panel (right drawer).
+    pub side_panel: SidePanel,
     pub editor: EditorState,
     pub dialogs: DialogState,
     pub timeline_state: timeline::TimelineState,
@@ -484,7 +486,7 @@ impl TuiApp {
             welcome_fx: Some(fx::WelcomeFx::new()),
             app_fade_in: Some(fx::AppFadeIn::new()),
             zen_mode: false,
-            right_drawer: layout::DrawerMode::BrushKeys,
+            side_panel: SidePanel::new(icons.clone(), theme.clone()),
             editor: {
                 let mut editor = EditorState {
                     canvas,
@@ -642,7 +644,7 @@ impl TuiApp {
         let fl = layout::FrameLayout::compute(
             frame.area(),
             self.zen_mode,
-            self.right_drawer,
+            self.side_panel.open,
             tw,
             toolbox_h,
         );
@@ -738,19 +740,15 @@ impl TuiApp {
         // Canvas / font editor area
         self.render_canvas_area(frame, fl.canvas);
 
-        // Right drawer
+        // Right drawer: side panel
         if let Some(rp) = fl.right_panel {
-            match self.right_drawer {
-                layout::DrawerMode::BrushKeys => {
-                    self.render_brush_keys_panel(frame, rp);
-                }
-                layout::DrawerMode::Layers => {
-                    self.editor
-                        .layer_panel
-                        .render_with_stack(frame, rp, &self.editor.layer_stack);
-                }
-                _ => {}
-            }
+            self.side_panel.render(
+                frame,
+                rp,
+                Some(&self.editor.layer_panel),
+                Some(&self.editor.layer_stack),
+                Some(&self.editor.text_tool),
+            );
         }
 
         // FPS tracking
@@ -820,7 +818,7 @@ impl TuiApp {
         let fl = layout::FrameLayout::compute(
             frame.area(),
             self.zen_mode,
-            self.right_drawer,
+            self.side_panel.open,
             tw,
             toolbox_h,
         );
@@ -976,58 +974,6 @@ impl TuiApp {
                 frame.render_widget(&self.editor.canvas, canvas_inner_rect);
             }
         }
-    }
-
-    /// Render the brush/tool keybind reference in the right drawer.
-    fn render_brush_keys_panel(&self, frame: &mut Frame<'_>, area: Rect) {
-        let block = Block::default()
-            .title(" Brush Keys (? to cycle) ")
-            .borders(Borders::ALL)
-            .style(
-                Style::default()
-                    .bg(self.theme.menu.dropdown_bg)
-                    .fg(self.theme.menu.fg),
-            );
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let lines: Vec<Line> = vec![
-            Line::from(Span::styled(
-                " Tools ",
-                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            )),
-            Line::from("  b  Brush"),
-            Line::from("  e  Eraser"),
-            Line::from("  l  Lasso"),
-            Line::from("  v  Select"),
-            Line::from("  c  Circle sel."),
-            Line::from("  p  Polygon sel."),
-            Line::from("  g  Fill"),
-            Line::from("  i  Line"),
-            Line::from("  d  Eyedropper"),
-            Line::from("  a  Spray"),
-            Line::from("  t  Text"),
-            Line::from("  m  Emitter"),
-            Line::from(""),
-            Line::from(Span::styled(
-                " Brush ",
-                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            )),
-            Line::from("  [  Size down"),
-            Line::from("  ]  Size up"),
-            Line::from("  ;  Density down"),
-            Line::from("  '  Density up"),
-            Line::from(r"  \  Cycle shape"),
-            Line::from(""),
-            Line::from(Span::styled(
-                " View ",
-                Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            )),
-            Line::from("  F11  Zen mode"),
-            Line::from("  ?    This panel"),
-            Line::from("  ^K   All keybinds"),
-        ];
-        frame.render_widget(Paragraph::new(lines), inner);
     }
 
     /// Render all floating overlays (dialogs, keybindings, undo panel).
@@ -1386,7 +1332,7 @@ impl TuiApp {
             layout::FrameLayout::compute(
                 Rect::new(0, 0, cols, rows),
                 self.zen_mode,
-                self.right_drawer,
+                self.side_panel.open,
                 tw,
                 toolbox_h,
             )
@@ -1396,6 +1342,18 @@ impl TuiApp {
                 .borders(mouse_fl.canvas_borders())
                 .inner(mouse_fl.canvas),
         );
+
+        // Side panel tab label click
+        if let Some(rp) = mouse_fl.right_panel {
+            if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+                if let Some(tab) = self.side_panel.tab_at_pos(mouse.column, mouse.row, rp) {
+                    self.side_panel.set_active_tab(tab);
+                    self.dirty = true;
+                    return;
+                }
+            }
+        }
+
         if let Some(tb) = mouse_fl.toolbox_list {
             let tool_count = Tool::all().len() as u16;
             let toolbox_inner_y = tb.y + 1;
@@ -1994,7 +1952,8 @@ impl TuiApp {
         }
 
         // Layer panel: dispatch keys when drawer shows layers
-        if self.right_drawer == layout::DrawerMode::Layers
+        if self.side_panel.open
+            && self.side_panel.active_tab == TabId::Layers
             && self
                 .editor
                 .layer_panel
@@ -2286,6 +2245,23 @@ impl TuiApp {
         if self.editor.selection.is_some() && code == KeyCode::Esc {
             self.editor.selection = None;
             return None;
+        }
+
+        // Side panel: left/right arrows switch tabs when open
+        if self.side_panel.open {
+            match code {
+                KeyCode::Left => {
+                    self.side_panel.cycle_tab(false);
+                    self.dirty = true;
+                    return None;
+                }
+                KeyCode::Right => {
+                    self.side_panel.cycle_tab(true);
+                    self.dirty = true;
+                    return None;
+                }
+                _ => {}
+            }
         }
 
         // Canvas cursor movement, zoom, grid
@@ -2648,7 +2624,7 @@ impl TuiApp {
                 None
             }
             GA::CycleDrawer => {
-                self.right_drawer = self.right_drawer.cycle();
+                self.side_panel.toggle_open();
                 self.dirty = true;
                 None
             }

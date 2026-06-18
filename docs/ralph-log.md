@@ -6052,3 +6052,7 @@ index 6015e63..d7cd3b3 100644
 ## 2026-06-18 15:01
 
 BLOCKED on task 5.2.1: branch task-5.2.1 already exists. Resolve it manually before re-running ralph.
+
+## 2026-06-18 15:10
+
+DONE: 5.2.1 merged into release/5.2.

@@ -2255,43 +2255,38 @@ fn test_menu_help_keybindings() {
 }
 
 #[test]
-fn test_layout_drawer_cycle() {
+fn test_layout_drawer_toggle() {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use figby::tui::side_panel::TabId;
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
     app.welcome_screen.show = false;
 
-    // Default drawer is BrushKeys
+    // Default drawer is closed, active tab = Layers
+    assert!(!app.side_panel.open, "default drawer should be closed");
     assert_eq!(
-        app.right_drawer,
-        figby::tui::layout::DrawerMode::BrushKeys,
-        "default drawer should be BrushKeys"
+        app.side_panel.active_tab,
+        TabId::Layers,
+        "default active tab should be Layers"
     );
 
-    // '?' cycles to Layers
+    // '?' toggles drawer open
     app.handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
+    assert!(app.side_panel.open, "'?' should open the drawer");
     assert_eq!(
-        app.right_drawer,
-        figby::tui::layout::DrawerMode::Layers,
-        "'?' should cycle drawer to Layers"
+        app.side_panel.active_tab,
+        TabId::Layers,
+        "active tab should stay Layers after open"
     );
 
-    // '?' cycles to Closed
+    // '?' toggles drawer closed
     app.handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
-    assert_eq!(
-        app.right_drawer,
-        figby::tui::layout::DrawerMode::Closed,
-        "second '?' should cycle drawer to Closed"
-    );
+    assert!(!app.side_panel.open, "second '?' should close the drawer");
 
-    // '?' cycles back to BrushKeys
+    // '?' toggles drawer open again
     app.handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
-    assert_eq!(
-        app.right_drawer,
-        figby::tui::layout::DrawerMode::BrushKeys,
-        "third '?' should cycle drawer back to BrushKeys"
-    );
+    assert!(app.side_panel.open, "third '?' should open the drawer");
 }
 
 #[test]

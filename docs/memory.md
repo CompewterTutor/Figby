@@ -2130,6 +2130,33 @@ edge block (dim style, canvas.edge color) with `BorderType::Double` block using
 showing canvas buffer dimensions. `BorderType` added to ratatui widget imports.
 fmt and clippy pass clean.
 
+### 5.2.2 — Right panel: tabbed prop/info/library/effects drawer
+
+Replaced right drawer with tabbed `SidePanel` component. Created
+`figby-rs/src/tui/side_panel.rs` with `TabId` enum (Layers/Props/Text/Libraries/
+Effects) each with NerdFont icon key from `icons.yaml` and display name.
+`SidePanel` struct holds `open: bool`, `active_tab: TabId`, icons map, theme.
+
+Layout changes (`figby-rs/src/tui/layout.rs`):
+- Removed `DrawerMode` enum entirely (was Palette/BrushKeys/Layers/Closed)
+- `FrameLayout::compute()` now takes `side_panel_open: bool` instead of
+  `DrawerMode`
+- Removed `right_panel_borders()` dead code function
+
+Integration changes (`figby-rs/src/tui/mod.rs`):
+- `right_drawer: DrawerMode` → `side_panel: SidePanel`
+- All 3 `FrameLayout::compute` call sites pass `self.side_panel.open`
+- Render block replaced single match with `self.side_panel.render()`
+- Layer panel key dispatch guarded by `side_panel.open && active_tab == Layers`
+- `?` key toggles panel open/close (was cycle BrushKeys→Layers→Closed)
+- Left/right arrows switch tabs when panel open (guarded before canvas movement)
+- Mouse click on tab label switches active tab
+- `render_brush_keys_panel` moved into `SidePanel::render_props_content()`
+  (dead private method removed from mod.rs)
+
+Test `test_layout_drawer_cycle` renamed to `test_layout_drawer_toggle` —
+checks open/closed toggling and active tab persistence.
+
 ### 5.2.1 — Palette moved under tools (left column)
 
 Moved palette from right drawer to left column below toolbox. `FrameLayout`

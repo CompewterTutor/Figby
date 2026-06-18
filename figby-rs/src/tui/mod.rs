@@ -8,7 +8,7 @@ use crossterm::terminal::EnterAlternateScreen;
 use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs};
@@ -379,6 +379,7 @@ pub struct TuiApp {
     pub emitter_panel: particles::EmitterConfigPanel,
     pub show_live_particles: bool,
     pub baked_layer_indices: Vec<usize>,
+    pub timeline_visible: bool,
 }
 
 impl TuiApp {
@@ -530,6 +531,7 @@ impl TuiApp {
             emitter_panel: particles::EmitterConfigPanel::new(),
             show_live_particles: true,
             baked_layer_indices: Vec::new(),
+            timeline_visible: false,
         }
     }
 
@@ -658,6 +660,7 @@ impl TuiApp {
             self.side_panel.open,
             tw,
             toolbox_h,
+            self.timeline_visible,
         );
 
         // --- Zen mode: canvas only, hint overlay ---
@@ -786,6 +789,29 @@ impl TuiApp {
             );
         }
 
+        // Timeline panel at bottom of canvas
+        if let Some(timeline_rect) = fl.timeline {
+            let block = Block::default()
+                .title(" Timeline ")
+                .borders(fl.timeline_borders())
+                .style(Style::default().fg(self.theme.general.secondary));
+            let inner = block.inner(timeline_rect);
+            if inner.height >= 5 {
+                let tl_split = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)])
+                    .spacing(0)
+                    .split(inner);
+                let anim_timeline = timeline::AnimationTimeline::panel_instance();
+                frame.render_widget(block, timeline_rect);
+                frame.render_stateful_widget(&anim_timeline, tl_split[0], &mut self.timeline_state);
+                let toolbar =
+                    Paragraph::new(" [A] Add Frame  [Del] Delete  [←/→] Switch  [Enter] Play")
+                        .style(Style::default().fg(self.theme.general.secondary));
+                frame.render_widget(toolbar, tl_split[1]);
+            } else {
+                frame.render_widget(block, timeline_rect);
+            }
+        }
+
         // FPS tracking
         let now = Instant::now();
         let elapsed = now - self.last_frame_time;
@@ -856,6 +882,7 @@ impl TuiApp {
             self.side_panel.open,
             tw,
             toolbox_h,
+            self.timeline_visible,
         );
 
         let mode_title = match self.mode {
@@ -1415,6 +1442,7 @@ impl TuiApp {
                 self.side_panel.open,
                 tw,
                 toolbox_h,
+                self.timeline_visible,
             )
         };
         let canvas_inner_rect = self.editor.compute_canvas_rect(
@@ -2357,6 +2385,50 @@ impl TuiApp {
             }
         }
 
+        // Timeline: left/right navigate frames, A add, Delete remove
+        if self.timeline_visible {
+            match code {
+                KeyCode::Left if self.timeline_state.current_frame > 0 => {
+                    self.timeline_state.current_frame -= 1;
+                    self.editor.sync_canvas_to_font_char();
+                    self.dirty = true;
+                    return None;
+                }
+                KeyCode::Right
+                    if self.timeline_state.current_frame + 1 < self.timeline_state.frames.len() =>
+                {
+                    self.timeline_state.current_frame += 1;
+                    self.editor.sync_canvas_to_font_char();
+                    self.dirty = true;
+                    return None;
+                }
+                KeyCode::Char('A') => {
+                    let thumb_w = 8;
+                    let thumb_h = 3;
+                    let buffer = self.editor.layer_stack.composite();
+                    let thumbnail = capture_thumbnail(&buffer, thumb_w, thumb_h);
+                    let frame = timeline::TimelineFrame {
+                        thumbnail,
+                        has_keyframe: false,
+                        label: format!("Frame {}", self.timeline_state.frames.len()),
+                        layer_state: Some(buffer),
+                        layer_keyframes: Vec::new(),
+                    };
+                    self.timeline_state.add_frame(frame);
+                    self.dirty = true;
+                    return None;
+                }
+                KeyCode::Delete if self.timeline_state.frames.len() > 1 => {
+                    let _ = self
+                        .timeline_state
+                        .remove_frame(self.timeline_state.current_frame);
+                    self.dirty = true;
+                    return None;
+                }
+                _ => {}
+            }
+        }
+
         // Canvas cursor movement, zoom, grid
         {
             let ck = key.code;
@@ -2472,8 +2544,14 @@ impl TuiApp {
             return None;
         }
 
-        // Open tween panel (uppercase only to avoid conflict with Text tool)
-        if code == KeyCode::Char('T') {
+        // T: toggle timeline panel
+        if code == KeyCode::Char('T') && modifiers == KeyModifiers::NONE {
+            self.timeline_visible = !self.timeline_visible;
+            self.dirty = true;
+            return None;
+        }
+        // Shift+T: open tween panel
+        if code == KeyCode::Char('T') && modifiers == KeyModifiers::SHIFT {
             self.timeline_state.open_tween();
             self.dirty = true;
             return None;
@@ -2723,6 +2801,11 @@ impl TuiApp {
             }
             GA::ToggleKeybindings => {
                 self.show_keybindings = !self.show_keybindings;
+                self.dirty = true;
+                None
+            }
+            GA::ToggleTimeline => {
+                self.timeline_visible = !self.timeline_visible;
                 self.dirty = true;
                 None
             }
@@ -3326,6 +3409,24 @@ fn centered_overlay(area: Rect) -> Rect {
         width: area.width * 2 / 3,
         height: area.height * 2 / 3,
     }
+}
+
+/// Downsample a `CanvasBuffer` to `thumb_w × thumb_h` char grid for timeline thumbnails.
+fn capture_thumbnail(buffer: &canvas::CanvasBuffer, thumb_w: u16, thumb_h: u16) -> Vec<Vec<char>> {
+    let bw = buffer.width();
+    let bh = buffer.height();
+    let mut thumb = Vec::with_capacity(thumb_h as usize);
+    for ty in 0..thumb_h {
+        let mut row = Vec::with_capacity(thumb_w as usize);
+        for tx in 0..thumb_w {
+            let bx = (tx as usize * bw / thumb_w as usize).min(bw.saturating_sub(1));
+            let by = (ty as usize * bh / thumb_h as usize).min(bh.saturating_sub(1));
+            let ch = buffer.get(bx, by).map(|c| c.ch).unwrap_or(' ');
+            row.push(ch);
+        }
+        thumb.push(row);
+    }
+    thumb
 }
 
 fn format_clock() -> String {

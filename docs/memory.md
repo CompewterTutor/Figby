@@ -2295,3 +2295,16 @@ widget, raw mode playback engine) are implemented.
 - P3: Standalone `Widget` impl for timeline is trivial (ruler only)
 
 No code changes — pure audit. Gap list ready for 5.5.2/5.5.3.
+
+### 5.5.2 — Surface timeline panel in main layout
+
+Added timeline panel to main editor layout:
+- `T` (no modifier) toggles timeline at bottom of canvas (~8 rows when open)
+- `TIMELINE_HEIGHT = 8` constant in `layout.rs`, timeline as optional `Rect` in `FrameLayout`
+- `canvas_borders()` updated to omit BOTTOM when timeline visible; `timeline_borders()` returns LEFT|RIGHT|BOTTOM
+- Timeline renders with heading block + `StatefulWidget` content + toolbar line
+- `capture_thumbnail()` downsamples `CanvasBuffer` to `thumb_w × thumb_h` char grid for frame thumbnails
+- `AnimationTimeline::panel_instance()` constructor for bottom panel config
+- Keybindings: `←/→` switch frame, `A` add frame, `Delete` delete frame, `Enter` play
+- `Shift+T` opens tween panel (was `T` — moved to `Shift+T` to free bare `T` for toggle)
+- `ToggleTimeline` global action added to keymap dispatch

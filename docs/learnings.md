@@ -1,5 +1,20 @@
 # Figby — Learnings
 
+## 5.5.2 — Surface timeline panel in main layout
+
+- `T` key was previously bound to `open_tween()`. Since `T` is now the timeline toggle,
+  tween was moved to `Shift+T`. The `Shift+T` dispatch must be checked BEFORE `T`
+  (uppercase before lowercase in key dispatch order) to avoid the lowercase `T` handler
+  catching the shifted press first.
+- `canvas_borders()` grew from 4 cases (2 booleans) to 8 cases (3 booleans) when
+  `timeline` was added. The border logic now exhaustively matches all 8 combinations
+  of toolbox/right_panel/timeline visibility — ratatui's `Borders` bitflags make
+  this clean but the pattern-match explosion is unavoidable for edge-sharing panels.
+- Both `Widget` and `StatefulWidget` were already implemented for `&AnimationTimeline`.
+  Adding `panel_instance()` constructor was sufficient to wire it into the main layout
+  — the render logic (thumbnails, playhead, frame labels) was already complete from
+  earlier phases.
+
 ## 5.5.1 — Audit 4.5–4.8 implementation vs spec
 
 - `ExportDialog` in `export.rs` has two nearly-identical render implementations:

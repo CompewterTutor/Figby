@@ -189,3 +189,18 @@ impl Default for FrameLayout {
         Self::compute(Rect::new(0, 0, 80, 24), false, false, 8, 0, false)
     }
 }
+
+/// Centered overlay for the palette editor panel.
+/// 42 columns wide, roughly half terminal height, centered.
+pub fn palette_editor_overlay(area: Rect) -> Rect {
+    let width = 42u16.min(area.width.saturating_sub(4));
+    let height = (area.height / 2).max(12).min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(height)) / 2;
+    Rect {
+        x,
+        y,
+        width,
+        height,
+    }
+}

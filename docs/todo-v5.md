@@ -271,7 +271,7 @@ Source: `docs/4.0-manual-testing-notes.md`
     Arrow navigation still works row-by-row.
   - **Difficulty:** Medium
 
-- [ ] `5.6.3` Palette editor panel (save / load / duplicate)
+- [x] `5.6.3` Palette editor panel (save / load / duplicate)
   - **Goal:** New `PaletteEditor` panel (accessible from a keybind or right-panel
     tab). Shows palette name, list of swatches with hex values. Actions:
     - Save palette to `~/.config/figby/palettes/<name>.json`

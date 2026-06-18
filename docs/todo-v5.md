@@ -110,7 +110,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** No double-border lines anywhere. Layout looks tight and clean.
   - **Difficulty:** Medium
 
-- [ ] `5.1.5` Phase merge: release/5.1 → main
+- [x] `5.1.5` Phase merge: release/5.1 → main
   - **Difficulty:** Low
 
 ---

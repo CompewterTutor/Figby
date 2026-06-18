@@ -2325,3 +2325,12 @@ Added 5-frame animation export tests for GIF, APNG, and ANSI formats in both
   path — the Widget impl was never registered in mod.rs.
 - Added `set_per_frame_delays()` public method on `ExportDialog` for tests to inject
   custom per-frame delay values.
+
+### 5.5.4 — Phase merge: release/5.5 → master
+
+Fast-forward merge of release/5.5 into master. Phase 5.5 complete: animation
+audit (5.5.1 — read-only audit of timeline/player/export vs spec), timeline
+panel surface in main layout (5.5.2 — `T` key toggle, frame thumbnails,
+playhead, add/delete frame), export end-to-end verification (5.5.3 — 5-frame
+GIF/APNG/ANSI tests, dead Widget impl removed, per-frame delays). Version
+bumped from 5.4.0 to 5.5.0. Next phase: 5.6 (Palette UX & Editor).

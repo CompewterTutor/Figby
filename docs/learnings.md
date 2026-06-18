@@ -1,5 +1,21 @@
 # Figby — Learnings
 
+## 5.3.1 — Powerline-style three-section layout
+
+- When restructuring a Widget's internal layout (e.g., from single-Line concatenation
+  to `Layout::horizontal` with 5 chunks), every field in the struct must be consumed
+  somewhere to avoid `dead_code` lint. Old fields that were dropped (like `zoom`,
+  `render_mode`, `layer_count`, `undo_count`, `throbber_text`) must either be absorbed
+  into the new sections or the struct signature must change.
+- `Layout::horizontal` with `[Length, Length(1), Fill(1), Length(1), Length]` cleanly
+  separates sections with powerline separator slots. The separator `\u{e0b0}` is
+  rendered at the boundary via `buf.set_string()` overwriting whatever cell is there.
+- When terminal is too narrow for all three sections, a fallback layout
+  `[Length(left), Length(1), Fill(1)]` drops the right section gracefully.
+- The `POWERLINE_TRIANGLE` constant `\u{e0b0}` is a single-width NerdFont character.
+  It will render as a box/glyph in terminals without a patched font — consistent with
+  other NerdFont icons in the project.
+
 ## 3.0.0-rc.4 — Multi-font-directory search + font generation improvements
 
 - When `load_font` signature changes from `(&str, &str)` to `(&str, &[&str])`,

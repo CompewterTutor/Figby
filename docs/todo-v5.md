@@ -160,7 +160,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.3 — Status Bar Redesign
 
-- [ ] `5.3.1` Powerline-style three-section layout
+- [x] `5.3.1` Powerline-style three-section layout
   - **Goal:** Redesign status bar into three sections using `Flex`:
     - **Left:** `[mode_icon] ModeName` ▶ `[tool_icon] ToolName` ▶ `[status_position] X:n Y:n`
     - **Middle** (`Constraint::Fill(1)`): filename + unsaved indicator + font name
@@ -170,7 +170,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Status bar looks like lazyvim powerline. All info visible at 80+ cols.
   - **Difficulty:** Medium
 
-- [ ] `5.3.2` Responsive: drop low-priority items at narrow widths
+- [x] `5.3.2` Responsive: drop low-priority items at narrow widths
   - **Goal:** Measure available width. Drop items right-to-left when space runs out:
     clock → FPS → git branch → zoom → font name. Mode + tool + position never drop.
   - **Touches:** `figby-rs/src/tui/components/status_bar.rs`

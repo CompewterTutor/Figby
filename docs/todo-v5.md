@@ -250,7 +250,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.6 — Palette UX & Editor
 
-- [ ] `5.6.1` Color name tooltip on hover
+- [x] `5.6.1` Color name tooltip on hover
   - **Goal:** When mouse hovers a palette swatch, show a one-line indicator below
     the swatch grid with the standard terminal colour name (e.g. "Blue",
     "Bright Cyan", or "#1A2B3C" for RGB). Track hover index separately from

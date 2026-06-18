@@ -1,5 +1,9 @@
 # Changelog
 
+## [5.3.0] - 2026-06-18
+### Changed
+- Phase merge: release/5.3 → master. Phase 5.3 complete: powerline status bar with three-section layout (5.3.1), responsive item dropping at narrow widths (5.3.2).
+
 ## [5.2.0] - 2026-06-18
 ### Added
 - Phase 5.2 layout restructure — palette under tools, tabbed right panel (Layers/Props/Text/Libraries/Effects), context-sensitive tool properties in Props tab

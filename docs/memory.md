@@ -2226,3 +2226,10 @@ total width exceeds available area.
 Dropable items (in drop order): throbber, undo count, layer count, render
 mode, clock, FPS, git branch, font group, zoom, tool. Non-dropable: mode,
 position. Separator uses `\u{2502}` instead of powerline triangle `\u{e0b0}`.
+
+### 5.3.3 — Phase merge: release/5.3 → master
+
+Merged release/5.3 branch into master at `1551f4d`. Brings 5.3.1 (Powerline
+three-section status bar layout) and 5.3.2 (Responsive item dropping at narrow
+widths) into the mainline. Task checked off in todo-v5.md. Next phase: 5.4
+(Image Editor Fix).

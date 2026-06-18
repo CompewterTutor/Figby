@@ -160,7 +160,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.3 — Status Bar Redesign
 
-- [ ] `5.3.1` Powerline-style three-section layout
+- [x] `5.3.1` Powerline-style three-section layout
   - **Goal:** Redesign status bar into three sections using `Flex`:
     - **Left:** `[mode_icon] ModeName` ▶ `[tool_icon] ToolName` ▶ `[status_position] X:n Y:n`
     - **Middle** (`Constraint::Fill(1)`): filename + unsaved indicator + font name

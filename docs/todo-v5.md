@@ -75,7 +75,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.1 — Toolbox & Canvas Polish
 
-- [ ] `5.1.1` Toolbox NerdFont icons
+- [x] `5.1.1` Toolbox NerdFont icons
   - **Goal:** Toolbox widget currently uses 2-char `display_name()` abbrevs.
     Replace with `icon_key()` lookup from `App::icons` BTreeMap. Display:
     `[icon] FullName` per row. Pass icons map into `Toolbox` render just as

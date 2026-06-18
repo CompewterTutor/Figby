@@ -53,6 +53,25 @@ pub const CHAR_GROUPS: &[CharGroup] = &[
     CharGroup { name: "ogham",   chars: " ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏᚐᚑᚒᚓᚔᚕᚖᚗᚘᚙᚚ᚛᚜" },
 ];
 
+pub const ANSI_COLOR_NAMES: [&str; 16] = [
+    "Black",
+    "Red",
+    "Green",
+    "Yellow",
+    "Blue",
+    "Magenta",
+    "Cyan",
+    "White",
+    "Bright Black",
+    "Bright Red",
+    "Bright Green",
+    "Bright Yellow",
+    "Bright Blue",
+    "Bright Magenta",
+    "Bright Cyan",
+    "Bright White",
+];
+
 pub const ANSI_16_COLORS: [Color; 16] = [
     Color::Indexed(0),
     Color::Indexed(1),
@@ -88,6 +107,7 @@ pub struct Palette {
     custom_mode: bool,
     show_extended: bool,
     extended_page: u8,
+    pub hover_index: Option<usize>,
     pub theme: Theme,
 }
 
@@ -102,6 +122,7 @@ impl Palette {
             custom_mode: false,
             show_extended: false,
             extended_page: 0,
+            hover_index: None,
             theme: Theme::default(),
         }
     }
@@ -250,6 +271,59 @@ impl Palette {
         }
     }
 
+    fn color_name(&self, index: usize) -> String {
+        if self.show_extended {
+            let abs = 16u16 + self.extended_page as u16 * 16 + index as u16;
+            format!("Color {}", abs)
+        } else if index < 16 {
+            ANSI_COLOR_NAMES[index].to_string()
+        } else {
+            String::new()
+        }
+    }
+
+    /// Hit-test a mouse move at terminal coordinates (`col`, `row`) against `area`
+    /// and set `hover_index` accordingly. Returns `true` if hover state changed.
+    pub fn handle_hover(&mut self, col: u16, row: u16, area: Rect) -> bool {
+        let ix = area.x + 1;
+        let iy = area.y + 1;
+        let iw = area.width.saturating_sub(2);
+        let ih = area.height.saturating_sub(2);
+        if col < ix || col >= ix + iw || row < iy || row >= iy + ih {
+            let changed = self.hover_index.is_some();
+            self.hover_index = None;
+            return changed;
+        }
+        let rel_col = col - ix;
+        let rel_row = row - iy;
+
+        // Row 0 is FG/BG toggle — not a swatch
+        // Swatch rows for standard: 1-2; for extended: 2-3
+        let (swatch_start, swatch_end) = if self.show_extended {
+            (2u16, 4u16)
+        } else {
+            (1u16, 3u16)
+        };
+
+        if (swatch_start..swatch_end).contains(&rel_row) {
+            let swatch_col = (rel_col / 2) as usize;
+            if swatch_col < 8 {
+                let idx = (rel_row as usize - swatch_start as usize) * 8 + swatch_col;
+                if idx < 16 {
+                    if self.hover_index != Some(idx) {
+                        self.hover_index = Some(idx);
+                        return true;
+                    }
+                    return false;
+                }
+            }
+        }
+
+        let changed = self.hover_index.is_some();
+        self.hover_index = None;
+        changed
+    }
+
     /// Hit-test a left click at terminal coordinates (`col`, `row`) against `area`
     /// (the full panel rect including border). Returns true if the click landed on
     /// a colour swatch or FG/BG toggle and state changed.
@@ -394,6 +468,17 @@ impl Widget for &Palette {
             lines.push(Line::from(row2));
         }
 
+        // Hover tooltip: show color name below swatches
+        if let Some(hover) = self.hover_index {
+            let name = self.color_name(hover);
+            if !name.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    format!(" {}", name),
+                    Style::default().fg(self.theme.general.secondary),
+                )));
+            }
+        }
+
         if self.custom_mode {
             let hex_display = format!(" #{}", self.custom_hex);
             lines.push(Line::from(Span::raw(hex_display)));
@@ -427,7 +512,9 @@ impl Default for Palette {
 
 #[cfg(test)]
 mod tests {
+    use super::Palette;
     use super::CHAR_GROUPS;
+    use ratatui::layout::Rect;
 
     #[test]
     fn test_braille_palette_group_length() {
@@ -757,6 +844,50 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_hover_on_swatch() {
+        let mut p = Palette::new();
+        let area = Rect::new(0, 0, 20, 10);
+        // Swatch row 1 (inner row 1), col 0 → index 0
+        assert!(p.handle_hover(1, 2, area));
+        assert_eq!(p.hover_index, Some(0));
+    }
+
+    #[test]
+    fn test_hover_outside_clears() {
+        let mut p = Palette::new();
+        let area = Rect::new(0, 0, 20, 10);
+        assert!(p.handle_hover(1, 2, area));
+        assert_eq!(p.hover_index, Some(0));
+        assert!(p.handle_hover(1, 0, area));
+        assert_eq!(p.hover_index, None);
+    }
+
+    #[test]
+    fn test_hover_outside_palette_clears() {
+        let mut p = Palette::new();
+        let area = Rect::new(0, 0, 20, 10);
+        p.handle_hover(1, 2, area);
+        assert!(p.handle_hover(30, 30, area));
+        assert_eq!(p.hover_index, None);
+    }
+
+    #[test]
+    fn test_color_name_standard() {
+        let p = Palette::new();
+        assert_eq!(p.color_name(0), "Black");
+        assert_eq!(p.color_name(9), "Bright Red");
+        assert_eq!(p.color_name(15), "Bright White");
+    }
+
+    #[test]
+    fn test_color_name_extended() {
+        let mut p = Palette::new();
+        p.show_extended = true;
+        let name = p.color_name(0);
+        assert!(name.contains("Color 16"));
     }
 
     #[test]

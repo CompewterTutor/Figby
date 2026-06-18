@@ -2334,3 +2334,18 @@ panel surface in main layout (5.5.2 — `T` key toggle, frame thumbnails,
 playhead, add/delete frame), export end-to-end verification (5.5.3 — 5-frame
 GIF/APNG/ANSI tests, dead Widget impl removed, per-frame delays). Version
 bumped from 5.4.0 to 5.5.0. Next phase: 5.6 (Palette UX & Editor).
+
+### 5.6.1 — Color name tooltip on hover
+
+Added hover tooltip showing terminal colour name below palette swatches:
+- `hover_index: Option<usize>` field on `Palette` — tracks hover state separately
+  from `selected_index`. Cleared on mouse-out.
+- `ANSI_COLOR_NAMES` constant — 16 standard ANSI names (Black, Red, ... Bright White)
+- `color_name(index)` — returns ANSI name for standard mode, `"Color N"` for extended
+- `handle_hover(col, row, area)` — hit-tests mouse move against palette inner rect,
+  sets `hover_index` on swatch match, returns `true` if hover state changed
+- Widget impl renders color name below swatch grid in `self.theme.general.secondary`
+- Mod.rs: `Moved` arm added to palette mouse handler, gates on `!settings_open`
+- 5 unit tests: hover on/off swatch, outside clears, color name (standard + extended)
+
+No `.unwrap()` in production. fmt and clippy pass clean.

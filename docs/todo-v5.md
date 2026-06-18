@@ -249,3 +249,70 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 - [ ] `5.5.4` Phase merge: release/5.5 → main
   - **Difficulty:** Low
+
+---
+
+## Phase 5.6 — Palette UX & Editor
+
+- [ ] `5.6.1` Color name tooltip on hover
+  - **Goal:** When mouse hovers a palette swatch, show a one-line indicator below
+    the swatch grid with the standard terminal colour name (e.g. "Blue",
+    "Bright Cyan", or "#1A2B3C" for RGB). Track hover index separately from
+    selected index. Clear on mouse-out.
+  - **Touches:** `figby-rs/src/tui/palette.rs`, `figby-rs/src/tui/mod.rs`
+    (add `Moved` arm to palette mouse handler)
+  - **Success:** Hovering any swatch shows its name; moving away clears it.
+  - **Difficulty:** Low
+
+- [ ] `5.6.2` 5-per-row hue-grouped palette layout
+  - **Goal:** Replace the current 8-per-row flat grid with a hue-grouped layout:
+    5 swatches per row, rows grouped by hue family (Reds, Oranges, Yellows,
+    Greens, Cyans, Blues, Purples, Neutrals). Group membership computed via
+    HSL hue bucketing; user can override group assignment later. This is
+    groundwork for the Marker brush (5.6.5).
+  - **Touches:** `figby-rs/src/tui/palette.rs`
+  - **Success:** Palette renders with hue-grouped rows, 5 swatches wide.
+    Arrow navigation still works row-by-row.
+  - **Difficulty:** Medium
+
+- [ ] `5.6.3` Palette editor panel (save / load / duplicate)
+  - **Goal:** New `PaletteEditor` panel (accessible from a keybind or right-panel
+    tab). Shows palette name, list of swatches with hex values. Actions:
+    - Save palette to `~/.config/figby/palettes/<name>.json`
+    - Load palette from file picker (filters `.json` palette files)
+    - Duplicate current palette under a new name
+  - **Touches:** new `figby-rs/src/tui/palette_editor.rs`,
+    `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/layout.rs`
+  - **Success:** Can round-trip a palette through save → load and get identical
+    colours. Duplicate produces independent copy.
+  - **Difficulty:** Medium
+
+- [ ] `5.6.4` Palette import: common formats
+  - **Goal:** Import palette swatches from popular formats:
+    - **Paletty JSON** — array of `{hex, name}` objects (see paletty.dev export)
+    - **Adobe ASE** — binary `ASEF` format; parse swatch blocks
+    - **WezTerm JSON** — `colors` object with named terminal colour keys
+    - **Windows Terminal JSON** — `schemes[].background/foreground/…` fields
+    Show a format picker in the load dialog; auto-detect where unambiguous.
+  - **Touches:** new `figby-rs/src/palette_import.rs`,
+    `figby-rs/src/tui/palette_editor.rs`
+  - **Depends:** `5.6.3`
+  - **Success:** Each format imports to the correct swatch list without data loss.
+  - **Difficulty:** Medium
+
+- [ ] `5.6.5` Marker brush mode (Aseprite-style shading)
+  - **Goal:** New brush sub-mode "Marker". Requires 2+ colours selected in the
+    palette. Painting on a non-empty pixel steps its colour forward one position
+    in the selected-colour array by the brush's per-pixel hit strength (0.0–1.0,
+    accounting for brush falloff). Accumulate fractional steps per pixel per
+    stroke; commit integer steps on mouse-up. Auto-masks empty pixels (no effect
+    on transparent/space cells). Clamp at the last selected colour.
+  - **Touches:** `figby-rs/src/tui/palette.rs` (multi-select state),
+    `figby-rs/src/tui/tools/brush.rs`, `figby-rs/src/tui/mod.rs`
+  - **Depends:** `5.6.2` (hue-grouped palette for ergonomic colour stepping)
+  - **Success:** Paint over a mid-tone pixel repeatedly → colour steps toward the
+    darkest selected swatch and clamps. No effect on blank cells.
+  - **Difficulty:** High
+
+- [ ] `5.6.6` Phase merge: release/5.6 → main
+  - **Difficulty:** Low

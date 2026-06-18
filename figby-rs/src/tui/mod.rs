@@ -1238,10 +1238,14 @@ impl TuiApp {
                 self.welcome_screen.scroll_down(count);
                 self.dirty = true;
             }
-            WelcomeAction::FontOpen
-            | WelcomeAction::FontNewFromFile
-            | WelcomeAction::ImageOpenFigmap => {
+            WelcomeAction::FontOpen | WelcomeAction::ImageOpenFigmap => {
                 self.start_open();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::FontNewFromFile => {
+                self.dialogs.file_ops.enter_import_font();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
@@ -1843,6 +1847,17 @@ impl TuiApp {
                             return None;
                         }
                         self.perform_open();
+                        return Some(AppEvent::OpenRequested);
+                    }
+                    file_ops::FileOpsMode::ImportFont => {
+                        let path = self.dialogs.file_ops.selected_path();
+                        if !path.exists() {
+                            self.dialogs.file_ops.error_message =
+                                format!("File not found: {}", path.display());
+                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportFont;
+                            return None;
+                        }
+                        self.perform_import_font(path);
                         return Some(AppEvent::OpenRequested);
                     }
                     file_ops::FileOpsMode::Idle => None,
@@ -2735,6 +2750,28 @@ impl TuiApp {
                 });
             }
         }
+    }
+
+    fn perform_import_font(&mut self, path: std::path::PathBuf) {
+        if self.throbber.is_active() {
+            return;
+        }
+        let (tx, rx) = mpsc::channel();
+        self.async_rx = Some(rx);
+        self.throbber.start("Converting font...");
+        self.dirty = true;
+        std::thread::spawn(move || {
+            let result = (|| -> Result<(crate::font::FIGfont, std::path::PathBuf), String> {
+                let font = crate::font_gen::font_file_to_figfont(
+                    &path,
+                    12.0,
+                    rascii_art::charsets::DEFAULT,
+                )
+                .map_err(|e| format!("Import failed: {e}"))?;
+                Ok((font, path))
+            })();
+            let _ = tx.send(AsyncResult::OpenComplete(result));
+        });
     }
 
     fn perform_export(&mut self) {

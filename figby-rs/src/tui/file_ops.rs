@@ -23,6 +23,7 @@ pub enum FileOpsMode {
     Idle,
     SaveAs,
     Open,
+    ImportFont,
 }
 
 pub struct RecentFiles {
@@ -169,6 +170,17 @@ impl FileOpsDialog {
         self.refresh_directory();
     }
 
+    pub fn enter_import_font(&mut self) {
+        self.mode = FileOpsMode::ImportFont;
+        self.path_buffer.clear();
+        self.selected_entry = 0;
+        self.error_message.clear();
+        self.recent_files_for_display.clear();
+        self.browsing_zip = false;
+        self.current_zip_path.clear();
+        self.refresh_directory();
+    }
+
     pub fn enter_save_as(&mut self, current: Option<&Path>) {
         self.mode = FileOpsMode::SaveAs;
         self.path_buffer = current
@@ -208,6 +220,9 @@ impl FileOpsDialog {
         if self.browsing_zip {
             match crate::font::list_zip_font_entries(&self.current_zip_path) {
                 Ok(mut entries) => {
+                    if entries.is_empty() {
+                        self.error_message = "No .flf/.tlf fonts found in ZIP".to_string();
+                    }
                     entries.insert(0, "..".to_string());
                     self.directory_entries = entries;
                 }
@@ -248,9 +263,14 @@ impl FileOpsDialog {
             }
             let lower = name.to_lowercase();
             let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-            let is_flf = lower.ends_with(".flf") || lower.ends_with(".tlf");
-            let is_zip = lower.ends_with(".zip");
-            if is_dir || is_flf || is_zip {
+            let visible = if self.mode == FileOpsMode::ImportFont {
+                is_dir || lower.ends_with(".ttf") || lower.ends_with(".otf")
+            } else {
+                let is_flf = lower.ends_with(".flf") || lower.ends_with(".tlf");
+                let is_zip = lower.ends_with(".zip");
+                is_dir || is_flf || is_zip
+            };
+            if visible {
                 entries.push(name);
             }
         }
@@ -353,6 +373,7 @@ impl FileOpsDialog {
         match self.mode {
             FileOpsMode::SaveAs => self.handle_key_save_as(code),
             FileOpsMode::Open => self.handle_key_open(code),
+            FileOpsMode::ImportFont => self.handle_key_import_font(code),
             FileOpsMode::Idle => false,
         }
     }
@@ -499,6 +520,75 @@ impl FileOpsDialog {
         }
     }
 
+    fn handle_key_import_font(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Char(c) if !c.is_control() => {
+                self.path_buffer.push(c);
+                self.error_message.clear();
+                self.selected_entry = 0;
+                self.refresh_directory();
+                true
+            }
+            KeyCode::Backspace => {
+                self.path_buffer.pop();
+                self.error_message.clear();
+                self.selected_entry = 0;
+                self.refresh_directory();
+                true
+            }
+            KeyCode::Up => {
+                if !self.directory_entries.is_empty() && self.selected_entry > 0 {
+                    self.selected_entry -= 1;
+                }
+                true
+            }
+            KeyCode::Down => {
+                if !self.directory_entries.is_empty()
+                    && self.selected_entry < self.directory_entries.len() - 1
+                {
+                    self.selected_entry += 1;
+                }
+                true
+            }
+            KeyCode::Tab => {
+                if !self.directory_entries.is_empty() {
+                    self.select_entry();
+                }
+                true
+            }
+            KeyCode::Enter => {
+                if !self.path_buffer.trim().is_empty() {
+                    let p = PathBuf::from(self.path_buffer.trim());
+                    if p.is_file() {
+                        let lower = self.path_buffer.to_lowercase();
+                        if lower.ends_with(".ttf") || lower.ends_with(".otf") {
+                            self.mode = FileOpsMode::Idle;
+                        } else {
+                            self.error_message = "Select a .ttf or .otf file".to_string();
+                        }
+                        return true;
+                    }
+                }
+                if !self.directory_entries.is_empty() {
+                    let entry = self.directory_entries[self.selected_entry].clone();
+                    let lower = entry.to_lowercase();
+                    if lower.ends_with(".ttf") || lower.ends_with(".otf") {
+                        self.select_entry();
+                        self.mode = FileOpsMode::Idle;
+                    } else {
+                        self.select_entry();
+                    }
+                }
+                true
+            }
+            KeyCode::Esc => {
+                self.close();
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn handle_key_save_as(&mut self, code: KeyCode) -> bool {
         match code {
             KeyCode::Char(c) => {
@@ -548,6 +638,7 @@ impl FileOpsDialog {
         match self.mode {
             FileOpsMode::SaveAs => self.render_save_as(frame, area),
             FileOpsMode::Open => self.render_open(frame, area),
+            FileOpsMode::ImportFont => self.render_import_font(frame, area),
             FileOpsMode::Idle => {}
         }
     }
@@ -670,6 +761,97 @@ impl FileOpsDialog {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             " Tab: select  Enter: open  Esc: cancel  1-9: recent  \u{2191}\u{2193}: navigate",
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        let paragraph = Paragraph::new(lines);
+        frame.render_widget(paragraph, inner);
+    }
+
+    fn render_import_font(&self, frame: &mut Frame, area: Rect) {
+        frame.render_widget(Clear, area);
+        let block = Block::default()
+            .title(" Import Font (.ttf/.otf) ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(self.theme.dialog.border_path));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        if inner.width < 24 || inner.height < 8 {
+            return;
+        }
+
+        let mut lines: Vec<Line> = Vec::new();
+
+        lines.push(Line::from(Span::styled(
+            " Path:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+
+        let path_display = if self.path_buffer.is_empty() {
+            " (type path or browse with arrows)".to_string()
+        } else {
+            self.path_buffer.clone()
+        };
+        lines.push(Line::from(Span::styled(
+            format!(" {}", path_display),
+            Style::default().fg(self.theme.dialog.border_path),
+        )));
+
+        if !self.error_message.is_empty() {
+            lines.push(Line::from(Span::styled(
+                format!(" Error: {}", self.error_message),
+                Style::default().fg(self.theme.dialog.error),
+            )));
+        }
+
+        lines.push(Line::from(""));
+
+        if self.directory_entries.is_empty() {
+            lines.push(Line::from(Span::styled(
+                " (no .ttf/.otf files in directory)",
+                Style::default().fg(self.theme.dialog.meta),
+            )));
+        } else {
+            lines.push(Line::from(Span::styled(
+                " Directory:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+
+            let max_visible = (inner.height as usize).saturating_sub(6).min(8);
+            let start = self.selected_entry.saturating_sub(max_visible / 2);
+            let end = (start + max_visible).min(self.directory_entries.len());
+            for i in start..end {
+                let entry = &self.directory_entries[i];
+                let is_selected = i == self.selected_entry;
+                let prefix = if is_selected { " >" } else { "  " };
+                let parent = if self.path_buffer.is_empty() {
+                    PathBuf::from(".")
+                } else {
+                    let p = PathBuf::from(&self.path_buffer);
+                    if p.is_dir() {
+                        p
+                    } else {
+                        p.parent()
+                            .map(|pp| pp.to_path_buf())
+                            .unwrap_or_else(|| PathBuf::from("."))
+                    }
+                };
+                let is_dir = parent.join(entry).is_dir();
+                let suffix = if is_dir { "/" } else { "" };
+                let text = format!("{prefix}{entry}{suffix}");
+                let style = if is_selected {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                lines.push(Line::from(Span::styled(text, style)));
+            }
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " Tab: select  Enter: import  Esc: cancel  \u{2191}\u{2193}: navigate",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -995,6 +1177,7 @@ impl Widget for &FileOpsDialog {
                 let paragraph = Paragraph::new(lines);
                 Widget::render(paragraph, inner, buf);
             }
+            FileOpsMode::ImportFont => {}
             FileOpsMode::Idle => {}
         }
     }

@@ -1,5 +1,16 @@
 # Figby — Learnings
 
+## 5.5.1 — Audit 4.5–4.8 implementation vs spec
+
+- `ExportDialog` in `export.rs` has two nearly-identical render implementations:
+  a `Widget for &ExportDialog` impl (line 719) and a direct `render(&self, frame, area)`
+  method (line 458). The Widget impl is never registered in mod.rs — mod.rs calls
+  `dialog.render(frame, area)` directly. The Widget impl is dead code dating from
+  an incomplete migration.
+- `play_raw()` at `player.rs:566` is a complete raw-mode playback engine but is
+  never called from the TUI path (`play_fullscreen()` is used instead). This is
+  independent functionality that could be wired for CLI animation playback.
+
 ## 5.3.3 — Phase merge: release/5.3 → master
 
 - Phase merge bookkeeping was accidentally reverted after the merge commit

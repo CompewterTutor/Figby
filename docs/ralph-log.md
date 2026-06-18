@@ -6112,3 +6112,7 @@ DONE: 5.4.4 merged into release/5.4.
 ## 2026-06-18 17:02
 
 All 5.4 tasks complete. Starting phase review.
+
+## 2026-06-18 17:07
+
+PHASE_COMPLETE: 5.4 merged to main after review approval.

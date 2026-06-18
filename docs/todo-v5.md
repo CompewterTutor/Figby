@@ -243,7 +243,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** All three export formats produce valid files from a test animation.
   - **Difficulty:** Medium
 
-- [ ] `5.5.4` Phase merge: release/5.5 → main
+- [x] `5.5.4` Phase merge: release/5.5 → main
   - **Difficulty:** Low
 
 ---

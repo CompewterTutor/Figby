@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.5.0] - 2026-06-18
+### Added
+- Phase merge: release/5.5 → master. Phase 5.5 (Animation Audit & Surface) complete:
+  animation audit (5.5.1), timeline panel surface in main layout (5.5.2), export
+  end-to-end verification with 5-frame GIF/APNG/ANSI tests (5.5.3).
+
 ## [5.4.0] - 2026-06-18
 ### Changed
 - Phase merge: release/5.4 → master. Phase 5.4 (Image Editor Fix) complete:

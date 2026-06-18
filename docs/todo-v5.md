@@ -296,15 +296,17 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Each format imports to the correct swatch list without data loss.
   - **Difficulty:** Medium
 
-- [ ] `5.6.5` Marker brush mode (Aseprite-style shading)
+- [x] `5.6.5` Marker brush mode (Aseprite-style shading)
   - **Goal:** New brush sub-mode "Marker". Requires 2+ colours selected in the
     palette. Painting on a non-empty pixel steps its colour forward one position
     in the selected-colour array by the brush's per-pixel hit strength (0.0–1.0,
     accounting for brush falloff). Accumulate fractional steps per pixel per
     stroke; commit integer steps on mouse-up. Auto-masks empty pixels (no effect
     on transparent/space cells). Clamp at the last selected colour.
-  - **Touches:** `figby-rs/src/tui/palette.rs` (multi-select state),
-    `figby-rs/src/tui/tools/brush.rs`, `figby-rs/src/tui/mod.rs`
+  - **Touches:** `figby-rs/src/tui/brush.rs` (BrushSubMode enum, BrushState field),
+    `figby-rs/src/tui/palette.rs` (multi-select state),
+    `figby-rs/src/tui/tools/brush.rs`, `figby-rs/src/tui/mod.rs`,
+    `figby-rs/src/tui/side_panel.rs` (Mode display)
   - **Depends:** `5.6.2` (hue-grouped palette for ergonomic colour stepping)
   - **Success:** Paint over a mid-tone pixel repeatedly → colour steps toward the
     darkest selected swatch and clamps. No effect on blank cells.

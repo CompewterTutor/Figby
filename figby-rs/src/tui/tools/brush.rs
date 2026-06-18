@@ -1,5 +1,10 @@
+use std::collections::HashMap;
+
+use ratatui::style::Color;
+
 use crate::tui::brush::BrushShape;
 use crate::tui::canvas::{CanvasBuffer, CanvasCell};
+use crate::tui::palette::ColorTarget;
 
 pub fn stamp_offsets(shape: BrushShape, size: u8) -> Vec<(i16, i16)> {
     if size == 0 {
@@ -110,6 +115,170 @@ pub fn paint_line(
             y += sy;
         }
     }
+}
+
+pub fn stamp_offsets_with_falloff(shape: BrushShape, size: u8) -> Vec<(i16, i16, f64)> {
+    if size == 0 {
+        return vec![(0, 0, 1.0)];
+    }
+    let half = size as i16 / 2;
+    let start = -half;
+    let end = start + size as i16 - 1;
+    match shape {
+        BrushShape::Square => square_offsets_falloff(start, end, half),
+        BrushShape::Circle => circle_offsets_falloff(size, start, end),
+        BrushShape::SprayPaint => spray_offsets_falloff(size, start, end),
+        BrushShape::Custom => vec![(0, 0, 1.0)],
+    }
+}
+
+fn square_offsets_falloff(start: i16, end: i16, half: i16) -> Vec<(i16, i16, f64)> {
+    let mut offsets = Vec::new();
+    let half_f = half.max(1) as f64;
+    for dy in start..=end {
+        for dx in start..=end {
+            let max_norm = dx.abs() as f64 / half_f;
+            let max_norm = max_norm.max(dy.abs() as f64 / half_f);
+            let falloff = 1.0 - 0.5 * max_norm.clamp(0.0, 1.0);
+            offsets.push((dx, dy, falloff));
+        }
+    }
+    offsets
+}
+
+fn circle_offsets_falloff(size: u8, start: i16, end: i16) -> Vec<(i16, i16, f64)> {
+    let r = size as f64 / 2.0;
+    let mut offsets = Vec::new();
+    for dy in start..=end {
+        for dx in start..=end {
+            let cx = dx as f64 + 0.5;
+            let cy = dy as f64 + 0.5;
+            let dist = (cx * cx + cy * cy).sqrt();
+            if dist <= r {
+                let falloff = (1.0 - dist / r).clamp(0.0, 1.0);
+                offsets.push((dx, dy, falloff));
+            }
+        }
+    }
+    offsets
+}
+
+fn spray_offsets_falloff(size: u8, start: i16, end: i16) -> Vec<(i16, i16, f64)> {
+    let half = size as i16 / 2;
+    let seed: u64 = 42;
+    let mut offsets = Vec::new();
+    for dy in start..=end {
+        for dx in start..=end {
+            let col = (dx + half) as u64;
+            let row = (dy + half) as u64;
+            let hash = col.wrapping_mul(7) + row.wrapping_mul(31) + seed;
+            if hash % 100 < 35 {
+                offsets.push((dx, dy, 1.0));
+            }
+        }
+    }
+    offsets
+}
+
+fn is_cell_non_empty(cell: &CanvasCell) -> bool {
+    cell.ch != ' ' || cell.fg.is_some() || cell.bg.is_some()
+}
+
+pub fn accumulate_marker_stamp(
+    buffer: &CanvasBuffer,
+    cx: i16,
+    cy: i16,
+    shape: BrushShape,
+    size: u8,
+    accum: &mut HashMap<(i16, i16), f64>,
+) {
+    for (dx, dy, falloff) in stamp_offsets_with_falloff(shape, size) {
+        let x = cx.wrapping_add(dx);
+        let y = cy.wrapping_add(dy);
+        if x >= 0 && y >= 0 {
+            if let Some(cell) = buffer.get(x as usize, y as usize) {
+                if is_cell_non_empty(cell) {
+                    *accum.entry((x, y)).or_insert(0.0) += falloff;
+                }
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn accumulate_marker_line(
+    buffer: &CanvasBuffer,
+    x0: i16,
+    y0: i16,
+    x1: i16,
+    y1: i16,
+    shape: BrushShape,
+    size: u8,
+    accum: &mut HashMap<(i16, i16), f64>,
+) {
+    let dx = (x1 - x0).abs();
+    let dy = -(y1 - y0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    let mut x = x0;
+    let mut y = y0;
+    loop {
+        accumulate_marker_stamp(buffer, x, y, shape, size, accum);
+        if x == x1 && y == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+pub fn commit_marker_accum(
+    buffer: &mut CanvasBuffer,
+    accum: &mut HashMap<(i16, i16), f64>,
+    colors: &[Color],
+    target: ColorTarget,
+) {
+    let mut to_remove: Vec<(i16, i16)> = Vec::new();
+    for (&(x, y), amount) in accum.iter_mut() {
+        if x < 0 || y < 0 {
+            to_remove.push((x, y));
+            continue;
+        }
+        let steps = amount.floor() as usize;
+        if steps == 0 {
+            continue;
+        }
+        if let Some(cell) = buffer.get_mut(x as usize, y as usize) {
+            let current_color = match target {
+                ColorTarget::Foreground => cell.fg,
+                ColorTarget::Background => cell.bg,
+            };
+            let start_idx = current_color
+                .and_then(|c| colors.iter().position(|pc| *pc == c))
+                .unwrap_or(0);
+            let new_idx = (start_idx + steps).min(colors.len().saturating_sub(1));
+            let new_color = Some(colors[new_idx]);
+            match target {
+                ColorTarget::Foreground => cell.fg = new_color,
+                ColorTarget::Background => cell.bg = new_color,
+            }
+            *amount -= steps as f64;
+        } else {
+            to_remove.push((x, y));
+        }
+    }
+    for key in to_remove {
+        accum.remove(&key);
+    }
+    accum.retain(|_, v| *v > 0.0);
 }
 
 #[cfg(test)]
@@ -337,5 +506,263 @@ mod tests {
                 i
             );
         }
+    }
+
+    // --- Marker brush tests ---
+
+    fn cell_with_fg(fg: Color) -> CanvasCell {
+        CanvasCell {
+            ch: '@',
+            fg: Some(fg),
+            bg: None,
+        }
+    }
+
+    #[test]
+    fn test_stamp_falloff_circle_center_1() {
+        let offsets = stamp_offsets_with_falloff(BrushShape::Circle, 5);
+        let center = offsets.iter().find(|(dx, dy, _)| *dx == 0 && *dy == 0);
+        assert!(center.is_some(), "circle size 5 must include center (0,0)");
+        let (_, _, falloff) = center.unwrap();
+        let diff = (1.0 - falloff).abs();
+        assert!(
+            diff < 0.3,
+            "center falloff should be close to 1.0, got {falloff}"
+        );
+    }
+
+    #[test]
+    fn test_stamp_falloff_circle_edge_0() {
+        let offsets = stamp_offsets_with_falloff(BrushShape::Circle, 5);
+        // corner of bounding box (2,2) should be outside radius or near-0
+        let corner = offsets.iter().find(|(dx, dy, _)| *dx == 2 && *dy == 2);
+        assert!(
+            corner.is_none(),
+            "corner (2,2) should not be in circle size 5"
+        );
+    }
+
+    #[test]
+    fn test_stamp_falloff_square_center_1() {
+        let offsets = stamp_offsets_with_falloff(BrushShape::Square, 5);
+        let center = offsets.iter().find(|(dx, dy, _)| *dx == 0 && *dy == 0);
+        assert!(center.is_some());
+        let (_, _, falloff) = center.unwrap();
+        assert!(
+            (*falloff - 1.0).abs() < f64::EPSILON,
+            "square center falloff should be 1.0, got {falloff}"
+        );
+    }
+
+    #[test]
+    fn test_stamp_falloff_square_edge_05() {
+        let offsets = stamp_offsets_with_falloff(BrushShape::Square, 5);
+        let edge = offsets.iter().find(|(dx, dy, _)| *dx == 2 && *dy == 0);
+        assert!(edge.is_some());
+        let (_, _, falloff) = edge.unwrap();
+        assert!(
+            (*falloff - 0.5).abs() < f64::EPSILON,
+            "square edge falloff should be 0.5, got {falloff}"
+        );
+    }
+
+    #[test]
+    fn test_accumulate_no_effect_on_empty() {
+        let buf = canvas_5x5(); // all cells default (space, no fg/bg)
+        let mut accum = HashMap::new();
+        accumulate_marker_stamp(&buf, 2, 2, BrushShape::Square, 3, &mut accum);
+        assert!(accum.is_empty(), "empty cells should not be accumulated");
+    }
+
+    #[test]
+    fn test_accumulate_adds_to_existing_cell() {
+        let mut buf = canvas_5x5();
+        buf.set(
+            2,
+            2,
+            CanvasCell {
+                ch: '@',
+                fg: None,
+                bg: None,
+            },
+        );
+        let mut accum = HashMap::new();
+        accumulate_marker_stamp(&buf, 2, 2, BrushShape::Square, 1, &mut accum);
+        assert_eq!(accum.len(), 1, "should accumulate the filled cell");
+        let amount = accum.get(&(2, 2)).copied().unwrap_or(0.0);
+        assert!(
+            (amount - 1.0).abs() < f64::EPSILON,
+            "size-1 square should have falloff 1.0, got {amount}"
+        );
+    }
+
+    #[test]
+    fn test_commit_steps_color_forward() {
+        let mut buf = canvas_5x5();
+        let red = Color::Indexed(1);
+        let green = Color::Indexed(2);
+        let blue = Color::Indexed(3);
+        buf.set(2, 2, cell_with_fg(red));
+        let colors = vec![red, green, blue];
+        let mut accum = HashMap::new();
+        accum.insert((2, 2), 1.0);
+        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground);
+        let cell = buf.get(2, 2).unwrap();
+        assert_eq!(cell.fg, Some(green), "should step from red to green");
+        assert!(
+            accum.contains_key(&(2, 2)),
+            "remaining fraction should stay in accum"
+        );
+        let remaining = accum.get(&(2, 2)).copied().unwrap_or(0.0);
+        assert!(
+            (remaining - 0.0).abs() < f64::EPSILON,
+            "remaining should be 0.0 after 1 step from 1.0"
+        );
+    }
+
+    #[test]
+    fn test_commit_steps_multiple_positions() {
+        let mut buf = canvas_5x5();
+        let red = Color::Indexed(1);
+        let green = Color::Indexed(2);
+        let blue = Color::Indexed(3);
+        let yellow = Color::Indexed(4);
+        let colors = vec![red, green, blue, yellow];
+        buf.set(2, 2, cell_with_fg(red));
+        let mut accum = HashMap::new();
+        accum.insert((2, 2), 3.0);
+        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground);
+        let cell = buf.get(2, 2).unwrap();
+        assert_eq!(
+            cell.fg,
+            Some(yellow),
+            "3 steps from red should reach yellow"
+        );
+    }
+
+    #[test]
+    fn test_commit_clamps_at_last_color() {
+        let mut buf = canvas_5x5();
+        let red = Color::Indexed(1);
+        let green = Color::Indexed(2);
+        let blue = Color::Indexed(3);
+        let colors = vec![red, green, blue];
+        buf.set(2, 2, cell_with_fg(red));
+        let mut accum = HashMap::new();
+        accum.insert((2, 2), 10.0);
+        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground);
+        let cell = buf.get(2, 2).unwrap();
+        assert_eq!(cell.fg, Some(blue), "should clamp at last color (blue)");
+    }
+
+    #[test]
+    fn test_commit_preserves_fractional_remainder() {
+        let mut buf = canvas_5x5();
+        let red = Color::Indexed(1);
+        let green = Color::Indexed(2);
+        let colors = vec![red, green];
+        buf.set(2, 2, cell_with_fg(red));
+        let mut accum = HashMap::new();
+        accum.insert((2, 2), 2.7);
+        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground);
+        let cell = buf.get(2, 2).unwrap();
+        assert_eq!(
+            cell.fg,
+            Some(green),
+            "2 steps from red should land on green"
+        );
+        let remaining = accum.get(&(2, 2)).copied().unwrap_or(0.0);
+        assert!(
+            (remaining - 0.7).abs() < f64::EPSILON,
+            "0.7 should remain after 2 steps from 2.7, got {remaining}"
+        );
+    }
+
+    #[test]
+    fn test_commit_no_color_match_starts_from_0() {
+        let mut buf = canvas_5x5();
+        let cyan = Color::Indexed(6);
+        let red = Color::Indexed(1);
+        let green = Color::Indexed(2);
+        let colors = vec![red, green];
+        // cell has cyan, not in the color array
+        buf.set(2, 2, cell_with_fg(cyan));
+        let mut accum = HashMap::new();
+        accum.insert((2, 2), 1.0);
+        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground);
+        let cell = buf.get(2, 2).unwrap();
+        assert_eq!(cell.fg, Some(red), "no match should start from color[0]");
+    }
+
+    #[test]
+    fn test_commit_bg_target() {
+        let mut buf = canvas_5x5();
+        let red = Color::Indexed(1);
+        let green = Color::Indexed(2);
+        let colors = vec![red, green];
+        buf.set(
+            2,
+            2,
+            CanvasCell {
+                ch: '@',
+                fg: None,
+                bg: Some(red),
+            },
+        );
+        let mut accum = HashMap::new();
+        accum.insert((2, 2), 1.0);
+        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Background);
+        let cell = buf.get(2, 2).unwrap();
+        assert_eq!(cell.bg, Some(green), "should step background forward");
+    }
+
+    #[test]
+    fn test_accumulate_line_multiple_cells() {
+        let mut buf = canvas_10x10();
+        // fill a row of cells
+        for x in 0..10 {
+            buf.set(
+                x,
+                5,
+                CanvasCell {
+                    ch: '@',
+                    fg: None,
+                    bg: None,
+                },
+            );
+        }
+        let mut accum = HashMap::new();
+        accumulate_marker_line(&buf, 0, 5, 9, 5, BrushShape::Square, 1, &mut accum);
+        assert_eq!(
+            accum.len(),
+            10,
+            "should accumulate all 10 cells on the line"
+        );
+    }
+
+    #[test]
+    fn test_accumulate_skips_empty_cells_along_line() {
+        let mut buf = canvas_10x10();
+        // only fill cell at (5,5)
+        buf.set(
+            5,
+            5,
+            CanvasCell {
+                ch: '@',
+                fg: None,
+                bg: None,
+            },
+        );
+        let mut accum = HashMap::new();
+        accumulate_marker_line(&buf, 0, 5, 9, 5, BrushShape::Square, 1, &mut accum);
+        assert_eq!(
+            accum.len(),
+            1,
+            "only the one filled cell should be accumulated"
+        );
+        assert!(
+            accum.contains_key(&(5, 5)),
+            "the filled cell (5,5) must be in accum"
+        );
     }
 }

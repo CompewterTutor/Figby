@@ -13,7 +13,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -382,6 +382,7 @@ pub struct TuiApp {
     pub show_live_particles: bool,
     pub baked_layer_indices: Vec<usize>,
     pub timeline_visible: bool,
+    pub marker_accum: HashMap<(i16, i16), f64>,
 }
 
 impl TuiApp {
@@ -535,6 +536,7 @@ impl TuiApp {
             show_live_particles: true,
             baked_layer_indices: Vec::new(),
             timeline_visible: false,
+            marker_accum: HashMap::new(),
         }
     }
 
@@ -1676,6 +1678,19 @@ impl TuiApp {
                     self.emitter_panel = particles::EmitterConfigPanel::new();
                     self.emitter_panel.open = true;
                     self.dirty = true;
+                } else if self.editor.brush.sub_mode == brush::BrushSubMode::Marker {
+                    self.editor.push_undo_snapshot("Marker stroke");
+                    let shape = self.editor.brush.shape;
+                    let size = self.editor.brush.size;
+                    let buf = self.editor.layer_stack.active_layer().buffer.clone();
+                    tools::brush::accumulate_marker_stamp(
+                        &buf,
+                        bx,
+                        by,
+                        shape,
+                        size,
+                        &mut self.marker_accum,
+                    );
                 } else {
                     self.editor.push_undo_snapshot("Brush");
                     let mut cell = canvas::CanvasCell {
@@ -1759,6 +1774,20 @@ impl TuiApp {
                         );
                         *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
                         self.editor.recomposite_canvas();
+                    } else if self.editor.brush.sub_mode == brush::BrushSubMode::Marker {
+                        let shape = self.editor.brush.shape;
+                        let size = self.editor.brush.size;
+                        let buf = self.editor.layer_stack.active_layer().buffer.clone();
+                        tools::brush::accumulate_marker_line(
+                            &buf,
+                            px,
+                            py,
+                            bx,
+                            by,
+                            shape,
+                            size,
+                            &mut self.marker_accum,
+                        );
                     } else {
                         let mut cell = canvas::CanvasCell {
                             ch: self.editor.brush.ch,
@@ -1778,6 +1807,23 @@ impl TuiApp {
             }
             MouseEventKind::Up(_) => {
                 if self.mouse_batch_active {
+                    if self.editor.brush.sub_mode == brush::BrushSubMode::Marker
+                        && !self.marker_accum.is_empty()
+                    {
+                        let colors = self.editor.palette.selected_color_array();
+                        if !colors.is_empty() {
+                            let target = self.editor.palette.target;
+                            let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                            tools::brush::commit_marker_accum(
+                                &mut buf,
+                                &mut self.marker_accum,
+                                &colors,
+                                target,
+                            );
+                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                            self.editor.recomposite_canvas();
+                        }
+                    }
                     self.editor.undo.end_batch();
                     self.mouse_batch_active = false;
                 }
@@ -2646,13 +2692,26 @@ impl TuiApp {
                     self.editor.brush.cycle_shape();
                     Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
                 }
+                KeyCode::Char('M') if self.editor.toolbox.selected == Tool::Brush => {
+                    self.editor
+                        .brush
+                        .cycle_sub_mode(self.editor.palette.has_multi_select());
+                    if self.editor.brush.sub_mode == brush::BrushSubMode::Normal {
+                        self.marker_accum.clear();
+                    }
+                    Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
+                }
                 KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
                     let lower = c.to_ascii_lowercase();
                     let mut found = None;
                     for tool in Tool::all() {
                         if let KeyCode::Char(tc) = tool.key_shortcut() {
                             if tc == lower {
+                                let was_brush = self.editor.toolbox.selected == Tool::Brush;
                                 self.editor.toolbox.selected = *tool;
+                                if was_brush && *tool != Tool::Brush {
+                                    self.marker_accum.clear();
+                                }
                                 found = Some(AppEvent::Toolbox(ToolboxEvent::ToolSelected));
                                 break;
                             }
@@ -2688,7 +2747,8 @@ impl TuiApp {
                 | KeyCode::Down
                 | KeyCode::Enter
                 | KeyCode::Backspace
-                | KeyCode::Esc => {
+                | KeyCode::Esc
+                | KeyCode::Tab => {
                     if self.editor.palette.handle_key(code) {
                         let color = self.editor.palette.selected_color;
                         let target = self.editor.palette.target;

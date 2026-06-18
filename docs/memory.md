@@ -2424,3 +2424,37 @@ Files touched: `palette_editor.rs` (new), `mod.rs`, `layout.rs`, `Cargo.toml`.
 8 unit tests: JSON roundtrip, duplicate independence, disk save/load,
 load from palette, palettes dir creation, hex conversion, apply to palette,
 path traversal rejection. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.6.5 — Marker brush mode (Aseprite-style shading)
+
+Added Marker brush sub-mode for progressive colour stepping:
+- `BrushSubMode` enum (`Normal`/`Marker`) with `cycle()` and `name()` methods
+  in `tui/brush.rs`. `BrushState` gains `sub_mode: BrushSubMode` field,
+  `cycle_sub_mode(has_colors)` — cycles only when ≥2 colours are multi-selected
+  in the palette (or when currently in Marker mode, to allow exiting).
+- Palette multi-select state in `tui/palette.rs`: `multi_select_indices: Vec<usize>`,
+  `multi_select_active: bool`, `toggle_multi_select_color()`, `has_multi_select()`,
+  `selected_color_array()`. `Tab` toggles multi-select mode; Enter toggles colour
+  in/out of selection when in multi-select mode. Selected swatches render with
+  white foreground "██" indicator.
+- Marker brush functions in `tools/brush.rs`:
+  - `stamp_offsets_with_falloff()` — returns `(dx, dy, falloff)` for each stamp
+    cell. Circle: linear drop from 1.0 at centre to 0.0 at radius. Square:
+    plateau from 1.0 at centre to 0.5 at edge. SprayPaint: 1.0 for hit cells.
+    Custom: 1.0 at centre.
+  - `is_cell_non_empty()` — helper: `ch != ' ' || fg/bg.is_some()`
+  - `accumulate_marker_stamp()` and `accumulate_marker_line()` — accumulate
+    falloff values into `HashMap<(i16,i16), f64>` per stroke, skipping empty cells.
+  - `commit_marker_accum()` — on mouse-up, iterates accum entries, steps fg/bg
+    colour forward by `accum.floor()` positions in the selected-colour array.
+    Clamps at last colour. Retains fractional remainder for future strokes.
+- Wired into `mod.rs`: `marker_accum` field on `TuiApp`, mouse handler branches
+  for Marker sub-mode (Down→accumulate, Drag→accumulate line, Up→commit+recomposite).
+  `Shift+M` toggles marker mode when Brush tool active. `Tab` added to palette
+  key dispatch.
+- Side panel `add_brush_props()` shows `Mode:` line with sub-mode name.
+- 17 unit tests in `tools/brush.rs`: falloff values for circle/square/edge,
+  accumulate-only-fills, commit stepping, multi-position/clamping/fractional, no-match,
+  bg target, line accumulation, empty-skip.
+
+No `.unwrap()` in production. fmt and clippy pass clean.

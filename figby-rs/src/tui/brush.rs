@@ -41,6 +41,28 @@ impl BrushShape {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrushSubMode {
+    Normal,
+    Marker,
+}
+
+impl BrushSubMode {
+    pub fn cycle(&self) -> Self {
+        match self {
+            BrushSubMode::Normal => BrushSubMode::Marker,
+            BrushSubMode::Marker => BrushSubMode::Normal,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            BrushSubMode::Normal => "Normal",
+            BrushSubMode::Marker => "Marker",
+        }
+    }
+}
+
 const MIN_SIZE: u8 = 1;
 const MAX_SIZE: u8 = 20;
 const MIN_DENSITY: u8 = 1;
@@ -53,11 +75,12 @@ pub struct BrushState {
     pub ch: char,
     pub density: u8,
     pub borders: Borders,
+    pub sub_mode: BrushSubMode,
 }
 
 impl BrushState {
     pub fn required_outer_width(&self) -> u16 {
-        15
+        17
     }
 
     pub fn new() -> Self {
@@ -67,6 +90,7 @@ impl BrushState {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         }
     }
 
@@ -107,6 +131,12 @@ impl BrushState {
     pub fn density_down(&mut self) {
         if self.density > MIN_DENSITY {
             self.density -= 1;
+        }
+    }
+
+    pub fn cycle_sub_mode(&mut self, has_colors: bool) {
+        if has_colors || self.sub_mode == BrushSubMode::Marker {
+            self.sub_mode = self.sub_mode.cycle();
         }
     }
 
@@ -192,6 +222,10 @@ impl BrushState {
             Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!(" {}", self.shape.name())),
         ]));
+        lines.push(Line::from(vec![
+            Span::styled("Mode:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", self.sub_mode.name())),
+        ]));
 
         lines.push(Line::from(Span::raw("")));
 
@@ -241,6 +275,10 @@ impl Widget for &BrushState {
         lines.push(Line::from(vec![
             Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!(" {}", self.shape.name())),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("Mode:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" {}", self.sub_mode.name())),
         ]));
 
         lines.push(Line::from(Span::raw("")));
@@ -417,6 +455,7 @@ mod tests {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -435,6 +474,7 @@ mod tests {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -455,6 +495,7 @@ mod tests {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let b = BrushState {
             shape: BrushShape::SprayPaint,
@@ -462,6 +503,7 @@ mod tests {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         assert_eq!(a.render_preview(10), b.render_preview(10));
     }
@@ -474,6 +516,7 @@ mod tests {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -499,6 +542,7 @@ mod tests {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let preview = brush.render_preview(5);
         assert!(!preview.is_empty());
@@ -513,6 +557,7 @@ mod tests {
                 ch: '\u{2588}',
                 density: 35,
                 borders: Borders::ALL,
+                sub_mode: BrushSubMode::Normal,
             };
             let preview = brush.render_preview(5);
             assert_eq!(preview.len(), 1);
@@ -528,6 +573,7 @@ mod tests {
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let preview = brush.render_mini_preview();
         assert_eq!(preview.len(), 5);
@@ -547,6 +593,7 @@ mod tests {
                     ch: '#',
                     density: 35,
                     borders: Borders::ALL,
+                    sub_mode: BrushSubMode::Normal,
                 };
                 let preview = brush.render_mini_preview();
                 assert_eq!(preview.len(), 5, "size={size} shape={:?}", shape);
@@ -566,6 +613,7 @@ mod tests {
             ch: '#',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let mut outputs = HashSet::new();
         for _ in 0..4 {
@@ -584,6 +632,7 @@ mod tests {
             ch: '#',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let preview = brush.render_mini_preview();
         for row in &preview {
@@ -598,7 +647,7 @@ mod tests {
     #[test]
     fn test_brush_required_outer_width() {
         let brush = BrushState::new();
-        assert_eq!(brush.required_outer_width(), 15);
+        assert_eq!(brush.required_outer_width(), 17);
     }
 
     #[test]
@@ -609,6 +658,7 @@ mod tests {
             ch: '#',
             density: 35,
             borders: Borders::ALL,
+            sub_mode: BrushSubMode::Normal,
         };
         let preview = brush.render_mini_preview();
         assert_eq!(preview.len(), 5);

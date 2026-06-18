@@ -101,7 +101,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Canvas boundary immediately obvious. Dimensions visible in title.
   - **Difficulty:** Low
 
-- [ ] `5.1.4` Collapsed/shared borders between adjacent panels
+- [x] `5.1.4` Collapsed/shared borders between adjacent panels
   - **Goal:** Adjacent panels currently draw overlapping borders (double-thick lines
     between panels). Use ratatui's border-sharing pattern: panels on shared edges
     only draw their own half, eliminating double borders. Reference:

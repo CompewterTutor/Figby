@@ -698,12 +698,22 @@ impl TuiApp {
         frame.render_widget(tabs, fl.tabs);
 
         // Toolbox + brush/text options (left panel)
-        if let Some(tb_full) = fl.toolbox_full {
-            frame.render_widget(&self.editor.toolbox, tb_full);
+        if let Some(tb_list) = fl.toolbox_list {
+            self.editor
+                .toolbox
+                .set_borders(layout::toolbox_list_borders());
+            frame.render_widget(&self.editor.toolbox, tb_list);
             if let Some(tb_brush) = fl.toolbox_brush {
                 if self.editor.toolbox.selected == Tool::Text {
-                    self.editor.text_tool.render_options(frame, tb_brush);
+                    self.editor.text_tool.render_options(
+                        frame,
+                        tb_brush,
+                        layout::toolbox_brush_borders(),
+                    );
                 } else {
+                    self.editor
+                        .brush
+                        .set_borders(layout::toolbox_brush_borders());
                     self.editor.brush.render(frame, tb_brush);
                 }
             }

@@ -52,6 +52,7 @@ pub struct BrushState {
     pub size: u8,
     pub ch: char,
     pub density: u8,
+    pub borders: Borders,
 }
 
 impl BrushState {
@@ -65,7 +66,12 @@ impl BrushState {
             size: 3,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         }
+    }
+
+    pub fn set_borders(&mut self, borders: Borders) {
+        self.borders = borders;
     }
 
     pub fn set_size(&mut self, n: u8) {
@@ -163,7 +169,7 @@ impl BrushState {
     pub fn render(&self, frame: &mut Frame<'_>, area: Rect) {
         let block = Block::default()
             .title(" Brush ")
-            .borders(Borders::ALL)
+            .borders(self.borders)
             .title_style(Style::default().add_modifier(Modifier::BOLD));
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -410,6 +416,7 @@ mod tests {
             size: 5,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -427,6 +434,7 @@ mod tests {
             size: 5,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -446,12 +454,14 @@ mod tests {
             size: 7,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         };
         let b = BrushState {
             shape: BrushShape::SprayPaint,
             size: 7,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         };
         assert_eq!(a.render_preview(10), b.render_preview(10));
     }
@@ -463,6 +473,7 @@ mod tests {
             size: 5,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -487,6 +498,7 @@ mod tests {
             size: 0,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         };
         let preview = brush.render_preview(5);
         assert!(!preview.is_empty());
@@ -500,6 +512,7 @@ mod tests {
                 size: 1,
                 ch: '\u{2588}',
                 density: 35,
+                borders: Borders::ALL,
             };
             let preview = brush.render_preview(5);
             assert_eq!(preview.len(), 1);
@@ -514,6 +527,7 @@ mod tests {
             size: 5,
             ch: '\u{2588}',
             density: 35,
+            borders: Borders::ALL,
         };
         let preview = brush.render_mini_preview();
         assert_eq!(preview.len(), 5);
@@ -532,6 +546,7 @@ mod tests {
                     size,
                     ch: '#',
                     density: 35,
+                    borders: Borders::ALL,
                 };
                 let preview = brush.render_mini_preview();
                 assert_eq!(preview.len(), 5, "size={size} shape={:?}", shape);
@@ -550,6 +565,7 @@ mod tests {
             size: 5,
             ch: '#',
             density: 35,
+            borders: Borders::ALL,
         };
         let mut outputs = HashSet::new();
         for _ in 0..4 {
@@ -567,6 +583,7 @@ mod tests {
             size: 3,
             ch: '#',
             density: 35,
+            borders: Borders::ALL,
         };
         let preview = brush.render_mini_preview();
         for row in &preview {
@@ -591,6 +608,7 @@ mod tests {
             size: 1,
             ch: '#',
             density: 35,
+            borders: Borders::ALL,
         };
         let preview = brush.render_mini_preview();
         assert_eq!(preview.len(), 5);

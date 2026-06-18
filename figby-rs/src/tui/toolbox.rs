@@ -114,6 +114,7 @@ pub struct Toolbox {
     pub selected: Tool,
     pub theme: Theme,
     pub icons: std::collections::BTreeMap<String, String>,
+    pub borders: Borders,
 }
 
 impl Toolbox {
@@ -122,7 +123,12 @@ impl Toolbox {
             selected: Tool::Brush,
             theme: Theme::default(),
             icons: std::collections::BTreeMap::new(),
+            borders: Borders::ALL,
         }
+    }
+
+    pub fn set_borders(&mut self, borders: Borders) {
+        self.borders = borders;
     }
 
     pub fn handle_key(&mut self, code: KeyCode) -> bool {
@@ -172,7 +178,7 @@ impl Widget for &Toolbox {
         let selected_idx = tools.iter().position(|t| *t == self.selected).unwrap_or(0);
 
         let list = List::new(items)
-            .block(Block::default().title(" Tools ").borders(Borders::ALL))
+            .block(Block::default().title(" Tools ").borders(self.borders))
             .highlight_style(
                 Style::default()
                     .fg(self.theme.toolbox.selected)

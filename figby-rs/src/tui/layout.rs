@@ -33,6 +33,25 @@ impl DrawerMode {
     }
 }
 
+/// Collapsed borders for the toolbox list panel (top portion of left column).
+/// Omits BOTTOM — shared with brush/text area below.
+pub fn toolbox_list_borders() -> Borders {
+    Borders::TOP | Borders::LEFT | Borders::RIGHT
+}
+
+/// Collapsed borders for the brush/text panel (bottom portion of left column).
+/// Omits TOP — shared with tool list above.
+pub fn toolbox_brush_borders() -> Borders {
+    Borders::LEFT | Borders::RIGHT | Borders::BOTTOM
+}
+
+/// Explicit borders for the right panel column.
+/// Same as `Borders::ALL` but documents intent: right panel owns its own edges
+/// (canvas omits RIGHT when right panel is open).
+pub fn right_panel_borders() -> Borders {
+    Borders::ALL
+}
+
 /// All widget Rects for one frame, computed in a single pass.
 /// Stored on TuiApp so mouse handlers can use last-frame geometry.
 #[derive(Debug, Clone, Copy)]
@@ -57,11 +76,15 @@ impl FrameLayout {
     /// Compute layout for the given terminal area.
     ///
     /// Collapsed-border convention (ratatui recipe):
-    ///   - Toolbox block uses `Borders::ALL` (provides its own right border).
-    ///   - Canvas block omits LEFT border when toolbox is visible (shares
-    ///     toolbox's right border) and omits RIGHT when right panel is visible.
-    ///   - Right panel block omits LEFT border (shares canvas's right if canvas
-    ///     kept it, or toolbox's if canvas omitted both sides).
+    ///   - Toolbox list block uses `toolbox_list_borders()`: TOP, LEFT, RIGHT
+    ///     (omits BOTTOM — shared with brush/text area).
+    ///   - Brush/text block uses `toolbox_brush_borders()`: LEFT, RIGHT, BOTTOM
+    ///     (omits TOP — shared with tool list).
+    ///   - Canvas block omits LEFT when toolbox is visible (shares toolbox's
+    ///     right border) and omits RIGHT when right panel is visible.
+    ///   - Right panel block uses `right_panel_borders()` = ALL (canvas omits
+    ///     its RIGHT when right panel is open, so right panel owns its LEFT).
+    ///   - All layouts use `spacing(0)` so adjacent rects share edges exactly.
     pub fn compute(area: Rect, zen_mode: bool, drawer: DrawerMode, toolbox_width: u16) -> Self {
         let vert = Layout::vertical([
             Constraint::Length(1),
@@ -69,6 +92,7 @@ impl FrameLayout {
             Constraint::Fill(1),
             Constraint::Length(1),
         ])
+        .spacing(0)
         .split(area);
 
         let menu = vert[0];
@@ -96,9 +120,12 @@ impl FrameLayout {
                 Constraint::Fill(1),
                 Constraint::Length(DRAWER_WIDTH),
             ])
+            .spacing(0)
             .split(main)
         } else {
-            Layout::horizontal([Constraint::Length(toolbox_width), Constraint::Fill(1)]).split(main)
+            Layout::horizontal([Constraint::Length(toolbox_width), Constraint::Fill(1)])
+                .spacing(0)
+                .split(main)
         };
 
         let toolbox_full = h_areas[0];
@@ -113,6 +140,7 @@ impl FrameLayout {
             Constraint::Fill(1),
             Constraint::Length(TOOLBOX_BRUSH_HEIGHT),
         ])
+        .spacing(0)
         .split(toolbox_full);
         let toolbox_list = tb_vert[0];
         let toolbox_brush = tb_vert[1];
@@ -134,6 +162,8 @@ impl FrameLayout {
     ///
     /// Omits LEFT when toolbox is present (toolbox provides that edge),
     /// omits RIGHT when right panel is present.
+    /// Shared TOP/BOTTOM edges with toolbox/right panel panels are drawn
+    /// by both (inherent to ratatui's block model for side-by-side blocks).
     pub fn canvas_borders(&self) -> Borders {
         match (self.toolbox_full.is_some(), self.right_panel.is_some()) {
             (true, true) => Borders::TOP | Borders::BOTTOM,

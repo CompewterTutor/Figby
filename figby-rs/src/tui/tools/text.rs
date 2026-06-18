@@ -308,10 +308,10 @@ impl TextToolState {
         }
     }
 
-    pub fn render_options(&self, frame: &mut Frame<'_>, area: Rect) {
+    pub fn render_options(&self, frame: &mut Frame<'_>, area: Rect, borders: Borders) {
         let block = Block::default()
             .title(" Text ")
-            .borders(Borders::ALL)
+            .borders(borders)
             .title_style(Style::default().add_modifier(Modifier::BOLD));
         let inner = block.inner(area);
         frame.render_widget(block, area);

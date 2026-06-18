@@ -499,6 +499,7 @@ fn test_brush_preview_square_integration() {
         size: 3,
         ch: '\u{2588}',
         density: 35,
+        ..BrushState::new()
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview.len(), 3);
@@ -517,6 +518,7 @@ fn test_brush_preview_circle_integration() {
         size: 5,
         ch: '\u{2588}',
         density: 35,
+        ..BrushState::new()
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview.len(), 5);
@@ -535,12 +537,14 @@ fn test_brush_preview_spray_deterministic() {
         size: 7,
         ch: '\u{2588}',
         density: 35,
+        ..BrushState::new()
     };
     let b = BrushState {
         shape: BrushShape::SprayPaint,
         size: 7,
         ch: '\u{2588}',
         density: 35,
+        ..BrushState::new()
     };
     assert_eq!(a.render_preview(10), b.render_preview(10));
 }
@@ -555,6 +559,7 @@ fn test_brush_preview_custom_center() {
         size: 5,
         ch: '\u{2588}',
         density: 35,
+        ..BrushState::new()
     };
     let preview = brush.render_preview(10);
     assert_eq!(preview[2].as_bytes()[2] as char, '+');

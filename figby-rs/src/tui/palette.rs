@@ -249,6 +249,60 @@ impl Palette {
             _ => false,
         }
     }
+
+    /// Hit-test a left click at terminal coordinates (`col`, `row`) against `area`
+    /// (the full panel rect including border). Returns true if the click landed on
+    /// a colour swatch or FG/BG toggle and state changed.
+    pub fn handle_click(&mut self, col: u16, row: u16, area: Rect) -> bool {
+        // inner area: strip 1-cell border on each side
+        let ix = area.x + 1;
+        let iy = area.y + 1;
+        let iw = area.width.saturating_sub(2);
+        let ih = area.height.saturating_sub(2);
+        if col < ix || col >= ix + iw || row < iy || row >= iy + ih {
+            return false;
+        }
+        let rel_col = col - ix;
+        let rel_row = row - iy;
+
+        // Row 0: " [FG]" (0..4)  " " (5)  " [BG]" (6..10)
+        if rel_row == 0 {
+            if rel_col < 5 {
+                self.target = ColorTarget::Foreground;
+                return true;
+            } else if rel_col >= 6 && rel_col < 11 {
+                self.target = ColorTarget::Background;
+                return true;
+            }
+            return false;
+        }
+
+        if self.show_extended {
+            // Row 1: "Ext pg:N" — not clickable
+            // Rows 2-3: 8 swatches each, 2 cols wide
+            if rel_row >= 2 && rel_row <= 3 {
+                let swatch_col = (rel_col / 2) as usize;
+                if swatch_col < 8 {
+                    let idx = (rel_row as usize - 2) * 8 + swatch_col;
+                    self.selected_index = idx;
+                    self.selected_color = Some(extended_color(self.extended_page, idx as u8));
+                    return true;
+                }
+            }
+        } else {
+            // Row 1: ANSI 0-7, Row 2: ANSI 8-15; 2 cols per swatch
+            if rel_row == 1 || rel_row == 2 {
+                let swatch_col = (rel_col / 2) as usize;
+                if swatch_col < 8 {
+                    let idx = (rel_row as usize - 1) * 8 + swatch_col;
+                    self.select_color(idx);
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
 }
 
 impl Widget for &Palette {

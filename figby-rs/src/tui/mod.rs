@@ -1397,6 +1397,30 @@ impl TuiApp {
             }
         }
 
+        // Palette panel click
+        if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+            if let Some(rp) = mouse_fl.right_panel {
+                if self.right_drawer == layout::DrawerMode::Palette
+                    && !self.dialogs.settings.settings_open
+                    && self
+                        .editor
+                        .palette
+                        .handle_click(mouse.column, mouse.row, rp)
+                {
+                    use crate::tui::events::PaletteEvent;
+                    let color = self.editor.palette.selected_color;
+                    let target = self.editor.palette.target;
+                    if let Some(c) = color {
+                        self.process_event(&AppEvent::Palette(PaletteEvent::ColorChanged(
+                            c, target,
+                        )));
+                    }
+                    self.dirty = true;
+                    return;
+                }
+            }
+        }
+
         // Text tool: hit-test blocks or enter text mode
         if self.editor.toolbox.selected == Tool::Text {
             if let MouseEventKind::Down(_) = mouse.kind {

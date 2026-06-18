@@ -1,5 +1,22 @@
 # Changelog
 
+## [5.6.0] - 2026-06-18
+### Added
+- Phase merge: release/5.6 → master. Phase 5.6 (Palette Enhancement & Marker Brush)
+  complete: color name hover tooltip (5.6.1), hue-grouped palette with 5 per row
+  (5.6.2), palette editor with save/load/duplicate (5.6.3), palette import from
+  Paletty/ASE/WezTerm/Windows Terminal (5.6.4), marker brush mode with colour-stepping
+  shading (5.6.5).
+### Fixed
+- Marker brush: when cell color not in selected palette, consume 1 step to enter
+  the array at index 0 instead of jumping to index 1.
+- Marker brush: preserve 0.0 fractional remainder entries in accum map for future
+  strokes.
+- TUI dispatch: only launch TUI when stdin is a terminal and no FIGlet flags are
+  provided; piped stdin now correctly triggers CLI mode.
+- Palette editor test: fixed race condition on XDG_CONFIG_HOME env var by
+  serializing concurrent tests with a mutex.
+
 ## [5.5.0] - 2026-06-18
 ### Added
 - Phase merge: release/5.5 → master. Phase 5.5 (Animation Audit & Surface) complete:

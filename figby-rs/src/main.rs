@@ -7,7 +7,7 @@ use figby::input;
 use figby::render::{add_char, lookup_char, render_line, split_line, Justification};
 use figby::smush::SmushMode;
 use figby::template;
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::process;
 
 const VERSION_INT: i32 = 20205;
@@ -1058,6 +1058,34 @@ fn run(config: CliConfig, message: Vec<String>) {
     }
 }
 
+fn has_figlet_flags(args: &CliArgs) -> bool {
+    args.flag_A
+        || args.flag_D
+        || args.flag_E
+        || args.flag_X
+        || args.flag_L
+        || args.flag_R
+        || args.flag_x
+        || args.flag_l
+        || args.flag_c
+        || args.flag_r
+        || args.flag_p
+        || args.flag_n
+        || args.flag_s
+        || args.flag_k
+        || args.flag_S
+        || args.flag_o
+        || args.flag_W
+        || args.flag_t
+        || args.flag_N
+        || args.flag_F
+        || args.smushmode_arg.is_some()
+        || args.outputwidth_arg.is_some()
+        || args.fontdir.is_some()
+        || args.fontname_arg.is_some()
+        || args.controlfile.is_some()
+}
+
 #[cfg(target_arch = "wasm32")]
 fn main() {
     figby::web::run_web().expect("Figby web error");
@@ -1211,13 +1239,15 @@ fn main() {
         return;
     }
 
-    // No message and no special flags → launch TUI
+    // No message, no FIGlet flags, and stdin is a terminal → launch TUI
     if message.is_empty()
+        && !has_figlet_flags(&args)
         && args.create_font_name.is_none()
         && args.create_font_path.is_none()
         && args.render_template.is_none()
         && infocode.is_none()
         && !args.flag_v
+        && std::io::stdin().is_terminal()
     {
         let mut app = figby::tui::TuiApp::new();
         if let Err(e) = app.run() {

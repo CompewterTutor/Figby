@@ -2458,3 +2458,20 @@ Added Marker brush sub-mode for progressive colour stepping:
   bg target, line accumulation, empty-skip.
 
 No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.6.6 — Phase merge: release/5.6 → master
+
+Merged all Phase 5.6 work (5.6.1–5.6.5) into default branch (master). Phase 5.6
+complete: colour name hover tooltip (5.6.1), hue-grouped 5-per-row palette (5.6.2),
+palette editor save/load/duplicate (5.6.3), palette import for 4 formats (5.6.4),
+marker brush mode with colour-stepping shading (5.6.5).
+
+Post-merge fixes:
+- Marker brush `commit_marker_accum`: start_idx for unmatched colors now consumes
+  1 step to enter array at index 0 instead of landing at index 1.
+- Removed `accum.retain(|_, v| *v > 0.0)` to preserve fractional remainder entries.
+- TUI dispatch: added `has_figlet_flags()` helper to prevent TUI launch when FIGlet
+  CLI flags are provided. Added `std::io::stdin().is_terminal()` check so piped stdin
+  goes to CLI mode. Fixes 47/48 integration tests (test_03_long_text was the holdout).
+- Palette editor test: wrapped `XDG_CONFIG_HOME`-modifying tests behind a `Mutex` to
+  prevent concurrent access race from parallel test execution.

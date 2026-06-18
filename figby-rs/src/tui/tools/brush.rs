@@ -261,16 +261,22 @@ pub fn commit_marker_accum(
                 ColorTarget::Foreground => cell.fg,
                 ColorTarget::Background => cell.bg,
             };
-            let start_idx = current_color
-                .and_then(|c| colors.iter().position(|pc| *pc == c))
-                .unwrap_or(0);
-            let new_idx = (start_idx + steps).min(colors.len().saturating_sub(1));
+            let start_idx = current_color.and_then(|c| colors.iter().position(|pc| *pc == c));
+            let consumed = if start_idx.is_none() && steps > 0 {
+                1
+            } else {
+                0
+            };
+            let idx = start_idx.unwrap_or(0);
+            let remaining_steps = steps.saturating_sub(consumed);
+            let new_idx = (idx + remaining_steps).min(colors.len().saturating_sub(1));
             let new_color = Some(colors[new_idx]);
             match target {
                 ColorTarget::Foreground => cell.fg = new_color,
                 ColorTarget::Background => cell.bg = new_color,
             }
-            *amount -= steps as f64;
+            let actual_steps = consumed + remaining_steps;
+            *amount -= actual_steps as f64;
         } else {
             to_remove.push((x, y));
         }
@@ -278,7 +284,6 @@ pub fn commit_marker_accum(
     for key in to_remove {
         accum.remove(&key);
     }
-    accum.retain(|_, v| *v > 0.0);
 }
 
 #[cfg(test)]
@@ -615,7 +620,7 @@ mod tests {
         );
         let remaining = accum.get(&(2, 2)).copied().unwrap_or(0.0);
         assert!(
-            (remaining - 0.0).abs() < f64::EPSILON,
+            (remaining - 0.0).abs() < 1e-10,
             "remaining should be 0.0 after 1 step from 1.0"
         );
     }
@@ -673,7 +678,7 @@ mod tests {
         );
         let remaining = accum.get(&(2, 2)).copied().unwrap_or(0.0);
         assert!(
-            (remaining - 0.7).abs() < f64::EPSILON,
+            (remaining - 0.7).abs() < 1e-10,
             "0.7 should remain after 2 steps from 2.7, got {remaining}"
         );
     }

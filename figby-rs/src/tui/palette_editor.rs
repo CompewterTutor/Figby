@@ -546,6 +546,12 @@ fn luminance(color: Color) -> Option<u8> {
 mod tests {
     use super::*;
     use crate::tui::palette::Palette;
+    use std::sync::{Mutex, OnceLock};
+
+    fn xdg_mutex() -> &'static Mutex<()> {
+        static XDG_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+        XDG_MUTEX.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn test_palette_file_roundtrip() {
@@ -591,6 +597,7 @@ mod tests {
 
     #[test]
     fn test_save_load_disk_roundtrip() {
+        let _lock = xdg_mutex().lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let orig = std::env::var("XDG_CONFIG_HOME").ok();
         std::env::set_var("XDG_CONFIG_HOME", dir.path());
@@ -636,6 +643,7 @@ mod tests {
 
     #[test]
     fn test_palettes_dir_creates() {
+        let _lock = xdg_mutex().lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let orig = std::env::var("XDG_CONFIG_HOME").ok();
         std::env::set_var("XDG_CONFIG_HOME", dir.path());

@@ -189,7 +189,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Image editor mode reachable and canvas interactive.
   - **Difficulty:** Medium
 
-- [ ] `5.4.2` Fix mouse events in image editor
+- [x] `5.4.2` Fix mouse events in image editor
   - **Goal:** Mouse clicks not reaching image editor canvas/toolbox. Audit
     `handle_mouse_event` routing — confirm image editor mode is handled in the same
     dispatch path as font editor. Fix any mode-check that gates mouse events.

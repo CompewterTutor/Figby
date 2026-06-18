@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.3.0] - 2026-06-18
+### Added
+- Phase 5.3 status bar redesign — flat item-based layout with StatusItem priority system
+- Three informal sections (left/middle/right) with pipe separators
+- Responsive dropping of low-priority items at narrow widths
+
 ## [5.2.0] - 2026-06-18
 ### Added
 - Phase 5.2 layout restructure — palette under tools, tabbed right panel (Layers/Props/Text/Libraries/Effects), context-sensitive tool properties in Props tab

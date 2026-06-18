@@ -160,14 +160,10 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.3 — Status Bar Redesign
 
-- [x] `5.3.1` Powerline-style three-section layout
-  - **Goal:** Redesign status bar into three sections using `Flex`:
-    - **Left:** `[mode_icon] ModeName` ▶ `[tool_icon] ToolName` ▶ `[status_position] X:n Y:n`
-    - **Middle** (`Constraint::Fill(1)`): filename + unsaved indicator + font name
-    - **Right:** `[status_git_branch] branch` ▶ `[status_fps] FPS` ▶ `[status_clock] HH:MM`
-    Powerline separators (`` or ``) between sections using theme colors.
-  - **Touches:** `figby-rs/src/tui/components/status_bar.rs`, `figby-rs/src/tui/mod.rs`
-  - **Success:** Status bar looks like lazyvim powerline. All info visible at 80+ cols.
+- [x] `5.3.1` Flat item-based status bar with section grouping
+  - **Goal:** Replace fixed-width p1-p4 panels with flexible flat item list. Group info into three informal sections: left (mode/tool/pos/zoom), middle (font/unsaved/glyph), right (branch/FPS/clock/render/layer/undo/throbber). Use `│` pipe separators between items with theme colors. No powerline layout.
+  - **Touches:** `figby-rs/src/tui/components/status_bar.rs`
+  - **Success:** Status bar shows all items at 80+ cols. Sections visually grouped with pipe separators.
   - **Difficulty:** Medium
 
 - [x] `5.3.2` Responsive: drop low-priority items at narrow widths

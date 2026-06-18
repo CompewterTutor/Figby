@@ -6060,3 +6060,11 @@ DONE: 5.2.1 merged into release/5.2.
 ## 2026-06-18 15:19
 
 DONE: 5.2.2 merged into release/5.2.
+
+## 2026-06-18 15:30
+
+DONE: 5.2.4 merged into release/5.2.
+
+## 2026-06-18 15:30
+
+All 5.2 tasks complete. Starting phase review.

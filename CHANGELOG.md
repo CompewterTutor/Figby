@@ -1,5 +1,9 @@
 # Changelog
 
+## [5.2.0] - 2026-06-18
+### Added
+- Phase 5.2 layout restructure — palette under tools, tabbed right panel (Layers/Props/Text/Libraries/Effects), context-sensitive tool properties in Props tab
+
 ## [5.0.0] - 2026-06-18
 ### Added
 - Welcome screen Phase 5.0 — complete overhaul

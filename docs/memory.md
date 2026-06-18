@@ -2107,3 +2107,14 @@ Rendering changed from `display_name()` (2-char abbrev) to icon lookup from
 `[icon] FullName` per row (e.g. ` Brush`, ` Select`). Same pattern as
 `LayerPanel` and `StatusBar`. Only `toolbox.rs` and `mod.rs` modified.
 fmt and clippy pass clean.
+
+### 5.1.2 — Toolbox dynamic width
+
+Added `BrushState::required_outer_width()` returning 15 (max content width of
+brush panel + 2 border). Added `Toolbox::required_width(brush_width)` computing
+`max(icon_width + longest_full_name + 2, brush_width).clamp(10, 20)` using
+`unicode-width` crate. Removed `TOOLBOX_WIDTH` constant from `layout.rs`,
+parameterized `FrameLayout::compute` with `toolbox_width: u16`. Three call
+sites in `mod.rs` (render, render_canvas_area, handle_mouse_event) compute
+width before each layout pass. 5 new tests across `brush.rs` and `toolbox.rs`.
+fmt and clippy pass clean.

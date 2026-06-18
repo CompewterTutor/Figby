@@ -634,7 +634,11 @@ impl TuiApp {
         }
 
         // Single-pass layout computation — stored for mouse handlers next cycle.
-        let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer);
+        let tw = self
+            .editor
+            .toolbox
+            .required_width(self.editor.brush.required_outer_width());
+        let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer, tw);
 
         // --- Zen mode: canvas only, hint overlay ---
         if self.zen_mode {
@@ -789,7 +793,11 @@ impl TuiApp {
 
     /// Render the canvas (or font editor overview) inside `canvas_area`.
     fn render_canvas_area(&mut self, frame: &mut Frame<'_>, canvas_area: Rect) {
-        let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer);
+        let tw = self
+            .editor
+            .toolbox
+            .required_width(self.editor.brush.required_outer_width());
+        let fl = layout::FrameLayout::compute(frame.area(), self.zen_mode, self.right_drawer, tw);
 
         let mode_title = match self.mode {
             AppMode::ImageEditor => {
@@ -1338,10 +1346,15 @@ impl TuiApp {
         // Toolbox click: select tool by row
         let mouse_fl = {
             let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
+            let tw = self
+                .editor
+                .toolbox
+                .required_width(self.editor.brush.required_outer_width());
             layout::FrameLayout::compute(
                 Rect::new(0, 0, cols, rows),
                 self.zen_mode,
                 self.right_drawer,
+                tw,
             )
         };
         let canvas_inner_rect = self.editor.compute_canvas_rect(

@@ -1,7 +1,6 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Borders;
 
-const TOOLBOX_WIDTH: u16 = 8;
 const TOOLBOX_BRUSH_HEIGHT: u16 = 10;
 const DRAWER_WIDTH: u16 = 22;
 
@@ -42,7 +41,7 @@ pub struct FrameLayout {
     pub tabs: Rect,
     pub main: Rect,
     pub status: Rect,
-    /// Full toolbox column (8 wide). None in zen mode.
+    /// Full toolbox column (dynamic). None in zen mode.
     pub toolbox_full: Option<Rect>,
     /// Upper portion of toolbox column (for mouse hit-testing tool list items).
     pub toolbox_list: Option<Rect>,
@@ -63,7 +62,7 @@ impl FrameLayout {
     ///     toolbox's right border) and omits RIGHT when right panel is visible.
     ///   - Right panel block omits LEFT border (shares canvas's right if canvas
     ///     kept it, or toolbox's if canvas omitted both sides).
-    pub fn compute(area: Rect, zen_mode: bool, drawer: DrawerMode) -> Self {
+    pub fn compute(area: Rect, zen_mode: bool, drawer: DrawerMode, toolbox_width: u16) -> Self {
         let vert = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(3),
@@ -93,13 +92,13 @@ impl FrameLayout {
 
         let h_areas = if drawer.is_open() {
             Layout::horizontal([
-                Constraint::Length(TOOLBOX_WIDTH),
+                Constraint::Length(toolbox_width),
                 Constraint::Fill(1),
                 Constraint::Length(DRAWER_WIDTH),
             ])
             .split(main)
         } else {
-            Layout::horizontal([Constraint::Length(TOOLBOX_WIDTH), Constraint::Fill(1)]).split(main)
+            Layout::horizontal([Constraint::Length(toolbox_width), Constraint::Fill(1)]).split(main)
         };
 
         let toolbox_full = h_areas[0];
@@ -147,6 +146,6 @@ impl FrameLayout {
 
 impl Default for FrameLayout {
     fn default() -> Self {
-        Self::compute(Rect::new(0, 0, 80, 24), false, DrawerMode::Palette)
+        Self::compute(Rect::new(0, 0, 80, 24), false, DrawerMode::Palette, 8)
     }
 }

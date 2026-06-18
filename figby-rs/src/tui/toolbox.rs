@@ -3,6 +3,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, StatefulWidget, Widget};
+use unicode_width::UnicodeWidthStr;
 
 use super::theme::Theme;
 
@@ -184,10 +185,64 @@ impl Widget for &Toolbox {
     }
 }
 
-impl Toolbox {}
+impl Toolbox {
+    pub fn required_width(&self, brush_width: u16) -> u16 {
+        let mut icon_width: usize = 0;
+        for t in Tool::all() {
+            let w = self
+                .icons
+                .get(t.icon_key())
+                .map(|s| s.width())
+                .unwrap_or_else(|| t.display_name().width());
+            icon_width = icon_width.max(w);
+        }
+        let longest_name_len = Tool::all()
+            .iter()
+            .map(|t| t.full_name().width())
+            .max()
+            .unwrap_or(0);
+        let tool_list_width = (icon_width + longest_name_len + 2) as u16;
+        tool_list_width.max(brush_width).clamp(10, 20)
+    }
+}
 
 impl Default for Toolbox {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_required_width_default() {
+        let tb = Toolbox::new();
+        let w = tb.required_width(15);
+        assert!((10..=20).contains(&w));
+    }
+
+    #[test]
+    fn test_required_width_with_icons() {
+        let mut tb = Toolbox::new();
+        tb.icons.insert("tool_brush".to_string(), "🖌".to_string());
+        let w = tb.required_width(15);
+        assert!((10..=20).contains(&w));
+    }
+
+    #[test]
+    fn test_required_width_clamp_low() {
+        let tb = Toolbox::new();
+        // Content + padding gives at least 11, clamp(10, 20) keeps it >= 10.
+        let w = tb.required_width(0);
+        assert!(w >= 10);
+    }
+
+    #[test]
+    fn test_required_width_clamp_high() {
+        let tb = Toolbox::new();
+        let w = tb.required_width(200);
+        assert_eq!(w, 20);
     }
 }

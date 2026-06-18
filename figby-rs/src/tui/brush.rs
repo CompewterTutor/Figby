@@ -55,6 +55,10 @@ pub struct BrushState {
 }
 
 impl BrushState {
+    pub fn required_outer_width(&self) -> u16 {
+        15
+    }
+
     pub fn new() -> Self {
         Self {
             shape: BrushShape::Square,
@@ -572,6 +576,12 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_brush_required_outer_width() {
+        let brush = BrushState::new();
+        assert_eq!(brush.required_outer_width(), 15);
     }
 
     #[test]

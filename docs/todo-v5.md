@@ -181,7 +181,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.4 — Image Editor Fix
 
-- [ ] `5.4.1` Fix image editor mode switching
+- [x] `5.4.1` Fix image editor mode switching
   - **Goal:** Switching to image editor mode currently non-functional (user reports
     can't switch to it). Identify mode-switch path, fix so Image Editor tab/mode
     activates cleanly from welcome screen image actions and from mode toggle keybind.

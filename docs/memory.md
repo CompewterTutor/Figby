@@ -2234,3 +2234,17 @@ position. Separator uses `\u{2502}` instead of powerline triangle `\u{e0b0}`.
 Merged release/5.3 into master. Task checked off in todo-v5.md.
 Version bumped from 5.2.0 to 5.3.0. No code changes — admin re-application
 of reverted bookkeeping after merge. Next phase: 5.4 (Image Editor Fix).
+
+### 5.4.1 — Fix image editor mode switching
+
+Welcome screen `ImageOpenFigmap` and `ImageNewBlank` actions now initialize
+`editor.image_editor` and set `self.mode = AppMode::ImageEditor` before proceeding.
+Previously these actions were merged with `FontOpen` (just called `start_open()`)
+and never entered image editor mode, leaving the editor in a broken state where
+no canvas/tools were accessible for image operations.
+
+`FontOpen` split into its own arm (no image editor init). `ImageNewFromTemplate`
+and `ImageConvert` now at least set the mode flag (template picker and rascii
+dialog are TODO in later tasks). Mode toggle keybind (Tab) already worked because
+`image_editor` is initialized at TuiApp construction — only the welcome screen
+dispatch path was broken.

@@ -1228,7 +1228,15 @@ impl TuiApp {
                 self.welcome_screen.scroll_down(count);
                 self.dirty = true;
             }
-            WelcomeAction::FontOpen | WelcomeAction::ImageOpenFigmap => {
+            WelcomeAction::FontOpen => {
+                self.start_open();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::ImageOpenFigmap => {
+                self.editor.image_editor = image_editor::ImageEditor::new();
+                self.mode = AppMode::ImageEditor;
                 self.start_open();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
@@ -1261,6 +1269,8 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::ImageNewBlank => {
+                self.editor.image_editor = image_editor::ImageEditor::new();
+                self.mode = AppMode::ImageEditor;
                 self.editor.canvas = crate::tui::canvas::CanvasWidget::new(80, 24);
                 self.editor.layer_stack = layers::LayerStack::new(80, 24);
                 self.editor.layer_panel = layers::LayerPanel::new();
@@ -1273,6 +1283,7 @@ impl TuiApp {
             }
             WelcomeAction::ImageNewFromTemplate | WelcomeAction::ImageConvert => {
                 // TODO: template picker (5.0.4) / rascii convert dialog (5.4.3)
+                self.mode = AppMode::ImageEditor;
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;

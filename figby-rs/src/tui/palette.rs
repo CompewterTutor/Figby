@@ -22,6 +22,46 @@ impl ColorTarget {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HueGroup {
+    Neutrals,
+    Reds,
+    Oranges,
+    Yellows,
+    Greens,
+    Cyans,
+    Blues,
+    Purples,
+}
+
+impl HueGroup {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            HueGroup::Neutrals => "Neutrals",
+            HueGroup::Reds => "Reds",
+            HueGroup::Oranges => "Oranges",
+            HueGroup::Yellows => "Yellows",
+            HueGroup::Greens => "Greens",
+            HueGroup::Cyans => "Cyans",
+            HueGroup::Blues => "Blues",
+            HueGroup::Purples => "Purples",
+        }
+    }
+
+    pub fn ordered() -> &'static [HueGroup] {
+        &[
+            HueGroup::Neutrals,
+            HueGroup::Reds,
+            HueGroup::Oranges,
+            HueGroup::Yellows,
+            HueGroup::Greens,
+            HueGroup::Cyans,
+            HueGroup::Blues,
+            HueGroup::Purples,
+        ]
+    }
+}
+
 /// Named character groups for the palette char picker.
 pub struct CharGroup {
     pub name: &'static str,
@@ -91,6 +131,31 @@ pub const ANSI_16_COLORS: [Color; 16] = [
     Color::Indexed(15),
 ];
 
+pub fn hue_group_for_ansi(index: usize) -> HueGroup {
+    match index {
+        0 | 7 | 8 | 15 => HueGroup::Neutrals,
+        1 | 9 => HueGroup::Reds,
+        3 | 11 => HueGroup::Yellows,
+        2 | 10 => HueGroup::Greens,
+        6 | 14 => HueGroup::Cyans,
+        4 | 12 => HueGroup::Blues,
+        5 | 13 => HueGroup::Purples,
+        _ => HueGroup::Neutrals,
+    }
+}
+
+pub fn build_flat_palette() -> Vec<(usize, Color, &'static str)> {
+    let mut result = Vec::with_capacity(16);
+    for group in HueGroup::ordered() {
+        for (i, color) in ANSI_16_COLORS.iter().enumerate() {
+            if hue_group_for_ansi(i) == *group {
+                result.push((i, *color, ANSI_COLOR_NAMES[i]));
+            }
+        }
+    }
+    result
+}
+
 fn extended_color(page: u8, offset: u8) -> Color {
     let idx = 16u16 + page as u16 * 16 + offset as u16;
     Color::Indexed(idx.min(255) as u8)
@@ -145,10 +210,13 @@ impl Palette {
             } else {
                 ANSI_16_COLORS[0]
             }
-        } else if index < 16 {
-            ANSI_16_COLORS[index]
         } else {
-            ANSI_16_COLORS[0]
+            let flat = build_flat_palette();
+            if index < flat.len() {
+                flat[index].1
+            } else {
+                ANSI_16_COLORS[0]
+            }
         }
     }
 
@@ -251,15 +319,15 @@ impl Palette {
                 true
             }
             KeyCode::Up => {
-                if self.selected_index >= 8 {
-                    self.selected_index -= 8;
+                if self.selected_index >= 5 {
+                    self.selected_index -= 5;
                 }
                 true
             }
             KeyCode::Down => {
                 let max_idx = self.visible_count().saturating_sub(1);
-                if self.selected_index + 8 <= max_idx {
-                    self.selected_index += 8;
+                if self.selected_index + 5 <= max_idx {
+                    self.selected_index += 5;
                 }
                 true
             }
@@ -275,11 +343,57 @@ impl Palette {
         if self.show_extended {
             let abs = 16u16 + self.extended_page as u16 * 16 + index as u16;
             format!("Color {}", abs)
-        } else if index < 16 {
-            ANSI_COLOR_NAMES[index].to_string()
         } else {
-            String::new()
+            let flat = build_flat_palette();
+            if index < flat.len() {
+                flat[index].2.to_string()
+            } else {
+                String::new()
+            }
         }
+    }
+
+    /// Walk groups in standard mode to find visual index at (rel_col, rel_row).
+    fn standard_index_at(&self, rel_col: u16, rel_row: u16) -> Option<usize> {
+        if rel_row == 0 {
+            return None;
+        }
+        let flat = build_flat_palette();
+        let mut current_inner_row = 1u16;
+        let mut flat_offset = 0usize;
+
+        for group in HueGroup::ordered() {
+            let group_count = flat
+                .iter()
+                .filter(|(i, _, _)| hue_group_for_ansi(*i) == *group)
+                .count();
+            if group_count == 0 {
+                continue;
+            }
+
+            if rel_row == current_inner_row {
+                return None;
+            }
+            current_inner_row += 1;
+
+            let data_rows = group_count.div_ceil(5);
+            let data_end = current_inner_row + data_rows as u16;
+
+            if (current_inner_row..data_end).contains(&rel_row) {
+                let data_row = (rel_row - current_inner_row) as usize;
+                let swatch_col = (rel_col / 2) as usize;
+                let index = flat_offset + data_row * 5 + swatch_col;
+                if index < flat_offset + group_count {
+                    return Some(index);
+                }
+                return None;
+            }
+
+            current_inner_row = data_end;
+            flat_offset += group_count;
+        }
+
+        None
     }
 
     /// Hit-test a mouse move at terminal coordinates (`col`, `row`) against `area`
@@ -297,25 +411,31 @@ impl Palette {
         let rel_col = col - ix;
         let rel_row = row - iy;
 
-        // Row 0 is FG/BG toggle — not a swatch
-        // Swatch rows for standard: 1-2; for extended: 2-3
         let (swatch_start, swatch_end) = if self.show_extended {
-            (2u16, 4u16)
+            (2u16, 6u16)
         } else {
-            (1u16, 3u16)
+            (1u16, 20u16)
         };
 
         if (swatch_start..swatch_end).contains(&rel_row) {
-            let swatch_col = (rel_col / 2) as usize;
-            if swatch_col < 8 {
-                let idx = (rel_row as usize - swatch_start as usize) * 8 + swatch_col;
-                if idx < 16 {
-                    if self.hover_index != Some(idx) {
-                        self.hover_index = Some(idx);
-                        return true;
+            if self.show_extended {
+                let swatch_col = (rel_col / 2) as usize;
+                if swatch_col < 5 {
+                    let idx = (rel_row as usize - 2) * 5 + swatch_col;
+                    if idx < 16 {
+                        if self.hover_index != Some(idx) {
+                            self.hover_index = Some(idx);
+                            return true;
+                        }
+                        return false;
                     }
-                    return false;
                 }
+            } else if let Some(idx) = self.standard_index_at(rel_col, rel_row) {
+                if self.hover_index != Some(idx) {
+                    self.hover_index = Some(idx);
+                    return true;
+                }
+                return false;
             }
         }
 
@@ -353,26 +473,21 @@ impl Palette {
 
         if self.show_extended {
             // Row 1: "Ext pg:N" — not clickable
-            // Rows 2-3: 8 swatches each, 2 cols wide
-            if (2..=3).contains(&rel_row) {
+            // Rows 2-5: 5 swatches each, 2 cols wide (5+5+5+1)
+            if (2..=5).contains(&rel_row) {
                 let swatch_col = (rel_col / 2) as usize;
-                if swatch_col < 8 {
-                    let idx = (rel_row as usize - 2) * 8 + swatch_col;
-                    self.selected_index = idx;
-                    self.selected_color = Some(extended_color(self.extended_page, idx as u8));
-                    return true;
+                if swatch_col < 5 {
+                    let idx = (rel_row as usize - 2) * 5 + swatch_col;
+                    if idx < 16 {
+                        self.selected_index = idx;
+                        self.selected_color = Some(extended_color(self.extended_page, idx as u8));
+                        return true;
+                    }
                 }
             }
-        } else {
-            // Row 1: ANSI 0-7, Row 2: ANSI 8-15; 2 cols per swatch
-            if rel_row == 1 || rel_row == 2 {
-                let swatch_col = (rel_col / 2) as usize;
-                if swatch_col < 8 {
-                    let idx = (rel_row as usize - 1) * 8 + swatch_col;
-                    self.select_color(idx);
-                    return true;
-                }
-            }
+        } else if let Some(idx) = self.standard_index_at(rel_col, rel_row) {
+            self.select_color(idx);
+            return true;
         }
 
         false
@@ -412,10 +527,10 @@ impl Widget for &Palette {
                 self.extended_page + 1
             ))));
 
-            for row in 0..2 {
+            for row in 0..4 {
                 let mut spans = Vec::new();
-                for col in 0..8 {
-                    let idx = row * 8 + col;
+                for col in 0..5 {
+                    let idx = row * 5 + col;
                     if idx < 16 {
                         let color = extended_color(self.extended_page, idx as u8);
                         let swatch = if idx == self.selected_index {
@@ -435,37 +550,45 @@ impl Widget for &Palette {
             }
             lines.push(Line::from(Span::raw(" < > pages")));
         } else {
-            let mut row1 = Vec::new();
-            for (col, color) in ANSI_16_COLORS.iter().enumerate().take(8) {
-                let swatch = if col == self.selected_index {
-                    Span::styled(
-                        "██",
-                        Style::default()
-                            .bg(*color)
-                            .fg(self.theme.palette.swatch_indicator),
-                    )
-                } else {
-                    Span::styled("  ", Style::default().bg(*color))
-                };
-                row1.push(swatch);
-            }
-            lines.push(Line::from(row1));
+            let flat = build_flat_palette();
+            let dim_style = Style::default().fg(self.theme.general.secondary);
+            let mut visual_idx = 0usize;
 
-            let mut row2 = Vec::new();
-            for (col, color) in ANSI_16_COLORS.iter().enumerate().skip(8) {
-                let swatch = if col == self.selected_index {
-                    Span::styled(
-                        "██",
-                        Style::default()
-                            .bg(*color)
-                            .fg(self.theme.palette.swatch_indicator),
-                    )
-                } else {
-                    Span::styled("  ", Style::default().bg(*color))
-                };
-                row2.push(swatch);
+            for group in HueGroup::ordered() {
+                let group_entries: Vec<&(usize, Color, &'static str)> = flat
+                    .iter()
+                    .filter(|(i, _, _)| hue_group_for_ansi(*i) == *group)
+                    .collect();
+
+                if group_entries.is_empty() {
+                    continue;
+                }
+
+                lines.push(Line::from(Span::styled(
+                    format!(" {}", group.display_name()),
+                    dim_style,
+                )));
+
+                for chunk in group_entries.chunks(5) {
+                    let mut spans = Vec::new();
+                    for entry in chunk {
+                        let (_orig_idx, color, _name) = **entry;
+                        let swatch = if visual_idx == self.selected_index {
+                            Span::styled(
+                                "██",
+                                Style::default()
+                                    .bg(color)
+                                    .fg(self.theme.palette.swatch_indicator),
+                            )
+                        } else {
+                            Span::styled("  ", Style::default().bg(color))
+                        };
+                        spans.push(swatch);
+                        visual_idx += 1;
+                    }
+                    lines.push(Line::from(spans));
+                }
             }
-            lines.push(Line::from(row2));
         }
 
         // Hover tooltip: show color name below swatches
@@ -849,17 +972,18 @@ mod tests {
     #[test]
     fn test_hover_on_swatch() {
         let mut p = Palette::new();
-        let area = Rect::new(0, 0, 20, 10);
-        // Swatch row 1 (inner row 1), col 0 → index 0
-        assert!(p.handle_hover(1, 2, area));
+        let area = Rect::new(0, 0, 20, 12);
+        // Row 0: FG/BG toggle, Row 1: "Neutrals" header, Row 2: Neutrals data row
+        // Neutrals data row col 0 -> visual index 0 (Black)
+        assert!(p.handle_hover(1, 3, area));
         assert_eq!(p.hover_index, Some(0));
     }
 
     #[test]
     fn test_hover_outside_clears() {
         let mut p = Palette::new();
-        let area = Rect::new(0, 0, 20, 10);
-        assert!(p.handle_hover(1, 2, area));
+        let area = Rect::new(0, 0, 20, 12);
+        assert!(p.handle_hover(1, 3, area));
         assert_eq!(p.hover_index, Some(0));
         assert!(p.handle_hover(1, 0, area));
         assert_eq!(p.hover_index, None);
@@ -868,8 +992,8 @@ mod tests {
     #[test]
     fn test_hover_outside_palette_clears() {
         let mut p = Palette::new();
-        let area = Rect::new(0, 0, 20, 10);
-        p.handle_hover(1, 2, area);
+        let area = Rect::new(0, 0, 20, 12);
+        p.handle_hover(1, 3, area);
         assert!(p.handle_hover(30, 30, area));
         assert_eq!(p.hover_index, None);
     }
@@ -878,8 +1002,87 @@ mod tests {
     fn test_color_name_standard() {
         let p = Palette::new();
         assert_eq!(p.color_name(0), "Black");
-        assert_eq!(p.color_name(9), "Bright Red");
-        assert_eq!(p.color_name(15), "Bright White");
+        assert_eq!(p.color_name(9), "Bright Green");
+        assert_eq!(p.color_name(15), "Bright Magenta");
+    }
+
+    #[test]
+    fn test_hue_group_mapping() {
+        use super::HueGroup;
+        assert_eq!(super::hue_group_for_ansi(0), HueGroup::Neutrals);
+        assert_eq!(super::hue_group_for_ansi(7), HueGroup::Neutrals);
+        assert_eq!(super::hue_group_for_ansi(8), HueGroup::Neutrals);
+        assert_eq!(super::hue_group_for_ansi(15), HueGroup::Neutrals);
+        assert_eq!(super::hue_group_for_ansi(1), HueGroup::Reds);
+        assert_eq!(super::hue_group_for_ansi(9), HueGroup::Reds);
+        assert_eq!(super::hue_group_for_ansi(3), HueGroup::Yellows);
+        assert_eq!(super::hue_group_for_ansi(11), HueGroup::Yellows);
+        assert_eq!(super::hue_group_for_ansi(2), HueGroup::Greens);
+        assert_eq!(super::hue_group_for_ansi(10), HueGroup::Greens);
+        assert_eq!(super::hue_group_for_ansi(6), HueGroup::Cyans);
+        assert_eq!(super::hue_group_for_ansi(14), HueGroup::Cyans);
+        assert_eq!(super::hue_group_for_ansi(4), HueGroup::Blues);
+        assert_eq!(super::hue_group_for_ansi(12), HueGroup::Blues);
+        assert_eq!(super::hue_group_for_ansi(5), HueGroup::Purples);
+        assert_eq!(super::hue_group_for_ansi(13), HueGroup::Purples);
+    }
+
+    #[test]
+    fn test_flat_palette_contains_all_16() {
+        let flat = super::build_flat_palette();
+        assert_eq!(flat.len(), 16, "flat palette must have exactly 16 entries");
+        let mut ansi_indices: Vec<usize> = flat.iter().map(|(i, _, _)| *i).collect();
+        ansi_indices.sort_unstable();
+        assert_eq!(
+            ansi_indices,
+            (0..16).collect::<Vec<usize>>(),
+            "flat palette must contain every ANSI index 0..15 exactly once"
+        );
+    }
+
+    #[test]
+    fn test_flat_palette_group_ordering() {
+        use super::HueGroup;
+        let flat = super::build_flat_palette();
+        let mut seen_groups = Vec::new();
+        let mut last_group: Option<HueGroup> = None;
+        for (i, _, _) in &flat {
+            let g = super::hue_group_for_ansi(*i);
+            if Some(g) != last_group {
+                seen_groups.push(g);
+                last_group = Some(g);
+            }
+        }
+        assert_eq!(
+            seen_groups,
+            vec![
+                HueGroup::Neutrals,
+                HueGroup::Reds,
+                HueGroup::Yellows,
+                HueGroup::Greens,
+                HueGroup::Cyans,
+                HueGroup::Blues,
+                HueGroup::Purples,
+            ],
+            "groups must appear in HueGroup::ordered() sequence"
+        );
+    }
+
+    #[test]
+    fn test_navigation_offset_5() {
+        use crossterm::event::KeyCode;
+        let mut p = Palette::new();
+        assert_eq!(p.selected_index, 0);
+        p.handle_key(KeyCode::Down);
+        assert_eq!(p.selected_index, 5);
+        p.handle_key(KeyCode::Up);
+        assert_eq!(p.selected_index, 0);
+        p.selected_index = 15;
+        p.handle_key(KeyCode::Down);
+        assert_eq!(p.selected_index, 15);
+        p.selected_index = 0;
+        p.handle_key(KeyCode::Up);
+        assert_eq!(p.selected_index, 0);
     }
 
     #[test]

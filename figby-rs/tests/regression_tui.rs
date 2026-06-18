@@ -46,7 +46,7 @@ fn regression_tui_palette_roundtrip() {
     let mut palette = Palette::new();
     palette.select_color(2);
 
-    let backend = TestBackend::new(30, 10);
+    let backend = TestBackend::new(30, 22);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|f| f.render_widget(&palette, f.area()))
@@ -59,7 +59,7 @@ fn regression_tui_palette_roundtrip() {
         output.contains("Recent"),
         "Palette should show Recent label"
     );
-    assert_eq!(palette.selected_color, Some(ANSI_16_COLORS[2]));
+    assert_eq!(palette.selected_color, Some(ANSI_16_COLORS[8]));
 }
 
 /// Toolbox widget round-trip: tool selection, render, verify displayed.

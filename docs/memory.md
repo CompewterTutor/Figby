@@ -2349,3 +2349,21 @@ Added hover tooltip showing terminal colour name below palette swatches:
 - 5 unit tests: hover on/off swatch, outside clears, color name (standard + extended)
 
 No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.6.2 — 5-per-row hue-grouped palette layout
+
+Replaced the 2×8 flat grid with a hue-grouped layout:
+- `HueGroup` enum with 8 variants (Neutrals/Reds/Oranges/Yellows/Greens/Cyans/Blues/Purples)
+- `hue_group_for_ansi(index)` — static mapping from ANSI index 0..15 to hue group
+- `build_flat_palette()` — returns Vec of (ansi_idx, Color, name) in grouped order
+- Standard mode render: group header lines (dim style) + 5 swatches per data row
+- Extended mode render: 4 rows of 5 swatches (was 2 rows of 8)
+- `handle_key` Up/Down offset changed from 8 to 5 (both modes)
+- `standard_index_at()` helper maps (rel_col, rel_row) → visual index via group walk
+- `handle_hover()` and `handle_click()` rewritten for new geometry
+- `current_color()` and `color_name()` use build_flat_palette() for standard mode
+
+Files touched: `figby-rs/src/tui/palette.rs` (production + tests),
+`tests/tui.rs`, `tests/regression_tui.rs` (integration test updates).
+16 new unit tests: hue group mapping, flat palette completeness and ordering,
+navigation offset 5.

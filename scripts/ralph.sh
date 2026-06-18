@@ -46,14 +46,14 @@ DEFAULT_BRANCH="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's
 # Model is passed directly as --model to the CLI.
 # All agents can be overridden at runtime via environment variables.
 
-TASK_PLANNING_AGENT="${TASK_PLANNING_AGENT:-opencode/deepseek-v4-flash-free}"
-BASIC_DEV_AGENT="${BASIC_DEV_AGENT:-opencode/deepseek-v4-flash-free}"
-MID_DEV_AGENT="${MID_DEV_AGENT:-opencode/deepseek-v4-flash-free}"
-PRO_DEV_AGENT="${PRO_DEV_AGENT:-opencode/deepseek-v4-flash-free}"
-TASK_REVIEW_AGENT="${TASK_REVIEW_AGENT:-opencode/deepseek-v4-flash-free}"
-RELEASE_REVIEW_AGENT="${RELEASE_REVIEW_AGENT:-opencode/deepseek-v4-flash-free}"
-MAJOR_RELEASE_REVIEW_AGENT="${MAJOR_RELEASE_REVIEW_AGENT:-opencode/deepseek-v4-flash-free}"
-ARCHITECT_AGENT="${ARCHITECT_AGENT:-opencode/deepseek-v4-flash-free}"
+TASK_PLANNING_AGENT="${TASK_PLANNING_AGENT:-opencode-go/deepseek-v4-flash}"
+BASIC_DEV_AGENT="${BASIC_DEV_AGENT:-opencode-go/deepseek-v4-flash}"
+MID_DEV_AGENT="${MID_DEV_AGENT:-opencode-go/deepseek-v4-flash}"
+PRO_DEV_AGENT="${PRO_DEV_AGENT:-opencode-go/deepseek-v4-flash}"
+TASK_REVIEW_AGENT="${TASK_REVIEW_AGENT:-opencode-go/deepseek-v4-flash}"
+RELEASE_REVIEW_AGENT="${RELEASE_REVIEW_AGENT:-opencode-go/deepseek-v4-flash}"
+MAJOR_RELEASE_REVIEW_AGENT="${MAJOR_RELEASE_REVIEW_AGENT:-opencode-go/deepseek-v4-flash}"
+ARCHITECT_AGENT="${ARCHITECT_AGENT:-opencode-go/deepseek-v4-flash}"
 
 BASE_BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)"
 # Normalize master → main for consistent checks

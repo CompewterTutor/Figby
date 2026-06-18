@@ -1176,3 +1176,17 @@ Three bugs found in phase merge review:
 - The `Option<Effect>` + `if let Some(ref mut)` + `take()` on `done()` pattern works
   for one-shot launch effects: the effect runs every frame during its duration, then
   drops itself cleanly with no further overhead.
+
+## 5.2.1 — Palette moved under tools (left column)
+
+- `Constraint::Min(0)` for palette allocation is preferred over `Constraint::Fill(1)`:
+  Min(0) lets the palette shrink to zero if the terminal is short, while Fill(1)
+  would always claim at least 1 row, potentially squeezing the toolbox.
+- `Tool::all().len() + 1 + TOOLBOX_BRUSH_HEIGHT` must be recalculated wherever
+  `FrameLayout::compute` is called (3 sites in `mod.rs`). Forgetting any call site
+  causes palette area height mismatch. Using `rg "FrameLayout::compute\("` to find
+  all callers before changing the signature is essential.
+- Removing an enum arm (`Palette`) from a match on `DrawerMode` leaves a `_ => {}`
+  wildcard. This is correct but means clippy's `wildcard_enum_match_arm` won't
+  fire because not all arms are explicitly matched. The wildcard is deliberate:
+  Palette no longer has a right-panel rendering path.

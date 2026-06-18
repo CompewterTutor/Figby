@@ -5519,3 +5519,532 @@ index 0f55587..9d3daf0 100644
 +}
 [0m
 [36m[ralph][m Commit attempt 1/3
+[task-5.1.2 e95d581] ``` 5.1.2: Toolbox column width now computed dynamically
+ 6 files changed, 1103 insertions(+), 9 deletions(-)
+[32m[ralph][m Pre-commit checks passed — commit succeeded.
+remote: 
+remote: Create a pull request for 'task-5.1.2' on GitHub by visiting:        
+remote:      https://github.com/CompewterTutor/Figby/pull/new/task-5.1.2        
+remote: 
+To github.com:CompewterTutor/Figby.git
+ * [new branch]      HEAD -> task-5.1.2
+[32m[ralph][m Task 5.1.2 committed and pushed on branch task-5.1.2.
+[36m[ralph][m Marking 5.1.2 done in todo file...
+[task-5.1.2 a166ccc] docs: mark 5.1.2 done
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+To github.com:CompewterTutor/Figby.git
+   e95d581..a166ccc  HEAD -> task-5.1.2
+[32m[ralph][m Task 5.1.2 checked off in todo.
+[36m[ralph][m Merging task-5.1.2 back into release/5.1
+error: Your local changes to the following files would be overwritten by checkout:
+	docs/ralph-log.md
+Please commit your changes or stash them before you switch branches.
+Aborting
+Already up to date.
+Everything up-to-date
+error: cannot delete branch 'task-5.1.2' used by worktree at '/home/hippo/git_repos/Figby'
+[32m[ralph][m Task 5.1.2 merged into release/5.1 and task branch cleaned up.
+
+## 2026-06-18 05:36
+
+DONE: 5.1.2 merged into release/5.1.
+[36m[ralph][m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[36m[ralph][m Starting task [1m5.1.3[m
+[36m[ralph][m Branch: task-5.1.3  (from release/5.1)
+[36m[ralph][m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[36m[ralph][m Step 1/3 — planning with deepseek-v4-flash-free
+[0m
+> build · deepseek-v4-flash-free
+[0m
+[0m→ [0mRead figby-rs/src/tui/mod.rs
+[0m→ [0mRead docs/memory.md
+[0m→ [0mRead docs/todo-v5.md
+[0m→ [0mRead figby-rs/src/tui/theme.rs
+[0m✱ [0mGrep "theme\.canvas"[90m in figby-rs/src/tui · 6 matches[0m
+[0m→ [0mRead assets/tui/themes/default.yaml
+[0m✱ [0mGrep "use ratatui"[90m in figby-rs/src/tui/mod.rs · 100 matches[0m
+[36m[ralph][m Plan ready.
+[36m[ralph][m Step 2/3 — implementing with deepseek-v4-flash-free
+[0m
+> build · deepseek-v4-flash-free
+[0m
+[0m# [0mTodos
+[•] Read relevant source files (tui/mod.rs, tui/theme.rs, default.yaml, tests/tui.rs)
+[ ] Add border field to CanvasTheme in theme.rs + deserialization
+[ ] Add border color to default.yaml
+[ ] Update render_canvas_area() in tui/mod.rs: BorderType::Double, accent color, dimension title
+[ ] Add integration test in tests/tui.rs
+[ ] Run cargo fmt --check and cargo clippy, fix issues
+[ ] Update memory/learnings/todo
+[0m
+[0m→ [0mRead figby-rs/src/tui/theme.rs
+[0m→ [0mRead assets/tui/themes/default.yaml
+[0m→ [0mRead figby-rs/src/tui/mod.rs[90m [offset=880, limit=80][0m
+[0m✗ [0mRead tests/tui.rs failed
+[91m[1mError: [0mFile not found: /home/hippo/git_repos/Figby/tests/tui.rs
+[0m→ [0mRead figby-rs/src/tui/mod.rs[90m [limit=50][0m
+[0m✱ [0mGrep "use ratatui::widgets::"[90m in figby-rs/src · 22 matches[0m
+[0m✱ [0mGlob "tests/**/*.rs"[90m in . · 0 matches[0m
+[0m
+[0m# [0mTodos
+[✓] Read relevant source files (tui/mod.rs, tui/theme.rs, default.yaml, tests/tui.rs)
+[•] Add border field to CanvasTheme in theme.rs + deserialization
+[ ] Add border color to default.yaml
+[ ] Update render_canvas_area() in tui/mod.rs: BorderType::Double, accent color, dimension title
+[ ] Run cargo fmt --check and cargo clippy, fix issues
+[ ] Update memory/learnings/todo
+[0m
+[0m✱ [0mGrep "ratatui"[90m in figby-rs · 2 matches[0m
+[0m✱ [0mGrep "pub struct Canvas"[90m in figby-rs/src · 6 matches[0m
+[0m✱ [0mGrep "pub fn width|pub fn height"[90m in figby-rs/src/tui/canvas.rs · 2 matches[0m
+[0m→ [0mRead figby-rs/src/tui/canvas.rs[90m [limit=100][0m
+[0m✱ [0mGrep "struct AppEditor"[90m in figby-rs/src/tui · 0 matches[0m
+[0m✱ [0mGrep "canvas:.*Canvas"[90m in figby-rs/src/tui · 55 matches[0m
+[0m→ [0mRead figby-rs/src/tui/canvas.rs[90m [offset=97, limit=80][0m
+[0m→ [0mRead figby-rs/src/tui/mod.rs[90m [offset=850, limit=60][0m
+Now let me look at the rendering function context to understand the variable names.
+[0m
+[0m← [0mEdit figby-rs/src/tui/theme.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+@@ -61,8 +61,9 @@
+     pub cursor: Color,
+     pub selection: Color,
+     pub edge: Color,
+     pub text_block: Color,
++    pub border: Color,
+ }
+ 
+ #[derive(Debug, Clone)]
+ pub struct PaletteTheme {
+
+[0m
+Now I'll make all 4 changes.
+[0m← [0mEdit figby-rs/src/tui/theme.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+@@ -130,8 +130,9 @@
+     cursor: Color::Rgb(0x00, 0xd4, 0xff),
+     selection: Color::Rgb(0x00, 0x34, 0x4d),
+     edge: Color::Rgb(0x1a, 0x1a, 0x2e),
+     text_block: Color::Rgb(0xff, 0x00, 0x99),
++    border: Color::Rgb(0x00, 0xd4, 0xff),
+ },
+ palette: PaletteTheme {
+     border: Color::Rgb(0x1a, 0x1a, 0x2e),
+     active_target: Color::Rgb(0x00, 0xd4, 0xff),
+
+[0m
+[0m← [0mEdit figby-rs/src/tui/theme.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+@@ -218,8 +218,9 @@
+     cursor: Option<String>,
+     selection: Option<String>,
+     edge: Option<String>,
+     text_block: Option<String>,
++    border: Option<String>,
+ }
+ 
+ #[derive(Debug, Default, Deserialize)]
+ #[serde(default)]
+
+[0m
+[0m← [0mEdit figby-rs/src/tui/theme.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+@@ -324,8 +324,12 @@
+     text_block: merge_color(
+         y.canvas.as_ref().and_then(|t| t.text_block.as_ref()),
+         base.canvas.text_block,
+     ),
++    border: merge_color(
++        y.canvas.as_ref().and_then(|t| t.border.as_ref()),
++        base.canvas.border,
++    ),
+ },
+ palette: PaletteTheme {
+     border: merge_color(
+         y.palette.as_ref().and_then(|t| t.border.as_ref()),
+
+[0m
+[0m← [0mEdit assets/tui/themes/default.yaml
+Index: /home/hippo/git_repos/Figby/assets/tui/themes/default.yaml
+===================================================================
+--- /home/hippo/git_repos/Figby/assets/tui/themes/default.yaml
++++ /home/hippo/git_repos/Figby/assets/tui/themes/default.yaml
+@@ -12,8 +12,9 @@
+   cursor: "#00d4ff"
+   selection: "#00344d"
+   edge: "#1a1a2e"
+   text_block: "#ff0099"
++  border: "#00d4ff"
+ 
+ palette:
+   border: "#1a1a2e"
+   active_target: "#00d4ff"
+
+[0m
+[0m← [0mEdit figby-rs/src/tui/mod.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
+@@ -10,9 +10,9 @@
+ use rand::SeedableRng;
+ use ratatui::layout::Rect;
+ use ratatui::style::{Modifier, Style};
+ use ratatui::text::{Line, Span};
+-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
++use ratatui::widgets::{Block, Borders, BorderType, Clear, Paragraph, Tabs};
+ use ratatui::Frame;
+ use std::collections::BTreeMap;
+ use std::io;
+ use std::sync::mpsc;
+
+[0m
+[0m→ [0mRead figby-rs/src/tui/mod.rs[90m [offset=908, limit=10][0m
+[0m
+[0m← [0mEdit figby-rs/src/tui/mod.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
+@@ -906,13 +906,15 @@
+ frame.render_widget(block, canvas_area);
+ 
+ let canvas_inner_rect = self.editor.compute_canvas_rect(inner);
+ if canvas_inner_rect.width > 1 && canvas_inner_rect.height > 1 {
+-    let edge = Block::default().borders(Borders::ALL).style(
+-        Style::default()
+-            .fg(self.theme.canvas.edge)
+-            .add_modifier(Modifier::DIM),
+-    );
++    let w = self.editor.canvas.buffer.width();
++    let h = self.editor.canvas.buffer.height();
++    let edge = Block::default()
++        .borders(Borders::ALL)
++        .border_type(BorderType::Double)
++        .title(format!(" {}x{} ", w, h))
++        .style(Style::default().fg(self.theme.canvas.border));
+     frame.render_widget(edge, canvas_inner_rect);
+ }
+ // Sync glyph cursor for CharEditor mode
+ if self.mode == AppMode::FontEditor
+
+[0m
+[0m← [0mEdit figby-rs/src/tui/theme.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/theme.rs
+@@ -514,8 +514,13 @@
+ let theme = load_default();
+ assert_ne!(theme.toolbox.bg, Color::Reset, "toolbox.bg should be set");
+ assert_ne!(theme.canvas.grid, Color::Reset, "canvas.grid should be set");
+ assert_ne!(
++    theme.canvas.border,
++    Color::Reset,
++    "canvas.border should be set"
++);
++assert_ne!(
+     theme.statusbar.mode_font,
+     Color::Reset,
+     "statusbar.mode_font should be set"
+ );
+
+[0m
+Now add `border` test assertion in the theme tests:
+[0m# [0mTodos
+[✓] Read relevant source files (tui/mod.rs, tui/theme.rs, default.yaml, tests/tui.rs)
+[✓] Add border field to CanvasTheme in theme.rs + deserialization
+[✓] Add border color to default.yaml
+[✓] Update render_canvas_area() in tui/mod.rs: BorderType::Double, accent color, dimension title
+[•] Run cargo fmt --check and cargo clippy, fix issues
+[ ] Update memory/learnings/todo
+[0m
+Now verify with fmt and clippy:
+[0m$ [0mcargo fmt --check --manifest-path figby-rs/Cargo.toml 2>&1
+Diff in /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs:11:
+ use ratatui::layout::Rect;
+ use ratatui::style::{Modifier, Style};
+ use ratatui::text::{Line, Span};
+[31m-use ratatui::widgets::{Block, Borders, BorderType, Clear, Paragraph, Tabs};
+[m[32m+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs};
+[m use ratatui::Frame;
+ use std::collections::BTreeMap;
+ use std::io;
+[0m
+[0m$ [0mcargo clippy --manifest-path figby-rs/Cargo.toml --all-targets --all-features -- -D warnings 2>&1
+Checking figby v5.0.0 (/home/hippo/git_repos/Figby/figby-rs)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.99s
+[0m
+[0m← [0mEdit figby-rs/src/tui/mod.rs
+Index: /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
+===================================================================
+--- /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
++++ /home/hippo/git_repos/Figby/figby-rs/src/tui/mod.rs
+@@ -10,9 +10,9 @@
+ use rand::SeedableRng;
+ use ratatui::layout::Rect;
+ use ratatui::style::{Modifier, Style};
+ use ratatui::text::{Line, Span};
+-use ratatui::widgets::{Block, Borders, BorderType, Clear, Paragraph, Tabs};
++use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs};
+ use ratatui::Frame;
+ use std::collections::BTreeMap;
+ use std::io;
+ use std::sync::mpsc;
+
+[0m
+[0m$ [0mcargo fmt --check --manifest-path figby-rs/Cargo.toml 2>&1
+(no output)
+[0m
+[0m$ [0mcargo clippy --manifest-path figby-rs/Cargo.toml --all-targets --all-features -- -D warnings 2>&1
+Checking figby v5.0.0 (/home/hippo/git_repos/Figby/figby-rs)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.64s
+[0m
+[0m→ [0mRead docs/memory.md
+[0m✱ [0mGrep "5\.1\.3"[90m in docs · 1 match[0m
+Both pass. Now update memory docs and check off the task.
+[0m→ [0mRead docs/todo-v5.md[90m [offset=90, limit=20][0m
+[0m→ [0mRead figby-rs/Cargo.toml[90m [limit=10][0m
+[0m→ [0mRead docs/learnings.md[90m [limit=30][0m
+[0m
+[0m← [0mEdit docs/todo-v5.md
+Index: /home/hippo/git_repos/Figby/docs/todo-v5.md
+===================================================================
+--- /home/hippo/git_repos/Figby/docs/todo-v5.md
++++ /home/hippo/git_repos/Figby/docs/todo-v5.md
+@@ -91,9 +91,9 @@
+   - **Touches:** `figby-rs/src/tui/toolbox.rs`, `figby-rs/src/tui/layout.rs`
+   - **Success:** Toolbox always wide enough for content. Large brush size preview fits.
+   - **Difficulty:** Low
+ 
+-- [ ] `5.1.3` Canvas visible border
++- [x] `5.1.3` Canvas visible border
+   - **Goal:** Draw a distinct border around the active canvas area so the user
+     can see exactly where the canvas starts and ends. Use a different border
+     style (e.g. double or thick) or color (accent) from surrounding panels.
+     Show canvas dimensions (WxH) in the border title.
+
+[0m
+Now mark task done and add memory entry:
+[0m→ [0mRead docs/memory.md[90m [limit=50, offset=880][0m
+Let me find the right spot in memory.md for the new entry:
+[0m→ [0mRead docs/memory.md[90m [offset=2070, limit=60][0m
+[0m
+[0m← [0mEdit docs/memory.md
+Index: /home/hippo/git_repos/Figby/docs/memory.md
+===================================================================
+--- /home/hippo/git_repos/Figby/docs/memory.md
++++ /home/hippo/git_repos/Figby/docs/memory.md
+@@ -2117,4 +2117,15 @@
+ parameterized `FrameLayout::compute` with `toolbox_width: u16`. Three call
+ sites in `mod.rs` (render, render_canvas_area, handle_mouse_event) compute
+ width before each layout pass. 5 new tests across `brush.rs` and `toolbox.rs`.
+ fmt and clippy pass clean.
++
++### 5.1.3 — Canvas visible border
++
++Added `border: Color` field to `CanvasTheme` (default accent cyan `#00d4ff`),
++with YAML deserialization support via `CanvasYaml.border` and merge chain in
++`From<ThemeYaml>`. Added `border: "#00d4ff"` to `default.yaml` under `canvas:`.
++Updated `render_canvas_area()` in `tui/mod.rs`: replaced plain `Borders::ALL`
++edge block (dim style, canvas.edge color) with `BorderType::Double` block using
++`canvas.border` color (accent cyan) and `.title(format!(" {}x{} ", w, h))`
++showing canvas buffer dimensions. `BorderType` added to ratatui widget imports.
++fmt and clippy pass clean.
+
+[0m
+[0m# [0mTodos
+[✓] Read relevant source files (tui/mod.rs, tui/theme.rs, default.yaml, tests/tui.rs)
+[✓] Add border field to CanvasTheme in theme.rs + deserialization
+[✓] Add border color to default.yaml
+[✓] Update render_canvas_area() in tui/mod.rs: BorderType::Double, accent color, dimension title
+[✓] Run cargo fmt --check and cargo clippy, fix issues
+[✓] Update memory/learnings/todo
+[0m
+[0m$ [0mcargo fmt --check --manifest-path figby-rs/Cargo.toml 2>&1
+(no output)
+[0m
+[0m$ [0mcargo clippy --manifest-path figby-rs/Cargo.toml --all-targets --all-features -- -D warnings 2>&1
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+[0m
+IMPLEMENTATION_DONE
+[36m[ralph][m Step 3/3 — self-review with deepseek-v4-flash-free
+[0m
+> build · deepseek-v4-flash-free
+[0m
+[0m→ [0mRead figby-rs/src/tui/theme.rs
+[0m→ [0mRead figby-rs/src/tui/mod.rs
+[0m→ [0mRead assets/tui/themes/default.yaml
+[0m→ [0mRead docs/memory.md[90m [offset=2118, limit=20][0m
+[0m
+[0m$ [0mcargo clippy --manifest-path figby-rs/Cargo.toml --all-targets --all-features -- -D warnings 2>&1
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+[0m
+[0m$ [0mcargo fmt --check --manifest-path figby-rs/Cargo.toml 2>&1
+(no output)
+[0m
+[0m→ [0mRead docs/learnings.md[90m [offset=1, limit=30][0m
+[0m✱ [0mGrep "5\.1\.3"[90m in docs · 0 matches[0m
+[0m✱ [0mGrep "canvas\.edge"[90m in figby-rs · 1 match[0m
+[0m✱ [0mGrep "\.edge"[90m in figby-rs/src/tui · 2 matches[0m
+[0m
+[0m$ [0mrg "canvas\.edge|CanvasTheme.*edge|\.edge\b" figby-rs/src/ --type rust 2>&1
+figby-rs/src/tui/theme.rs:                    y.canvas.as_ref().and_then(|t| t.edge.as_ref()),
+figby-rs/src/tui/theme.rs:                    base.canvas.edge,
+[0m
+Now verify all 10 checklist items:
+
+**1. Task completeness** — PASS. BorderType::Double, accent color, WxH title, theme-configurable, all in.
+
+**2. Code quality** — PASS. `cargo clippy --all-targets --all-features -- -D warnings` passes.
+
+**3. Formatting** — PASS. `cargo fmt --check` passes.
+
+**4. FIGfont spec compliance** — PASS. N/A — pure TUI visual change, no FIGfont behavior.
+
+**5. Memory updates** — PASS. Entry in `docs/memory.md:2122`.
+
+**6. Learnings updates** — PASS. N/A — nothing surprising in this task.
+
+**7. No scope creep** — PASS. Touches are `tui/mod.rs`, `tui/theme.rs`, `default.yaml`, `docs/memory.md`. Plus `todo-v5.md` for check-off — expected.
+
+**8. Security** — PASS. No path traversal, no secrets, no unsafe writes.
+
+**9. Dead code** — PASS. All code introduced (`border` field, imports, render logic, tests) is used. Pre-existing `edge` field left intact.
+
+**10. Error handling** — PASS. No new fallible ops. No `.unwrap()` in production paths.
+
+REVIEW_DONE
+[36m[ralph][m Committing task 5.1.3
+[0m
+> build · deepseek-v4-flash-free
+[0m
+[0m$ [0mgit diff --stat
+assets/tui/themes/default.yaml |   1 +
+ docs/memory.md                 |  11 ++
+ docs/ralph-log.md              | 412 +++++++++++++++++++++++++++++++++++++++++
+ docs/todo-v5.md                |   2 +-
+ figby-rs/src/tui/mod.rs        |  14 +-
+ figby-rs/src/tui/theme.rs      |  12 ++
+ 6 files changed, 445 insertions(+), 7 deletions(-)
+[0m
+[0m$ [0mgit log --oneline -5
+a166ccc docs: mark 5.1.2 done
+e95d581 ``` 5.1.2: Toolbox column width now computed dynamically
+f3260d1 docs: mark 5.1.1 done
+242a471 5.1.1: Toolbox NerdFont icons
+1e04031 chore: switch ralph to opencode free tier; add rate-limit monitor
+[0m
+[0m$ [0mgit diff figby-rs/src/tui/mod.rb -- ':(exclude)docs/ralph-log.md'
+fatal: bad revision 'figby-rs/src/tui/mod.rb'
+[0m
+[0m$ [0mgit diff -- 'figby-rs/src/tui/mod.rs' 'figby-rs/src/tui/theme.rs' 'assets/tui/themes/default.yaml'
+diff --git a/assets/tui/themes/default.yaml b/assets/tui/themes/default.yaml
+index 11f3e33..be40f3d 100644
+--- a/assets/tui/themes/default.yaml
++++ b/assets/tui/themes/default.yaml
+@@ -13,6 +13,7 @@ canvas:
+   selection: "#00344d"
+   edge: "#1a1a2e"
+   text_block: "#ff0099"
++  border: "#00d4ff"
+ 
+ palette:
+   border: "#1a1a2e"
+diff --git a/figby-rs/src/tui/mod.rs b/figby-rs/src/tui/mod.rs
+index 3e8ec4a..1eabb67 100644
+--- a/figby-rs/src/tui/mod.rs
++++ b/figby-rs/src/tui/mod.rs
+@@ -11,7 +11,7 @@ use rand::SeedableRng;
+ use ratatui::layout::Rect;
+ use ratatui::style::{Modifier, Style};
+ use ratatui::text::{Line, Span};
+-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
++use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs};
+ use ratatui::Frame;
+ use std::collections::BTreeMap;
+ use std::io;
+@@ -907,11 +907,13 @@ impl TuiApp {
+ 
+             let canvas_inner_rect = self.editor.compute_canvas_rect(inner);
+             if canvas_inner_rect.width > 1 && canvas_inner_rect.height > 1 {
+-                let edge = Block::default().borders(Borders::ALL).style(
+-                    Style::default()
+-                        .fg(self.theme.canvas.edge)
+-                        .add_modifier(Modifier::DIM),
+-                );
++                let w = self.editor.canvas.buffer.width();
++                let h = self.editor.canvas.buffer.height();
++                let edge = Block::default()
++                    .borders(Borders::ALL)
++                    .border_type(BorderType::Double)
++                    .title(format!(" {}x{} ", w, h))
++                    .style(Style::default().fg(self.theme.canvas.border));
+                 frame.render_widget(edge, canvas_inner_rect);
+             }
+             // Sync glyph cursor for CharEditor mode
+diff --git a/figby-rs/src/tui/theme.rs b/figby-rs/src/tui/theme.rs
+index 6015e63..d7cd3b3 100644
+--- a/figby-rs/src/tui/theme.rs
++++ b/figby-rs/src/tui/theme.rs
+@@ -62,6 +62,7 @@ pub struct CanvasTheme {
+     pub selection: Color,
+     pub edge: Color,
+     pub text_block: Color,
++    pub border: Color,
+ }
+ 
+ #[derive(Debug, Clone)]
+@@ -130,6 +131,7 @@ impl Default for Theme {
+                 selection: Color::Rgb(0x00, 0x34, 0x4d),
+                 edge: Color::Rgb(0x1a, 0x1a, 0x2e),
+                 text_block: Color::Rgb(0xff, 0x00, 0x99),
++                border: Color::Rgb(0x00, 0xd4, 0xff),
+             },
+             palette: PaletteTheme {
+                 border: Color::Rgb(0x1a, 0x1a, 0x2e),
+@@ -217,6 +219,7 @@ struct CanvasYaml {
+     selection: Option<String>,
+     edge: Option<String>,
+     text_block: Option<String>,
++    border: Option<String>,
+ }
+ 
+ #[derive(Debug, Default, Deserialize)]
+@@ -322,6 +325,10 @@ impl From<ThemeYaml> for Theme {
+                     y.canvas.as_ref().and_then(|t| t.text_block.as_ref()),
+                     base.canvas.text_block,
+                 ),
++                border: merge_color(
++                    y.canvas.as_ref().and_then(|t| t.border.as_ref()),
++                    base.canvas.border,
++                ),
+             },
+             palette: PaletteTheme {
+                 border: merge_color(
+@@ -507,6 +514,11 @@ mod tests {
+         let theme = load_default();
+         assert_ne!(theme.toolbox.bg, Color::Reset, "toolbox.bg should be set");
+         assert_ne!(theme.canvas.grid, Color::Reset, "canvas.grid should be set");
++        assert_ne!(
++            theme.canvas.border,
++            Color::Reset,
++            "canvas.border should be set"
++        );
+         assert_ne!(
+             theme.statusbar.mode_font,
+             Color::Reset,
+[0m
+[36m[ralph][m Commit attempt 1/3

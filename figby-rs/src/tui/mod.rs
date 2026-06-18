@@ -11,7 +11,7 @@ use rand::SeedableRng;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
 use std::collections::BTreeMap;
 use std::io;
@@ -907,11 +907,13 @@ impl TuiApp {
 
             let canvas_inner_rect = self.editor.compute_canvas_rect(inner);
             if canvas_inner_rect.width > 1 && canvas_inner_rect.height > 1 {
-                let edge = Block::default().borders(Borders::ALL).style(
-                    Style::default()
-                        .fg(self.theme.canvas.edge)
-                        .add_modifier(Modifier::DIM),
-                );
+                let w = self.editor.canvas.buffer.width();
+                let h = self.editor.canvas.buffer.height();
+                let edge = Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Double)
+                    .title(format!(" {}x{} ", w, h))
+                    .style(Style::default().fg(self.theme.canvas.border));
                 frame.render_widget(edge, canvas_inner_rect);
             }
             // Sync glyph cursor for CharEditor mode

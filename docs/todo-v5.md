@@ -92,7 +92,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Toolbox always wide enough for content. Large brush size preview fits.
   - **Difficulty:** Low
 
-- [ ] `5.1.3` Canvas visible border
+- [x] `5.1.3` Canvas visible border
   - **Goal:** Draw a distinct border around the active canvas area so the user
     can see exactly where the canvas starts and ends. Use a different border
     style (e.g. double or thick) or color (accent) from surrounding panels.

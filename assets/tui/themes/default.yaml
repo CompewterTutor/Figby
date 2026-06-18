@@ -13,6 +13,7 @@ canvas:
   selection: "#00344d"
   edge: "#1a1a2e"
   text_block: "#ff0099"
+  border: "#00d4ff"
 
 palette:
   border: "#1a1a2e"

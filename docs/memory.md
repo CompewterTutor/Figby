@@ -2118,3 +2118,14 @@ parameterized `FrameLayout::compute` with `toolbox_width: u16`. Three call
 sites in `mod.rs` (render, render_canvas_area, handle_mouse_event) compute
 width before each layout pass. 5 new tests across `brush.rs` and `toolbox.rs`.
 fmt and clippy pass clean.
+
+### 5.1.3 — Canvas visible border
+
+Added `border: Color` field to `CanvasTheme` (default accent cyan `#00d4ff`),
+with YAML deserialization support via `CanvasYaml.border` and merge chain in
+`From<ThemeYaml>`. Added `border: "#00d4ff"` to `default.yaml` under `canvas:`.
+Updated `render_canvas_area()` in `tui/mod.rs`: replaced plain `Borders::ALL`
+edge block (dim style, canvas.edge color) with `BorderType::Double` block using
+`canvas.border` color (accent cyan) and `.title(format!(" {}x{} ", w, h))`
+showing canvas buffer dimensions. `BorderType` added to ratatui widget imports.
+fmt and clippy pass clean.

@@ -62,6 +62,7 @@ pub struct CanvasTheme {
     pub selection: Color,
     pub edge: Color,
     pub text_block: Color,
+    pub border: Color,
 }
 
 #[derive(Debug, Clone)]
@@ -130,6 +131,7 @@ impl Default for Theme {
                 selection: Color::Rgb(0x00, 0x34, 0x4d),
                 edge: Color::Rgb(0x1a, 0x1a, 0x2e),
                 text_block: Color::Rgb(0xff, 0x00, 0x99),
+                border: Color::Rgb(0x00, 0xd4, 0xff),
             },
             palette: PaletteTheme {
                 border: Color::Rgb(0x1a, 0x1a, 0x2e),
@@ -217,6 +219,7 @@ struct CanvasYaml {
     selection: Option<String>,
     edge: Option<String>,
     text_block: Option<String>,
+    border: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -321,6 +324,10 @@ impl From<ThemeYaml> for Theme {
                 text_block: merge_color(
                     y.canvas.as_ref().and_then(|t| t.text_block.as_ref()),
                     base.canvas.text_block,
+                ),
+                border: merge_color(
+                    y.canvas.as_ref().and_then(|t| t.border.as_ref()),
+                    base.canvas.border,
                 ),
             },
             palette: PaletteTheme {
@@ -507,6 +514,11 @@ mod tests {
         let theme = load_default();
         assert_ne!(theme.toolbox.bg, Color::Reset, "toolbox.bg should be set");
         assert_ne!(theme.canvas.grid, Color::Reset, "canvas.grid should be set");
+        assert_ne!(
+            theme.canvas.border,
+            Color::Reset,
+            "canvas.border should be set"
+        );
         assert_ne!(
             theme.statusbar.mode_font,
             Color::Reset,

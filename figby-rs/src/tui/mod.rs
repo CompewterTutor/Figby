@@ -2585,7 +2585,7 @@ impl TuiApp {
             if self.palette_editor.open {
                 self.palette_editor
                     .load_current_from_palette(&self.editor.palette);
-                self.palette_editor.available_palettes();
+                self.palette_editor.available_palettes(None);
             }
             self.dirty = true;
             return None;

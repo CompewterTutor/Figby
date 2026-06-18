@@ -1,5 +1,31 @@
 # Figby — Learnings
 
+## 5.6.4 — Palette import: common formats
+
+- Rust 2021 edition: `r#"..."#` raw string delimiters break when content contains
+  `#"` sequences (e.g., `"#FF0000"` in JSON test fixtures). The `"#` after the
+  hex value is parsed as the closing delimiter. Fix: use `r##"..."##` with two
+  hashes for any raw string containing `#"`.
+- Adobe ASE binary format uses big-endian byte order for all multi-byte fields
+  (u16, u32, f32). UTF-16BE name strings require manual decoding via
+  `u16::from_be_bytes` chunks → `char::decode_utf16` or `String::from_utf16`.
+  The name length field counts UTF-16 code units (including null terminator).
+- `#[serde(rename = "camelCase")]` on struct fields with snake_case names avoids
+  `non_snake_case` clippy lint while still matching JSON keys like `cursorColor`,
+  `brightBlack`, etc.
+- `#[expect(dead_code)]` is the Rust 2024+ idiom for fields parsed by serde but
+  never directly read — it will warn if the field later becomes used (the
+  expectation is unfulfilled), serving as a maintenance signal.
+- When migrating `Swatch` from `palette_editor.rs` (local definition) to
+  `palette_import.rs` (shared module), the `PaletteFile` struct in
+  `palette_editor.rs` still compiles because `pub use crate::palette_import::Swatch`
+  makes it available in the module scope. Child test modules access it via
+  `use super::*` since `pub use` is a re-export visible to children.
+- JSON auto-detection strategy: check structural keys in order of specificity
+  (`colors` → WezTerm, `schemes` → Windows Terminal, `name`+`swatches` → Native,
+  top-level array → Paletty). ASE detection by magic bytes `ASEF` takes priority
+  (checked before JSON parse attempt).
+
 ## 5.6.2 — 5-per-row hue-grouped palette layout
 
 - Switching from 2×8 grid to hue-grouped layout roughly triples the rendered line count (2 data rows → 8 group headers + 8 data rows + FG/BG + custom hex + recent = ~18 lines). Integration tests using fixed terminal sizes like 10 or 12 rows fail because they no longer fit. Always check test terminal dimensions when layout vertical density changes significantly.

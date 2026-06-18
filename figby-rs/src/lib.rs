@@ -28,6 +28,7 @@ pub mod font_gen;
 pub mod image_input;
 pub mod input;
 pub mod output;
+pub mod palette_import;
 pub mod render;
 pub mod smush;
 pub mod template;

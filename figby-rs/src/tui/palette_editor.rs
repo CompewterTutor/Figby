@@ -9,12 +9,7 @@ use std::path::{Path, PathBuf};
 
 use super::palette::Palette;
 use super::theme::Theme;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Swatch {
-    pub name: String,
-    pub hex: String,
-}
+use crate::palette_import::{self, ImportFormat, Swatch};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaletteFile {
@@ -26,6 +21,7 @@ enum PanelMode {
     Idle,
     Naming,
     Loading,
+    ChoosingFormat,
 }
 
 pub struct PaletteEditor {
@@ -38,6 +34,8 @@ pub struct PaletteEditor {
     pub file_scroll: usize,
     pub message: Option<String>,
     pub modified: bool,
+    pub import_format: Option<ImportFormat>,
+    format_index: usize,
 }
 
 impl PaletteEditor {
@@ -52,6 +50,8 @@ impl PaletteEditor {
             file_scroll: 0,
             message: None,
             modified: false,
+            import_format: None,
+            format_index: 0,
         }
     }
 
@@ -91,15 +91,38 @@ impl PaletteEditor {
         Some(path)
     }
 
-    pub fn available_palettes(&mut self) {
+    pub fn available_palettes(&mut self, format: Option<ImportFormat>) {
         self.file_list.clear();
         self.file_scroll = 0;
         if let Some(dir) = Self::palettes_dir() {
             if let Ok(entries) = std::fs::read_dir(&dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().is_some_and(|e| e == "json") {
-                        self.file_list.push(path);
+                    let ext = path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .map(|s| s.to_ascii_lowercase());
+                    match format {
+                        Some(ImportFormat::AdobeAse) => {
+                            if ext.as_deref() == Some("ase") {
+                                self.file_list.push(path);
+                            }
+                        }
+                        Some(
+                            ImportFormat::Native
+                            | ImportFormat::PalettyJson
+                            | ImportFormat::WezTermJson
+                            | ImportFormat::WindowsTerminalJson,
+                        ) => {
+                            if ext.as_deref() == Some("json") {
+                                self.file_list.push(path);
+                            }
+                        }
+                        None => {
+                            if ext.as_deref() == Some("json") || ext.as_deref() == Some("ase") {
+                                self.file_list.push(path);
+                            }
+                        }
                     }
                 }
                 self.file_list.sort();
@@ -128,11 +151,41 @@ impl PaletteEditor {
     }
 
     pub fn load_file(&mut self, path: &Path) -> Result<(), String> {
-        let content = std::fs::read_to_string(path).map_err(|e| format!("Read error: {e}"))?;
-        let file: PaletteFile =
-            serde_json::from_str(&content).map_err(|e| format!("Parse error: {e}"))?;
-        self.swatches = file.swatches;
-        self.name_buffer = file.name;
+        let format = self.import_format;
+        self.load_file_with_format(path, format)
+    }
+
+    fn load_file_with_format(
+        &mut self,
+        path: &Path,
+        format: Option<ImportFormat>,
+    ) -> Result<(), String> {
+        let content = std::fs::read(path).map_err(|e| format!("Read error: {e}"))?;
+        let format = match format {
+            Some(f) => f,
+            None => {
+                let ext = path.extension().and_then(|e| e.to_str());
+                palette_import::auto_detect_format(&content, ext).unwrap_or(ImportFormat::Native)
+            }
+        };
+        let swatches = match format {
+            ImportFormat::Native => {
+                let s = String::from_utf8(content).map_err(|e| format!("UTF-8 error: {e}"))?;
+                let file: PaletteFile =
+                    serde_json::from_str(&s).map_err(|e| format!("Parse error: {e}"))?;
+                self.name_buffer = file.name;
+                file.swatches
+            }
+            _ => palette_import::import_swatches(&content, format)?,
+        };
+        self.swatches = swatches;
+        if self.name_buffer.is_empty() {
+            self.name_buffer = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+        }
         self.message = Some(format!(
             "Loaded {}",
             path.file_stem().unwrap_or_default().to_string_lossy()
@@ -203,6 +256,27 @@ impl PaletteEditor {
 
         lines.push(Line::from(""));
 
+        if let PanelMode::ChoosingFormat = self.mode {
+            lines.push(Line::from(Span::styled(
+                " Select import format:",
+                Style::default().fg(theme.dialog.label),
+            )));
+            lines.push(Line::from(vec![
+                Span::styled(
+                    if self.format_index == 0 { ">" } else { " " },
+                    Style::default().fg(theme.dialog.highlight),
+                ),
+                Span::raw(" [Auto-Detect]"),
+            ]));
+            for (i, fmt) in ImportFormat::all().iter().enumerate() {
+                let indicator = if self.format_index == i + 1 { ">" } else { " " };
+                lines.push(Line::from(vec![
+                    Span::styled(indicator, Style::default().fg(theme.dialog.highlight)),
+                    Span::raw(format!(" {}", fmt.display_name())),
+                ]));
+            }
+        }
+
         if let PanelMode::Loading = self.mode {
             lines.push(Line::from(Span::styled(
                 " Available palettes:",
@@ -234,8 +308,15 @@ impl PaletteEditor {
         }
 
         lines.push(Line::from(""));
+        let format_hint = match self.import_format {
+            Some(f) => format!(
+                " [S]ave  [L]oad ({})  [D]uplicate  Esc=close",
+                f.display_name()
+            ),
+            None => " [S]ave  [L]oad  [D]uplicate  Esc=close".to_string(),
+        };
         lines.push(Line::from(Span::styled(
-            " [S]ave  [L]oad  [D]uplicate  Esc=close",
+            format_hint,
             Style::default().fg(theme.dialog.meta),
         )));
 
@@ -269,6 +350,43 @@ impl PaletteEditor {
                         }
                     }
                     self.mode = PanelMode::Idle;
+                    true
+                }
+                KeyCode::Esc => {
+                    self.mode = PanelMode::Idle;
+                    true
+                }
+                _ => false,
+            },
+            PanelMode::ChoosingFormat => match code {
+                KeyCode::Up => {
+                    self.format_index = self.format_index.saturating_sub(1);
+                    true
+                }
+                KeyCode::Down => {
+                    let max = ImportFormat::all().len(); // 5 formats
+                    self.format_index = self.format_index.saturating_add(1).min(max);
+                    true
+                }
+                KeyCode::Enter => {
+                    let selected_format = if self.format_index == 0 {
+                        None
+                    } else {
+                        Some(ImportFormat::all()[self.format_index - 1])
+                    };
+                    self.import_format = selected_format;
+                    self.available_palettes(selected_format);
+                    if self.file_list.is_empty() {
+                        let hint = match selected_format {
+                            Some(f) => format!("No {} files found", f.display_name()),
+                            None => "No palette files found".to_string(),
+                        };
+                        self.message = Some(hint);
+                        self.mode = PanelMode::Idle;
+                    } else {
+                        self.mode = PanelMode::Loading;
+                        self.file_scroll = 0;
+                    }
                     true
                 }
                 KeyCode::Esc => {
@@ -328,13 +446,8 @@ impl PaletteEditor {
                     true
                 }
                 KeyCode::Char('l') | KeyCode::Char('L') => {
-                    self.available_palettes();
-                    if self.file_list.is_empty() {
-                        self.message = Some("No palette files found".to_string());
-                    } else {
-                        self.mode = PanelMode::Loading;
-                        self.file_scroll = 0;
-                    }
+                    self.mode = PanelMode::ChoosingFormat;
+                    self.format_index = 0;
                     true
                 }
                 KeyCode::Char('d') | KeyCode::Char('D') => {

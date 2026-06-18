@@ -2274,3 +2274,24 @@ Merged release/5.4 branch into master at `92b53d1` (merge commit created on mast
 Brings 5.4.1 (image editor mode switching fix), 5.4.2 (mouse events in image editor fix),
 and 5.4.3 (rascii import dialog) into the mainline. Phase 5.4 complete.
 Next phase: 5.5 (Animation Audit & Surface).
+
+### 5.5.1 — Audit 4.5–4.8 implementation vs spec
+
+Read-only audit of `timeline.rs`, `player.rs`, `export.rs` against the spec in
+`docs/todo-v4.md` phases 4.5–4.8. Findings documented in `docs/animation-audit.md`:
+
+**What works:** All core features (AnimationTimeline widget, frame CRUD, keyframing
+with interpolation, tweening with easing, GIF/APNG/ANSI export, AnimationPlayer
+widget, raw mode playback engine) are implemented.
+
+**Gaps found (7 total):**
+- P0: `try_query_terminal_cells()` always returns Unsupported — terminal content
+  capture is stubbed (4.8.1)
+- P1: Playback blocks TUI event loop instead of running in separate thread (4.8.3)
+- P1: Only global FPS supported, no per-frame delays (4.5.4)
+- P2: Duplicate render code in ExportDialog (Widget impl is dead code)
+- P2: `play_raw()` never called from TUI path
+- P3: No timeline panel in main layout (task 5.5.2)
+- P3: Standalone `Widget` impl for timeline is trivial (ruler only)
+
+No code changes — pure audit. Gap list ready for 5.5.2/5.5.3.

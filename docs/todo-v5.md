@@ -215,7 +215,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.5 — Animation Audit & Surface
 
-- [ ] `5.5.1` Audit 4.5–4.8 implementation vs spec
+- [x] `5.5.1` Audit 4.5–4.8 implementation vs spec
   - **Goal:** Read `timeline.rs`, `player.rs`, `export.rs`. Document what is
     actually implemented vs what was spec'd. Write findings to
     `docs/animation-audit.md`: what works, what is stub/partial, what is missing.

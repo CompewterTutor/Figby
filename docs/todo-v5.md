@@ -84,7 +84,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Every tool shows its NerdFont icon. Fallback to abbrev if icon missing.
   - **Difficulty:** Low
 
-- [ ] `5.1.2` Toolbox dynamic width
+- [x] `5.1.2` Toolbox dynamic width
   - **Goal:** Toolbox column width currently hardcoded. Compute at render time:
     `max(icon_width + longest_full_name + 2 padding, brush_size_preview_width)`.
     Clamp between 10 and 20 cols. Layout constraint updated to `Constraint::Length`.

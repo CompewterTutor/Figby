@@ -340,6 +340,7 @@ pub struct TuiApp {
     pub selection_polygon_points: Vec<(i16, i16)>,
     pub selection_lasso_points: Vec<(i16, i16)>,
     pub prev_mouse_buf: Option<(i16, i16)>,
+    mouse_batch_active: bool,
     pub line_start: Option<(i16, i16)>,
     pub saved_buffer: Option<canvas::CanvasBuffer>,
     auto_save_interval: u64,
@@ -461,6 +462,7 @@ impl TuiApp {
             selection_polygon_points: Vec::new(),
             selection_lasso_points: Vec::new(),
             prev_mouse_buf: None,
+            mouse_batch_active: false,
             line_start: None,
             saved_buffer: None,
             auto_save_interval: 0,
@@ -1317,8 +1319,8 @@ impl TuiApp {
 
                 if is_selection_tool {
                     self.editor.handle_selection_down(
-                        bx,
-                        by,
+                        bx.max(0),
+                        by.max(0),
                         &mut self.selection_drag_origin,
                         &mut self.selection_polygon_points,
                         &mut self.selection_lasso_points,
@@ -1328,6 +1330,7 @@ impl TuiApp {
 
                 // Start batch for drag operations, push initial snapshot
                 self.editor.undo.begin_batch();
+                self.mouse_batch_active = true;
                 if self.editor.toolbox.selected == Tool::Fill {
                     self.editor.push_undo_snapshot("Flood fill");
                     let mut cell = canvas::CanvasCell {
@@ -1492,7 +1495,10 @@ impl TuiApp {
                 self.prev_mouse_buf = Some((bx, by));
             }
             MouseEventKind::Up(_) => {
-                self.editor.undo.end_batch();
+                if self.mouse_batch_active {
+                    self.editor.undo.end_batch();
+                    self.mouse_batch_active = false;
+                }
                 if is_selection_tool {
                     self.editor.handle_selection_up(
                         &mut self.selection_drag_origin,
@@ -1576,7 +1582,7 @@ impl TuiApp {
     }
 
     pub fn handle_event(&mut self) -> io::Result<()> {
-        if event::poll(Duration::from_millis(self.render_mode.poll_ms()))? {
+        if event::poll(Duration::from_millis(self.render_mode.poll_ms())).unwrap_or(false) {
             self.dirty = true;
             loop {
                 match event::read()? {
@@ -1594,7 +1600,7 @@ impl TuiApp {
                     }
                     _ => {}
                 }
-                if !event::poll(Duration::ZERO)? {
+                if !event::poll(Duration::ZERO).unwrap_or(false) {
                     break;
                 }
             }

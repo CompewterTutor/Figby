@@ -1211,6 +1211,22 @@ fn main() {
         return;
     }
 
+    // No message and no special flags → launch TUI
+    if message.is_empty()
+        && args.create_font_name.is_none()
+        && args.create_font_path.is_none()
+        && args.render_template.is_none()
+        && infocode.is_none()
+        && !args.flag_v
+    {
+        let mut app = figby::tui::TuiApp::new();
+        if let Err(e) = app.run() {
+            eprintln!("TUI error: {e}");
+            process::exit(1);
+        }
+        return;
+    }
+
     if args.flag_v {
         let mut stdout = io::stdout().lock();
         let _ = writeln!(stdout, "figby {}", env!("CARGO_PKG_VERSION"));

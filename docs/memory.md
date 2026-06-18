@@ -2226,3 +2226,9 @@ total width exceeds available area.
 Dropable items (in drop order): throbber, undo count, layer count, render
 mode, clock, FPS, git branch, font group, zoom, tool. Non-dropable: mode,
 position. Separator uses `\u{2502}` instead of powerline triangle `\u{e0b0}`.
+
+### 5.3.3 — Phase merge: release/5.3 → master
+
+Merged release/5.3 into master. Task checked off in todo-v5.md.
+Version bumped from 5.2.0 to 5.3.0. No code changes — admin re-application
+of reverted bookkeeping after merge. Next phase: 5.4 (Image Editor Fix).

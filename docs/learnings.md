@@ -1,5 +1,13 @@
 # Figby — Learnings
 
+## 5.3.3 — Phase merge: release/5.3 → master
+
+- Phase merge bookkeeping was accidentally reverted after the merge commit
+  (likely from a `git reset` or branch switch that discarded uncommitted docs
+  changes). Had to re-apply version bump, memory entry, ralph-log entry, and
+  todo check-off. Lesson: commit bookkeeping before merging, or do docs + merge
+  in a single atomic commit.
+
 ## 5.3.1 — Powerline-style three-section layout
 
 - When restructuring a Widget's internal layout (e.g., from single-Line concatenation

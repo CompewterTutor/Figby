@@ -23,6 +23,7 @@ use crate::config;
 pub mod brush;
 pub mod canvas;
 pub mod components;
+pub mod dialogs;
 pub mod events;
 pub mod export;
 pub mod file_ops;
@@ -49,6 +50,7 @@ pub mod undo_panel;
 pub mod welcome;
 
 pub use brush::BrushState;
+pub use dialogs::RasciiImportDialog;
 pub use events::AppEvent;
 pub use export::ExportMode;
 pub use menu::{MenuBar, MenuBarState};
@@ -323,13 +325,14 @@ impl EditorState {
     }
 }
 
-/// Dialog/overlay state — file ops, export, undo panel, settings panel.
+/// Dialog/overlay state — file ops, export, undo panel, settings panel, rascii import.
 pub struct DialogState {
     pub file_ops: file_ops::FileOpsDialog,
     pub recent_files: file_ops::RecentFiles,
     pub export_dialog: export::ExportDialog,
     pub undo_panel: undo_panel::UndoPanel,
     pub settings: status::CanvasSettings,
+    pub rascii_import: dialogs::RasciiImportDialog,
 }
 
 pub struct TuiApp {
@@ -456,6 +459,9 @@ impl TuiApp {
         layer_panel.theme = theme.clone();
         layer_panel.icons = icons.clone();
 
+        let mut rascii_import = dialogs::RasciiImportDialog::new();
+        rascii_import.theme = theme.clone();
+
         Self {
             mode: AppMode::FontEditor,
             should_quit: false,
@@ -516,6 +522,7 @@ impl TuiApp {
                 export_dialog,
                 undo_panel,
                 settings,
+                rascii_import,
             },
             timeline_state: timeline::TimelineState::default(),
             particle_system: particles::ParticleSystem::new(particles::ParticleConfig::default()),
@@ -1114,6 +1121,13 @@ impl TuiApp {
             );
         }
 
+        // Rascii import dialog
+        if self.dialogs.rascii_import.active {
+            let overlay = centered_overlay(frame.area());
+            frame.render_widget(Clear, overlay);
+            self.dialogs.rascii_import.render(frame, overlay);
+        }
+
         // Emitter config panel overlay
         if self.emitter_panel.open {
             let area = frame.area();
@@ -1228,7 +1242,15 @@ impl TuiApp {
                 self.welcome_screen.scroll_down(count);
                 self.dirty = true;
             }
-            WelcomeAction::FontOpen | WelcomeAction::ImageOpenFigmap => {
+            WelcomeAction::FontOpen => {
+                self.start_open();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::ImageOpenFigmap => {
+                self.editor.image_editor = image_editor::ImageEditor::new();
+                self.mode = AppMode::ImageEditor;
                 self.start_open();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
@@ -1261,6 +1283,8 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::ImageNewBlank => {
+                self.editor.image_editor = image_editor::ImageEditor::new();
+                self.mode = AppMode::ImageEditor;
                 self.editor.canvas = crate::tui::canvas::CanvasWidget::new(80, 24);
                 self.editor.layer_stack = layers::LayerStack::new(80, 24);
                 self.editor.layer_panel = layers::LayerPanel::new();
@@ -1271,8 +1295,15 @@ impl TuiApp {
                 self.welcome_fx = None;
                 self.dirty = true;
             }
-            WelcomeAction::ImageNewFromTemplate | WelcomeAction::ImageConvert => {
-                // TODO: template picker (5.0.4) / rascii convert dialog (5.4.3)
+            WelcomeAction::ImageNewFromTemplate => {
+                // TODO: template picker (5.0.4)
+                self.mode = AppMode::ImageEditor;
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::ImageConvert => {
+                self.dialogs.rascii_import.enter_import();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
@@ -1321,6 +1352,10 @@ impl TuiApp {
             return;
         }
 
+        if self.dialogs.rascii_import.active {
+            return;
+        }
+
         // Font editor overview: glyph grid mouse click + scroll
         if self.mode == AppMode::FontEditor
             && self.editor.font_editor.view == font_editor::FontEditorView::Overview
@@ -1347,6 +1382,23 @@ impl TuiApp {
                 }
                 _ => {}
             }
+        }
+
+        // Image editor: handle state-dependent mouse events
+        if self.mode == AppMode::ImageEditor {
+            if self.editor.image_editor.entering_path() {
+                // Swallow all mouse events while user is typing a file path
+                self.dirty = true;
+                return;
+            }
+            if self.editor.image_editor.error_message().is_some() {
+                if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                    self.editor.image_editor.clear_error();
+                    self.dirty = true;
+                    return;
+                }
+            }
+            // adjustment_mode and other states: fall through to general handlers
         }
 
         // Toolbox click: select tool by row
@@ -1913,6 +1965,19 @@ impl TuiApp {
             }
             if !self.dialogs.export_dialog.active {
                 self.perform_export();
+            }
+            return None;
+        }
+
+        // Rascii import dialog active: dispatch all keys to it
+        if self.dialogs.rascii_import.active {
+            let prev_confirmed = self.dialogs.rascii_import.confirmed;
+            self.dialogs.rascii_import.handle_key(code);
+            if !self.dialogs.rascii_import.active {
+                if self.dialogs.rascii_import.confirmed && !prev_confirmed {
+                    self.perform_rascii_import();
+                }
+                self.dirty = true;
             }
             return None;
         }
@@ -2817,6 +2882,33 @@ impl TuiApp {
             })();
             let _ = tx.send(AsyncResult::OpenComplete(result));
         });
+    }
+
+    fn perform_rascii_import(&mut self) {
+        let cells = match self.dialogs.rascii_import.preview_cells.take() {
+            Some(cells) => cells,
+            None => return,
+        };
+        if cells.is_empty() || cells[0].is_empty() {
+            return;
+        }
+        let h = cells.len();
+        let w = cells[0].len();
+        if self.editor.canvas.buffer.width() != w || self.editor.canvas.buffer.height() != h {
+            self.editor.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
+            self.editor.layer_stack.resize_all(w, h);
+        }
+        let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+        for (y, row) in cells.iter().enumerate() {
+            for (x, cell) in row.iter().enumerate() {
+                buf.set(x, y, *cell);
+            }
+        }
+        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+        self.editor.recomposite_canvas();
+        self.editor.unsaved = true;
+        self.mode = AppMode::ImageEditor;
+        self.dirty = true;
     }
 
     fn perform_export(&mut self) {

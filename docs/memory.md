@@ -2234,3 +2234,36 @@ position. Separator uses `\u{2502}` instead of powerline triangle `\u{e0b0}`.
 Merged release/5.3 into master. Task checked off in todo-v5.md.
 Version bumped from 5.2.0 to 5.3.0. No code changes — admin re-application
 of reverted bookkeeping after merge. Next phase: 5.4 (Image Editor Fix).
+
+### 5.4.1 — Fix image editor mode switching
+
+Welcome screen `ImageOpenFigmap` and `ImageNewBlank` actions now initialize
+`editor.image_editor` and set `self.mode = AppMode::ImageEditor` before proceeding.
+Previously these actions were merged with `FontOpen` (just called `start_open()`)
+and never entered image editor mode, leaving the editor in a broken state where
+no canvas/tools were accessible for image operations.
+
+`FontOpen` split into its own arm (no image editor init). `ImageNewFromTemplate`
+and `ImageConvert` now at least set the mode flag (template picker and rascii
+dialog are TODO in later tasks). Mode toggle keybind (Tab) already worked because
+`image_editor` is initialized at TuiApp construction — only the welcome screen
+dispatch path was broken.
+
+### 5.4.2 — Fix mouse events in image editor
+
+Added ImageEditor state checks in `handle_mouse_event` before the general canvas/toolbox
+handlers. When `entering_path` is true (user typing a file path), all mouse events are
+swallowed (early return). When `error_message` is set, a left-click dismisses the error
+and returns. All other ImageEditor states (adjustment_mode, normal canvas editing) fall
+through to the existing general mouse handlers — no code change needed for those paths.
+Only `figby-rs/src/tui/mod.rs` modified.
+
+### 5.4.3 — Image import dialog (rascii options)
+
+Added `RasciiImportDialog` in `figby-rs/src/tui/dialogs/rascii_import.rs` with file
+browser, options panel (charset/width/color mode), and preview. Activated by "Convert
+Image to ASCII" welcome action (`V` key or click). Supports 5 charsets (block, smooth,
+full, braille, deluxe), 3 color modes (Mono/256/Truecolor), adjustable output width
+(8-500). 256-color uses standard 6×6×6 ANSI cube quantization. Preview renders converted
+chars as inline text. Confirm loads result into canvas as a new layer and switches to
+Image Editor mode. No `.unwrap()` in production. 15 unit tests.

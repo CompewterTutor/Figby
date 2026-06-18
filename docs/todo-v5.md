@@ -181,7 +181,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.4 — Image Editor Fix
 
-- [ ] `5.4.1` Fix image editor mode switching
+- [x] `5.4.1` Fix image editor mode switching
   - **Goal:** Switching to image editor mode currently non-functional (user reports
     can't switch to it). Identify mode-switch path, fix so Image Editor tab/mode
     activates cleanly from welcome screen image actions and from mode toggle keybind.
@@ -189,7 +189,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Image editor mode reachable and canvas interactive.
   - **Difficulty:** Medium
 
-- [ ] `5.4.2` Fix mouse events in image editor
+- [x] `5.4.2` Fix mouse events in image editor
   - **Goal:** Mouse clicks not reaching image editor canvas/toolbox. Audit
     `handle_mouse_event` routing — confirm image editor mode is handled in the same
     dispatch path as font editor. Fix any mode-check that gates mouse events.
@@ -198,7 +198,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** All tools usable with mouse in image editor.
   - **Difficulty:** Medium
 
-- [ ] `5.4.3` Image import dialog (rascii options)
+- [x] `5.4.3` Image import dialog (rascii options)
   - **Goal:** "Convert Image to ASCII" action opens file picker. On file select,
     show options dialog: charset picker (block/smooth/full/braille/deluxe),
     output width slider, color toggle (truecolor / 256 / mono). Preview rendered

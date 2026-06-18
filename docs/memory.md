@@ -2368,6 +2368,30 @@ Files touched: `figby-rs/src/tui/palette.rs` (production + tests),
 16 new unit tests: hue group mapping, flat palette completeness and ordering,
 navigation offset 5.
 
+### 5.6.4 — Palette import: common formats
+
+Added `figby-rs/src/palette_import.rs` with 4 import format parsers:
+
+- **Paletty JSON** — `[{hex, name}]` array, normalizes hex with/without `#`
+- **Adobe ASE** — binary ASEF format with big-endian parsing of RGB/Gray swatch blocks, UTF-16BE name decoding
+- **WezTerm JSON** — `colors` object with named keys (foreground, background, cursor_fg/bg, selection_fg/bg), `ansi[8]`, `brights[8]`
+- **Windows Terminal JSON** — `schemes[0]` with background, foreground, cursorColor, selectionBackground, 16 named colour fields
+
+`ImportFormat` enum with `display_name()` and `all()` iterator. `auto_detect_format()` checks ASE magic bytes (`ASEF`), file extension, and JSON key structure (`colors`, `schemes`, `swatches`+`name`, or array). `import_swatches()` dispatches to format-specific parser.
+
+Changes to `palette_editor.rs`:
+- Added `ChoosingFormat` PanelMode — format radio list (Auto / PalettyJSON / AdobeASE / WezTerm / WinTerm / Native)
+- `PaletteEditor` gained `import_format: Option<ImportFormat>` and `format_index` fields
+- `L` key now opens format picker first, then file browser filtered by chosen format
+- `available_palettes(format)` scans for `.json` and `.ase` files based on format filter
+- `load_file()` uses stored `import_format` to dispatch; auto-detects when format is None
+- Help text shows active format in parentheses
+- `Swatch` moved from local definition to `crate::palette_import::Swatch`
+
+`lib.rs` added `pub mod palette_import;`. `mod.rs` updated `available_palettes()` call to use `None`.
+
+20 unit tests in `palette_import.rs`: all 4 formats parse correctly, mixed hex formats, malformed data rejection, ASE binary construction, all 6 auto-detection cases, empty/unknown content. No `.unwrap()` in production.
+
 ### 5.6.3 — Palette editor panel (save / load / duplicate)
 
 Created `figby-rs/src/tui/palette_editor.rs` with palette save/load/duplicate

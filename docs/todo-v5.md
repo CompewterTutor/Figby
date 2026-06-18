@@ -283,7 +283,7 @@ Source: `docs/4.0-manual-testing-notes.md`
     colours. Duplicate produces independent copy.
   - **Difficulty:** Medium
 
-- [ ] `5.6.4` Palette import: common formats
+- [x] `5.6.4` Palette import: common formats
   - **Goal:** Import palette swatches from popular formats:
     - **Paletty JSON** — array of `{hex, name}` objects (see paletty.dev export)
     - **Adobe ASE** — binary `ASEF` format; parse swatch blocks

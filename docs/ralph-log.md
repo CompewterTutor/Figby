@@ -6148,3 +6148,7 @@ DONE: 5.6.1 merged into release/5.6.
 ## 2026-06-18 17:49
 
 DONE: 5.6.2 merged into release/5.6.
+
+## 2026-06-18 17:57
+
+DONE: 5.6.3 merged into release/5.6.

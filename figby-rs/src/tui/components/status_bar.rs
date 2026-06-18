@@ -1,5 +1,5 @@
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
@@ -9,7 +9,11 @@ use unicode_width::UnicodeWidthStr;
 use super::super::theme::Theme;
 use super::super::AppMode;
 
-const POWERLINE_TRIANGLE: &str = "\u{e0b0}";
+struct StatusItem<'a> {
+    spans: Vec<Span<'a>>,
+    width: u16,
+    keep: bool,
+}
 
 pub struct StatusBarWidget<'a> {
     mode: AppMode,
@@ -85,134 +89,152 @@ impl<'a> StatusBarWidget<'a> {
         }
     }
 
-    fn build_left(&self) -> Vec<Span<'a>> {
-        let mut spans: Vec<Span> = Vec::new();
-        let sep = Style::default().fg(self.theme.statusbar.separator);
-
-        let mode_icon = self.icon("status_mode", "M");
-        spans.push(Span::styled(
-            format!(" {} {} ", mode_icon, self.mode_name),
-            Style::default()
-                .fg(self.mode_color())
-                .add_modifier(Modifier::BOLD),
-        ));
-
-        spans.push(Span::styled(" │ ", sep));
-
-        let tool_icon = self.icon("status_tool", "T");
-        spans.push(Span::raw(format!(" {} {} ", tool_icon, self.tool_name)));
-
-        spans.push(Span::styled(" │ ", sep));
-
-        let pos_icon = self.icon("status_position", "+");
-        spans.push(Span::raw(format!(
-            " {} X:{} Y:{} ",
-            pos_icon, self.cursor.0, self.cursor.1
-        )));
-
-        let zoom_icon = self.icon("status_zoom", "Z");
-        spans.push(Span::styled(
-            format!(" {} {}x ", zoom_icon, self.zoom),
-            Style::default().fg(self.theme.statusbar.label),
-        ));
-
-        spans
+    fn make_item(spans: Vec<Span<'a>>, keep: bool) -> StatusItem<'a> {
+        let width = spans.iter().map(|s| s.content.width()).sum::<usize>() as u16;
+        StatusItem { spans, width, keep }
     }
 
-    fn build_middle(&self) -> Vec<Span<'a>> {
-        let mut spans: Vec<Span> = Vec::new();
-        let sep = Style::default().fg(self.theme.statusbar.separator);
+    fn build_all_items(&self) -> Vec<StatusItem<'a>> {
+        let mut items: Vec<StatusItem> = Vec::new();
 
+        let mode_icon = self.icon("status_mode", "M");
+        items.push(Self::make_item(
+            vec![Span::styled(
+                format!(" {} {} ", mode_icon, self.mode_name),
+                Style::default()
+                    .fg(self.mode_color())
+                    .add_modifier(Modifier::BOLD),
+            )],
+            true,
+        ));
+
+        let tool_icon = self.icon("status_tool", "T");
+        items.push(Self::make_item(
+            vec![Span::raw(format!(" {} {} ", tool_icon, self.tool_name))],
+            true,
+        ));
+
+        let pos_icon = self.icon("status_position", "+");
+        items.push(Self::make_item(
+            vec![Span::raw(format!(
+                " {} X:{} Y:{} ",
+                pos_icon, self.cursor.0, self.cursor.1
+            ))],
+            true,
+        ));
+
+        let zoom_icon = self.icon("status_zoom", "Z");
+        items.push(Self::make_item(
+            vec![Span::styled(
+                format!(" {} {}x ", zoom_icon, self.zoom),
+                Style::default().fg(self.theme.statusbar.label),
+            )],
+            false,
+        ));
+
+        let has_font = self.font_name.is_some();
+        let mut font_spans: Vec<Span<'a>> = Vec::new();
         if let Some(name) = self.font_name {
             let font_icon = self.icon("status_font", "F");
-            spans.push(Span::styled(
+            font_spans.push(Span::styled(
                 format!(" {} {} ", font_icon, name),
                 Style::default().fg(self.theme.statusbar.font_name),
             ));
         }
-
         if self.unsaved {
             let unsaved_icon = self.icon("status_unsaved", "!");
-            spans.push(Span::styled(
+            font_spans.push(Span::styled(
                 format!(" {} ", unsaved_icon),
                 Style::default().fg(self.theme.statusbar.unsaved),
             ));
-        } else if self.font_name.is_some() {
+        } else if has_font {
             let saved_icon = self.icon("status_saved", "*");
-            spans.push(Span::styled(
+            font_spans.push(Span::styled(
                 format!(" {} ", saved_icon),
                 Style::default().fg(self.theme.statusbar.saved),
             ));
         }
-
-        if self.font_name.is_some() {
+        if has_font {
             if let Some(count) = self.glyph_count {
-                spans.push(Span::styled(" │ ", sep));
                 let glyph_icon = self.icon("status_glyph", "#");
-                spans.push(Span::styled(
+                font_spans.push(Span::styled(
                     format!(" {} {} ", glyph_icon, count),
                     Style::default().fg(self.theme.statusbar.glyph_count),
                 ));
             }
         }
-
-        spans
-    }
-
-    fn build_right(&self) -> Vec<Span<'a>> {
-        let mut spans: Vec<Span> = Vec::new();
-        let sep = Style::default().fg(self.theme.statusbar.separator);
-
-        if let Some(branch) = self.git_branch {
-            let branch_icon = self.icon("status_git_branch", "⎇");
-            spans.push(Span::styled(
-                format!(" {} {} ", branch_icon, branch),
-                Style::default().fg(self.theme.statusbar.git_branch),
-            ));
-            spans.push(Span::styled(" │ ", sep));
+        if !font_spans.is_empty() {
+            items.push(Self::make_item(font_spans, false));
         }
 
-        spans.push(Span::styled(
-            format!(" FPS:{:.0} ", self.fps),
-            Style::default().fg(self.theme.statusbar.fps),
+        if let Some(branch) = self.git_branch {
+            let branch_icon = self.icon("status_git_branch", "\u{2387}");
+            items.push(Self::make_item(
+                vec![Span::styled(
+                    format!(" {} {} ", branch_icon, branch),
+                    Style::default().fg(self.theme.statusbar.git_branch),
+                )],
+                false,
+            ));
+        }
+
+        items.push(Self::make_item(
+            vec![Span::styled(
+                format!(" FPS:{:.0} ", self.fps),
+                Style::default().fg(self.theme.statusbar.fps),
+            )],
+            false,
         ));
 
-        spans.push(Span::styled(" │ ", sep));
-
-        let clock_icon = self.icon("status_clock", "🕐");
-        spans.push(Span::styled(
-            format!(" {} {} ", clock_icon, self.clock_str),
-            Style::default().fg(self.theme.statusbar.label),
+        let clock_icon = self.icon("status_clock", "\u{1f550}");
+        items.push(Self::make_item(
+            vec![Span::styled(
+                format!(" {} {} ", clock_icon, self.clock_str),
+                Style::default().fg(self.theme.statusbar.label),
+            )],
+            false,
         ));
 
         if !self.render_mode.is_empty() {
-            spans.push(Span::styled(
-                format!(" {} ", self.render_mode),
-                Style::default().fg(self.theme.statusbar.label),
+            items.push(Self::make_item(
+                vec![Span::styled(
+                    format!(" {} ", self.render_mode),
+                    Style::default().fg(self.theme.statusbar.label),
+                )],
+                false,
             ));
         }
 
         if self.layer_count > 0 {
             let layer_icon = self.icon("status_layer", "L");
-            spans.push(Span::styled(
-                format!(" {}:{} ", layer_icon, self.layer_count),
-                Style::default().fg(self.theme.statusbar.label),
+            items.push(Self::make_item(
+                vec![Span::styled(
+                    format!(" {}:{} ", layer_icon, self.layer_count),
+                    Style::default().fg(self.theme.statusbar.label),
+                )],
+                false,
             ));
         }
 
         if self.undo_count > 0 {
             let undo_icon = self.icon("status_undo", "U");
-            spans.push(Span::styled(
-                format!(" {}:{} ", undo_icon, self.undo_count),
-                Style::default().fg(self.theme.statusbar.label),
+            items.push(Self::make_item(
+                vec![Span::styled(
+                    format!(" {}:{} ", undo_icon, self.undo_count),
+                    Style::default().fg(self.theme.statusbar.label),
+                )],
+                false,
             ));
         }
 
         if !self.throbber_text.is_empty() {
-            spans.push(Span::raw(format!(" {} ", self.throbber_text)));
+            items.push(Self::make_item(
+                vec![Span::raw(format!(" {} ", self.throbber_text))],
+                false,
+            ));
         }
 
-        spans
+        items
     }
 }
 
@@ -223,11 +245,13 @@ impl<'a> Widget for StatusBarWidget<'a> {
         }
 
         let area_w = area.width;
+        let sep_style = Style::default().fg(self.theme.statusbar.separator);
 
-        let left_spans = self.build_left();
-        let left_w = left_spans.iter().map(|s| s.content.width()).sum::<usize>() as u16;
+        let mut items = self.build_all_items();
 
-        if left_w >= area_w {
+        let mode_w = items[0].width;
+        let pos_w = items[2].width;
+        if mode_w + pos_w + 3 >= area_w {
             let mode_icon = self.icon("status_mode", "M");
             let mode_text = format!(" {} {} ", mode_icon, self.mode_name);
             let truncated: String = mode_text
@@ -244,59 +268,32 @@ impl<'a> Widget for StatusBarWidget<'a> {
             return;
         }
 
-        let right_spans = self.build_right();
-        let right_w = right_spans.iter().map(|s| s.content.width()).sum::<usize>() as u16;
-
-        let needed = left_w + right_w + 2;
-        let sep_style = Style::default().fg(self.theme.statusbar.separator);
-
-        if needed >= area_w {
-            let mid = Layout::horizontal([
-                Constraint::Length(left_w),
-                Constraint::Length(1),
-                Constraint::Fill(1),
-            ])
-            .split(area);
-
-            buf.set_line(mid[0].x, area.y, &Line::from(left_spans), mid[0].width);
-            buf.set_string(mid[1].x, area.y, POWERLINE_TRIANGLE, sep_style);
-            buf.set_line(
-                mid[2].x,
-                area.y,
-                &Line::from(self.build_middle()),
-                mid[2].width,
-            );
-            return;
+        loop {
+            let n = items.len();
+            let sep_count = n.saturating_sub(1);
+            let total_w: u16 = items.iter().map(|i| i.width).sum::<u16>() + sep_count as u16 * 3;
+            if total_w <= area_w {
+                break;
+            }
+            let drop_idx = items.iter().rposition(|i| !i.keep);
+            match drop_idx {
+                Some(idx) => {
+                    items.remove(idx);
+                }
+                None => {
+                    break;
+                }
+            }
         }
 
-        let chunks = Layout::horizontal([
-            Constraint::Length(left_w),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-            Constraint::Length(right_w),
-        ])
-        .split(area);
+        let mut final_spans: Vec<Span<'a>> = Vec::new();
+        for (i, item) in items.into_iter().enumerate() {
+            if i > 0 {
+                final_spans.push(Span::styled(" \u{2502} ", sep_style));
+            }
+            final_spans.extend(item.spans);
+        }
 
-        buf.set_line(
-            chunks[0].x,
-            area.y,
-            &Line::from(left_spans),
-            chunks[0].width,
-        );
-        buf.set_string(chunks[1].x, area.y, POWERLINE_TRIANGLE, sep_style);
-        buf.set_line(
-            chunks[2].x,
-            area.y,
-            &Line::from(self.build_middle()),
-            chunks[2].width,
-        );
-        buf.set_string(chunks[3].x, area.y, POWERLINE_TRIANGLE, sep_style);
-        buf.set_line(
-            chunks[4].x,
-            area.y,
-            &Line::from(right_spans),
-            chunks[4].width,
-        );
+        buf.set_line(area.x, area.y, &Line::from(final_spans), area_w);
     }
 }

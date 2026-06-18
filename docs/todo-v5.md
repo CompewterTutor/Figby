@@ -170,7 +170,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Success:** Status bar looks like lazyvim powerline. All info visible at 80+ cols.
   - **Difficulty:** Medium
 
-- [ ] `5.3.2` Responsive: drop low-priority items at narrow widths
+- [x] `5.3.2` Responsive: drop low-priority items at narrow widths
   - **Goal:** Measure available width. Drop items right-to-left when space runs out:
     clock → FPS → git branch → zoom → font name. Mode + tool + position never drop.
   - **Touches:** `figby-rs/src/tui/components/status_bar.rs`

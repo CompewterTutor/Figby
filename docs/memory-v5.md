@@ -35,3 +35,57 @@ Merged all Phase 5.7 work (5.7.1) into default branch (master). Phase 5.7 comple
 animated GIF import to timeline with frame compositing, disposal handling, memory
 guard, palette inference. Also includes: Marker brush Alt-modifier palette reversal
 (fc6de51). 11 files / 843 lines merged. Next phase: 5.8 (Dynamic Lighting System).
+
+## Phase 5.8 — Dynamic Lighting System
+
+### 5.8.1 — Core lighting engine (`lighting.rs`)
+
+Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
+- `Normal3(i8, i8, i8)` — quantized unit normal with `from_f32()`, `to_f32()`, `dot()`
+- `NormalMap` — 2D normal grid with bounds-checked get/set/get_mut, fills flat `(0,0,1)`
+- `Rgb(u8, u8, u8)` — color triple
+- `Attenuation` — point-light falloff (constant/linear/quadratic) with defaults
+- `Light` enum — Ambient/Directional/Point variants
+- `Scene` — light collection with add/remove/clear methods
+- `LutEntry` / `LightingLut` — 256-entry luminance→(color,char) LUT with lerp and default char map
+- `compute_normal_map_figfont()` — Sobel 3×3 gradient on heightfield, mirror-padded borders
+- `shade_canvas()` — per-cell Lambertian diffuse + shadow testing for all light types
+- `cast_shadow()` — Amanatides & Woo DDA 2D grid traversal, distance-limited
+- `intensity_to_char()` — luminance → char via linear index into char map
+
+22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.2 — Canvas and layer integration
+
+Wired lighting engine into canvas render pipeline:
+- `CanvasCell` (defined in `lib.rs` `canvas_inner` module) gained `height: Option<u8>` field (default `None`). All construction sites updated with `height: None`.
+- `Layer` gained `accepts_lighting: bool` and `casts_shadow: bool` (both default `true`).
+- Created `figby-rs/src/tui/components/canvas.rs` with `shade_composited()` — builds shadow/lighting masks from layer flags, computes normal map via `lighting::compute_normal_map_figfont()`, generates luminance via `lighting::shade_canvas()`, maps through `LightingLut`.
+- `TuiApp` gained `lighting_scene: Option<Scene>`, `max_shadow_distance: u16` (default 50), `height_scale: f32` (default 0.5), `lighting_lut: LightingLut` fields.
+- Shading pass inserted after layer compositing in render function; skipped when `lighting_scene` is `None`. Buffer preserved via save/restore to prevent frame-to-frame compounding.
+- Layer panel shows `A`/`S` status indicators for lighting/shadow flags; `L` toggles `accepts_lighting`, `S` toggles `casts_shadow`.
+
+`CanvasCell` re-exported from `tui/canvas.rs` (`pub use crate::CanvasCell`). 17 files touched. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.3 — Light management UI
+
+Added "Lighting" mode (key `G`) with in-canvas light editor:
+- `AppMode::Lighting` variant with mode cycling (`prev_mode` restore on Esc)
+- `LightPanel` struct in new `figby-rs/src/tui/light_panel.rs` — light list selection, intensity adjustment, light type/intensity inspection
+- Light list panel rendered in toolbox column (left) showing type + intensity for each light, selected highlight with `▶` prefix
+- Canvas overlay renders point light positions as `✦` glyphs (primary color for selected, secondary for others)
+- Key bindings: Up/Down navigate list, Shift+Up/Down move y position, Left/Right move x position, `+`/`-` adjust intensity, `A`/`D`/`P` add ambient/directional/point lights, Del removes, Esc exits
+- Status bar lighting mode: shows "LIGHTING" badge, selected light type + intensity, FPS, clock
+- `StatusBarWidget` gained `lighting_active`, `light_type`, `light_intensity` fields and `with_lighting()` builder
+- `theme.rs` gained `mode_lighting: Color` field (same as `mode_ascii` by default)
+- `G` key removed from canvas handler (now enters lighting mode)
+
+Also adds `figby-rs/src/tui/theme.rs` change (not in Touches list) — necessary supporting change for status bar mode color. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.4 — Palette LUT integration
+
+Extended `Swatch` in `palette_import.rs` with `lit_hex`, `shadow_hex`, `specular`, `shininess` fields. `LightingLut` now supports multi-swatch mode via `from_swatches()` and `get_swatched()`, enabling per-swatch lit/shadow color ramps.
+
+`rebuild_lighting_from_palette()` in `mod.rs` regenerates the LUT from palette editor swatches when a Scene activates or on palette swap. Palette editor gains `L`/`S` lit/shadow color pickers per swatch (visible in lighting mode). `shade_composited()` in `canvas.rs` uses per-cell swatch lookup with Blinn-Phong specular contribution.
+
+`build_rgb_to_swatch()` maps exact RGB matches to swatch indices; `nearest_rgb()` in canvas falls back by Euclidean distance. No `.unwrap()` in production. fmt and clippy pass clean.

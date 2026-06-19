@@ -344,7 +344,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 > Design spec: `docs/lighting-design.md`
 
-- [ ] `5.8.1` Core lighting engine (`lighting.rs`)
+- [x] `5.8.1` Core lighting engine (`lighting.rs`)
   - **Goal:** Implement `figby-rs/src/tui/lighting.rs` with all core types and
     computation from the design spec: `Normal3`, `NormalMap`, `Light` (Ambient /
     Directional / Point), `Scene`, `LightingLut`, `LutEntry`,
@@ -356,7 +356,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Suggested model:** Pro
   - **Difficulty:** High
 
-- [ ] `5.8.2` Canvas and layer integration
+- [x] `5.8.2` Canvas and layer integration
   - **Goal:** Wire the lighting engine into the canvas render pipeline.
     `CanvasCell` gains `height: Option<u8>` (default `None`). `Layer` gains
     `accepts_lighting: bool` and `casts_shadow: bool` (both default `true`).
@@ -374,7 +374,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Suggested model:** Pro
   - **Difficulty:** High
 
-- [ ] `5.8.3` Light management UI
+- [x] `5.8.3` Light management UI
   - **Goal:** Add a "Lighting" mode (key `G`) with an in-canvas light editor.
     Show a light list panel (left column, like Toolbox) listing current lights
     with type/intensity. Arrow keys move the selected point light's (x, y)
@@ -390,7 +390,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Suggested model:** Pro
   - **Difficulty:** High
 
-- [ ] `5.8.4` Palette LUT integration
+- [x] `5.8.4` Palette LUT integration
   - **Goal:** Extend palette entries with `lit_color` and `shadow_color` fields
     (optional; defaults: `lit_color = fg`, `shadow_color = fg * 0.3`). Add
     `specular: bool` and `shininess: f32` per entry. Generate `LightingLut`

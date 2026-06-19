@@ -669,7 +669,8 @@ mod tests {
                         CanvasCell {
                             ch,
                             fg: None,
-                            bg: None
+                            bg: None,
+                            height: None,
                         };
                         w
                     ];
@@ -817,11 +818,13 @@ mod tests {
                     ch: 'A',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'B',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
             ],
             vec![
@@ -829,11 +832,13 @@ mod tests {
                     ch: 'C',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'D',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
             ],
         ];
@@ -1059,11 +1064,13 @@ mod tests {
                     ch: 'X',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: ' ',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
             ],
             vec![
@@ -1071,11 +1078,13 @@ mod tests {
                     ch: 'Y',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'Z',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
             ],
         ];
@@ -1094,6 +1103,7 @@ mod tests {
             ch: 'A',
             fg: Some(Color::Red),
             bg: None,
+            height: None,
         }]];
         let out = render_frame_raw(&frame);
         assert!(out.contains("\x1b[31m"));

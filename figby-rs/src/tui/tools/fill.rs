@@ -61,6 +61,7 @@ mod tests {
             ch,
             fg: None,
             bg: None,
+            height: None,
         }
     }
 
@@ -69,6 +70,7 @@ mod tests {
             ch,
             fg: Some(ratatui::style::Color::Rgb(r, g, b)),
             bg: None,
+            height: None,
         }
     }
 

@@ -121,11 +121,13 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
         ch: ' ',
         fg: None,
         bg: bg_color,
+        height: None,
     };
     let transparent = CanvasCell {
         ch: ' ',
         fg: None,
         bg: None,
+        height: None,
     };
     let mut canvas = vec![vec![transparent; width]; height];
     let mut saved_canvas: Vec<Vec<CanvasCell>> = canvas.clone();
@@ -202,6 +204,7 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
                             ch: ' ',
                             fg: None,
                             bg: Some(Color::Rgb(pixel_value, pixel_value, pixel_value)),
+                            height: None,
                         };
                     }
                 }
@@ -229,6 +232,7 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
                             ch: ' ',
                             fg: None,
                             bg: Some(Color::Rgb(r, g, b)),
+                            height: None,
                         };
                     }
                 }

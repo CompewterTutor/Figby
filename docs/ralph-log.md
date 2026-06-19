@@ -6172,3 +6172,19 @@ DONE: 5.7.2 merged into release/5.7.
 ## 2026-06-18 22:09
 
 All 5.7 tasks complete. Starting phase review.
+
+## 2026-06-18 22:18
+
+PHASE_COMPLETE: 5.7 merged to main after review approval.
+
+## 2026-06-18 22:28
+
+DONE: 5.8.1 merged into release/5.8.
+
+## 2026-06-18 22:43
+
+DONE: 5.8.2 merged into release/5.8.
+
+## 2026-06-18 22:59
+
+DONE: 5.8.3 merged into release/5.8.

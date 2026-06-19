@@ -4,6 +4,42 @@ use serde::{Deserialize, Serialize};
 pub struct Swatch {
     pub name: String,
     pub hex: String,
+    #[serde(default)]
+    pub lit_hex: Option<String>,
+    #[serde(default)]
+    pub shadow_hex: Option<String>,
+    #[serde(default)]
+    pub specular: Option<bool>,
+    #[serde(default)]
+    pub shininess: Option<f32>,
+}
+
+impl Swatch {
+    pub fn new(name: String, hex: String) -> Self {
+        Swatch {
+            name,
+            hex,
+            lit_hex: None,
+            shadow_hex: None,
+            specular: None,
+            shininess: None,
+        }
+    }
+
+    /// Compute default shadow color as fg * 0.3
+    pub fn default_shadow_hex(hex: &str) -> String {
+        let hex = hex.trim_start_matches('#');
+        if hex.len() != 6 {
+            return "#000000".to_string();
+        }
+        let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
+        let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
+        let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
+        let shadow_r = (r as f32 * 0.3) as u8;
+        let shadow_g = (g as f32 * 0.3) as u8;
+        let shadow_b = (b as f32 * 0.3) as u8;
+        format!("#{:02X}{:02X}{:02X}", shadow_r, shadow_g, shadow_b)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -116,10 +152,7 @@ fn parse_paletty_json(s: &str) -> Result<Vec<Swatch>, String> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            Swatch {
-                name,
-                hex: normalize_hex(hex),
-            }
+            Swatch::new(name, normalize_hex(hex))
         })
         .collect();
     if swatches.is_empty() {
@@ -238,14 +271,12 @@ fn parse_ase(buf: &[u8]) -> Result<Vec<Swatch>, String> {
                 _ => None,
             };
             if let Some(hex) = hex {
-                swatches.push(Swatch {
-                    name: if name.is_empty() {
-                        format!("Color {}", swatches.len() + 1)
-                    } else {
-                        name
-                    },
-                    hex,
-                });
+                let swatch_name = if name.is_empty() {
+                    format!("Color {}", swatches.len() + 1)
+                } else {
+                    name
+                };
+                swatches.push(Swatch::new(swatch_name, hex));
             }
         }
         offset = block_end;
@@ -294,26 +325,17 @@ fn parse_wezterm(s: &str) -> Result<Vec<Swatch>, String> {
     ];
     for (name, color_opt) in named_pairs {
         if let Some(hex) = color_opt {
-            swatches.push(Swatch {
-                name: name.to_string(),
-                hex: normalize_hex(&hex),
-            });
+            swatches.push(Swatch::new(name.to_string(), normalize_hex(&hex)));
         }
     }
     if let Some(ansi) = c.ansi {
         for (i, color) in ansi.iter().enumerate().take(8) {
-            swatches.push(Swatch {
-                name: format!("ansi_{i}"),
-                hex: normalize_hex(color),
-            });
+            swatches.push(Swatch::new(format!("ansi_{i}"), normalize_hex(color)));
         }
     }
     if let Some(brights) = c.brights {
         for (i, color) in brights.iter().enumerate().take(8) {
-            swatches.push(Swatch {
-                name: format!("bright_{i}"),
-                hex: normalize_hex(color),
-            });
+            swatches.push(Swatch::new(format!("bright_{i}"), normalize_hex(color)));
         }
     }
     if swatches.is_empty() {
@@ -404,10 +426,7 @@ fn parse_windows_terminal(s: &str) -> Result<Vec<Swatch>, String> {
     ];
     for (name, color_opt) in named_pairs {
         if let Some(hex) = color_opt {
-            swatches.push(Swatch {
-                name: name.to_string(),
-                hex: normalize_hex(hex),
-            });
+            swatches.push(Swatch::new(name.to_string(), normalize_hex(hex)));
         }
     }
     if swatches.is_empty() {

@@ -305,6 +305,7 @@ mod tests {
             ch: '@',
             fg: None,
             bg: None,
+            height: None,
         }
     }
 
@@ -408,6 +409,7 @@ mod tests {
             ch: '#',
             fg: None,
             bg: None,
+            height: None,
         };
         paint_stamp(&mut buf, 2, 2, BrushShape::Square, 3, cell);
         let painted = buf.get(2, 2).unwrap();
@@ -529,6 +531,7 @@ mod tests {
             ch: '@',
             fg: Some(fg),
             bg: None,
+            height: None,
         }
     }
 
@@ -598,6 +601,7 @@ mod tests {
                 ch: '@',
                 fg: None,
                 bg: None,
+                height: None,
             },
         );
         let mut accum = HashMap::new();
@@ -751,6 +755,7 @@ mod tests {
                 ch: '@',
                 fg: None,
                 bg: Some(red),
+                height: None,
             },
         );
         let mut accum = HashMap::new();
@@ -778,6 +783,7 @@ mod tests {
                     ch: '@',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
             );
         }
@@ -801,6 +807,7 @@ mod tests {
                 ch: '@',
                 fg: None,
                 bg: None,
+                height: None,
             },
         );
         let mut accum = HashMap::new();

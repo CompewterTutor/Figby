@@ -7,6 +7,7 @@ mod canvas_inner {
         pub ch: char,
         pub fg: Option<Color>,
         pub bg: Option<Color>,
+        pub height: Option<u8>,
     }
     impl Default for CanvasCell {
         fn default() -> Self {
@@ -14,6 +15,7 @@ mod canvas_inner {
                 ch: ' ',
                 fg: None,
                 bg: None,
+                height: None,
             }
         }
     }

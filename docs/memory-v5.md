@@ -89,3 +89,7 @@ Extended `Swatch` in `palette_import.rs` with `lit_hex`, `shadow_hex`, `specular
 `rebuild_lighting_from_palette()` in `mod.rs` regenerates the LUT from palette editor swatches when a Scene activates or on palette swap. Palette editor gains `L`/`S` lit/shadow color pickers per swatch (visible in lighting mode). `shade_composited()` in `canvas.rs` uses per-cell swatch lookup with Blinn-Phong specular contribution.
 
 `build_rgb_to_swatch()` maps exact RGB matches to swatch indices; `nearest_rgb()` in canvas falls back by Euclidean distance. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.5 — Phase merge: release/5.8 → main
+
+Merged all Phase 5.8 work into default branch (master). Merge commit `480352d`. Phase 5.8 complete: core lighting engine (5.8.1), canvas and layer integration (5.8.2), light management UI (5.8.3), palette LUT integration (5.8.4). 34 files / 2262 lines merged. Next up: tbd.

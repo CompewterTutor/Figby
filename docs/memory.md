@@ -2526,3 +2526,10 @@ Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
 - `intensity_to_char()` — luminance → char via linear index into char map
 
 22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.5 — Phase merge: release/5.8 → master (2026-06-18)
+
+Merged release/5.8 branch into master at `480352d` (merge commit created on master via `--no-ff`).
+Brings 5.8.1 (core lighting engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI),
+and 5.8.4 (palette LUT integration) into the mainline. 34 files / 2262 lines merged. Phase 5.8
+complete. Next phase: tbd.

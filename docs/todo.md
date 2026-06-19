@@ -12,6 +12,7 @@ versioned files below. Do not add task lines directly here.
 | v3 | [todo-v3.md](todo-v3.md) | TUI Refinement & Animation | Active |
 | v4 | [todo-v4.md](todo-v4.md) | Animation, Layers, Polish, RC | Complete |
 | v5 | [todo-v5.md](todo-v5.md) | UI Overhaul & Feature Completion | Active |
+| v6 | [todo-v6.md](todo-v6.md) | Pre-Release Hardening & Polish | Active |
 
 ## Conventions
 

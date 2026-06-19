@@ -78,6 +78,7 @@ pub struct StatusBarTheme {
     pub mode_font: Color,
     pub mode_image: Color,
     pub mode_ascii: Color,
+    pub mode_lighting: Color,
     pub separator: Color,
     pub label: Color,
     pub git_branch: Color,
@@ -143,6 +144,7 @@ impl Default for Theme {
                 mode_font: Color::Rgb(0x00, 0xd4, 0xff),
                 mode_image: Color::Rgb(0xff, 0x00, 0x99),
                 mode_ascii: Color::Rgb(0xff, 0xaa, 0x00),
+                mode_lighting: Color::Rgb(0xff, 0xaa, 0x00),
                 separator: Color::Rgb(0x55, 0x55, 0x77),
                 label: Color::Rgb(0x88, 0x88, 0xaa),
                 git_branch: Color::Rgb(0x55, 0x55, 0x77),
@@ -237,6 +239,7 @@ struct StatusBarYaml {
     mode_font: Option<String>,
     mode_image: Option<String>,
     mode_ascii: Option<String>,
+    mode_lighting: Option<String>,
     separator: Option<String>,
     label: Option<String>,
     git_branch: Option<String>,
@@ -360,6 +363,10 @@ impl From<ThemeYaml> for Theme {
                 mode_ascii: merge_color(
                     y.statusbar.as_ref().and_then(|t| t.mode_ascii.as_ref()),
                     base.statusbar.mode_ascii,
+                ),
+                mode_lighting: merge_color(
+                    y.statusbar.as_ref().and_then(|t| t.mode_lighting.as_ref()),
+                    base.statusbar.mode_lighting,
                 ),
                 separator: merge_color(
                     y.statusbar.as_ref().and_then(|t| t.separator.as_ref()),
@@ -533,6 +540,11 @@ mod tests {
             theme.statusbar.mode_ascii,
             Color::Reset,
             "statusbar.mode_ascii should be set"
+        );
+        assert_ne!(
+            theme.statusbar.mode_lighting,
+            Color::Reset,
+            "statusbar.mode_lighting should be set"
         );
         // Verify parsed to Rgb, not Reset
         if let Color::Rgb(r, g, b) = theme.toolbox.bg {

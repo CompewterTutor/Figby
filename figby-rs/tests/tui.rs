@@ -2433,21 +2433,15 @@ fn test_font_editor_char_editor_toggle_cell() {
 #[test]
 fn test_canvas_grid_toggle_g_key() {
     use crossterm::event::KeyCode;
-    use figby::tui::TuiApp;
+    use figby::tui::{AppMode, TuiApp};
 
     let mut app = TuiApp::new();
-    assert!(!app.editor.canvas.show_grid(), "grid off by default");
+    app.welcome_screen.show = false;
+    assert_eq!(app.mode, AppMode::FontEditor);
 
-    // G toggles grid on
+    // G enters lighting mode
     app.handle_key_event(KeyCode::Char('G'));
-    assert!(app.editor.canvas.show_grid(), "G should toggle grid on");
-
-    // G toggles grid off
-    app.handle_key_event(KeyCode::Char('G'));
-    assert!(
-        !app.editor.canvas.show_grid(),
-        "second G should toggle grid off"
-    );
+    assert_eq!(app.mode, AppMode::Lighting);
 }
 
 #[test]

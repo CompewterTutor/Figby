@@ -66,3 +66,18 @@ Wired lighting engine into canvas render pipeline:
 - Layer panel shows `A`/`S` status indicators for lighting/shadow flags; `L` toggles `accepts_lighting`, `S` toggles `casts_shadow`.
 
 `CanvasCell` re-exported from `tui/canvas.rs` (`pub use crate::CanvasCell`). 17 files touched. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.3 — Light management UI
+
+Added "Lighting" mode (key `G`) with in-canvas light editor:
+- `AppMode::Lighting` variant with mode cycling (`prev_mode` restore on Esc)
+- `LightPanel` struct in new `figby-rs/src/tui/light_panel.rs` — light list selection, intensity adjustment, light type/intensity inspection
+- Light list panel rendered in toolbox column (left) showing type + intensity for each light, selected highlight with `▶` prefix
+- Canvas overlay renders point light positions as `✦` glyphs (primary color for selected, secondary for others)
+- Key bindings: Up/Down navigate list, Shift+Up/Down move y position, Left/Right move x position, `+`/`-` adjust intensity, `A`/`D`/`P` add ambient/directional/point lights, Del removes, Esc exits
+- Status bar lighting mode: shows "LIGHTING" badge, selected light type + intensity, FPS, clock
+- `StatusBarWidget` gained `lighting_active`, `light_type`, `light_intensity` fields and `with_lighting()` builder
+- `theme.rs` gained `mode_lighting: Color` field (same as `mode_ascii` by default)
+- `G` key removed from canvas handler (now enters lighting mode)
+
+Also adds `figby-rs/src/tui/theme.rs` change (not in Touches list) — necessary supporting change for status bar mode color. No `.unwrap()` in production. fmt and clippy pass clean.

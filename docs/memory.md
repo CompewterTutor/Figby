@@ -10,7 +10,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
-| v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 in progress) |
+| v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 complete) |
 
 ## Architectural Decisions
 
@@ -2526,3 +2526,10 @@ Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
 - `intensity_to_char()` — luminance → char via linear index into char map
 
 22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.5 — Phase merge: release/5.8 → master
+
+Merged all Phase 5.8 work (5.8.1–5.8.4) into default branch (master). Phase 5.8
+complete: core lighting engine (5.8.1), canvas and layer integration (5.8.2),
+light management UI (5.8.3), palette LUT integration (5.8.4). Merge commit
+`480352d`. Next phase: TBD.

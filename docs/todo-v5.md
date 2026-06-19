@@ -335,7 +335,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Suggested model:** Pro
   - **Difficulty:** High
 
-- [ ] `5.7.2` Phase merge: release/5.7 → main
+- [x] `5.7.2` Phase merge: release/5.7 → main
   - **Difficulty:** Low
 
 ---

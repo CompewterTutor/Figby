@@ -1330,3 +1330,10 @@ Three bugs found in phase merge review:
   without gating — it only depends on `ratatui::style::Color` which is always
   compiled. This means `gif_import.rs` can use `CanvasCell` directly without
   importing TUI-only modules.
+
+## 5.7.2 — Phase merge: release/5.7 → main
+
+- Task description says `main` but actual default branch is `master`. All prior
+  phase merges (5.0.7, 5.1.5, ..., 5.6.6) merged into `master`. This is the same
+  naming discrepancy noted in 5.2.4. The convention is inconsistent but stable:
+  `main` in task text = `master` in git.

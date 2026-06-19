@@ -395,6 +395,7 @@ pub struct TuiApp {
     pub max_shadow_distance: u16,
     pub height_scale: f32,
     pub lighting_lut: lighting::LightingLut,
+    pub palette_rgb_to_swatch: HashMap<(u8, u8, u8), usize>,
     pub light_panel: light_panel::LightPanel,
     pub prev_mode: AppMode,
 }
@@ -559,6 +560,7 @@ impl TuiApp {
                 (255, 255, 255),
                 crate::image_input::DEFAULT_CHAR_MAP,
             ),
+            palette_rgb_to_swatch: HashMap::new(),
             light_panel: LightPanel::new(),
             prev_mode: AppMode::FontEditor,
         }
@@ -1120,6 +1122,7 @@ impl TuiApp {
             let composited = self.editor.canvas.buffer.clone();
 
             if let Some(ref scene) = self.lighting_scene {
+                let swatch_data = self.palette_editor.lighting_swatches();
                 let shaded = components::canvas::shade_composited(
                     &composited,
                     &self.editor.layer_stack,
@@ -1127,6 +1130,8 @@ impl TuiApp {
                     &self.lighting_lut,
                     self.max_shadow_distance,
                     self.height_scale,
+                    &self.palette_rgb_to_swatch,
+                    &swatch_data,
                 );
                 self.editor.canvas.buffer = shaded;
             }
@@ -1380,6 +1385,12 @@ impl TuiApp {
 
         // Palette editor overlay
         if self.palette_editor.open {
+            let was_lighting = self.palette_editor.lighting_pickers_visible;
+            self.palette_editor.lighting_pickers_visible =
+                self.mode == AppMode::Lighting || self.lighting_scene.is_some();
+            if was_lighting != self.palette_editor.lighting_pickers_visible {
+                self.dirty = true;
+            }
             self.palette_editor.render(frame, frame.area(), &self.theme);
         }
     }
@@ -2190,6 +2201,23 @@ impl TuiApp {
         Ok(())
     }
 
+    /// Rebuild lighting LUT and rgb→swatch mapping from palette editor data.
+    fn rebuild_lighting_from_palette(&mut self) {
+        let swatch_data = self.palette_editor.lighting_swatches();
+        self.lighting_lut = lighting::LightingLut::from_swatches(
+            &swatch_data,
+            crate::image_input::DEFAULT_CHAR_MAP,
+        );
+        // Build rgb→swatch map from palette editor swatches
+        let swatch_pairs: Vec<(String, String)> = self
+            .palette_editor
+            .swatches
+            .iter()
+            .map(|s| (s.name.clone(), s.hex.clone()))
+            .collect();
+        self.palette_rgb_to_swatch = palette::build_rgb_to_swatch(&swatch_pairs);
+    }
+
     pub fn handle_key_event(&mut self, key: impl Into<KeyEvent>) -> Option<AppEvent> {
         let key = key.into();
         let code = key.code;
@@ -2330,6 +2358,9 @@ impl TuiApp {
                     self.palette_editor
                         .apply_to_palette(&mut self.editor.palette);
                     self.palette_editor.modified = false;
+                    if self.lighting_scene.is_some() {
+                        self.rebuild_lighting_from_palette();
+                    }
                 }
                 self.dirty = true;
             }
@@ -2898,6 +2929,8 @@ impl TuiApp {
                     color: lighting::Rgb(255, 255, 255),
                 });
                 self.lighting_scene = Some(scene);
+                // Regenerate LUT from palette when scene activates
+                self.rebuild_lighting_from_palette();
             }
             self.light_panel.selected_index = 0;
             self.dirty = true;
@@ -3025,6 +3058,11 @@ impl TuiApp {
                 self.palette_editor
                     .load_current_from_palette(&self.editor.palette);
                 self.palette_editor.available_palettes(None);
+                self.palette_editor.lighting_pickers_visible =
+                    self.mode == AppMode::Lighting || self.lighting_scene.is_some();
+                if self.lighting_scene.is_some() {
+                    self.rebuild_lighting_from_palette();
+                }
             }
             self.dirty = true;
             return None;

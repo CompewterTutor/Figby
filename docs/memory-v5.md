@@ -81,3 +81,11 @@ Added "Lighting" mode (key `G`) with in-canvas light editor:
 - `G` key removed from canvas handler (now enters lighting mode)
 
 Also adds `figby-rs/src/tui/theme.rs` change (not in Touches list) — necessary supporting change for status bar mode color. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.4 — Palette LUT integration
+
+Extended `Swatch` in `palette_import.rs` with `lit_hex`, `shadow_hex`, `specular`, `shininess` fields. `LightingLut` now supports multi-swatch mode via `from_swatches()` and `get_swatched()`, enabling per-swatch lit/shadow color ramps.
+
+`rebuild_lighting_from_palette()` in `mod.rs` regenerates the LUT from palette editor swatches when a Scene activates or on palette swap. Palette editor gains `L`/`S` lit/shadow color pickers per swatch (visible in lighting mode). `shade_composited()` in `canvas.rs` uses per-cell swatch lookup with Blinn-Phong specular contribution.
+
+`build_rgb_to_swatch()` maps exact RGB matches to swatch indices; `nearest_rgb()` in canvas falls back by Euclidean distance. No `.unwrap()` in production. fmt and clippy pass clean.

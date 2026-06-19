@@ -144,6 +144,27 @@ pub fn hue_group_for_ansi(index: usize) -> HueGroup {
     }
 }
 
+/// Build a mapping from RGB color to swatch index for exact-match lookup.
+/// Used by the shading pipeline to find which swatch a cell's fg color belongs to.
+pub fn build_rgb_to_swatch(
+    swatches: &[(String, String)],
+) -> std::collections::HashMap<(u8, u8, u8), usize> {
+    let mut map = std::collections::HashMap::new();
+    for (i, (_name, hex)) in swatches.iter().enumerate() {
+        let hex = hex.trim_start_matches('#');
+        if hex.len() == 6 {
+            if let (Ok(r), Ok(g), Ok(b)) = (
+                u8::from_str_radix(&hex[0..2], 16),
+                u8::from_str_radix(&hex[2..4], 16),
+                u8::from_str_radix(&hex[4..6], 16),
+            ) {
+                map.insert((r, g, b), i);
+            }
+        }
+    }
+    map
+}
+
 pub fn build_flat_palette() -> Vec<(usize, Color, &'static str)> {
     let mut result = Vec::with_capacity(16);
     for group in HueGroup::ordered() {

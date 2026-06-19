@@ -6165,6 +6165,10 @@ DONE: 5.6.5 merged into release/5.6.
 
 MERGE_FAILED: release/5.6 → master blocked by unresolved conflicts.
 
-## 2026-06-18 22:02
+## 2026-06-18 22:09
 
-DONE: 5.7.1 merged into release/5.7.
+DONE: 5.7.2 merged into release/5.7.
+
+## 2026-06-18 22:09
+
+All 5.7 tasks complete. Starting phase review.

@@ -10,6 +10,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
+| v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.7 merged) |
 
 ## Architectural Decisions
 
@@ -2505,7 +2506,6 @@ TUI integration:
 
 ### 5.7.2 — Phase merge: release/5.7 → master
 
-Fast-forward merge of release/5.7 into master at `fc9edbb`. Brings Phase 5.7
-complete: animated GIF import to timeline (5.7.1 — gif_import.rs, file ops
-dispatch, welcome screen action, timeline integration). Task checked off in
-todo-v5.md. Next phase: 5.8 (Dynamic Lighting System).
+Merged all Phase 5.7 work into default branch (master). Phase 5.7 complete:
+animated GIF import to timeline (5.7.1). All 1 subtask implemented, tested, merged.
+Next phase: 5.8 (Dynamic Lighting System).

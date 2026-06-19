@@ -26,7 +26,7 @@ const IMAGE_ACTIONS: &[(&str, char, &str)] = &[
     ("nav_forward", 'T', "emplate"),
     ("image_import", 'V', "iew as ASCII"),
     ("file_open", 'F', "igmap"),
-    ("image_import", 'G', "IF Import"),
+    ("image_import", 'A', "nimated GIF Import"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -430,7 +430,7 @@ impl WelcomeScreen {
             KeyCode::Char('F') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageOpenFigmap)
             }
-            KeyCode::Char('G') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('A') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageImportGif)
             }
             KeyCode::Char('S') if modifiers == KeyModifiers::NONE => {

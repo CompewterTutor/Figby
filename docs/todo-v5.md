@@ -344,7 +344,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 > Design spec: `docs/lighting-design.md`
 
-- [ ] `5.8.1` Core lighting engine (`lighting.rs`)
+- [x] `5.8.1` Core lighting engine (`lighting.rs`)
   - **Goal:** Implement `figby-rs/src/tui/lighting.rs` with all core types and
     computation from the design spec: `Normal3`, `NormalMap`, `Light` (Ambient /
     Directional / Point), `Scene`, `LightingLut`, `LutEntry`,

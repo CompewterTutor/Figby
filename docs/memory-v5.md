@@ -35,3 +35,22 @@ Merged all Phase 5.7 work (5.7.1) into default branch (master). Phase 5.7 comple
 animated GIF import to timeline with frame compositing, disposal handling, memory
 guard, palette inference. Also includes: Marker brush Alt-modifier palette reversal
 (fc6de51). 11 files / 843 lines merged. Next phase: 5.8 (Dynamic Lighting System).
+
+## Phase 5.8 — Dynamic Lighting System
+
+### 5.8.1 — Core lighting engine (`lighting.rs`)
+
+Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
+- `Normal3(i8, i8, i8)` — quantized unit normal with `from_f32()`, `to_f32()`, `dot()`
+- `NormalMap` — 2D normal grid with bounds-checked get/set/get_mut, fills flat `(0,0,1)`
+- `Rgb(u8, u8, u8)` — color triple
+- `Attenuation` — point-light falloff (constant/linear/quadratic) with defaults
+- `Light` enum — Ambient/Directional/Point variants
+- `Scene` — light collection with add/remove/clear methods
+- `LutEntry` / `LightingLut` — 256-entry luminance→(color,char) LUT with lerp and default char map
+- `compute_normal_map_figfont()` — Sobel 3×3 gradient on heightfield, mirror-padded borders
+- `shade_canvas()` — per-cell Lambertian diffuse + shadow testing for all light types
+- `cast_shadow()` — Amanatides & Woo DDA 2D grid traversal, distance-limited
+- `intensity_to_char()` — luminance → char via linear index into char map
+
+22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.

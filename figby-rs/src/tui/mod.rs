@@ -33,6 +33,7 @@ pub mod image_editor;
 pub mod keymap;
 pub mod layers;
 pub mod layout;
+pub mod lighting;
 pub mod menu;
 pub mod palette;
 pub mod palette_editor;

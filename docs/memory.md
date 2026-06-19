@@ -10,7 +10,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
-| v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.7 merged) |
+| v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 in progress) |
 
 ## Architectural Decisions
 
@@ -2509,3 +2509,20 @@ TUI integration:
 Merged all Phase 5.7 work into default branch (master). Phase 5.7 complete:
 animated GIF import to timeline (5.7.1). All 1 subtask implemented, tested, merged.
 Next phase: 5.8 (Dynamic Lighting System).
+
+### 5.8.1 — Core lighting engine (`lighting.rs`)
+
+Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
+- `Normal3(i8, i8, i8)` — quantized unit normal with `from_f32()`, `to_f32()`, `dot()`
+- `NormalMap` — 2D normal grid with bounds-checked get/set/get_mut, fills flat `(0,0,1)`
+- `Rgb(u8, u8, u8)` — color triple
+- `Attenuation` — point-light falloff (constant/linear/quadratic) with defaults
+- `Light` enum — Ambient/Directional/Point variants
+- `Scene` — light collection with add/remove/clear methods
+- `LutEntry` / `LightingLut` — 256-entry luminance→(color,char) LUT with lerp and default char map
+- `compute_normal_map_figfont()` — Sobel 3×3 gradient on heightfield, mirror-padded borders
+- `shade_canvas()` — per-cell Lambertian diffuse + shadow testing for all light types
+- `cast_shadow()` — Amanatides & Woo DDA 2D grid traversal, distance-limited
+- `intensity_to_char()` — luminance → char via linear index into char map
+
+22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.

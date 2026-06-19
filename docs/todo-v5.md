@@ -314,3 +314,95 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 - [x] `5.6.6` Phase merge: release/5.6 → main
   - **Difficulty:** Low
+
+---
+
+## Phase 5.7 — Animation Enhancements
+
+- [ ] `5.7.1` Animated GIF import to timeline
+  - **Goal:** Add an "Import GIF" action (welcome screen + File menu) that opens
+    an animated GIF file, decodes each frame as a canvas layer snapshot, and
+    populates the animation timeline so the frames are immediately playable and
+    editable. Frame count, delay, and loop count should be read from the GIF
+    metadata. If a GIF has a palette, map it to the nearest palette entries in
+    the active Figby palette (or create a new one).
+  - **Touches:** `figby-rs/src/tui/file_ops.rs` (new FileOpsMode::ImportGif),
+    `figby-rs/src/tui/mod.rs` (dispatch + handler),
+    `figby-rs/src/tui/timeline.rs` (populate frames from decoded GIF),
+    new `figby-rs/src/gif_import.rs` (GIF decode → CanvasBuffer frames via
+    the `image` crate or `gif` crate, map colors),
+    `figby-rs/src/tui/welcome.rs` (Import GIF action in Image panel)
+  - **Suggested model:** Pro
+  - **Difficulty:** High
+
+- [ ] `5.7.2` Phase merge: release/5.7 → main
+  - **Difficulty:** Low
+
+---
+
+## Phase 5.8 — Dynamic Lighting System
+
+> Design spec: `docs/lighting-design.md`
+
+- [ ] `5.8.1` Core lighting engine (`lighting.rs`)
+  - **Goal:** Implement `figby-rs/src/tui/lighting.rs` with all core types and
+    computation from the design spec: `Normal3`, `NormalMap`, `Light` (Ambient /
+    Directional / Point), `Scene`, `LightingLut`, `LutEntry`,
+    `compute_normal_map_figfont()`, `shade_canvas()`, `cast_shadow()` (DDA),
+    and `intensity_to_char()`. Unit-test each component in isolation (normal
+    generation from a synthetic heightfield, Lambertian diffuse values,
+    shadow raycast through a known occluder, LUT round-trip).
+  - **Touches:** new `figby-rs/src/tui/lighting.rs`
+  - **Suggested model:** Pro
+  - **Difficulty:** High
+
+- [ ] `5.8.2` Canvas and layer integration
+  - **Goal:** Wire the lighting engine into the canvas render pipeline.
+    `CanvasCell` gains `height: Option<u8>` (default `None`). `Layer` gains
+    `accepts_lighting: bool` and `casts_shadow: bool` (both default `true`).
+    After layer compositing in `components/canvas.rs`, run the shading pass
+    when a `Scene` is active: call `shade_canvas()` and map each cell through
+    the `LightingLut` before committing to ratatui's `Buffer`. `TuiApp` gains
+    a `lighting_scene: Option<Scene>` field; shading pass is skipped when
+    `None`. Expose layer flags in the Layers panel with `L`/`S` toggles.
+  - **Touches:** `figby-rs/src/tui/canvas.rs` (CanvasCell height field),
+    `figby-rs/src/tui/layers.rs` (Layer flags),
+    `figby-rs/src/tui/components/canvas.rs` (shading pass hook),
+    `figby-rs/src/tui/mod.rs` (Scene field, no-op when None),
+    `figby-rs/src/tui/layout.rs` (Layers panel toggle keys)
+  - **Depends:** `5.8.1`
+  - **Suggested model:** Pro
+  - **Difficulty:** High
+
+- [ ] `5.8.3` Light management UI
+  - **Goal:** Add a "Lighting" mode (key `G`) with an in-canvas light editor.
+    Show a light list panel (left column, like Toolbox) listing current lights
+    with type/intensity. Arrow keys move the selected point light's (x, y)
+    position (shown as a `✦` glyph on the canvas overlay). `+`/`-` adjust
+    intensity. `A` adds an ambient light, `D` adds directional, `P` adds point.
+    `Del` removes selected light. Escape exits lighting mode. Status bar shows
+    current light type and intensity. Real-time re-shade on every edit.
+  - **Touches:** `figby-rs/src/tui/mod.rs` (AppMode::Lighting, key dispatch),
+    new `figby-rs/src/tui/light_panel.rs` (light list widget),
+    `figby-rs/src/tui/layout.rs` (lighting mode layout),
+    `figby-rs/src/tui/components/status_bar.rs` (lighting mode status)
+  - **Depends:** `5.8.2`
+  - **Suggested model:** Pro
+  - **Difficulty:** High
+
+- [ ] `5.8.4` Palette LUT integration
+  - **Goal:** Extend palette entries with `lit_color` and `shadow_color` fields
+    (optional; defaults: `lit_color = fg`, `shadow_color = fg * 0.3`). Add
+    `specular: bool` and `shininess: f32` per entry. Generate `LightingLut`
+    from the active palette when a Scene is set, and regenerate on palette
+    swap. Palette editor (5.6.3) gains `lit`/`shadow` colour pickers per swatch
+    visible when lighting mode is active.
+  - **Touches:** `figby-rs/src/tui/palette.rs` (LUT generation, entry fields),
+    `figby-rs/src/tui/palette_editor.rs` (lit/shadow pickers),
+    `figby-rs/src/tui/lighting.rs` (LightingLut wired to palette)
+  - **Depends:** `5.8.3`
+  - **Suggested model:** Mid
+  - **Difficulty:** Medium
+
+- [ ] `5.8.5` Phase merge: release/5.8 → main
+  - **Difficulty:** Low

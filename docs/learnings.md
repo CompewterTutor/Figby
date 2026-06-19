@@ -1298,3 +1298,35 @@ Three bugs found in phase merge review:
   Floating point comparisons should use `1e-10` tolerance, not `f64::EPSILON`,
   when the expected value is a common decimal fraction that is not exactly
   representable.
+
+## 5.7.1 — Animated GIF import to timeline
+
+- `gif` crate 0.13 API differs significantly from both the `image` crate's GIF
+  codec and from earlier gif crate versions:
+  - `gif::Decoder::new(reader)` ALREADY reads the magic + header — no separate
+    `read_info()` call needed. `DecodeOptions` exists but is not required for
+    basic use.
+  - Frame disposal method is `gif::DisposalMethod` (not `Dispose`): `Any = 0`,
+    `Keep = 1`, `Background = 2`, `Previous = 3`. Re-exported at `gif::DisposalMethod`
+    from `gif::common`.
+  - Loop count is `gif::Repeat` enum with `Finite(u16)` and `Infinite` variants,
+    accessed via `decoder.repeat()`. Not through Netscape extension parsing —
+    the crate handles that internally.
+  - `bg_color()` returns `Option<usize>` (palette index), not `u8`.
+  - `read_next_frame()` returns `Result<Option<&Frame<'static>>, DecodingError>`.
+    Frames borrow from the decoder with `'static` lifetime but must be cloned
+    to outlive the decoder's next call. `Frame` derives `Clone`.
+  - Frame buffer is `Cow<'a, [u8]>` — pixel indices, not RGBA values.
+    Pixels must be looked up in the frame's local palette or the global palette.
+  - `global_palette()` returns `Option<&[u8]>` — flat RGB bytes, 3 per entry.
+  - `gif::DecodingError` does NOT implement `std::error::Error::source()`
+    returning `Some(&std::io::Error)` — must be converted via `.to_string()`.
+- Dispose handling in GIF compositing follows the spec:
+  1. Apply previous frame's dispose to canvas BEFORE rendering current frame
+  2. Save canvas state if current frame uses `DisposalMethod::Previous`
+  3. Render current frame onto canvas
+  4. Record snapshot for result vector
+- `CanvasCell` (from `lib.rs` `canvas_inner` module) is available project-wide
+  without gating — it only depends on `ratatui::style::Color` which is always
+  compiled. This means `gif_import.rs` can use `CanvasCell` directly without
+  importing TUI-only modules.

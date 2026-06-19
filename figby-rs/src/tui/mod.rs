@@ -1345,6 +1345,12 @@ impl TuiApp {
                 self.welcome_fx = None;
                 self.dirty = true;
             }
+            WelcomeAction::ImageImportGif => {
+                self.dialogs.file_ops.enter_import_gif();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
         }
     }
 
@@ -2034,6 +2040,17 @@ impl TuiApp {
                             return None;
                         }
                         self.perform_import_font(path);
+                        return Some(AppEvent::OpenRequested);
+                    }
+                    file_ops::FileOpsMode::ImportGif => {
+                        let path = self.dialogs.file_ops.selected_path();
+                        if !path.exists() {
+                            self.dialogs.file_ops.error_message =
+                                format!("File not found: {}", path.display());
+                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportGif;
+                            return None;
+                        }
+                        self.perform_import_gif(path);
                         return Some(AppEvent::OpenRequested);
                     }
                     file_ops::FileOpsMode::Idle => None,
@@ -3075,6 +3092,95 @@ impl TuiApp {
         });
     }
 
+    fn perform_import_gif(&mut self, path: std::path::PathBuf) {
+        match crate::gif_import::import_gif(&path) {
+            Ok(gif_data) => {
+                if gif_data.frames.is_empty() {
+                    return;
+                }
+                let h = gif_data.frames[0].len();
+                let w = if h > 0 {
+                    gif_data.frames[0][0].len()
+                } else {
+                    0
+                };
+                if w == 0 || h == 0 {
+                    return;
+                }
+
+                self.editor.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
+                self.editor.layer_stack.resize_all(w, h);
+
+                // Copy first frame into active layer
+                {
+                    let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
+                    for y in 0..h.min(gif_data.frames[0].len()) {
+                        for x in 0..w.min(gif_data.frames[0][y].len()) {
+                            buf.set(x, y, gif_data.frames[0][y][x]);
+                        }
+                    }
+                    *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                }
+
+                // Populate timeline
+                let thumb_w = 8;
+                let thumb_h = 3;
+                self.timeline_state.frames.clear();
+                self.timeline_state.current_frame = 0;
+
+                for (i, frame_cells) in gif_data.frames.iter().enumerate() {
+                    let mut frame_buf = canvas::CanvasBuffer::new(w, h);
+                    for (y, row) in frame_cells
+                        .iter()
+                        .enumerate()
+                        .take(h.min(frame_cells.len()))
+                    {
+                        for (x, cell) in row.iter().enumerate().take(w.min(row.len())) {
+                            frame_buf.set(x, y, *cell);
+                        }
+                    }
+
+                    let thumbnail = capture_thumbnail(&frame_buf, thumb_w, thumb_h);
+
+                    self.timeline_state.add_frame(timeline::TimelineFrame {
+                        thumbnail,
+                        has_keyframe: false,
+                        label: format!("Frame {}", i),
+                        layer_state: Some(frame_buf),
+                        layer_keyframes: Vec::new(),
+                    });
+                }
+
+                // Store frame delays and loop count in export dialog
+                self.dialogs.export_dialog.frame_delays = gif_data.frame_delays;
+                self.dialogs.export_dialog.loop_count = gif_data.loop_count;
+                self.dialogs.export_dialog.timeline_available = true;
+
+                let first_delay_cs = self
+                    .dialogs
+                    .export_dialog
+                    .frame_delays
+                    .first()
+                    .copied()
+                    .unwrap_or(10);
+                self.timeline_state.fps = 100u16
+                    .checked_div(first_delay_cs)
+                    .map(|fps| fps.clamp(1, 60) as u8)
+                    .unwrap_or(10);
+
+                self.mode = AppMode::ImageEditor;
+                self.timeline_visible = true;
+                self.editor.recomposite_canvas();
+                self.editor.unsaved = true;
+                self.dirty = true;
+            }
+            Err(e) => {
+                self.dialogs.file_ops.error_message = format!("GIF import failed: {e}");
+                self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportGif;
+            }
+        }
+    }
+
     fn perform_rascii_import(&mut self) {
         let cells = match self.dialogs.rascii_import.preview_cells.take() {
             Some(cells) => cells,
@@ -3374,6 +3480,10 @@ impl TuiApp {
                         .export_dialog
                         .set_timeline(self.timeline_state.fps, self.timeline_state.frames.len());
                 }
+                self.menu_bar_state.reset();
+            }
+            menu::MenuAction::FileImportGif => {
+                self.dialogs.file_ops.enter_import_gif();
                 self.menu_bar_state.reset();
             }
             menu::MenuAction::FileQuit => {

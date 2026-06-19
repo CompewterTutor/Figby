@@ -25,6 +25,7 @@ pub mod control;
 pub mod font;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod font_gen;
+pub mod gif_import;
 pub mod image_input;
 pub mod input;
 pub mod output;

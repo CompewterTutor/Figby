@@ -2502,3 +2502,10 @@ TUI integration:
 
 6 files created/modified: `gif_import.rs` (new), `lib.rs`, `file_ops.rs`,
 `welcome.rs`, `mod.rs`, `menu.rs`. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.7.2 — Phase merge: release/5.7 → master
+
+Fast-forward merge of release/5.7 into master at `fc9edbb`. Brings Phase 5.7
+complete: animated GIF import to timeline (5.7.1 — gif_import.rs, file ops
+dispatch, welcome screen action, timeline integration). Task checked off in
+todo-v5.md. Next phase: 5.8 (Dynamic Lighting System).

@@ -374,7 +374,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Suggested model:** Pro
   - **Difficulty:** High
 
-- [ ] `5.8.3` Light management UI
+- [x] `5.8.3` Light management UI
   - **Goal:** Add a "Lighting" mode (key `G`) with an in-canvas light editor.
     Show a light list panel (left column, like Toolbox) listing current lights
     with type/intensity. Arrow keys move the selected point light's (x, y)

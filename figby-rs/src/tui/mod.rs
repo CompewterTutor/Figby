@@ -33,6 +33,7 @@ pub mod image_editor;
 pub mod keymap;
 pub mod layers;
 pub mod layout;
+pub mod light_panel;
 pub mod lighting;
 pub mod menu;
 pub mod palette;
@@ -55,6 +56,7 @@ pub use brush::BrushState;
 pub use dialogs::RasciiImportDialog;
 pub use events::AppEvent;
 pub use export::ExportMode;
+pub use light_panel::LightPanel;
 pub use menu::{MenuBar, MenuBarState};
 pub use palette::Palette;
 pub use player::AnimationPlayer;
@@ -71,6 +73,7 @@ pub enum AppMode {
     FontEditor,
     ImageEditor,
     AsciiPreview,
+    Lighting,
 }
 
 impl AppMode {
@@ -79,6 +82,7 @@ impl AppMode {
             AppMode::FontEditor => " Font Editor ",
             AppMode::ImageEditor => " Image Editor ",
             AppMode::AsciiPreview => " ASCII Preview ",
+            AppMode::Lighting => " Lighting Editor ",
         }
     }
 
@@ -87,6 +91,7 @@ impl AppMode {
             AppMode::FontEditor => AppMode::ImageEditor,
             AppMode::ImageEditor => AppMode::AsciiPreview,
             AppMode::AsciiPreview => AppMode::FontEditor,
+            AppMode::Lighting => AppMode::Lighting,
         }
     }
 
@@ -95,6 +100,7 @@ impl AppMode {
             AppMode::FontEditor => AppMode::AsciiPreview,
             AppMode::AsciiPreview => AppMode::ImageEditor,
             AppMode::ImageEditor => AppMode::FontEditor,
+            AppMode::Lighting => AppMode::Lighting,
         }
     }
 }
@@ -389,6 +395,8 @@ pub struct TuiApp {
     pub max_shadow_distance: u16,
     pub height_scale: f32,
     pub lighting_lut: lighting::LightingLut,
+    pub light_panel: light_panel::LightPanel,
+    pub prev_mode: AppMode,
 }
 
 impl TuiApp {
@@ -551,6 +559,8 @@ impl TuiApp {
                 (255, 255, 255),
                 crate::image_input::DEFAULT_CHAR_MAP,
             ),
+            light_panel: LightPanel::new(),
+            prev_mode: AppMode::FontEditor,
         }
     }
 
@@ -708,6 +718,51 @@ impl TuiApp {
             return;
         }
 
+        // --- Lighting mode ---
+        if self.mode == AppMode::Lighting {
+            if let Some(tb_list) = fl.toolbox_list {
+                self.render_light_panel(frame, tb_list);
+            }
+            self.render_canvas_area(frame, fl.canvas);
+            // Status bar
+            let lighting_active = true;
+            let light_type = self
+                .lighting_scene
+                .as_ref()
+                .and_then(|s| LightPanel::light_type_str(s, self.light_panel.selected_index()));
+            let light_intensity = self
+                .lighting_scene
+                .as_ref()
+                .and_then(|s| LightPanel::light_intensity(s, self.light_panel.selected_index()));
+            frame.render_widget(
+                components::status_bar::StatusBarWidget::new(
+                    self.mode,
+                    &self.mode_name_string(),
+                    self.editor.canvas.cursor(),
+                    self.editor.canvas.zoom_level(),
+                    self.editor.toolbox.selected.full_name(),
+                    self.editor.unsaved,
+                    None,
+                    None,
+                    self.git_branch.as_deref(),
+                    self.fps,
+                    self.render_mode.label(),
+                    &format_clock(),
+                    0,
+                    0,
+                    &self.throbber.render_string(),
+                    &self.icons,
+                    &self.theme,
+                )
+                .with_lighting(lighting_active, light_type, light_intensity),
+                fl.status,
+            );
+
+            frame.render_stateful_widget(&self.menu_bar, fl.menu, &mut self.menu_bar_state);
+            self.render_overlays(frame);
+            return;
+        }
+
         // --- Normal mode ---
 
         // Mode tabs
@@ -727,6 +782,7 @@ impl TuiApp {
             AppMode::FontEditor => 0,
             AppMode::ImageEditor => 1,
             AppMode::AsciiPreview => 2,
+            AppMode::Lighting => 0,
         };
         let titles_refs: Vec<&str> = titles.iter().map(|s| s.as_str()).collect();
         let tabs = Tabs::new(titles_refs)
@@ -859,6 +915,21 @@ impl TuiApp {
             (!name.is_empty()).then_some(name)
         });
         let status_glyph_count = self.editor.font_editor.font.as_ref().map(|f| f.chars.len());
+        let lighting_active = self.mode == AppMode::Lighting;
+        let light_type = if lighting_active {
+            self.lighting_scene
+                .as_ref()
+                .and_then(|s| LightPanel::light_type_str(s, self.light_panel.selected_index()))
+        } else {
+            None
+        };
+        let light_intensity = if lighting_active {
+            self.lighting_scene
+                .as_ref()
+                .and_then(|s| LightPanel::light_intensity(s, self.light_panel.selected_index()))
+        } else {
+            None
+        };
         frame.render_widget(
             components::status_bar::StatusBarWidget::new(
                 self.mode,
@@ -878,7 +949,8 @@ impl TuiApp {
                 &self.throbber.render_string(),
                 &self.icons,
                 &self.theme,
-            ),
+            )
+            .with_lighting(lighting_active, light_type, light_intensity),
             fl.status,
         );
 
@@ -1069,8 +1141,106 @@ impl TuiApp {
                 frame.render_widget(&self.editor.canvas, canvas_inner_rect);
             }
 
+            // Point light overlays (lighting mode)
+            if self.mode == AppMode::Lighting {
+                if let Some(ref scene) = self.lighting_scene {
+                    let zoom = self.editor.canvas.zoom_level().max(1) as i16;
+                    let (sx, sy) = self.editor.canvas.scroll_offset();
+                    let buf = frame.buffer_mut();
+                    for (i, light) in scene.lights.iter().enumerate() {
+                        if let lighting::Light::Point { position, .. } = light {
+                            let bx = position.0 as i16;
+                            let by = position.1 as i16;
+                            let screen_x = canvas_inner_rect.x as i16 + (bx - sx as i16) * zoom;
+                            let screen_y = canvas_inner_rect.y as i16 + (by - sy as i16) * zoom;
+                            if screen_x >= canvas_inner_rect.x as i16
+                                && screen_x < (canvas_inner_rect.x + canvas_inner_rect.width) as i16
+                                && screen_y >= canvas_inner_rect.y as i16
+                                && screen_y
+                                    < (canvas_inner_rect.y + canvas_inner_rect.height) as i16
+                            {
+                                if let Some(cell) = buf.cell_mut((screen_x as u16, screen_y as u16))
+                                {
+                                    let marker = "\u{2726}";
+                                    let fg = if i == self.light_panel.selected_index {
+                                        self.theme.general.primary
+                                    } else {
+                                        self.theme.general.secondary
+                                    };
+                                    cell.set_symbol(marker);
+                                    cell.set_fg(fg);
+                                    cell.set_bg(ratatui::style::Color::Reset);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             self.editor.canvas.buffer = composited;
         }
+    }
+
+    /// Render the light list panel in the toolbox area (lighting mode).
+    fn render_light_panel(&self, frame: &mut Frame<'_>, area: Rect) {
+        let block = Block::default()
+            .title(" Lights ")
+            .borders(layout::toolbox_list_borders())
+            .style(Style::default().fg(self.theme.general.secondary));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let scene = match &self.lighting_scene {
+            Some(s) => s,
+            None => return,
+        };
+
+        let mut lines: Vec<Line> = Vec::new();
+        for (i, light) in scene.lights.iter().enumerate() {
+            let prefix = if i == self.light_panel.selected_index {
+                " \u{25b6} "
+            } else {
+                "   "
+            };
+            let label = match light {
+                lighting::Light::Ambient { intensity, .. } => {
+                    format!("Amb  {:.2}", intensity)
+                }
+                lighting::Light::Directional { intensity, .. } => {
+                    format!("Dir  {:.2}", intensity)
+                }
+                lighting::Light::Point {
+                    intensity,
+                    position,
+                    ..
+                } => {
+                    format!(
+                        "Pnt  {:.2} ({},{})",
+                        intensity, position.0 as u16, position.1 as u16
+                    )
+                }
+            };
+            let style = if i == self.light_panel.selected_index {
+                Style::default()
+                    .fg(self.theme.general.primary)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(self.theme.general.secondary)
+            };
+            lines.push(Line::from(Span::styled(
+                format!("{}{}", prefix, label),
+                style,
+            )));
+        }
+
+        if lines.is_empty() {
+            lines.push(Line::from(Span::styled(
+                " (no lights) ",
+                Style::default().fg(self.theme.general.secondary),
+            )));
+        }
+
+        frame.render_widget(Paragraph::new(lines), inner);
     }
 
     /// Render all floating overlays (dialogs, keybindings, undo panel).
@@ -1228,6 +1398,7 @@ impl TuiApp {
                 }
             }
             AppMode::AsciiPreview => "ASCII Preview".to_string(),
+            AppMode::Lighting => "Lighting Editor".to_string(),
             AppMode::FontEditor => {
                 if let font_editor::FontEditorView::CharEditor(code) = self.editor.font_editor.view
                 {
@@ -2564,6 +2735,175 @@ impl TuiApp {
             }
         }
 
+        // Lighting mode: key handling
+        if self.mode == AppMode::Lighting {
+            let w = self.editor.canvas.buffer.width();
+            let h = self.editor.canvas.buffer.height();
+            match code {
+                KeyCode::Esc => {
+                    self.mode = self.prev_mode;
+                    self.dirty = true;
+                    return None;
+                }
+                KeyCode::Up => {
+                    if modifiers == KeyModifiers::SHIFT {
+                        if let Some(ref mut scene) = self.lighting_scene {
+                            let idx = self.light_panel.selected_index;
+                            if idx < scene.lights.len() {
+                                if let lighting::Light::Point {
+                                    ref mut position, ..
+                                } = scene.lights[idx]
+                                {
+                                    position.1 = (position.1 - 1.0).max(0.0);
+                                    self.dirty = true;
+                                }
+                            }
+                        }
+                    } else if self.light_panel.selected_index > 0 {
+                        self.light_panel.selected_index -= 1;
+                        self.dirty = true;
+                    }
+                    return None;
+                }
+                KeyCode::Down => {
+                    if modifiers == KeyModifiers::SHIFT {
+                        if let Some(ref mut scene) = self.lighting_scene {
+                            let idx = self.light_panel.selected_index;
+                            if idx < scene.lights.len() {
+                                if let lighting::Light::Point {
+                                    ref mut position, ..
+                                } = scene.lights[idx]
+                                {
+                                    position.1 = (position.1 + 1.0).min(h as f32 - 1.0);
+                                    self.dirty = true;
+                                }
+                            }
+                        }
+                    } else if let Some(ref scene) = self.lighting_scene {
+                        if self.light_panel.selected_index + 1 < scene.lights.len() {
+                            self.light_panel.selected_index += 1;
+                            self.dirty = true;
+                        }
+                    }
+                    return None;
+                }
+                KeyCode::Left => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        let idx = self.light_panel.selected_index;
+                        if idx < scene.lights.len() {
+                            if let lighting::Light::Point {
+                                ref mut position, ..
+                            } = scene.lights[idx]
+                            {
+                                position.0 = (position.0 - 1.0).max(0.0);
+                                self.dirty = true;
+                            }
+                        }
+                    }
+                    return None;
+                }
+                KeyCode::Right => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        let idx = self.light_panel.selected_index;
+                        if idx < scene.lights.len() {
+                            if let lighting::Light::Point {
+                                ref mut position, ..
+                            } = scene.lights[idx]
+                            {
+                                position.0 = (position.0 + 1.0).min(w as f32 - 1.0);
+                                self.dirty = true;
+                            }
+                        }
+                    }
+                    return None;
+                }
+                KeyCode::Char('+') | KeyCode::Char('=') => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        LightPanel::adjust_intensity(scene, self.light_panel.selected_index, 0.1);
+                        self.dirty = true;
+                    }
+                    return None;
+                }
+                KeyCode::Char('-') | KeyCode::Char('_') => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        LightPanel::adjust_intensity(scene, self.light_panel.selected_index, -0.1);
+                        self.dirty = true;
+                    }
+                    return None;
+                }
+                KeyCode::Char('A') => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        scene.add_light(lighting::Light::Ambient {
+                            intensity: 0.5,
+                            color: lighting::Rgb(255, 255, 255),
+                        });
+                        self.light_panel.selected_index = scene.lights.len() - 1;
+                        self.dirty = true;
+                    }
+                    return None;
+                }
+                KeyCode::Char('D') => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        scene.add_light(lighting::Light::Directional {
+                            direction: (0.0, 0.0, 1.0),
+                            intensity: 0.8,
+                            color: lighting::Rgb(255, 255, 255),
+                        });
+                        self.light_panel.selected_index = scene.lights.len() - 1;
+                        self.dirty = true;
+                    }
+                    return None;
+                }
+                KeyCode::Char('P') => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        scene.add_light(lighting::Light::Point {
+                            position: (w as f32 / 2.0, h as f32 / 2.0, 5.0),
+                            intensity: 0.8,
+                            color: lighting::Rgb(255, 255, 255),
+                            attenuation: lighting::Attenuation::default(),
+                        });
+                        self.light_panel.selected_index = scene.lights.len() - 1;
+                        self.dirty = true;
+                    }
+                    return None;
+                }
+                KeyCode::Delete => {
+                    if let Some(ref mut scene) = self.lighting_scene {
+                        let idx = self.light_panel.selected_index;
+                        if idx < scene.lights.len() {
+                            scene.remove_light(idx);
+                            if self.light_panel.selected_index >= scene.lights.len()
+                                && !scene.lights.is_empty()
+                            {
+                                self.light_panel.selected_index = scene.lights.len() - 1;
+                            }
+                            self.dirty = true;
+                        }
+                    }
+                    return None;
+                }
+                KeyCode::Char('G') => return None,
+                _ => {}
+            }
+        }
+
+        // Enter lighting mode with uppercase G
+        if code == KeyCode::Char('G') && self.mode != AppMode::Lighting {
+            self.prev_mode = self.mode;
+            self.mode = AppMode::Lighting;
+            if self.lighting_scene.is_none() {
+                let mut scene = lighting::Scene::new();
+                scene.add_light(lighting::Light::Ambient {
+                    intensity: 0.5,
+                    color: lighting::Rgb(255, 255, 255),
+                });
+                self.lighting_scene = Some(scene);
+            }
+            self.light_panel.selected_index = 0;
+            self.dirty = true;
+            return None;
+        }
+
         // Canvas cursor movement, zoom, grid
         {
             let ck = key.code;
@@ -2577,7 +2917,6 @@ impl TuiApp {
                     | KeyCode::Char('=')
                     | KeyCode::Char('-')
                     | KeyCode::Char('_')
-                    | KeyCode::Char('G')
             ) && self.editor.canvas.handle_key(ck, 0, 0)
             {
                 return Some(AppEvent::Canvas(crate::tui::events::CanvasEvent::Modified));

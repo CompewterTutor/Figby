@@ -33,6 +33,9 @@ pub struct StatusBarWidget<'a> {
     throbber_text: &'a str,
     icons: &'a BTreeMap<String, String>,
     theme: &'a Theme,
+    lighting_active: bool,
+    light_type: Option<&'a str>,
+    light_intensity: Option<f32>,
 }
 
 impl<'a> StatusBarWidget<'a> {
@@ -74,7 +77,22 @@ impl<'a> StatusBarWidget<'a> {
             throbber_text,
             icons,
             theme,
+            lighting_active: false,
+            light_type: None,
+            light_intensity: None,
         }
+    }
+
+    pub fn with_lighting(
+        mut self,
+        active: bool,
+        light_type: Option<&'a str>,
+        intensity: Option<f32>,
+    ) -> Self {
+        self.lighting_active = active;
+        self.light_type = light_type;
+        self.light_intensity = intensity;
+        self
     }
 
     fn icon(&self, key: &str, fallback: &'static str) -> &str {
@@ -86,6 +104,7 @@ impl<'a> StatusBarWidget<'a> {
             AppMode::FontEditor => self.theme.statusbar.mode_font,
             AppMode::ImageEditor => self.theme.statusbar.mode_image,
             AppMode::AsciiPreview => self.theme.statusbar.mode_ascii,
+            AppMode::Lighting => self.theme.statusbar.mode_lighting,
         }
     }
 
@@ -95,6 +114,10 @@ impl<'a> StatusBarWidget<'a> {
     }
 
     fn build_all_items(&self) -> Vec<StatusItem<'a>> {
+        if self.lighting_active {
+            return self.build_lighting_items();
+        }
+
         let mut items: Vec<StatusItem> = Vec::new();
 
         let mode_icon = self.icon("status_mode", "M");
@@ -233,6 +256,53 @@ impl<'a> StatusBarWidget<'a> {
                 false,
             ));
         }
+
+        items
+    }
+
+    fn build_lighting_items(&self) -> Vec<StatusItem<'a>> {
+        let mut items: Vec<StatusItem> = Vec::new();
+
+        items.push(Self::make_item(
+            vec![Span::styled(
+                " LIGHTING ",
+                Style::default()
+                    .fg(self.mode_color())
+                    .add_modifier(Modifier::BOLD),
+            )],
+            true,
+        ));
+
+        if let Some(lt) = self.light_type {
+            let intensity_str = self
+                .light_intensity
+                .map(|i| format!(" {:.2} ", i))
+                .unwrap_or_default();
+            items.push(Self::make_item(
+                vec![Span::styled(
+                    format!(" {} {} ", lt, intensity_str),
+                    Style::default().fg(self.theme.statusbar.label),
+                )],
+                true,
+            ));
+        }
+
+        items.push(Self::make_item(
+            vec![Span::styled(
+                format!(" FPS:{:.0} ", self.fps),
+                Style::default().fg(self.theme.statusbar.fps),
+            )],
+            false,
+        ));
+
+        let clock_icon = self.icon("status_clock", "\u{1f550}");
+        items.push(Self::make_item(
+            vec![Span::styled(
+                format!(" {} {} ", clock_icon, self.clock_str),
+                Style::default().fg(self.theme.statusbar.label),
+            )],
+            false,
+        ));
 
         items
     }

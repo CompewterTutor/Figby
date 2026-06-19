@@ -620,7 +620,13 @@ mod tests {
         let colors = vec![red, green, blue];
         let mut accum = HashMap::new();
         accum.insert((2, 2), 1.0);
-        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground, false);
+        commit_marker_accum(
+            &mut buf,
+            &mut accum,
+            &colors,
+            ColorTarget::Foreground,
+            false,
+        );
         let cell = buf.get(2, 2).unwrap();
         assert_eq!(cell.fg, Some(green), "should step from red to green");
         assert!(
@@ -645,7 +651,13 @@ mod tests {
         buf.set(2, 2, cell_with_fg(red));
         let mut accum = HashMap::new();
         accum.insert((2, 2), 3.0);
-        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground, false);
+        commit_marker_accum(
+            &mut buf,
+            &mut accum,
+            &colors,
+            ColorTarget::Foreground,
+            false,
+        );
         let cell = buf.get(2, 2).unwrap();
         assert_eq!(
             cell.fg,
@@ -664,7 +676,13 @@ mod tests {
         buf.set(2, 2, cell_with_fg(red));
         let mut accum = HashMap::new();
         accum.insert((2, 2), 10.0);
-        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground, false);
+        commit_marker_accum(
+            &mut buf,
+            &mut accum,
+            &colors,
+            ColorTarget::Foreground,
+            false,
+        );
         let cell = buf.get(2, 2).unwrap();
         assert_eq!(cell.fg, Some(blue), "should clamp at last color (blue)");
     }
@@ -678,7 +696,13 @@ mod tests {
         buf.set(2, 2, cell_with_fg(red));
         let mut accum = HashMap::new();
         accum.insert((2, 2), 2.7);
-        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground, false);
+        commit_marker_accum(
+            &mut buf,
+            &mut accum,
+            &colors,
+            ColorTarget::Foreground,
+            false,
+        );
         let cell = buf.get(2, 2).unwrap();
         assert_eq!(
             cell.fg,
@@ -703,7 +727,13 @@ mod tests {
         buf.set(2, 2, cell_with_fg(cyan));
         let mut accum = HashMap::new();
         accum.insert((2, 2), 1.0);
-        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Foreground, false);
+        commit_marker_accum(
+            &mut buf,
+            &mut accum,
+            &colors,
+            ColorTarget::Foreground,
+            false,
+        );
         let cell = buf.get(2, 2).unwrap();
         assert_eq!(cell.fg, Some(red), "no match should start from color[0]");
     }
@@ -725,7 +755,13 @@ mod tests {
         );
         let mut accum = HashMap::new();
         accum.insert((2, 2), 1.0);
-        commit_marker_accum(&mut buf, &mut accum, &colors, ColorTarget::Background, false);
+        commit_marker_accum(
+            &mut buf,
+            &mut accum,
+            &colors,
+            ColorTarget::Background,
+            false,
+        );
         let cell = buf.get(2, 2).unwrap();
         assert_eq!(cell.bg, Some(green), "should step background forward");
     }

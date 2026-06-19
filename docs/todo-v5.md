@@ -319,7 +319,7 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 ## Phase 5.7 — Animation Enhancements
 
-- [ ] `5.7.1` Animated GIF import to timeline
+- [x] `5.7.1` Animated GIF import to timeline
   - **Goal:** Add an "Import GIF" action (welcome screen + File menu) that opens
     an animated GIF file, decodes each frame as a canvas layer snapshot, and
     populates the animation timeline so the frames are immediately playable and

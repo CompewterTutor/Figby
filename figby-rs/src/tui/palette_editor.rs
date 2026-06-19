@@ -36,6 +36,12 @@ pub struct PaletteEditor {
     pub modified: bool,
     pub import_format: Option<ImportFormat>,
     format_index: usize,
+    /// Lighting pickers visible (when lighting mode active)
+    pub lighting_pickers_visible: bool,
+    /// Which sub-picker is active: None, Some("lit"), Some("shadow")
+    editing_lighting_field: Option<&'static str>,
+    /// Hex input buffer for lit/shadow fields
+    lighting_hex_buffer: String,
 }
 
 impl PaletteEditor {
@@ -52,6 +58,9 @@ impl PaletteEditor {
             modified: false,
             import_format: None,
             format_index: 0,
+            lighting_pickers_visible: false,
+            editing_lighting_field: None,
+            lighting_hex_buffer: String::new(),
         }
     }
 
@@ -64,15 +73,20 @@ impl PaletteEditor {
             for (i, color) in super::palette::ANSI_16_COLORS.iter().enumerate() {
                 let name = names.get(i).copied().unwrap_or("").to_string();
                 let hex = color_to_hex(*color);
-                self.swatches.push(Swatch { name, hex });
+                let mut swatch = Swatch::new(name, hex);
+                swatch.shadow_hex = Some(Swatch::default_shadow_hex(&swatch.hex));
+                self.swatches.push(swatch);
             }
         } else {
             for (i, color) in palette.recent.iter().enumerate() {
                 let name = names.get(i).copied().unwrap_or("Custom").to_string();
                 let hex = color_to_hex(*color);
-                self.swatches.push(Swatch { name, hex });
+                let mut swatch = Swatch::new(name, hex);
+                swatch.shadow_hex = Some(Swatch::default_shadow_hex(&swatch.hex));
+                self.swatches.push(swatch);
             }
         }
+        self.init_lighting_from_swatches();
     }
 
     fn palettes_dir() -> Option<PathBuf> {
@@ -203,6 +217,59 @@ impl PaletteEditor {
         self.save()
     }
 
+    /// Initialize lighting defaults for all swatches (shadow = fg * 0.3).
+    fn init_lighting_from_swatches(&mut self) {
+        for swatch in &mut self.swatches {
+            if swatch.lit_hex.is_none() {
+                swatch.lit_hex = Some(swatch.hex.clone());
+            }
+            if swatch.shadow_hex.is_none() {
+                swatch.shadow_hex = Some(Swatch::default_shadow_hex(&swatch.hex));
+            }
+        }
+    }
+
+    /// Ensure a specific swatch index has lighting defaults.
+    fn ensure_lighting_defaults(&mut self, idx: usize) {
+        if idx >= self.swatches.len() {
+            return;
+        }
+        let swatch = &mut self.swatches[idx];
+        if swatch.lit_hex.is_none() {
+            swatch.lit_hex = Some(swatch.hex.clone());
+        }
+        if swatch.shadow_hex.is_none() {
+            swatch.shadow_hex = Some(Swatch::default_shadow_hex(&swatch.hex));
+        }
+        if swatch.specular.is_none() {
+            swatch.specular = Some(false);
+        }
+        if swatch.shininess.is_none() {
+            swatch.shininess = Some(32.0);
+        }
+    }
+
+    /// Get the lighting data for the active swatches, suitable for LUT generation.
+    pub fn lighting_swatches(&self) -> Vec<super::lighting::SwatchLightingData> {
+        self.swatches
+            .iter()
+            .map(|s| {
+                let lit = hex_to_rgb_tuple(s.lit_hex.as_deref().unwrap_or(&s.hex));
+                let shadow = s
+                    .shadow_hex
+                    .as_deref()
+                    .map(hex_to_rgb_tuple)
+                    .unwrap_or_else(|| hex_to_rgb_tuple(&Swatch::default_shadow_hex(&s.hex)));
+                super::lighting::SwatchLightingData {
+                    lit,
+                    shadow,
+                    specular: s.specular.unwrap_or(false),
+                    shininess: s.shininess.unwrap_or(32.0),
+                }
+            })
+            .collect()
+    }
+
     pub fn apply_to_palette(&self, palette: &mut Palette) {
         palette.recent.clear();
         for swatch in &self.swatches {
@@ -252,6 +319,69 @@ impl PaletteEditor {
                 color_span,
                 Span::raw(format!(" {} ({})", swatch.name, swatch.hex)),
             ]));
+
+            // Lighting pickers: show L/S swatches when lighting mode active
+            if self.lighting_pickers_visible {
+                let lit_hex = swatch.lit_hex.as_deref().unwrap_or(&swatch.hex);
+                let shadow_hex = swatch.shadow_hex.as_deref().unwrap_or(&swatch.hex);
+                let lit_bg = hex_to_color(lit_hex).unwrap_or(Color::Reset);
+                let shadow_bg = hex_to_color(shadow_hex).unwrap_or(Color::Reset);
+
+                let editing_lit = self.editing_lighting_field == Some("lit") && i == self.selected;
+                let editing_shadow =
+                    self.editing_lighting_field == Some("shadow") && i == self.selected;
+
+                let lit_label = if editing_lit {
+                    format!(" L:{} ", self.lighting_hex_buffer)
+                } else {
+                    format!(" L:{} ", lit_hex)
+                };
+                let lit_span = Span::styled(
+                    lit_label.clone(),
+                    Style::default().bg(lit_bg).fg(Color::White),
+                );
+
+                let shadow_label = if editing_shadow {
+                    format!(" S:{} ", self.lighting_hex_buffer)
+                } else {
+                    format!(" S:{} ", shadow_hex)
+                };
+                let shadow_fg = if luminance(shadow_bg).is_none_or(|l| l > 128) {
+                    Color::Black
+                } else {
+                    Color::White
+                };
+                let shadow_span = Span::styled(
+                    shadow_label.clone(),
+                    Style::default().bg(shadow_bg).fg(shadow_fg),
+                );
+
+                lines.push(Line::from(vec![
+                    Span::raw("    "),
+                    lit_span,
+                    Span::raw(" "),
+                    shadow_span,
+                ]));
+
+                // Specular toggle
+                let spec_on = swatch.specular.unwrap_or(false);
+                let spec_label = if spec_on {
+                    format!("  Spec: ON ({:.0})", swatch.shininess.unwrap_or(32.0))
+                } else {
+                    "  Spec: OFF ".to_string()
+                };
+                lines.push(Line::from(vec![
+                    Span::raw("    "),
+                    Span::styled(
+                        spec_label,
+                        Style::default().fg(if spec_on {
+                            theme.general.success
+                        } else {
+                            theme.general.secondary
+                        }),
+                    ),
+                ]));
+            }
         }
 
         lines.push(Line::from(""));
@@ -422,42 +552,158 @@ impl PaletteEditor {
                 }
                 _ => false,
             },
-            PanelMode::Idle => match code {
-                KeyCode::Esc => {
-                    self.open = false;
-                    true
+            PanelMode::Idle => {
+                // Lighting field editing (hex input)
+                if let Some(field) = self.editing_lighting_field {
+                    return match code {
+                        KeyCode::Char(c) if c.is_ascii_hexdigit() || c == '#' => {
+                            if self.lighting_hex_buffer.len() < 7 {
+                                self.lighting_hex_buffer.push(c);
+                            }
+                            true
+                        }
+                        KeyCode::Backspace => {
+                            self.lighting_hex_buffer.pop();
+                            true
+                        }
+                        KeyCode::Enter => {
+                            if self.selected < self.swatches.len() {
+                                let hex = format!(
+                                    "#{:0>6}",
+                                    self.lighting_hex_buffer.trim_start_matches('#')
+                                );
+                                match field {
+                                    "lit" => self.swatches[self.selected].lit_hex = Some(hex),
+                                    "shadow" => self.swatches[self.selected].shadow_hex = Some(hex),
+                                    _ => {}
+                                }
+                                self.modified = true;
+                            }
+                            self.editing_lighting_field = None;
+                            self.lighting_hex_buffer.clear();
+                            true
+                        }
+                        KeyCode::Esc => {
+                            self.editing_lighting_field = None;
+                            self.lighting_hex_buffer.clear();
+                            true
+                        }
+                        _ => false,
+                    };
                 }
-                KeyCode::Up => {
-                    self.selected = self.selected.saturating_sub(1);
-                    true
-                }
-                KeyCode::Down => {
-                    self.selected = self
-                        .selected
-                        .saturating_add(1)
-                        .min(self.swatches.len().saturating_sub(1));
-                    true
-                }
-                KeyCode::Char('s') | KeyCode::Char('S') => {
-                    match self.save() {
-                        Ok(()) => self.message = Some("Saved".to_string()),
-                        Err(e) => self.message = Some(format!("Save error: {e}")),
+
+                match code {
+                    KeyCode::Esc => {
+                        self.open = false;
+                        true
                     }
-                    true
+                    KeyCode::Up => {
+                        self.selected = self.selected.saturating_sub(1);
+                        true
+                    }
+                    KeyCode::Down => {
+                        self.selected = self
+                            .selected
+                            .saturating_add(1)
+                            .min(self.swatches.len().saturating_sub(1));
+                        true
+                    }
+                    KeyCode::Char('s') | KeyCode::Char('S') => {
+                        match self.save() {
+                            Ok(()) => self.message = Some("Saved".to_string()),
+                            Err(e) => self.message = Some(format!("Save error: {e}")),
+                        }
+                        true
+                    }
+                    KeyCode::Char('l') | KeyCode::Char('L') => {
+                        self.mode = PanelMode::ChoosingFormat;
+                        self.format_index = 0;
+                        true
+                    }
+                    KeyCode::Char('d') | KeyCode::Char('D') => {
+                        self.mode = PanelMode::Naming;
+                        self.name_buffer.clear();
+                        self.message = Some("Enter new name for duplicate".to_string());
+                        true
+                    }
+                    // Lighting mode toggles (only when lighting_pickers_visible)
+                    _ if self.lighting_pickers_visible => {
+                        match code {
+                            KeyCode::Char('L') => {
+                                // Edit lit color for selected swatch
+                                self.ensure_lighting_defaults(self.selected);
+                                self.editing_lighting_field = Some("lit");
+                                let hex = self.swatches[self.selected]
+                                    .lit_hex
+                                    .as_deref()
+                                    .unwrap_or(&self.swatches[self.selected].hex)
+                                    .trim_start_matches('#')
+                                    .to_string();
+                                self.lighting_hex_buffer = hex;
+                                true
+                            }
+                            KeyCode::Char('l') => {
+                                // Toggle specular for selected swatch
+                                self.ensure_lighting_defaults(self.selected);
+                                let swatch = &mut self.swatches[self.selected];
+                                let current = swatch.specular.unwrap_or(false);
+                                swatch.specular = Some(!current);
+                                self.modified = true;
+                                true
+                            }
+                            KeyCode::Char('S') => {
+                                // Edit shadow color for selected swatch
+                                self.ensure_lighting_defaults(self.selected);
+                                self.editing_lighting_field = Some("shadow");
+                                let hex = self.swatches[self.selected]
+                                    .shadow_hex
+                                    .as_deref()
+                                    .unwrap_or(&Swatch::default_shadow_hex(
+                                        &self.swatches[self.selected].hex,
+                                    ))
+                                    .trim_start_matches('#')
+                                    .to_string();
+                                self.lighting_hex_buffer = hex;
+                                true
+                            }
+                            KeyCode::Char('s') => {
+                                // Cycle shininess for selected swatch
+                                self.ensure_lighting_defaults(self.selected);
+                                let swatch = &mut self.swatches[self.selected];
+                                let current = swatch.shininess.unwrap_or(32.0);
+                                let new_val = if current >= 128.0 {
+                                    4.0
+                                } else {
+                                    (current * 2.0).min(256.0)
+                                };
+                                swatch.shininess = Some(new_val);
+                                self.modified = true;
+                                true
+                            }
+                            KeyCode::Char('[') => {
+                                // Decrease shininess
+                                self.ensure_lighting_defaults(self.selected);
+                                let swatch = &mut self.swatches[self.selected];
+                                let current = swatch.shininess.unwrap_or(32.0);
+                                swatch.shininess = Some((current / 2.0).max(1.0));
+                                self.modified = true;
+                                true
+                            }
+                            KeyCode::Char(']') => {
+                                // Increase shininess
+                                self.ensure_lighting_defaults(self.selected);
+                                let swatch = &mut self.swatches[self.selected];
+                                let current = swatch.shininess.unwrap_or(32.0);
+                                swatch.shininess = Some((current * 2.0).min(256.0));
+                                self.modified = true;
+                                true
+                            }
+                            _ => false,
+                        }
+                    }
+                    _ => false,
                 }
-                KeyCode::Char('l') | KeyCode::Char('L') => {
-                    self.mode = PanelMode::ChoosingFormat;
-                    self.format_index = 0;
-                    true
-                }
-                KeyCode::Char('d') | KeyCode::Char('D') => {
-                    self.mode = PanelMode::Naming;
-                    self.name_buffer.clear();
-                    self.message = Some("Enter new name for duplicate".to_string());
-                    true
-                }
-                _ => false,
-            },
+            }
         }
     }
 }
@@ -535,6 +781,17 @@ fn ansi_to_rgb(index: u8) -> (u8, u8, u8) {
     }
 }
 
+fn hex_to_rgb_tuple(hex: &str) -> (u8, u8, u8) {
+    let hex = hex.trim_start_matches('#');
+    if hex.len() != 6 {
+        return (0, 0, 0);
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
+    let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
+    let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
+    (r, g, b)
+}
+
 fn luminance(color: Color) -> Option<u8> {
     match color {
         Color::Rgb(r, g, b) => Some(((r as u16 + g as u16 + b as u16) / 3) as u8),
@@ -556,14 +813,8 @@ mod tests {
     #[test]
     fn test_palette_file_roundtrip() {
         let swatches = vec![
-            Swatch {
-                name: "Red".to_string(),
-                hex: "#FF0000".to_string(),
-            },
-            Swatch {
-                name: "Green".to_string(),
-                hex: "#00FF00".to_string(),
-            },
+            Swatch::new("Red".to_string(), "#FF0000".to_string()),
+            Swatch::new("Green".to_string(), "#00FF00".to_string()),
         ];
         let file = PaletteFile {
             name: "test".to_string(),
@@ -579,10 +830,7 @@ mod tests {
 
     #[test]
     fn test_palette_duplicate_independence() {
-        let swatches_a = vec![Swatch {
-            name: "Red".to_string(),
-            hex: "#FF0000".to_string(),
-        }];
+        let swatches_a = vec![Swatch::new("Red".to_string(), "#FF0000".to_string())];
         let mut a = PaletteFile {
             name: "A".to_string(),
             swatches: swatches_a,
@@ -603,10 +851,7 @@ mod tests {
         std::env::set_var("XDG_CONFIG_HOME", dir.path());
 
         let mut editor = PaletteEditor::new();
-        editor.swatches = vec![Swatch {
-            name: "Blue".to_string(),
-            hex: "#0000FF".to_string(),
-        }];
+        editor.swatches = vec![Swatch::new("Blue".to_string(), "#0000FF".to_string())];
         editor.name_buffer = "test_palette".to_string();
 
         // Save
@@ -639,6 +884,9 @@ mod tests {
         assert_eq!(editor.swatches.len(), 2);
         assert_eq!(editor.swatches[0].hex, "#FF0000");
         assert_eq!(editor.swatches[1].hex, "#00FF00");
+        // Lighting defaults should be set
+        assert_eq!(editor.swatches[0].lit_hex, Some("#FF0000".to_string()));
+        assert_eq!(editor.swatches[0].shadow_hex, Some("#4D0000".to_string()));
     }
 
     #[test]
@@ -669,10 +917,7 @@ mod tests {
     #[test]
     fn test_apply_to_palette() {
         let mut editor = PaletteEditor::new();
-        editor.swatches = vec![Swatch {
-            name: "Custom".to_string(),
-            hex: "#FF00FF".to_string(),
-        }];
+        editor.swatches = vec![Swatch::new("Custom".to_string(), "#FF00FF".to_string())];
 
         let mut palette = Palette::new();
         editor.apply_to_palette(&mut palette);

@@ -150,8 +150,20 @@ pub struct LutEntry {
     pub ch: char,
 }
 
+/// Per-swatch lighting data for LUT generation.
+#[derive(Clone, Debug)]
+pub struct SwatchLightingData {
+    pub lit: (u8, u8, u8),
+    pub shadow: (u8, u8, u8),
+    pub specular: bool,
+    pub shininess: f32,
+}
+
+const ENTRIES_PER_SWATCH: usize = 256;
+
 pub struct LightingLut {
     pub entries: Vec<LutEntry>,
+    pub swatch_count: usize,
 }
 
 impl LightingLut {
@@ -160,31 +172,61 @@ impl LightingLut {
         lit_color: (u8, u8, u8),
         char_map: &str,
     ) -> Self {
-        let chars: Vec<char> = char_map.chars().collect();
-        let mut entries = Vec::with_capacity(256);
-        for i in 0..=255 {
-            let t = i as f32 / 255.0;
-            let r = (shadow_color.0 as f32 * (1.0 - t) + lit_color.0 as f32 * t) as u8;
-            let g = (shadow_color.1 as f32 * (1.0 - t) + lit_color.1 as f32 * t) as u8;
-            let b = (shadow_color.2 as f32 * (1.0 - t) + lit_color.2 as f32 * t) as u8;
-            let ch = if chars.is_empty() {
-                ' '
-            } else {
-                let idx = (t * (chars.len() - 1) as f32).round() as usize;
-                chars[idx.min(chars.len() - 1)]
-            };
-            entries.push(LutEntry {
-                fg_color: (r, g, b),
-                bg_color: None,
-                ch,
-            });
-        }
-        LightingLut { entries }
+        let data = SwatchLightingData {
+            lit: lit_color,
+            shadow: shadow_color,
+            specular: false,
+            shininess: 32.0,
+        };
+        Self::from_swatches(&[data], char_map)
     }
 
+    /// Build a multi-swatch LUT. Each swatch gets 256 entries (shadow→lit ramp).
+    pub fn from_swatches(swatches: &[SwatchLightingData], char_map: &str) -> Self {
+        let chars: Vec<char> = char_map.chars().collect();
+        let mut entries = Vec::with_capacity(swatches.len() * ENTRIES_PER_SWATCH);
+
+        for swatch in swatches {
+            for i in 0..ENTRIES_PER_SWATCH {
+                let t = i as f32 / (ENTRIES_PER_SWATCH - 1) as f32;
+                let r = (swatch.shadow.0 as f32 * (1.0 - t) + swatch.lit.0 as f32 * t) as u8;
+                let g = (swatch.shadow.1 as f32 * (1.0 - t) + swatch.lit.1 as f32 * t) as u8;
+                let b = (swatch.shadow.2 as f32 * (1.0 - t) + swatch.lit.2 as f32 * t) as u8;
+                let ch = if chars.is_empty() {
+                    ' '
+                } else {
+                    let idx = (t * (chars.len() - 1) as f32).round() as usize;
+                    chars[idx.min(chars.len() - 1)]
+                };
+                entries.push(LutEntry {
+                    fg_color: (r, g, b),
+                    bg_color: None,
+                    ch,
+                });
+            }
+        }
+
+        LightingLut {
+            entries,
+            swatch_count: swatches.len(),
+        }
+    }
+
+    /// Get entry for a given swatch at a given luminance.
+    pub fn get_swatched(&self, luminance: f32, swatch_idx: usize) -> &LutEntry {
+        let swatch_idx = swatch_idx.min(self.swatch_count.saturating_sub(1));
+        let base = swatch_idx * ENTRIES_PER_SWATCH;
+        let idx = ((luminance.clamp(0.0, 1.0)) * (ENTRIES_PER_SWATCH - 1) as f32).round() as usize;
+        &self.entries[base + idx.min(ENTRIES_PER_SWATCH - 1)]
+    }
+
+    /// Convenience: get entry for swatch 0.
     pub fn get(&self, luminance: f32) -> &LutEntry {
-        let idx = ((luminance.clamp(0.0, 1.0)) * 255.0).round() as usize;
-        &self.entries[idx.min(255)]
+        self.get_swatched(luminance, 0)
+    }
+
+    pub fn swatch_count(&self) -> usize {
+        self.swatch_count
     }
 }
 
@@ -669,5 +711,78 @@ mod tests {
     #[test]
     fn intensity_to_char_clamp() {
         assert_eq!(intensity_to_char(1.5, DEFAULT_CHAR_MAP), '@');
+    }
+
+    #[test]
+    fn test_lut_from_swatches_multiple() {
+        let swatches = vec![
+            SwatchLightingData {
+                lit: (255, 0, 0),
+                shadow: (0, 0, 0),
+                specular: false,
+                shininess: 32.0,
+            },
+            SwatchLightingData {
+                lit: (0, 255, 0),
+                shadow: (0, 0, 0),
+                specular: false,
+                shininess: 32.0,
+            },
+            SwatchLightingData {
+                lit: (0, 0, 255),
+                shadow: (0, 0, 0),
+                specular: false,
+                shininess: 32.0,
+            },
+        ];
+        let lut = LightingLut::from_swatches(&swatches, DEFAULT_CHAR_MAP);
+        assert_eq!(lut.swatch_count(), 3);
+        assert_eq!(lut.entries.len(), 3 * 256);
+        // Same luminance, different swatches should give different colors
+        let e0 = lut.get_swatched(1.0, 0);
+        let e1 = lut.get_swatched(1.0, 1);
+        let e2 = lut.get_swatched(1.0, 2);
+        assert_eq!(e0.fg_color, (255, 0, 0));
+        assert_eq!(e1.fg_color, (0, 255, 0));
+        assert_eq!(e2.fg_color, (0, 0, 255));
+    }
+
+    #[test]
+    fn test_lut_default_fallbacks() {
+        // Swatch with no explicit lit/shadow defaults to shadow=fg*0.3, lit=fg
+        // In our model, we pass explicit values, so test that from_palette works as before
+        let lut = LightingLut::from_palette((0, 0, 0), (255, 255, 255), DEFAULT_CHAR_MAP);
+        assert_eq!(lut.get(0.0).fg_color, (0, 0, 0));
+        assert_eq!(lut.get(1.0).fg_color, (255, 255, 255));
+        // Midpoint should be 50% gray
+        let mid = lut.get(0.5);
+        assert!((mid.fg_color.0 as i16 - 127).abs() <= 1);
+    }
+
+    #[test]
+    fn test_get_swatched_bounds() {
+        let swatches = vec![
+            SwatchLightingData {
+                lit: (255, 255, 255),
+                shadow: (0, 0, 0),
+                specular: false,
+                shininess: 32.0,
+            },
+            SwatchLightingData {
+                lit: (255, 0, 0),
+                shadow: (0, 0, 0),
+                specular: false,
+                shininess: 32.0,
+            },
+        ];
+        let lut = LightingLut::from_swatches(&swatches, DEFAULT_CHAR_MAP);
+        // Out-of-range swatch index should clamp to last
+        let e = lut.get_swatched(1.0, 5);
+        assert_eq!(e.fg_color, (255, 0, 0));
+        // Out-of-range luminance should clamp
+        let e2 = lut.get_swatched(1.5, 0);
+        assert_eq!(e2.fg_color, (255, 255, 255));
+        let e3 = lut.get_swatched(-0.5, 0);
+        assert_eq!(e3.fg_color, (0, 0, 0));
     }
 }

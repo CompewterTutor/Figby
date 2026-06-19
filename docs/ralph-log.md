@@ -6184,3 +6184,7 @@ DONE: 5.8.1 merged into release/5.8.
 ## 2026-06-18 22:43
 
 DONE: 5.8.2 merged into release/5.8.
+
+## 2026-06-18 22:59
+
+DONE: 5.8.3 merged into release/5.8.

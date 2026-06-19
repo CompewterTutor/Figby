@@ -1,5 +1,12 @@
 # Figby — Learnings
 
+## 5.8.4 — Palette LUT integration
+
+- `SwatchLightingData` in `lighting.rs` and `Swatch` in `palette_import.rs` share similar fields but serve different roles: `Swatch` is the serialisable/UI model with `Option` fields for partial overrides, while `SwatchLightingData` is the flattened LUT input with resolved defaults. Keep the separation — the conversion happens in `PaletteEditor::lighting_swatches()`.
+- Canvas-to-swatch matching uses a `HashMap<(u8,u8,u8), usize>` for exact RGB matches, with Euclidean distance fallback via `nearest_rgb()` in canvas. This is simpler than storing swatch index per cell and avoids adding a field to `CanvasCell`.
+- `is_none_or()` (stabilised Rust 1.82) is useful for conditional luminance-based FG colour selection: `luminance(bg).is_none_or(|l| l > 128)`.
+- When adding multi-swatch support to `LightingLut`, the single-swatch `from_palette()` method delegates to `from_swatches(&[data])` — avoids duplicating the LUT generation logic.
+
 ## 5.6.5 — Marker brush mode
 
 - `BrushSubMode` enum lives in `brush.rs` (alongside `BrushState`), but the task's

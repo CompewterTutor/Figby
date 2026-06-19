@@ -10,6 +10,7 @@ fn make_test_cells(rows: usize, cols: usize, ch: char) -> Vec<Vec<CanvasCell>> {
                     ch,
                     fg: if x % 2 == 0 { Some(Color::Red) } else { None },
                     bg: if y % 2 == 0 { Some(Color::Blue) } else { None },
+                    height: None,
                 })
                 .collect()
         })
@@ -150,11 +151,13 @@ fn regression_export_txt_unicode() {
             ch: '\u{2603}',
             fg: None,
             bg: None,
+            height: None,
         }],
         vec![CanvasCell {
             ch: '\u{2764}',
             fg: None,
             bg: None,
+            height: None,
         }],
     ];
     let txt = export_cells_to_txt(&cells);
@@ -169,11 +172,13 @@ fn regression_export_txt_strips_color() {
             ch: 'A',
             fg: Some(Color::Red),
             bg: Some(Color::Blue),
+            height: None,
         }],
         vec![CanvasCell {
             ch: 'B',
             fg: Some(Color::Green),
             bg: None,
+            height: None,
         }],
     ];
     let txt = export_cells_to_txt(&cells);

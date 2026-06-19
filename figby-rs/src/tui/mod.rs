@@ -1819,6 +1819,7 @@ impl TuiApp {
                                 &mut self.marker_accum,
                                 &colors,
                                 target,
+                                mouse.modifiers.contains(KeyModifiers::ALT),
                             );
                             *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
                             self.editor.recomposite_canvas();

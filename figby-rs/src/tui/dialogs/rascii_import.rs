@@ -74,6 +74,7 @@ fn image_ext_to_cells(
                     ch,
                     fg: None,
                     bg: None,
+                    height: None,
                 });
             }
             cells.push(cell_row);
@@ -96,6 +97,7 @@ fn image_ext_to_cells(
                 ch,
                 fg: Some(fg),
                 bg: None,
+                height: None,
             });
         }
         cells.push(cell_row);

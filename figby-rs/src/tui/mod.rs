@@ -184,6 +184,7 @@ impl EditorState {
                                 ch: c,
                                 fg: None,
                                 bg: None,
+                                height: None,
                             },
                         );
                     }
@@ -384,6 +385,10 @@ pub struct TuiApp {
     pub baked_layer_indices: Vec<usize>,
     pub timeline_visible: bool,
     pub marker_accum: HashMap<(i16, i16), f64>,
+    pub lighting_scene: Option<lighting::Scene>,
+    pub max_shadow_distance: u16,
+    pub height_scale: f32,
+    pub lighting_lut: lighting::LightingLut,
 }
 
 impl TuiApp {
@@ -538,6 +543,14 @@ impl TuiApp {
             baked_layer_indices: Vec::new(),
             timeline_visible: false,
             marker_accum: HashMap::new(),
+            lighting_scene: None,
+            max_shadow_distance: 50,
+            height_scale: 0.5,
+            lighting_lut: lighting::LightingLut::from_palette(
+                (0, 0, 0),
+                (255, 255, 255),
+                crate::image_input::DEFAULT_CHAR_MAP,
+            ),
         }
     }
 
@@ -1032,6 +1045,20 @@ impl TuiApp {
                 self.editor.canvas.glyph_cursor = None;
             }
 
+            let composited = self.editor.canvas.buffer.clone();
+
+            if let Some(ref scene) = self.lighting_scene {
+                let shaded = components::canvas::shade_composited(
+                    &composited,
+                    &self.editor.layer_stack,
+                    scene,
+                    &self.lighting_lut,
+                    self.max_shadow_distance,
+                    self.height_scale,
+                );
+                self.editor.canvas.buffer = shaded;
+            }
+
             if self.emitter_active && self.show_live_particles {
                 let saved = self.editor.canvas.buffer.clone();
                 self.particle_system
@@ -1041,6 +1068,8 @@ impl TuiApp {
             } else {
                 frame.render_widget(&self.editor.canvas, canvas_inner_rect);
             }
+
+            self.editor.canvas.buffer = composited;
         }
     }
 
@@ -1628,6 +1657,7 @@ impl TuiApp {
                         ch: self.editor.brush.ch,
                         fg: None,
                         bg: None,
+                        height: None,
                     };
                     self.editor.palette.apply_to_cell(&mut cell);
                     let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
@@ -1667,6 +1697,7 @@ impl TuiApp {
                         ch: self.editor.brush.ch,
                         fg: None,
                         bg: None,
+                        height: None,
                     };
                     self.editor.palette.apply_to_cell(&mut cell);
                     let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
@@ -1704,6 +1735,7 @@ impl TuiApp {
                         ch: self.editor.brush.ch,
                         fg: None,
                         bg: None,
+                        height: None,
                     };
                     self.editor.palette.apply_to_cell(&mut cell);
                     let shape = self.editor.brush.shape;
@@ -1746,6 +1778,7 @@ impl TuiApp {
                             ch: self.editor.brush.ch,
                             fg: None,
                             bg: None,
+                            height: None,
                         };
                         self.editor.palette.apply_to_cell(&mut cell);
                         let shape = self.editor.brush.shape;
@@ -1770,6 +1803,7 @@ impl TuiApp {
                             ch: self.editor.brush.ch,
                             fg: None,
                             bg: None,
+                            height: None,
                         };
                         self.editor.palette.apply_to_cell(&mut cell);
                         let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
@@ -1800,6 +1834,7 @@ impl TuiApp {
                             ch: self.editor.brush.ch,
                             fg: None,
                             bg: None,
+                            height: None,
                         };
                         self.editor.palette.apply_to_cell(&mut cell);
                         let shape = self.editor.brush.shape;
@@ -2802,6 +2837,7 @@ impl TuiApp {
                     ch: self.editor.brush.ch,
                     fg: None,
                     bg: None,
+                    height: None,
                 };
                 self.editor.palette.apply_to_cell(&mut cell);
                 let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
@@ -2820,6 +2856,7 @@ impl TuiApp {
                     ch: self.editor.brush.ch,
                     fg: None,
                     bg: None,
+                    height: None,
                 };
                 self.editor.palette.apply_to_cell(&mut cell);
                 let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
@@ -2836,6 +2873,7 @@ impl TuiApp {
                     ch: self.editor.brush.ch,
                     fg: None,
                     bg: None,
+                    height: None,
                 };
                 self.editor.palette.apply_to_cell(&mut cell);
                 let shape = self.editor.brush.shape;
@@ -3306,6 +3344,7 @@ impl TuiApp {
                                             ch: top.ch,
                                             fg: final_fg,
                                             bg: final_bg,
+                                            height: None,
                                         },
                                     );
                                 }

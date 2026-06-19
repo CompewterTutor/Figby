@@ -700,6 +700,7 @@ pub fn capture_timeline_frames(
                                     ch: top.ch,
                                     fg: final_fg,
                                     bg: final_bg,
+                                    height: None,
                                 },
                             );
                         }
@@ -1031,6 +1032,7 @@ mod tests {
                 ch: 'A',
                 fg: Some(Color::Red),
                 bg: None,
+                height: None,
             },
         );
         let mut timeline = TimelineState::default();
@@ -1057,6 +1059,7 @@ mod tests {
                 ch: 'A',
                 fg: Some(Color::Red),
                 bg: None,
+                height: None,
             },
         );
         stack.layers.push(Layer::new(3, 3, "Layer 1".into()));
@@ -1067,6 +1070,7 @@ mod tests {
                 ch: 'B',
                 fg: Some(Color::Green),
                 bg: None,
+                height: None,
             },
         );
         let mut timeline = TimelineState::default();
@@ -1096,6 +1100,7 @@ mod tests {
                 ch: 'X',
                 fg: Some(Color::Blue),
                 bg: None,
+                height: None,
             },
         );
         let mut timeline = TimelineState::default();
@@ -1133,6 +1138,7 @@ mod tests {
                 ch: 'Z',
                 fg: Some(Color::Cyan),
                 bg: None,
+                height: None,
             },
         );
         let mut timeline = TimelineState::default();
@@ -1170,6 +1176,7 @@ mod tests {
                 ch: ' ',
                 fg: Some(Color::Rgb(200, 100, 50)),
                 bg: None,
+                height: None,
             },
         );
         stack.layers.push(Layer::new(1, 1, "Layer 1".into()));
@@ -1180,6 +1187,7 @@ mod tests {
                 ch: 'X',
                 fg: Some(Color::Rgb(100, 200, 50)),
                 bg: None,
+                height: None,
             },
         );
         let mut timeline = TimelineState::default();
@@ -1214,6 +1222,7 @@ mod tests {
                 ch: 'A',
                 fg: Some(Color::Red),
                 bg: None,
+                height: None,
             },
         );
         let mut timeline = TimelineState::default();
@@ -1285,6 +1294,7 @@ mod tests {
             ch: 'A',
             fg: Some(Color::Red),
             bg: None,
+            height: None,
         }]];
         let result = dialog.perform_export(&cells);
         assert!(result.is_ok());
@@ -1313,7 +1323,16 @@ mod tests {
         bg: Option<Color>,
     ) -> Vec<Vec<CanvasCell>> {
         (0..rows)
-            .map(|_| (0..cols).map(|_| CanvasCell { ch, fg, bg }).collect())
+            .map(|_| {
+                (0..cols)
+                    .map(|_| CanvasCell {
+                        ch,
+                        fg,
+                        bg,
+                        height: None,
+                    })
+                    .collect()
+            })
             .collect()
     }
 
@@ -1336,6 +1355,7 @@ mod tests {
             ch: ' ',
             fg: None,
             bg: None,
+            height: None,
         }]];
         let result = dialog.perform_export(&single_cell);
         assert!(result.is_ok());
@@ -1371,6 +1391,7 @@ mod tests {
             ch: ' ',
             fg: None,
             bg: None,
+            height: None,
         }]];
         let result = dialog.perform_export(&single_cell);
         assert!(result.is_ok());
@@ -1415,6 +1436,7 @@ mod tests {
             ch: ' ',
             fg: None,
             bg: None,
+            height: None,
         }]];
         let result = dialog.perform_export(&single_cell);
         assert!(result.is_ok());

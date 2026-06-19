@@ -54,3 +54,15 @@ Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
 - `intensity_to_char()` — luminance → char via linear index into char map
 
 22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.
+
+### 5.8.2 — Canvas and layer integration
+
+Wired lighting engine into canvas render pipeline:
+- `CanvasCell` (defined in `lib.rs` `canvas_inner` module) gained `height: Option<u8>` field (default `None`). All construction sites updated with `height: None`.
+- `Layer` gained `accepts_lighting: bool` and `casts_shadow: bool` (both default `true`).
+- Created `figby-rs/src/tui/components/canvas.rs` with `shade_composited()` — builds shadow/lighting masks from layer flags, computes normal map via `lighting::compute_normal_map_figfont()`, generates luminance via `lighting::shade_canvas()`, maps through `LightingLut`.
+- `TuiApp` gained `lighting_scene: Option<Scene>`, `max_shadow_distance: u16` (default 50), `height_scale: f32` (default 0.5), `lighting_lut: LightingLut` fields.
+- Shading pass inserted after layer compositing in render function; skipped when `lighting_scene` is `None`. Buffer preserved via save/restore to prevent frame-to-frame compounding.
+- Layer panel shows `A`/`S` status indicators for lighting/shadow flags; `L` toggles `accepts_lighting`, `S` toggles `casts_shadow`.
+
+`CanvasCell` re-exported from `tui/canvas.rs` (`pub use crate::CanvasCell`). 17 files touched. No `.unwrap()` in production. fmt and clippy pass clean.

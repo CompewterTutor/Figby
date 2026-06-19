@@ -356,7 +356,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Suggested model:** Pro
   - **Difficulty:** High
 
-- [ ] `5.8.2` Canvas and layer integration
+- [x] `5.8.2` Canvas and layer integration
   - **Goal:** Wire the lighting engine into the canvas render pipeline.
     `CanvasCell` gains `height: Option<u8>` (default `None`). `Layer` gains
     `accepts_lighting: bool` and `casts_shadow: bool` (both default `true`).

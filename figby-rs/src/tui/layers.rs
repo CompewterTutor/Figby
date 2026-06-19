@@ -130,6 +130,8 @@ pub struct Layer {
     pub blend_mode: BlendMode,
     pub mask: Option<LayerMask>,
     pub group: Option<usize>,
+    pub accepts_lighting: bool,
+    pub casts_shadow: bool,
 }
 
 impl Layer {
@@ -143,6 +145,8 @@ impl Layer {
             blend_mode: BlendMode::Normal,
             mask: None,
             group: None,
+            accepts_lighting: true,
+            casts_shadow: true,
         }
     }
 
@@ -509,6 +513,7 @@ impl LayerStack {
                                     ch: top.ch,
                                     fg: final_fg,
                                     bg: final_bg,
+                                    height: None,
                                 },
                             );
                         }
@@ -528,6 +533,18 @@ impl LayerStack {
     pub fn toggle_lock(&mut self, index: usize) {
         if let Some(layer) = self.layers.get_mut(index) {
             layer.locked = !layer.locked;
+        }
+    }
+
+    pub fn toggle_accepts_lighting(&mut self, index: usize) {
+        if let Some(layer) = self.layers.get_mut(index) {
+            layer.accepts_lighting = !layer.accepts_lighting;
+        }
+    }
+
+    pub fn toggle_casts_shadow(&mut self, index: usize) {
+        if let Some(layer) = self.layers.get_mut(index) {
+            layer.casts_shadow = !layer.casts_shadow;
         }
     }
 
@@ -662,8 +679,16 @@ impl LayerPanel {
                 stack.toggle_visibility(stack.active);
                 true
             }
-            KeyCode::Char('l') | KeyCode::Char('L') => {
+            KeyCode::Char('l') => {
                 stack.toggle_lock(stack.active);
+                true
+            }
+            KeyCode::Char('L') => {
+                stack.toggle_accepts_lighting(stack.active);
+                true
+            }
+            KeyCode::Char('S') => {
+                stack.toggle_casts_shadow(stack.active);
                 true
             }
             KeyCode::Char('+') | KeyCode::Char('=') => {
@@ -817,8 +842,8 @@ impl LayerPanel {
         let inner_x = inner.x;
         let inner_h = inner.height as usize;
         let help_lines = [
-            "↑↓ sel ↵vis Llock ±opa Bbld",
-            "Nnew Ddup Xdel Mmask(Grp",
+            "↑↓ sel ↵vis llock Llight Sshad",
+            "Nnew Ddup Xdel ±opa Bbld Mmask",
             ",↑ .↓ reorder ←→col",
         ];
 
@@ -905,19 +930,23 @@ impl LayerPanel {
             let indent = if layer.group.is_some() { "  " } else { "" };
             let vis_ch = if layer.visible { vis_icon } else { " " };
             let lock_ch = if layer.locked { "L" } else { " " };
+            let light_ch = if layer.accepts_lighting { "A" } else { " " };
+            let shadow_ch = if layer.casts_shadow { "S" } else { " " };
             let blend_icon = self
                 .icons
                 .get(layer.blend_mode.icon_key())
                 .map(|s| s.as_str())
                 .unwrap_or("");
 
-            let name_max = (inner.width as usize).saturating_sub(16).max(4);
+            let name_max = (inner.width as usize).saturating_sub(18).max(4);
 
             let label = format!(
-                "{}{} {} {} {} {:3}% {}{}",
+                "{}{} {} {} {} {} {} {:3}% {}{}",
                 indent,
                 vis_ch,
                 lock_ch,
+                light_ch,
+                shadow_ch,
                 if is_active { ">" } else { " " },
                 blend_icon,
                 (layer.opacity as f32 / 255.0 * 100.0).round() as u8,
@@ -986,6 +1015,7 @@ mod tests {
             ch,
             fg: None,
             bg: None,
+            height: None,
         }
     }
 
@@ -1195,6 +1225,7 @@ mod tests {
             ch,
             fg: Some(Color::Rgb(r, g, b)),
             bg: None,
+            height: None,
         }
     }
 

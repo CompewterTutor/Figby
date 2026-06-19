@@ -14,6 +14,7 @@ fn regression_tui_canvas_roundtrip() {
             ch: 'A',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     canvas.buffer.set(
@@ -23,6 +24,7 @@ fn regression_tui_canvas_roundtrip() {
             ch: 'Z',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -195,6 +197,7 @@ fn regression_tui_canvas_zoom_colored() {
             ch: 'X',
             fg: Some(Color::Red),
             bg: None,
+            height: None,
         },
     );
     canvas.handle_key(KeyCode::Char('+'), 20, 10);

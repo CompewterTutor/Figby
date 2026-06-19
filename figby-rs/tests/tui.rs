@@ -180,6 +180,7 @@ fn test_canvas_render_cells() {
             ch: 'A',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     canvas.buffer.set(
@@ -189,6 +190,7 @@ fn test_canvas_render_cells() {
             ch: 'B',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -272,6 +274,7 @@ fn test_canvas_cursor_visible() {
             ch: 'X',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -304,6 +307,7 @@ fn test_canvas_zoom_shows_grid() {
             ch: 'A',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     canvas.buffer.set(
@@ -313,6 +317,7 @@ fn test_canvas_zoom_shows_grid() {
             ch: 'B',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -822,6 +827,7 @@ fn test_fill_tool_keyboard() {
             ch: '@',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     app.editor.canvas.buffer.set(
@@ -831,6 +837,7 @@ fn test_fill_tool_keyboard() {
             ch: '@',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     app.editor.canvas.buffer.set(
@@ -840,6 +847,7 @@ fn test_fill_tool_keyboard() {
             ch: '@',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     app.editor.canvas.buffer.set(
@@ -849,6 +857,7 @@ fn test_fill_tool_keyboard() {
             ch: '@',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -1672,6 +1681,7 @@ fn test_eraser_tool_keyboard_erase() {
             ch: 'X',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     assert_eq!(app.editor.canvas.buffer.get(3, 3).unwrap().ch, 'X');
@@ -1769,6 +1779,7 @@ fn test_eyedropper_tool_keyboard_does_not_paint() {
             ch: ' ',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -1831,6 +1842,7 @@ fn test_selection_copy_delete_keyboard() {
             ch: 'A',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -1879,6 +1891,7 @@ fn test_selection_cut_direct() {
             ch: 'B',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -2372,6 +2385,7 @@ fn test_selection_escape_deselects() {
             ch: 'X',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 
@@ -2496,6 +2510,7 @@ fn test_selection_perimeter_delete() {
             ch: 'A',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     app.editor.canvas.buffer.set(
@@ -2505,6 +2520,7 @@ fn test_selection_perimeter_delete() {
             ch: 'B',
             fg: None,
             bg: None,
+            height: None,
         },
     );
     // Cell outside selection (should survive)
@@ -2515,6 +2531,7 @@ fn test_selection_perimeter_delete() {
             ch: 'X',
             fg: None,
             bg: None,
+            height: None,
         },
     );
 

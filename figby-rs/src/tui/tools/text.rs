@@ -299,6 +299,7 @@ impl TextToolState {
                                 ch: cell_char,
                                 fg: self.text_color,
                                 bg: None,
+                                height: None,
                             };
                             buffer.set(bx as usize, by as usize, cell);
                         }

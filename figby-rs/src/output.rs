@@ -499,7 +499,16 @@ mod tests {
         bg: Option<Color>,
     ) -> Vec<Vec<CanvasCell>> {
         (0..rows)
-            .map(|_| (0..cols).map(|_| CanvasCell { ch, fg, bg }).collect())
+            .map(|_| {
+                (0..cols)
+                    .map(|_| CanvasCell {
+                        ch,
+                        fg,
+                        bg,
+                        height: None,
+                    })
+                    .collect()
+            })
             .collect()
     }
 
@@ -511,16 +520,19 @@ mod tests {
                     ch: 'A',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'B',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'C',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
             ],
             vec![
@@ -528,16 +540,19 @@ mod tests {
                     ch: 'D',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'E',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'F',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
             ],
         ];
@@ -551,11 +566,13 @@ mod tests {
                 ch: 'X',
                 fg: Some(Color::Red),
                 bg: None,
+                height: None,
             },
             CanvasCell {
                 ch: 'Y',
                 fg: Some(Color::Green),
                 bg: None,
+                height: None,
             },
         ]];
         let txt = export_cells_to_txt(&cells);
@@ -580,11 +597,13 @@ mod tests {
                     ch: 'A',
                     fg: Some(Color::Red),
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'B',
                     fg: None,
                     bg: Some(Color::Blue),
+                    height: None,
                 },
             ],
             vec![
@@ -592,11 +611,13 @@ mod tests {
                     ch: ' ',
                     fg: None,
                     bg: None,
+                    height: None,
                 },
                 CanvasCell {
                     ch: 'X',
                     fg: Some(Color::Green),
                     bg: Some(Color::White),
+                    height: None,
                 },
             ],
         ];
@@ -654,6 +675,7 @@ mod tests {
             ch: '\u{2603}',
             fg: None,
             bg: None,
+            height: None,
         }]];
         let txt = export_cells_to_txt(&cells);
         assert_eq!(txt, "\u{2603}");
@@ -716,11 +738,13 @@ mod tests {
                 ch: 'A',
                 fg: Some(Color::Red),
                 bg: None,
+                height: None,
             }],
             vec![CanvasCell {
                 ch: ' ',
                 fg: None,
                 bg: None,
+                height: None,
             }],
         ];
         let bytes = export_cells_to_png_with_alpha(&cells, 1, true).expect("PNG with alpha");
@@ -823,11 +847,13 @@ mod tests {
                 ch: 'A',
                 fg: None,
                 bg: None,
+                height: None,
             },
             CanvasCell {
                 ch: 'B',
                 fg: None,
                 bg: None,
+                height: None,
             },
         ]];
         let result = export_cells_to_ansi(&cells);
@@ -841,6 +867,7 @@ mod tests {
             ch: 'X',
             fg: Some(Color::Red),
             bg: Some(Color::Blue),
+            height: None,
         }]];
         let result = export_cells_to_ansi(&cells);
         assert!(result.contains("\x1b[38;2;255;0;0m"));
@@ -855,6 +882,7 @@ mod tests {
             ch: 'A',
             fg: None,
             bg: None,
+            height: None,
         }]];
         let result = export_cells_to_ansi(&cells);
         assert!(!result.contains("\x1b[38"));
@@ -868,11 +896,13 @@ mod tests {
             ch: 'A',
             fg: None,
             bg: None,
+            height: None,
         }]];
         let frame2 = vec![vec![CanvasCell {
             ch: 'B',
             fg: None,
             bg: None,
+            height: None,
         }]];
         let result = export_cells_to_ansi_multi(&[frame1, frame2], &[10, 10]);
         assert_eq!(result.matches("\x1b[2J").count(), 2);
@@ -894,6 +924,7 @@ mod tests {
             ch: 'Y',
             fg: Some(Color::Green),
             bg: None,
+            height: None,
         }]];
         let result = export_cells_to_ansi(&cells);
         assert!(result.contains("\x1b[38;2;0;128;0m"));
@@ -907,6 +938,7 @@ mod tests {
             ch: 'Z',
             fg: None,
             bg: Some(Color::Magenta),
+            height: None,
         }]];
         let result = export_cells_to_ansi(&cells);
         assert!(!result.contains("\x1b[38"));

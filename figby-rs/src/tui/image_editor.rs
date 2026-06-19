@@ -152,11 +152,13 @@ impl ImageEditor {
                         ch,
                         fg: Some(Color::Rgb(r, g, b)),
                         bg: None,
+                        height: None,
                     },
                     AsciiMode::Grayscale => CanvasCell {
                         ch,
                         fg: None,
                         bg: None,
+                        height: None,
                     },
                 };
                 cell_row.push(cell);
@@ -192,6 +194,7 @@ impl ImageEditor {
                     ch,
                     fg: None,
                     bg: None,
+                    height: None,
                 });
                 x += 2;
             }

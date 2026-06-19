@@ -292,6 +292,7 @@ mod tests {
             ch,
             fg: None,
             bg: None,
+            height: None,
         }
     }
 

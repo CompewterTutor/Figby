@@ -19,6 +19,7 @@ mod tests {
             ch: '@',
             fg: Some(Color::Indexed(1)),
             bg: None,
+            height: None,
         };
         buf.set(3, 5, cell);
         let sampled = sample(&buf, 3, 5).unwrap();
@@ -50,6 +51,7 @@ mod tests {
             ch: 'X',
             fg: None,
             bg: None,
+            height: None,
         };
         buf.set(2, 2, cell);
         let sampled = sample(&buf, 2, 2).unwrap();
@@ -64,6 +66,7 @@ mod tests {
             ch: '@',
             fg: None,
             bg: None,
+            height: None,
         };
         buf.set(4, 6, cell);
         let sampled = sample(&buf, 4, 6).unwrap();

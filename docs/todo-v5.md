@@ -390,7 +390,7 @@ Source: `docs/4.0-manual-testing-notes.md`
   - **Suggested model:** Pro
   - **Difficulty:** High
 
-- [ ] `5.8.4` Palette LUT integration
+- [x] `5.8.4` Palette LUT integration
   - **Goal:** Extend palette entries with `lit_color` and `shadow_color` fields
     (optional; defaults: `lit_color = fg`, `shadow_color = fg * 0.3`). Add
     `specular: bool` and `shininess: f32` per entry. Generate `LightingLut`

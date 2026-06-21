@@ -837,17 +837,17 @@ fn test_fill_tool_keyboard() {
         .layer_stack
         .active_layer_mut()
         .buffer_mut()
-        .set(1, 1, cell.clone());
+        .set(1, 1, cell);
     app.editor
         .layer_stack
         .active_layer_mut()
         .buffer_mut()
-        .set(1, 2, cell.clone());
+        .set(1, 2, cell);
     app.editor
         .layer_stack
         .active_layer_mut()
         .buffer_mut()
-        .set(2, 1, cell.clone());
+        .set(2, 1, cell);
     app.editor
         .layer_stack
         .active_layer_mut()

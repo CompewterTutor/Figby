@@ -150,12 +150,11 @@ pub struct TweenPreview {
 
 #[derive(Debug, Clone)]
 pub struct AnimationTimeline {
-    pub frame_thumb_width: u16,
-    pub frame_thumb_height: u16,
-    pub frame_gap: u16,
-    pub visible_frames: usize,
+    /// Width of the layer-name column (chars).
+    pub label_col_width: u16,
+    /// Content width of each frame cell (chars); separator `│` adds 1 more.
+    pub cell_width: u16,
     pub theme: TimelineTheme,
-    pub onion_skinning: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -167,6 +166,10 @@ pub struct TimelineState {
     pub fps: u8,
     pub keyframe_editor: KeyframeEditState,
     pub tween: Option<TweenPreview>,
+    /// Layer names in render order (bottom-to-top of stack).
+    pub layer_names: Vec<String>,
+    /// Vertical scroll offset for layers (row index of first visible layer).
+    pub layer_row_offset: usize,
 }
 
 impl Default for TimelineState {
@@ -179,6 +182,8 @@ impl Default for TimelineState {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            layer_names: Vec::new(),
+            layer_row_offset: 0,
         }
     }
 }
@@ -843,13 +848,14 @@ impl AnimationTimeline {
     /// Create an `AnimationTimeline` configured for the bottom timeline panel.
     pub fn panel_instance() -> Self {
         Self {
-            frame_thumb_width: 8,
-            frame_thumb_height: 3,
-            frame_gap: 1,
-            visible_frames: 20,
+            label_col_width: 11,
+            cell_width: 3,
             theme: TimelineTheme::default(),
-            onion_skinning: true,
         }
+    }
+
+    fn frame_stride(&self) -> u16 {
+        self.cell_width + 1 // content + separator
     }
 }
 
@@ -871,211 +877,179 @@ impl StatefulWidget for &AnimationTimeline {
     type State = TimelineState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        if area.width == 0 || area.height == 0 || state.frames.is_empty() {
+        if area.width == 0 || area.height == 0 {
             return;
         }
 
-        let slot_w = self.frame_thumb_width + self.frame_gap;
-        if slot_w == 0 {
-            return;
-        }
-
-        let total_rows = 1 + self.frame_thumb_height + 1 + 1;
-        if area.height < total_rows {
-            return;
-        }
-
-        let max_frames = self.visible_frames.min((area.width / slot_w) as usize);
-        let start = state.scroll_offset.min(state.frames.len());
-        let end = (start + max_frames).min(state.frames.len());
-
-        let tween_preview = state
-            .tween
-            .as_ref()
-            .filter(|t| t.valid && !t.generated_frames.is_empty());
-        let tween_insert_offset = tween_preview.map(|t| t.config.start_frame + 1);
-
-        let mut tween_rendered = false;
-        let mut tween_frame_count = 0usize;
-
-        for vis_i in 0..(end - start) {
-            let frame_idx = start + vis_i;
-            let x_start = area.x + (vis_i as u16) * slot_w;
-            let frame = &state.frames[frame_idx];
-            let is_active = frame_idx == state.current_frame;
-
-            // Insert tween preview frames after start_frame
-            if let (Some(insert_at), Some(tp)) = (tween_insert_offset, tween_preview) {
-                if frame_idx == insert_at && !tween_rendered {
-                    tween_rendered = true;
-                    for (ti, tf) in tp.generated_frames.iter().enumerate() {
-                        let tx = area.x + ((vis_i + tween_frame_count) as u16) * slot_w;
-                        tween_frame_count += 1;
-                        if tx + slot_w > area.x + area.width {
-                            break;
-                        }
-                        // Ruler line
-                        let ruler_y = area.y;
-                        let label = format!("{}+{}", insert_at, ti + 1);
-                        for (ci, ch) in label.chars().enumerate() {
-                            let cx = tx + ci as u16;
-                            if cx < area.x + area.width {
-                                if let Some(cell) = buf.cell_mut((cx, ruler_y)) {
-                                    cell.set_char(ch);
-                                    cell.set_style(Style::default().fg(Color::Cyan));
-                                }
-                            }
-                        }
-                        // Ghost thumbnail
-                        let thumb_y = area.y + 1;
-                        for ty in 0..self.frame_thumb_height.min(area.height - 1) {
-                            let cy = thumb_y + ty;
-                            if cy >= area.y + area.height {
-                                break;
-                            }
-                            for tx2 in 0..self.frame_thumb_width {
-                                let cx = tx + tx2;
-                                if cx >= area.x + area.width {
-                                    break;
-                                }
-                                if let Some(cell) = buf.cell_mut((cx, cy)) {
-                                    let ch = tf
-                                        .thumbnail
-                                        .get(ty as usize)
-                                        .and_then(|row| row.get(tx2 as usize))
-                                        .copied()
-                                        .unwrap_or(' ');
-                                    cell.set_char(ch);
-                                    cell.set_style(
-                                        Style::default()
-                                            .fg(Color::Cyan)
-                                            .add_modifier(ratatui::style::Modifier::DIM),
-                                    );
-                                }
-                            }
-                        }
-                        // Marker
-                        let marker_y = area.y + 1 + self.frame_thumb_height;
-                        if marker_y < area.y + area.height {
-                            if let Some(cell) = buf.cell_mut((tx, marker_y)) {
-                                cell.set_char('◇');
-                                cell.set_style(Style::default().fg(Color::Cyan));
-                            }
-                        }
-                        // Label
-                        let bottom_y = area.y + 1 + self.frame_thumb_height + 1;
-                        if bottom_y < area.y + area.height {
-                            for (ci, ch) in tf.label.chars().enumerate() {
-                                let cx = tx + ci as u16;
-                                if cx >= area.x + area.width {
-                                    break;
-                                }
-                                if let Some(cell) = buf.cell_mut((cx, bottom_y)) {
-                                    cell.set_char(ch);
-                                    cell.set_style(Style::default().fg(Color::Cyan));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            let ruler_y = area.y;
-            if is_active {
-                if let Some(cell) = buf.cell_mut((x_start, ruler_y)) {
-                    cell.set_char('▼');
-                    cell.set_style(Style::default().fg(self.theme.playhead));
-                }
-            } else {
-                let label = format!("{}", frame_idx);
-                for (ci, ch) in label.chars().enumerate() {
-                    let cx = x_start + ci as u16;
-                    if cx < area.x + area.width {
-                        if let Some(cell) = buf.cell_mut((cx, ruler_y)) {
-                            cell.set_char(ch);
-                            cell.set_style(Style::default().fg(self.theme.ruler));
-                        }
-                    }
-                }
-            }
-
-            let thumb_y = area.y + 1;
-            // Onion skinning: render previous frame's thumbnail dimly if enabled
-            if self.onion_skinning && is_active && frame_idx > 0 {
-                if let Some(prev) = state.frames.get(frame_idx.saturating_sub(1)) {
-                    for ty in 0..self.frame_thumb_height.min(area.height - 1) {
-                        let cy = thumb_y + ty;
-                        if cy >= area.y + area.height {
-                            break;
-                        }
-                        for tx in 0..self.frame_thumb_width {
-                            let cx = x_start + tx;
-                            if cx >= area.x + area.width {
-                                break;
-                            }
-                            if let Some(cell) = buf.cell_mut((cx, cy)) {
-                                let ch = prev
-                                    .thumbnail
-                                    .get(ty as usize)
-                                    .and_then(|row| row.get(tx as usize))
-                                    .copied()
-                                    .unwrap_or(' ');
-                                if ch != ' ' {
-                                    cell.set_char(ch);
-                                    cell.set_style(
-                                        Style::default().fg(self.theme.thumbnail_border),
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            for ty in 0..self.frame_thumb_height.min(area.height - 1) {
-                let cy = thumb_y + ty;
-                if cy >= area.y + area.height {
+        // No frames yet — show a hint.
+        if state.frames.is_empty() {
+            let hint = "[A] Capture frame to start animation";
+            let x = area.x + area.width.saturating_sub(hint.len() as u16) / 2;
+            for (i, ch) in hint.chars().enumerate() {
+                let cx = x + i as u16;
+                if cx >= area.x + area.width {
                     break;
                 }
-                for tx in 0..self.frame_thumb_width {
-                    let cx = x_start + tx;
-                    if cx >= area.x + area.width {
-                        break;
-                    }
-                    if let Some(cell) = buf.cell_mut((cx, cy)) {
-                        let ch = frame
-                            .thumbnail
-                            .get(ty as usize)
-                            .and_then(|row| row.get(tx as usize))
-                            .copied()
-                            .unwrap_or(' ');
-                        cell.set_char(ch);
-                        if is_active {
-                            cell.set_style(Style::default().fg(self.theme.active_frame_border));
-                        }
-                    }
+                if let Some(cell) = buf.cell_mut((cx, area.y)) {
+                    cell.set_char(ch);
+                    cell.set_style(Style::default().fg(self.theme.ruler));
+                }
+            }
+            return;
+        }
+
+        let stride = self.frame_stride(); // separator + cell_width
+        if stride == 0 || area.width <= self.label_col_width {
+            return;
+        }
+
+        let frame_area_w = area.width - self.label_col_width;
+        let max_vis_frames = (frame_area_w / stride) as usize;
+        let f_start = state.scroll_offset.min(state.frames.len());
+        let f_end = (f_start + max_vis_frames).min(state.frames.len());
+
+        let n_layers = state.layer_names.len().max(
+            state
+                .frames
+                .iter()
+                .map(|f| f.layer_keyframes.len())
+                .max()
+                .unwrap_or(0),
+        );
+
+        // ── Ruler row (row 0) ────────────────────────────────────────────────
+        let ruler_y = area.y;
+        // Header cell over the label column
+        let header = "Layers";
+        for (i, ch) in header.chars().enumerate() {
+            let cx = area.x + i as u16;
+            if cx >= area.x + self.label_col_width {
+                break;
+            }
+            if let Some(cell) = buf.cell_mut((cx, ruler_y)) {
+                cell.set_char(ch);
+                cell.set_style(
+                    Style::default()
+                        .fg(self.theme.ruler)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                );
+            }
+        }
+        // Frame number columns
+        for (vis_i, frame_idx) in (f_start..f_end).enumerate() {
+            let col_x = area.x + self.label_col_width + vis_i as u16 * stride;
+            let is_active = frame_idx == state.current_frame;
+
+            // Separator
+            if let Some(cell) = buf.cell_mut((col_x, ruler_y)) {
+                cell.set_char('│');
+                cell.set_style(Style::default().fg(self.theme.ruler));
+            }
+            // Frame label (right-justified in cell_width)
+            let label = format!("{:>width$}", frame_idx, width = self.cell_width as usize);
+            let label_style = if is_active {
+                Style::default()
+                    .fg(self.theme.playhead)
+                    .add_modifier(ratatui::style::Modifier::BOLD)
+            } else {
+                Style::default().fg(self.theme.ruler)
+            };
+            for (ci, ch) in label.chars().enumerate() {
+                let cx = col_x + 1 + ci as u16;
+                if cx >= area.x + area.width {
+                    break;
+                }
+                if let Some(cell) = buf.cell_mut((cx, ruler_y)) {
+                    cell.set_char(ch);
+                    cell.set_style(label_style);
+                }
+            }
+        }
+
+        // ── Layer rows ───────────────────────────────────────────────────────
+        let max_layer_rows = area.height.saturating_sub(1) as usize;
+        let l_start = state
+            .layer_row_offset
+            .min(if n_layers > 0 { n_layers - 1 } else { 0 });
+        let l_end = (l_start + max_layer_rows).min(n_layers.max(1));
+
+        for (vis_row, layer_idx) in (l_start..l_end).enumerate() {
+            let row_y = area.y + 1 + vis_row as u16;
+            if row_y >= area.y + area.height {
+                break;
+            }
+
+            // Layer name label
+            let name = state
+                .layer_names
+                .get(layer_idx)
+                .map(|s| s.as_str())
+                .unwrap_or("");
+            let truncated: String = name
+                .chars()
+                .take(self.label_col_width.saturating_sub(1) as usize)
+                .collect();
+            let padded = format!(
+                "{:<width$}",
+                truncated,
+                width = self.label_col_width as usize
+            );
+            for (i, ch) in padded.chars().enumerate() {
+                let cx = area.x + i as u16;
+                if let Some(cell) = buf.cell_mut((cx, row_y)) {
+                    cell.set_char(ch);
                 }
             }
 
-            let marker_y = area.y + 1 + self.frame_thumb_height;
-            if marker_y < area.y + area.height {
-                let marker = if frame.has_keyframe { '◆' } else { '·' };
-                if let Some(cell) = buf.cell_mut((x_start, marker_y)) {
-                    cell.set_char(marker);
-                    if frame.has_keyframe {
-                        cell.set_style(Style::default().fg(self.theme.keyframe));
-                    }
-                }
-            }
+            // Frame cells for this layer
+            for (vis_i, frame_idx) in (f_start..f_end).enumerate() {
+                let col_x = area.x + self.label_col_width + vis_i as u16 * stride;
+                let is_active_frame = frame_idx == state.current_frame;
+                let frame = &state.frames[frame_idx];
+                let has_kf = frame
+                    .layer_keyframes
+                    .get(layer_idx)
+                    .and_then(|k| *k)
+                    .is_some();
 
-            let bottom_y = area.y + 1 + self.frame_thumb_height + 1;
-            if bottom_y < area.y + area.height {
-                for (ci, ch) in frame.label.chars().enumerate() {
-                    let cx = x_start + ci as u16;
+                // Separator
+                if let Some(cell) = buf.cell_mut((col_x, row_y)) {
+                    cell.set_char('│');
+                    cell.set_style(Style::default().fg(self.theme.ruler));
+                }
+
+                // Cell content: centre char + padding
+                let (marker, style) = if has_kf {
+                    (
+                        '◆',
+                        if is_active_frame {
+                            Style::default().fg(self.theme.active_frame_border)
+                        } else {
+                            Style::default().fg(self.theme.keyframe)
+                        },
+                    )
+                } else {
+                    (
+                        '·',
+                        if is_active_frame {
+                            Style::default().fg(self.theme.active_frame_border)
+                        } else {
+                            Style::default().fg(self.theme.ruler)
+                        },
+                    )
+                };
+
+                // Write centred marker inside cell_width
+                let marker_offset = self.cell_width / 2;
+                for ci in 0..self.cell_width {
+                    let cx = col_x + 1 + ci;
                     if cx >= area.x + area.width {
                         break;
                     }
-                    if let Some(cell) = buf.cell_mut((cx, bottom_y)) {
+                    if let Some(cell) = buf.cell_mut((cx, row_y)) {
+                        let ch = if ci == marker_offset { marker } else { ' ' };
                         cell.set_char(ch);
+                        cell.set_style(style);
                     }
                 }
             }
@@ -1086,37 +1060,14 @@ impl StatefulWidget for &AnimationTimeline {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::style::Modifier;
 
-    fn make_test_timeline_with_onion(
-        thumb_w: u16,
-        thumb_h: u16,
-        gap: u16,
-        visible: usize,
-        onion: bool,
-    ) -> AnimationTimeline {
+    // label_col_width=11, cell_width=3, stride=4
+    fn make_test_timeline() -> AnimationTimeline {
         AnimationTimeline {
-            frame_thumb_width: thumb_w,
-            frame_thumb_height: thumb_h,
-            frame_gap: gap,
-            visible_frames: visible,
+            label_col_width: 11,
+            cell_width: 3,
             theme: TimelineTheme::default(),
-            onion_skinning: onion,
-        }
-    }
-
-    fn make_test_timeline(
-        thumb_w: u16,
-        thumb_h: u16,
-        gap: u16,
-        visible: usize,
-    ) -> AnimationTimeline {
-        AnimationTimeline {
-            frame_thumb_width: thumb_w,
-            frame_thumb_height: thumb_h,
-            frame_gap: gap,
-            visible_frames: visible,
-            theme: TimelineTheme::default(),
-            onion_skinning: false,
         }
     }
 
@@ -1130,259 +1081,261 @@ mod tests {
         }
     }
 
+    // ─── Render tests ────────────────────────────────────────────────
+
     #[test]
     fn test_timeline_basic_render() {
-        let timeline = make_test_timeline(3, 2, 1, 5);
+        // label_col=11, stride=4
+        // Frame 0: col_x=11, sep at (11,0), label "  0" at (12,13,14)
+        let timeline = make_test_timeline();
         let mut state = TimelineState {
-            frames: (0..5)
-                .map(|i| make_frame(vec![vec!['X'; 3]; 2], i == 2, &format!("{}", i)))
+            frames: (0..3)
+                .map(|i| make_frame(vec![], false, &format!("{}", i)))
                 .collect(),
-            current_frame: 0,
-            scroll_offset: 0,
-            playing: false,
-            fps: 12,
-            keyframe_editor: KeyframeEditState::default(),
-            tween: None,
+            layer_names: vec!["Layer 1".into()],
+            ..TimelineState::default()
         };
 
-        let area = Rect::new(0, 0, 20, 5);
+        let area = Rect::new(0, 0, 30, 4);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
-        let cell = buf.cell((0, 0)).unwrap();
-        assert_eq!(cell.symbol(), "▼", "playhead should be at frame 0");
+        assert_eq!(
+            buf.cell((0, 0)).unwrap().symbol(),
+            "L",
+            "ruler header 'Layers'"
+        );
+        assert_eq!(
+            buf.cell((11, 0)).unwrap().symbol(),
+            "│",
+            "frame 0 separator"
+        );
+        assert_eq!(buf.cell((14, 0)).unwrap().symbol(), "0", "frame 0 number");
+        assert_eq!(buf.cell((18, 0)).unwrap().symbol(), "1", "frame 1 number");
     }
 
     #[test]
     fn test_timeline_playhead_update() {
-        let timeline = make_test_timeline(3, 2, 1, 5);
+        // current_frame=2: col_x=11+2*4=19, label "  2" at (20,21,22) — BOLD
+        // frame 0: col_x=11, label "  0" at (12,13,14) — not BOLD
+        let timeline = make_test_timeline();
         let mut state = TimelineState {
             frames: (0..5)
-                .map(|i| make_frame(vec![vec!['X'; 3]; 2], false, &format!("{}", i)))
+                .map(|i| make_frame(vec![], false, &format!("{}", i)))
                 .collect(),
-            current_frame: 3,
-            scroll_offset: 0,
-            playing: false,
-            fps: 12,
-            keyframe_editor: KeyframeEditState::default(),
-            tween: None,
+            current_frame: 2,
+            layer_names: vec!["L1".into()],
+            ..TimelineState::default()
         };
 
-        let area = Rect::new(0, 0, 20, 5);
+        let area = Rect::new(0, 0, 40, 3);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
-        let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
-        let frame_x = 3 * slot_w;
-        let cell = buf.cell((frame_x, 1)).unwrap();
-        assert_eq!(
-            cell.style().fg,
-            Some(Color::Cyan),
-            "frame 3 thumbnail should have active style"
+        let active = buf.cell((22, 0)).unwrap();
+        assert_eq!(active.symbol(), "2");
+        assert!(
+            active.style().add_modifier.contains(Modifier::BOLD),
+            "active frame number should be BOLD"
         );
 
-        let playhead_cell = buf.cell((frame_x, 0)).unwrap();
-        assert_eq!(playhead_cell.symbol(), "▼", "playhead should be at frame 3");
+        let inactive = buf.cell((14, 0)).unwrap();
+        assert_eq!(inactive.symbol(), "0");
+        assert!(
+            !inactive.style().add_modifier.contains(Modifier::BOLD),
+            "non-active frame number should not be BOLD"
+        );
     }
 
     #[test]
     fn test_timeline_constraints() {
-        let thumb_w = 5u16;
-        let thumb_h = 3u16;
-        let timeline = make_test_timeline(thumb_w, thumb_h, 1, 3);
+        // label_col=11, stride=4, 3 frames → width=23, 1 ruler + 2 layer rows
+        let timeline = make_test_timeline();
         let mut state = TimelineState {
             frames: (0..3)
-                .map(|i| {
-                    make_frame(
-                        vec![vec!['A'; thumb_w as usize]; thumb_h as usize],
-                        false,
-                        &format!("{}", i),
-                    )
-                })
+                .map(|i| make_frame(vec![], false, &format!("{}", i)))
                 .collect(),
-            current_frame: 0,
-            scroll_offset: 0,
-            playing: false,
-            fps: 12,
-            keyframe_editor: KeyframeEditState::default(),
-            tween: None,
+            layer_names: vec!["Alpha".into(), "Beta".into()],
+            ..TimelineState::default()
         };
 
-        let slot_w = thumb_w + 1;
-        let area = Rect::new(0, 0, 3 * slot_w, 1 + thumb_h + 1 + 1);
+        let area = Rect::new(0, 0, 23, 3);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
-        let mut non_empty = 0u32;
-        for vis_i in 0..3 {
-            for ty in 0..thumb_h {
-                for tx in 0..thumb_w {
-                    let cx = (vis_i as u16) * slot_w + tx;
-                    let cy = 1 + ty;
-                    if let Some(cell) = buf.cell((cx, cy)) {
-                        if cell.symbol() != " " {
-                            non_empty += 1;
-                        }
-                    }
-                }
-            }
-        }
-        assert_eq!(non_empty, 3 * thumb_w as u32 * thumb_h as u32);
+        assert_eq!(
+            buf.cell((0, 1)).unwrap().symbol(),
+            "A",
+            "layer 0 name 'Alpha'"
+        );
+        assert_eq!(
+            buf.cell((0, 2)).unwrap().symbol(),
+            "B",
+            "layer 1 name 'Beta'"
+        );
+        assert_eq!(
+            buf.cell((11, 1)).unwrap().symbol(),
+            "│",
+            "frame 0 sep row 1"
+        );
+        assert_eq!(
+            buf.cell((15, 1)).unwrap().symbol(),
+            "│",
+            "frame 1 sep row 1"
+        );
+        assert_eq!(
+            buf.cell((19, 1)).unwrap().symbol(),
+            "│",
+            "frame 2 sep row 1"
+        );
     }
 
     #[test]
     fn test_timeline_scroll() {
-        let slot_w = 5u16 + 1;
-        let timeline = make_test_timeline(5, 2, 1, 5);
+        // scroll_offset=10 → frame 10 first visible
+        // col_x=11, label " 10": (12,' '),(13,'1'),(14,'0')
+        let timeline = make_test_timeline();
         let mut state = TimelineState {
             frames: (0..20)
-                .map(|i| make_frame(vec![vec!['F'; 5]; 2], false, &format!("{}", i)))
+                .map(|i| make_frame(vec![], false, &format!("{}", i)))
                 .collect(),
-            current_frame: 0,
             scroll_offset: 10,
-            playing: false,
-            fps: 12,
-            keyframe_editor: KeyframeEditState::default(),
-            tween: None,
+            layer_names: vec!["L".into()],
+            ..TimelineState::default()
         };
 
-        let area = Rect::new(0, 0, 5 * slot_w, 1 + 2 + 1 + 1);
+        let area = Rect::new(0, 0, 23, 2);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
-        let bottom_y = area.y + 1 + 2 + 1;
-        let label_cell = buf.cell((0, bottom_y)).unwrap();
         assert_eq!(
-            label_cell.symbol(),
-            "1",
-            "frame 10 label should show at leftmost position"
+            buf.cell((11, 0)).unwrap().symbol(),
+            "│",
+            "first sep is frame 10"
         );
-
-        let label_cell2 = buf.cell((1, bottom_y)).unwrap();
-        assert_eq!(label_cell2.symbol(), "0", "frame 10 label should show '10'");
-
-        let frame0_x = -(10i32) * slot_w as i32;
-        assert!(
-            frame0_x < 0,
-            "frame 0 should be scrolled out (negative column)"
+        assert_eq!(
+            buf.cell((13, 0)).unwrap().symbol(),
+            "1",
+            "frame 10 label '1'"
+        );
+        assert_eq!(
+            buf.cell((14, 0)).unwrap().symbol(),
+            "0",
+            "frame 10 label '0'"
         );
     }
 
     #[test]
     fn test_timeline_keyframe_markers() {
-        let timeline = make_test_timeline(3, 2, 1, 3);
+        // Frames 0 and 2 have a keyframe for layer 0; frame 1 does not.
+        // Layer 0 row (y=1). marker_offset = cell_width/2 = 1.
+        // Frame 0: col_x=11, marker at (11+1+1)=13
+        // Frame 1: col_x=15, marker at 17
+        // Frame 2: col_x=19, marker at 21
+        let timeline = make_test_timeline();
+        let mut frame0 = make_frame(vec![], false, "0");
+        frame0.layer_keyframes = vec![Some(LayerKeyframe::default())];
+        let frame1 = make_frame(vec![], false, "1");
+        let mut frame2 = make_frame(vec![], false, "2");
+        frame2.layer_keyframes = vec![Some(LayerKeyframe::default())];
+
         let mut state = TimelineState {
-            frames: vec![
-                make_frame(vec![vec![' '; 3]; 2], true, "0"),
-                make_frame(vec![vec![' '; 3]; 2], false, "1"),
-                make_frame(vec![vec![' '; 3]; 2], true, "2"),
-            ],
-            current_frame: 0,
-            scroll_offset: 0,
-            playing: false,
-            fps: 12,
-            keyframe_editor: KeyframeEditState::default(),
-            tween: None,
+            frames: vec![frame0, frame1, frame2],
+            layer_names: vec!["Base".into()],
+            ..TimelineState::default()
         };
 
-        let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
-        let area = Rect::new(0, 0, 3 * slot_w, 1 + 2 + 1 + 1);
+        let area = Rect::new(0, 0, 23, 2);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
-        let marker_y = area.y + 1 + 2;
-
-        let cell0 = buf.cell((0, marker_y)).unwrap();
-        assert_eq!(cell0.symbol(), "◆", "frame 0 should have keyframe marker");
-
-        let cell1 = buf.cell((slot_w, marker_y)).unwrap();
         assert_eq!(
-            cell1.symbol(),
-            "·",
-            "frame 1 should have no-keyframe marker"
+            buf.cell((13, 1)).unwrap().symbol(),
+            "◆",
+            "frame 0 has keyframe"
         );
-
-        let cell2 = buf.cell((2 * slot_w, marker_y)).unwrap();
-        assert_eq!(cell2.symbol(), "◆", "frame 2 should have keyframe marker");
+        assert_eq!(
+            buf.cell((17, 1)).unwrap().symbol(),
+            "·",
+            "frame 1 has no keyframe"
+        );
+        assert_eq!(
+            buf.cell((21, 1)).unwrap().symbol(),
+            "◆",
+            "frame 2 has keyframe"
+        );
     }
 
     #[test]
     fn test_timeline_empty() {
-        let timeline = make_test_timeline(3, 2, 1, 5);
+        // "[A] Capture frame to start animation" len=36, centered in width=40 → x=2
+        let timeline = make_test_timeline();
         let mut state = TimelineState::default();
 
-        let area = Rect::new(0, 0, 20, 5);
+        let area = Rect::new(0, 0, 40, 3);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
-        let cell = buf.cell((0, 0)).unwrap();
-        assert_eq!(cell.symbol(), " ", "empty timeline should render nothing");
+        assert_eq!(
+            buf.cell((2, 0)).unwrap().symbol(),
+            "[",
+            "hint starts with '['"
+        );
+        assert_eq!(buf.cell((3, 0)).unwrap().symbol(), "A");
     }
 
     #[test]
-    fn test_timeline_frame_thumbnail_content() {
-        let timeline = make_test_timeline(4, 3, 1, 2);
-        let thumb = vec![
-            vec!['a', 'b', 'c', 'd'],
-            vec!['e', 'f', 'g', 'h'],
-            vec!['i', 'j', 'k', 'l'],
-        ];
+    fn test_timeline_layer_names_display() {
+        // Layer names truncated to label_col_width-1=10 chars, padded to 11.
+        let timeline = make_test_timeline();
         let mut state = TimelineState {
-            frames: vec![make_frame(thumb.clone(), false, "X")],
-            current_frame: 0,
-            scroll_offset: 0,
-            playing: false,
-            fps: 12,
-            keyframe_editor: KeyframeEditState::default(),
-            tween: None,
+            frames: vec![make_frame(vec![], false, "0")],
+            layer_names: vec!["Background".into(), "Foreground".into()],
+            ..TimelineState::default()
         };
 
-        let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
-        let area = Rect::new(0, 0, slot_w, 1 + 3 + 1 + 1);
+        let area = Rect::new(0, 0, 15, 3);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
 
-        for (ty, row) in thumb.iter().enumerate() {
-            for (tx, &expected) in row.iter().enumerate() {
-                let cx = tx as u16;
-                let cy = 1u16 + ty as u16;
-                let cell = buf.cell((cx, cy)).unwrap();
-                assert_eq!(
-                    cell.symbol().chars().next().unwrap(),
-                    expected,
-                    "cell ({}, {}) should be '{}'",
-                    cx,
-                    cy,
-                    expected
-                );
-            }
-        }
+        assert_eq!(
+            buf.cell((0, 1)).unwrap().symbol(),
+            "B",
+            "layer 0 first char"
+        );
+        assert_eq!(buf.cell((9, 1)).unwrap().symbol(), "d", "layer 0 last char");
+        assert_eq!(
+            buf.cell((0, 2)).unwrap().symbol(),
+            "F",
+            "layer 1 first char"
+        );
     }
 
     #[test]
-    fn test_onion_skinning_render() {
-        let timeline = make_test_timeline_with_onion(3, 2, 1, 5, true);
-        let thumb0 = vec![vec![' '; 3]; 2];
-        let thumb1 = vec![vec!['O'; 3]; 2];
+    fn test_active_frame_column_style() {
+        // current_frame=1: col_x=11+4=15, label "  1" at (16,17,18) — BOLD
+        // frame 0: col_x=11, label "  0" at (12,13,14) — not BOLD
+        let timeline = make_test_timeline();
         let mut state = TimelineState {
-            frames: vec![
-                make_frame(thumb0, false, "0"),
-                make_frame(thumb1, false, "1"),
-            ],
+            frames: (0..2)
+                .map(|i| make_frame(vec![], false, &format!("{}", i)))
+                .collect(),
             current_frame: 1,
-            scroll_offset: 0,
-            playing: false,
-            fps: 12,
-            keyframe_editor: KeyframeEditState::default(),
-            tween: None,
+            layer_names: vec!["L".into()],
+            ..TimelineState::default()
         };
-        let slot_w = timeline.frame_thumb_width + timeline.frame_gap;
-        let area = Rect::new(0, 0, 2 * slot_w, 1 + 2 + 1 + 1);
+
+        let area = Rect::new(0, 0, 19, 2);
         let mut buf = Buffer::empty(area);
         StatefulWidget::render(&timeline, area, &mut buf, &mut state);
-        // Frame 1's slot (active) should show 'O' from its own thumbnail on top
-        let cell = buf.cell((slot_w, 1)).unwrap();
-        assert_eq!(cell.symbol(), "O", "active frame shows its own content");
+
+        let active = buf.cell((18, 0)).unwrap();
+        assert_eq!(active.symbol(), "1");
+        assert!(active.style().add_modifier.contains(Modifier::BOLD));
+
+        let inactive = buf.cell((14, 0)).unwrap();
+        assert_eq!(inactive.symbol(), "0");
+        assert!(!inactive.style().add_modifier.contains(Modifier::BOLD));
     }
 
     #[test]
@@ -1406,6 +1359,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.insert_frame(0, make_frame(vec![vec!['Y'; 3]; 2], false, "inserted"));
         assert_eq!(state.frames.len(), 4);
@@ -1425,6 +1379,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         let removed = state.remove_frame(1).unwrap();
         assert_eq!(removed.label, "1");
@@ -1443,6 +1398,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         assert!(state.remove_frame(0).is_err());
     }
@@ -1459,6 +1415,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         assert!(state.remove_frame(5).is_err());
     }
@@ -1475,6 +1432,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.duplicate_frame(1).unwrap();
         assert_eq!(state.frames.len(), 4);
@@ -1504,6 +1462,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.reorder_frame(0, 2).unwrap();
         let labels: Vec<&str> = state.frames.iter().map(|f| f.label.as_str()).collect();
@@ -1522,6 +1481,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.reorder_frame(3, 0).unwrap();
         let labels: Vec<&str> = state.frames.iter().map(|f| f.label.as_str()).collect();
@@ -1558,6 +1518,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         let kf = make_keyframe(5, -3, 128, BlendMode::Screen);
         assert!(state.set_keyframe(2, 0, kf));
@@ -1587,6 +1548,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
         state.set_keyframe(10, 0, make_keyframe(100, 50, 255, BlendMode::Normal));
@@ -1606,6 +1568,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
         state.set_keyframe(10, 0, make_keyframe(0, 0, 0, BlendMode::Normal));
@@ -1627,6 +1590,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
         state.set_keyframe(10, 0, make_keyframe(0, 0, 255, BlendMode::Multiply));
@@ -1660,6 +1624,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(5, 0, make_keyframe(42, 99, 128, BlendMode::Screen));
         let props = state.get_interpolated_properties(2, 0);
@@ -1680,6 +1645,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(3, 0, make_keyframe(10, 20, 200, BlendMode::Add));
         let props = state.get_interpolated_properties(8, 0);
@@ -1700,6 +1666,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(5, 0, make_keyframe(7, 8, 100, BlendMode::Overlay));
         for f in 0..10 {
@@ -1721,6 +1688,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         let props = state.get_interpolated_properties(2, 0);
         assert_eq!(props.position_offset, (0, 0));
@@ -1740,6 +1708,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
         state.set_keyframe(5, 0, make_keyframe(50, 0, 128, BlendMode::Multiply));
@@ -1762,6 +1731,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(0, 0, make_keyframe(0, 0, 100, BlendMode::Normal));
         state.set_keyframe(10, 0, make_keyframe(100, 0, 200, BlendMode::Normal));
@@ -1816,6 +1786,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.keyframe_editor.open = true;
         state.set_keyframe(0, 0, make_keyframe(10, 20, 128, BlendMode::Normal));
@@ -1843,6 +1814,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
         state.keyframe_editor.open = true;
@@ -1865,6 +1837,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         assert!(!state.frames[0].has_keyframe);
         state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
@@ -1893,6 +1866,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(5, 0, make_keyframe(10, 20, 100, BlendMode::Overlay));
         let props = state.get_interpolated_properties(5, 0);
@@ -1914,6 +1888,7 @@ mod tests {
             fps: 12,
             keyframe_editor: KeyframeEditState::default(),
             tween: None,
+            ..TimelineState::default()
         };
         state.set_keyframe(0, 0, make_keyframe(0, 0, 255, BlendMode::Normal));
         state.set_keyframe(10, 0, make_keyframe(100, 50, 0, BlendMode::Multiply));

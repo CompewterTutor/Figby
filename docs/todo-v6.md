@@ -230,6 +230,198 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ---
 
+## Phase 6.7 — Critical UX Bugs (🔴 — fix before any release)
+
+> Source: manual testing notes (4.0-manual-testing-notes.md, 5.0-manual-testing-notes.md).
+> These are crashes and data-loss risks — gate release on all green.
+
+- [ ] `6.7.1` Fix text tool: keybinds eat input keys (manual-note #16)
+  - **Goal:** Typing in Text tool mode routes keystrokes through the global keybind
+    handler before the text input buffer receives them. Most printable keys are
+    consumed by shortcuts (e.g. `b`=brush, `e`=erase, `f`=fill), so users cannot
+    type normally. Text tool must suppress all non-modifier keybinds while in text
+    input state; only Esc/Enter/Arrow/Backspace/Delete should pass through as
+    control keys.
+  - **Touches:** `figby-rs/src/tui/mod.rs` — `handle_key_event` text-tool branch;
+    ensure text-input state is checked BEFORE global tool/mode dispatch.
+  - **Success:** User can type `"Hello world"` in text tool without letters being
+    swallowed. Test: simulate `t` → type `"abc"` → assert canvas contains `abc`.
+  - **Difficulty:** Medium
+
+- [ ] `6.7.2` Prompt to save on exit if unsaved changes (manual-note #18)
+  - **Goal:** Pressing `q`/`Esc` quits immediately, silently discarding unsaved work.
+    Show a confirmation dialog ("Unsaved changes — save before quitting? [Y]es / [N]o /
+    [C]ancel") when `app.dirty` is true. Honour the three choices.
+  - **Touches:** `figby-rs/src/tui/mod.rs` quit path; add `dirty` flag tracking (set
+    on any canvas/font/layer mutation, clear on save).
+  - **Success:** Edit something, press `q` → dialog appears. Save → quit. No → quit
+    without save. Cancel → stays in editor.
+  - **Difficulty:** Medium
+
+- [ ] `6.7.3` Fix panic on direct Unicode input of Deutsch chars (e2e-test-checklist #8.1)
+  - **Goal:** Typing ÄÖÜäöüß directly (not via keyboard reroute `-D`) panics with
+    "missing char code 0" — fixed for render path by 6.5.1 blank-glyph fallback,
+    but the TUI may still panic on these code points. Verify 6.5.1 covers the TUI
+    path; if not, apply same fallback in the TUI render call.
+  - **Touches:** `figby-rs/src/tui/mod.rs` text rendering; `figby-rs/src/render.rs`.
+  - **Success:** Typing or pasting ÄÖÜäöüß in TUI text tool renders blank/unknown
+    glyph — no panic.
+  - **Difficulty:** Low
+
+---
+
+## Phase 6.8 — Missing Core Features (🟠 — needed for v6)
+
+> Features that are present in menus/welcome screen but either do nothing or are
+> entirely absent from the UI. All are referenced in manual testing notes.
+
+- [ ] `6.8.1` Open image: implement file dialog (manual-notes #8, #11)
+  - **Goal:** "Open Image" on the welcome screen and `o`/`O` in image editor mode
+    currently do nothing (welcome) or activate a bare path-entry prompt with no
+    directory browser. Implement a proper file dialog: show current directory listing,
+    allow arrow-key navigation into subdirectories, filter by image extensions
+    (png/jpg/gif/bmp/webp), `Enter` to confirm, `Esc` to cancel. Reuse the save
+    dialog's directory-browser widget if one exists.
+  - **Touches:** `figby-rs/src/tui/file_ops.rs`; `figby-rs/src/tui/welcome.rs`;
+    image-open handler in `tui/mod.rs`.
+  - **Success:** Welcome screen "Open Image" → file dialog → select image → loads into
+    image editor. Path entry mode also replaced or augmented with directory browser.
+  - **Difficulty:** Medium
+
+- [ ] `6.8.2` New image dialog: canvas size + palette selection (manual-note #10)
+  - **Goal:** "New Image" creates a canvas with hard-coded defaults. Add a creation
+    dialog with fields: Width, Height (default 80×24), and a palette dropdown
+    (list of built-in palette names). Tab/arrow to navigate fields, Enter to confirm.
+  - **Touches:** `figby-rs/src/tui/mod.rs` new-image handler; new dialog widget.
+  - **Success:** New Image → dialog appears → user enters 120×40 → canvas created at
+    that size. Palette selection populates the palette panel.
+  - **Difficulty:** Medium
+
+- [ ] `6.8.3` Canvas size: add Edit Canvas Size action (manual-notes #7, #9) *(status bar display already implemented)*
+  - **Goal:** No part of the UI shows current canvas dimensions. (1) Add `WxH` to the
+    status bar. (2) Add "Edit Canvas Size" to the Image menu (or View menu) plus a
+    keybind; opens a small dialog to resize (with crop/pad options). Resize should not
+    destroy existing content — pad with spaces or crop from edges.
+  - **Touches:** `figby-rs/src/tui/components/status_bar.rs`; menu definitions in
+    `tui/mod.rs`; canvas resize logic in `tui/canvas.rs`.
+  - **Success:** Status bar shows dimensions. Resize action changes canvas and content
+    is preserved (padded/cropped correctly).
+  - **Difficulty:** Medium
+
+- [ ] `6.8.4` Add palette editor UI (manual-note #23; original spec items 5.6.3–5.6.4)
+  - **Goal:** No palette editor exists: no keybind, no menu entry, no icon buttons in
+    the palette toolbox. Implement palette editor panel: add/remove/edit colors, name
+    the palette, import from file. Add icon buttons to palette toolbox (new color,
+    edit color, delete color). Add keybind and menu item (View → Palette Editor or
+    palette toolbox context action).
+  - **Touches:** `figby-rs/src/tui/palette.rs`; `figby-rs/src/tui/toolbox.rs`; new
+    `tui/palette_editor_panel.rs` (or extend existing `palette_editor.rs`).
+  - **Success:** Can open palette editor, add a new color, rename it, close. Color
+    appears in palette panel and can be used for drawing.
+  - **Difficulty:** High
+
+- [ ] `6.8.5` Default palettes: ship ~5-shade-per-hue built-in palettes (manual-note #17)
+  - **Goal:** No built-in palettes exist. Add at minimum: a grayscale ramp, a primary
+    color palette, and one warm + one cool themed palette. Each should have ~5 shades
+    per hue. Palettes available in the new-image dialog (6.8.2) and via View menu.
+  - **Touches:** `figby-rs/src/palette_import.rs`; add palette definitions as
+    embedded YAML/TOML constants.
+  - **Success:** Palettes appear in dropdown; selecting one populates the palette panel.
+  - **Difficulty:** Low
+
+- [ ] `6.8.6` Lighting tool: surface or implement (manual-note #14)
+  - **Goal:** Lighting tool referenced in original spec and docs/lighting-design.md
+    but absent from TUI tool palette, keybinds, and menus. Either: (a) implement the
+    tool with basic directional-lighting preview if the logic exists in
+    `lighting-design.md`, or (b) add a clearly-disabled placeholder in the toolbox
+    with a "not yet implemented" tooltip so it's discoverable. At minimum, add a
+    menu item under Tools so users know it's planned.
+  - **Touches:** `figby-rs/src/tui/toolbox.rs`; `figby-rs/src/tui/tools/`; menu.
+  - **Success:** Lighting tool visible in toolbox (even if greyed). If implemented:
+    select it, observe canvas lighting effect.
+  - **Difficulty:** High (full impl) / Low (placeholder)
+
+- [ ] `6.8.7` Keybinds popup: make scrollable + add missing keybinds (manual-note #15)
+  - **Goal:** Keybinds help popup is not scrollable; many keybinds (layer operations,
+    animation controls, palette editor, text tool sub-commands) are missing. Make
+    the popup scrollable (arrow keys or PgUp/PgDn). Audit all keybinds in
+    `handle_key_event` and add each to the help data structure.
+  - **Touches:** `figby-rs/src/tui/mod.rs` keybinds popup render + event handler.
+  - **Success:** Popup scrolls. All keybinds visible across all modes.
+  - **Difficulty:** Low
+
+- [ ] `6.8.8` Timeline and layer panel: make scrollable (manual-note #19)
+  - **Goal:** With many layers or animation frames, timeline and layer panel overflow
+    and clip. Add scroll support (arrow keys + mouse wheel) to both panels. Show a
+    scroll indicator when content overflows.
+  - **Touches:** `figby-rs/src/tui/layers.rs`; animation timeline widget in
+    `tui/mod.rs`.
+  - **Success:** Add 20+ layers — layer panel scrolls. Animate 20+ frames — timeline
+    scrolls.
+  - **Difficulty:** Medium
+
+---
+
+## Phase 6.9 — UX & Layer Panel Polish (🟡 — nice-to-have for v6)
+
+> Visual and interaction improvements from manual testing. None block release but
+> all significantly affect first-run experience.
+
+- [ ] `6.9.1` Layer panel: icon-based layout with 2-row entries (manual-note #12)
+  - **Goal:** Layer panel is text-heavy and confusing. Each entry should be 2 rows:
+    row 1 = layer name (editable on double-click), row 2 = compact attributes (icon
+    for visibility, lock icon, opacity %, blend mode abbreviation). Replace verbose
+    text labels with icons. Panel should be resizable (drag the border) and layers
+    draggable with mouse or via keybinds.
+  - **Touches:** `figby-rs/src/tui/layers.rs`; icon definitions.
+  - **Success:** Layer panel visually compact. Can drag-resize panel width. Can
+    reorder layers by dragging the handle on left edge of each row.
+  - **Difficulty:** Medium
+
+- [ ] `6.9.2` Layers: reorder by drag handle (manual-note #21)
+  - **Goal:** No way to reorder layers. Add a drag handle (left edge of each layer row
+    in the panel); mouse-drag or `Shift+Up`/`Shift+Down` keybinds reorder layers.
+    Layer stack recomposites immediately after reorder.
+  - **Touches:** `figby-rs/src/tui/layers.rs`; `tui/mod.rs` mouse/key handlers.
+  - **Success:** Drag or Shift+Arrow reorders layers. Canvas updates immediately.
+  - **Difficulty:** Medium
+
+- [ ] `6.9.3` Add Layers menu and Timeline menu with actions (manual-note #20)
+  - **Goal:** Layer actions (add, delete, duplicate, merge, move up/down, rename,
+    toggle visibility/lock) exist only via keybinds — no menu. Add a Layers menu
+    in the menu bar. Similarly add an Animation/Timeline menu with frame actions.
+  - **Touches:** Menu bar definitions in `figby-rs/src/tui/mod.rs`.
+  - **Success:** Alt+L opens Layers menu; all layer actions accessible from menu.
+  - **Difficulty:** Low
+
+- [ ] `6.9.4` Move tool options to right sidebar (manual-note #13)
+  - **Goal:** Tool options (brush size, shape, opacity etc.) currently displayed below
+    the toolbox on the left. User expected them in the right sidebar. Move or
+    duplicate tool options panel to right sidebar, or make the location configurable.
+  - **Touches:** `figby-rs/src/tui/layout.rs`; `tui/toolbox.rs`.
+  - **Success:** Tool options visible in right sidebar. Left sidebar toolbox cleaner.
+  - **Difficulty:** Medium
+
+- [x] `6.9.5` Brush size/shape: show current values clearly in UI (manual-note #3)
+  - **Goal:** No visible indicator of current brush size or shape. Add a small
+    brush-preview widget in the toolbox or status bar showing the current size
+    (number) and shape (icon: circle/square/spray). Update live as user changes
+    brush settings.
+  - **Touches:** `figby-rs/src/tui/toolbox.rs`; `tui/components/status_bar.rs`.
+  - **Success:** Changing brush size with `[`/`]` updates the visible indicator
+    immediately.
+  - **Difficulty:** Low
+
+- [ ] `6.9.6` Better visual divider between tool palette and brush info (manual-note #22)
+  - **Goal:** Weak visual separation between the last tool button and the brush
+    info section below it in the toolbox. Add a separator line or padding to make
+    the boundary clear.
+  - **Touches:** `figby-rs/src/tui/toolbox.rs` render.
+  - **Success:** Clear visual break between tool list and brush info.
+  - **Difficulty:** Low
+
+---
+
 ## Deferred to post-v6 (tracked, not blocking)
 
 Color-depth fallback (C1), reduced-motion `--no-anim` (C2), panic-hook terminal

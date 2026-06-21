@@ -125,7 +125,7 @@ pub struct EditorState {
 }
 
 impl EditorState {
-    fn recomposite_canvas(&mut self) {
+    pub fn recomposite_canvas(&mut self) {
         self.canvas.buffer = self.layer_stack.composite();
     }
 
@@ -3178,8 +3178,7 @@ impl TuiApp {
                 | KeyCode::Down
                 | KeyCode::Enter
                 | KeyCode::Backspace
-                | KeyCode::Esc
-                | KeyCode::Tab => {
+                | KeyCode::Esc => {
                     if self.editor.palette.handle_key(code) {
                         let color = self.editor.palette.selected_color;
                         let target = self.editor.palette.target;

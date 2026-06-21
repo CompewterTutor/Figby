@@ -541,14 +541,19 @@ pub fn read_control<P: AsRef<Path>>(path: P, state: &mut ControlState) -> Result
                     b'l' | b'L' => {
                         skip_ws(&mut reader)?;
                         if let Some(d) = reader.next()? {
-                            state.gl = d - b'0';
+                            // Validate range: gl/gr index into a [u32;4] array
+                            if (b'0'..=b'3').contains(&d) {
+                                state.gl = d - b'0';
+                            }
                         }
                         skip_to_eol(&mut reader)?;
                     }
                     b'r' | b'R' => {
                         skip_ws(&mut reader)?;
                         if let Some(d) = reader.next()? {
-                            state.gr = d - b'0';
+                            if (b'0'..=b'3').contains(&d) {
+                                state.gr = d - b'0';
+                            }
                         }
                         skip_to_eol(&mut reader)?;
                     }

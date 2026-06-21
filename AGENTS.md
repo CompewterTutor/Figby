@@ -123,23 +123,56 @@ After completing any implementation work:
 ## File Structure
 
 ```
-figby-rs/         # Rust crate (the port)
+figby-rs/         # Rust crate (library + TUI binary)
 ├── Cargo.toml
 └── src/
-    ├── main.rs
-    ├── font.rs       # FIGfont/TLF parser
-    ├── render.rs     # Character rendering, kerning, smushing
-    ├── smush.rs      # Smushing rules engine
-    └── util.rs       # Utilities, IO helpers
-fonts/                # FIGlet font files
+    ├── main.rs           # CLI entry point + TUI launch
+    ├── lib.rs            # Crate root (re-exports)
+    ├── font.rs           # FIGfont/TLF parser + ZIP font support
+    ├── font_gen.rs       # TTF/OTF → FIGfont conversion (fontdue)
+    ├── render.rs         # Character rendering, kerning, smushing
+    ├── smush.rs          # Smushing rules engine
+    ├── control.rs        # FIGlet control file parser (.flc)
+    ├── config.rs         # CLI config / settings persistence
+    ├── input.rs          # Input pipeline
+    ├── output.rs         # Output formatting
+    ├── image_input.rs    # Image → ASCII luminance/RGB matrix
+    ├── gif_import.rs     # Animated GIF import
+    ├── palette_import.rs # Palette import (Paletty/ASE/WezTerm)
+    ├── template.rs       # .ftmp template engine
+    ├── web.rs            # WASM bindings
+    └── tui/              # TUI application (ratatui)
+        ├── mod.rs        # TuiApp state, event loop, render (4076 LOC)
+        ├── canvas.rs     # ASCII canvas buffer
+        ├── layers.rs     # Layer stack + compositing
+        ├── palette.rs    # Color palette widget
+        ├── palette_editor.rs
+        ├── toolbox.rs    # Tool selection widget
+        ├── font_editor.rs # FIGfont glyph editor
+        ├── image_editor.rs
+        ├── file_ops.rs   # File open/save dialogs
+        ├── layout.rs     # Layout computation
+        ├── keymap.rs     # Global keybindings
+        ├── events.rs     # App event types
+        ├── theme.rs      # Color theme system
+        ├── welcome.rs    # Welcome screen
+        ├── lighting.rs   # Dynamic lighting engine
+        ├── side_panel.rs # Right drawer panel
+        ├── timeline.rs   # Animation timeline
+        ├── export.rs     # Export formats
+        ├── tools/        # Tool implementations
+        │   ├── brush.rs, eraser.rs, fill.rs, line.rs
+        │   ├── selection.rs, spray.rs, text.rs, eyedropper.rs
+        └── components/   # Reusable widgets
+            ├── canvas.rs
+            └── status_bar.rs
+fonts/                # FIGlet font files (.flf/.tlf)
+assets/               # Icons, images, templates
 scripts/
-├── ralph.sh         # Autonomous task loop (bash)
-└── install-hooks.sh
-skills/
-└── ralph.md         # Self-review checklist for tasks
+├── ralph.sh          # Autonomous task loop (bash)
+└── ralph-monitor.sh  # Rate-limit monitor cron
 docs/
-├── todo.md          # Master todo index
-├── todo-v1.md       # v1 tasks (port plan)
-├── memory.md        # Memory index
-└── memory-v1.md     # v1 memory entries
+├── todo.md           # Master todo index
+├── todo-v6.md        # v6 pre-release hardening tasks
+└── codebase-audit-2026-06-18.md
 ```

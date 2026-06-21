@@ -15,7 +15,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ## Phase 6.0 — Critical Security (🔴 do first)
 
-- [ ] `6.0.1` Remove `$(cmd)` command substitution from template resolver (B0/RCE)
+- [x] `6.0.1` Remove `$(cmd)` command substitution from template resolver (B0/RCE)
   - **Goal:** `resolve_text_value` runs `sh -c <cmd>` for any `$(...)` in a
     template text value — rendering a shared `.ftmp` executes its embedded shell.
     Remove the `$(...)` branch entirely (recommended), OR gate behind a
@@ -29,7 +29,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     the leak risk; consider gating it too.
   - **Difficulty:** Medium
 
-- [ ] `6.0.2` Sandbox `{{img:PATH}}` template image paths (B0 adjacent)
+- [x] `6.0.2` Sandbox `{{img:PATH}}` template image paths (B0 adjacent)
   - **Goal:** `render_template` reads an arbitrary local path via
     `rascii_art::render_to(&img.source)` — a shared template can read/exfil-render
     any file the user can read. Restrict image source to the template's own
@@ -39,7 +39,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     same-dir relative image still renders. Add a test.
   - **Difficulty:** Medium
 
-- [ ] `6.0.3` Cap template canvas dimensions (B7/DoS)
+- [x] `6.0.3` Cap template canvas dimensions (B7/DoS)
   - **Goal:** `render_template` allocates `vec![vec![' '; width]; height]` from
     unvalidated `u32` frontmatter; a crafted `width=4000000000` → OOM. Clamp
     `width`/`height` (e.g. `width*height <= 1_000_000` cells) and `margin`/
@@ -57,7 +57,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > All 10 failures are STALE TESTS, not app bugs (confirmed in audit). No
 > production logic change expected. See audit B3 "Refined diagnosis."
 
-- [ ] `6.1.1` Fix welcome-gate stale tests (mode/tool cluster)
+- [x] `6.1.1` Fix welcome-gate stale tests (mode/tool cluster)
   - **Goal:** 4 tests press keys without dismissing the welcome screen, so keys
     route to welcome dispatch (gate at `mod.rs:2427`, `WelcomeScreen.show`
     defaults true). Add `app.welcome_screen.show = false;` after `TuiApp::new()`
@@ -69,7 +69,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** All 4 pass; no production code touched.
   - **Difficulty:** Low
 
-- [ ] `6.1.2` Fix layers-model stale tests (poke active layer, not composite)
+- [x] `6.1.2` Fix layers-model stale tests (poke active layer, not composite)
   - **Goal:** Tests write/read `editor.canvas.buffer` (composite output), but the
     app now sources from `layer_stack` + `recomposite_canvas`. Rewrite to write
     to / read the active LAYER buffer.
@@ -81,7 +81,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     (already proven correct by passing unit tests).
   - **Difficulty:** Medium
 
-- [ ] `6.1.3` Fix shadow round-vs-truncate lib test
+- [x] `6.1.3` Fix shadow round-vs-truncate lib test
   - **Goal:** `palette_editor::test_load_current_from_palette` asserts `#4D0000`
     but `default_shadow_hex` truncates (`255*0.3=76.4→76=#4C0000`). Pick one:
     fix the test to `#4C0000`, OR change impl to `.round()`. Recommend `.round()`
@@ -95,7 +95,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ## Phase 6.2 — CI & Merge Gate (🔴 blocker — stops RED ever merging again)
 
-- [ ] `6.2.1` Add hard `cargo test` gate to ralph merge phase
+- [x] `6.2.1` Add hard `cargo test` gate to ralph merge phase
   - **Goal:** ROOT CAUSE of B3 — `phase_review_and_merge` auto-merges on an LLM
     "approved" string with no real test run. Add a literal
     `cargo test --manifest-path figby-rs/Cargo.toml || { abort merge; }` (plus
@@ -104,7 +104,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** A deliberately-failing test blocks the merge step.
   - **Difficulty:** Low
 
-- [ ] `6.2.2` GitHub Actions CI (fmt + clippy -D warnings + test)
+- [x] `6.2.2` GitHub Actions CI (fmt + clippy -D warnings + test)
   - **Goal:** New workflow runs `cargo fmt --check`, `cargo clippy --all-targets
     -- -D warnings`, `cargo test` on push/PR. Must be green to merge. Delete
     legacy `.travis.yml`.
@@ -120,7 +120,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > It is the model — bring the others up to that bar. Extend `tests/fuzz.rs`
 > (currently fonts only) with a target per parser.
 
-- [ ] `6.3.1` Validate FIGfont header numerics (B1)
+- [x] `6.3.1` Validate FIGfont header numerics (B1)
   - **Goal:** `height/baseline/maxlength` parsed as `i32` then `as u32` — negative
     height → huge `charheight`, `height==0` accepted. Validate `height` in
     `1..=255`, reject negative `baseline`/`maxlength`, clamp `maxlength`.
@@ -129,7 +129,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     target added.
   - **Difficulty:** Medium
 
-- [ ] `6.3.2` Cap zip decompression size (B2/zip-bomb)
+- [x] `6.3.2` Cap zip decompression size (B2/zip-bomb)
   - **Goal:** `extract_first_zip_entry` / `read_zip_entry` call `read_to_end()`
     with no limit. Cap via `entry.size()` check or `take(MAX)`. (Path-traversal
     already defended.)
@@ -137,7 +137,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Small zip-bomb font rejected before exhausting memory; test.
   - **Difficulty:** Low
 
-- [ ] `6.3.3` Fix GIF memory-guard timing (B4/DoS)
+- [x] `6.3.3` Fix GIF memory-guard timing (B4/DoS)
   - **Goal:** `MAX_TOTAL_CELLS` is checked AFTER the read loop already cloned every
     frame. Check `width*height <= CAP` before the loop (dims known at `:69-70`);
     track `frame_count` in-loop and bail the moment `w*h*count` exceeds cap. Add a
@@ -147,7 +147,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     (module currently has 0 tests — S4).
   - **Difficulty:** Medium
 
-- [ ] `6.3.4` Range-check control-file group indices (B5/panic)
+- [x] `6.3.4` Range-check control-file group indices (B5/panic)
   - **Goal:** `state.gl = d - b'0'` / `gr` with no range check → byte `l 9` or
     `< '0'` → index ≥4 into `[u32;4]` or underflow → panic. Validate `d` is
     `b'0'..=b'3'` before assigning (ignore/clamp otherwise).
@@ -156,7 +156,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Crafted `.flc` no longer panics; fuzz target added.
   - **Difficulty:** Low
 
-- [ ] `6.3.5` Limit image decode dimensions (B6/DoS)
+- [x] `6.3.5` Limit image decode dimensions (B6/DoS)
   - **Goal:** `image::open(path)?` applies no `Limits`. Use
     `image::io::Reader::open()?.limits(Limits::default())` / set max
     width·height for both image-to-ASCII and TUI image import.
@@ -168,7 +168,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ## Phase 6.4 — Stale Docs (🟠 A2 — fix before release)
 
-- [ ] `6.4.1` Rewrite CLAUDE.md to match current source layout
+- [x] `6.4.1` Rewrite CLAUDE.md to match current source layout
   - **Goal:** Says "Current milestone v3"; references deleted
     `tui/components/{file_ops,font_editor,canvas}` wrappers (only `canvas.rs`,
     `status_bar.rs` remain); lists `font.rs`/`render.rs` under `tui/` (they're
@@ -177,7 +177,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Every path in CLAUDE.md exists; milestone current.
   - **Difficulty:** Low
 
-- [ ] `6.4.2` Fix AGENTS.md file-structure tree
+- [x] `6.4.2` Fix AGENTS.md file-structure tree
   - **Goal:** Lists `src/util.rs` (does not exist) + outdated tree.
   - **Touches:** `AGENTS.md`.
   - **Success:** Tree matches actual `figby-rs/src/`.
@@ -187,7 +187,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ## Phase 6.5 — Correctness / Robustness (🟡 nice-to-fix this milestone)
 
-- [ ] `6.5.1` Replace `render.rs:14` `.expect()` with blank-glyph fallback (S1)
+- [x] `6.5.1` Replace `render.rs:14` `.expect()` with blank-glyph fallback (S1)
   - **Goal:** `lookup_char` `.expect()`s on missing char 0 — only production
     expect in the crate. A hand-edited font (font editor) could violate the
     char-0 invariant → panic. Return a blank glyph instead.
@@ -195,7 +195,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Font missing char 0 renders blank, no panic; test.
   - **Difficulty:** Low
 
-- [ ] `6.5.2` Compile-time validate embedded ICONS_YAML (A3)
+- [x] `6.5.2` Compile-time validate embedded ICONS_YAML (A3)
   - **Goal:** `TuiApp::new` does `serde_yaml::from_str(ICONS_YAML)
     .unwrap_or_default()` — malformed embedded YAML silently drops all icons.
     Add a build/`const` test that parses ICONS_YAML and fails compilation/CI on
@@ -204,7 +204,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Breaking the YAML fails a test, not silently empties icons.
   - **Difficulty:** Low
 
-- [ ] `6.5.3` Clamp `font_gen` point_size + add file-path tests (S5)
+- [x] `6.5.3` Clamp `font_gen` point_size + add file-path tests (S5)
   - **Goal:** `point_size: f32` unbounded → `charheight`/canvas allocs scale with
     it. Clamp to e.g. `4.0..=200.0`. `font_file_to_figfont` (the .ttf/.otf path
     variant) has 0 tests — add a bundled-font smoke test + a malformed-bytes test.

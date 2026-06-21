@@ -35,9 +35,9 @@ impl Swatch {
         let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(0);
         let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(0);
         let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(0);
-        let shadow_r = (r as f32 * 0.3) as u8;
-        let shadow_g = (g as f32 * 0.3) as u8;
-        let shadow_b = (b as f32 * 0.3) as u8;
+        let shadow_r = (r as f32 * 0.3).round() as u8;
+        let shadow_g = (g as f32 * 0.3).round() as u8;
+        let shadow_b = (b as f32 * 0.3).round() as u8;
         format!("#{:02X}{:02X}{:02X}", shadow_r, shadow_g, shadow_b)
     }
 }

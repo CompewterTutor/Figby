@@ -546,6 +546,27 @@ phase_review_and_merge() {
   log "Phase ${MINOR_VERSION} complete — running review before merging to main"
   log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+  # Hard gate: tests, clippy, and fmt must pass before LLM review or merge.
+  log "Running cargo test before phase review…"
+  if ! cargo test --manifest-path "$REPO_ROOT/figby-rs/Cargo.toml" 2>&1; then
+    ralph_log "PHASE_BLOCKED: ${MINOR_VERSION} cargo test failed — merge aborted."
+    warn "cargo test FAILED — fix all test failures before merging."
+    exit 1
+  fi
+  log "Running cargo clippy before phase review…"
+  if ! cargo clippy --manifest-path "$REPO_ROOT/figby-rs/Cargo.toml" --all-targets -- -D warnings 2>&1; then
+    ralph_log "PHASE_BLOCKED: ${MINOR_VERSION} cargo clippy failed — merge aborted."
+    warn "cargo clippy FAILED — fix all warnings before merging."
+    exit 1
+  fi
+  log "Running cargo fmt check before phase review…"
+  if ! cargo fmt --manifest-path "$REPO_ROOT/figby-rs/Cargo.toml" -- --check 2>&1; then
+    ralph_log "PHASE_BLOCKED: ${MINOR_VERSION} cargo fmt check failed — merge aborted."
+    warn "cargo fmt check FAILED — run cargo fmt before merging."
+    exit 1
+  fi
+  good "All quality gates passed — proceeding with phase review."
+
   MAX_REVIEW_ATTEMPTS=3
   REVIEW_ATTEMPT=0
 
@@ -866,6 +887,14 @@ ${HOOK_OUT}" \
     fi
   else
     warn "Could not find todo file for task ${TASK_ID} — checkbox not updated."
+  fi
+
+  # Hard gate: tests must pass before merging task branch into release branch.
+  log "Running cargo test before task merge…"
+  if ! cargo test --manifest-path "$REPO_ROOT/figby-rs/Cargo.toml" 2>&1; then
+    ralph_log "TASK_BLOCKED: ${TASK_ID} cargo test failed — task merge aborted."
+    warn "cargo test FAILED for ${TASK_ID} — fix failures before merging."
+    exit 1
   fi
 
   # Merge back into release branch

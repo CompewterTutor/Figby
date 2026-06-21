@@ -1,5 +1,14 @@
+use image::io::Reader as ImageReader;
 use image::{DynamicImage, ImageError};
 use std::path::Path;
+
+fn image_limits() -> image::io::Limits {
+    let mut lim = image::io::Limits::default();
+    lim.max_image_width = Some(16_000);
+    lim.max_image_height = Some(16_000);
+    lim.max_alloc = Some(256 * 1024 * 1024); // 256 MiB
+    lim
+}
 
 /// Default ASCII character map (darkest to brightest).
 pub const DEFAULT_CHAR_MAP: &str = " .-:=+*#%@";
@@ -22,7 +31,9 @@ fn get_terminal_width() -> Option<usize> {
 /// Returns `Vec<Vec<u8>>` where `matrix[y][x]` is the luminance (0-255)
 /// at pixel `(x, y)`. The outer vector represents rows, inner columns.
 pub fn load_luminance_matrix<P: AsRef<Path>>(path: P) -> Result<Vec<Vec<u8>>, ImageError> {
-    let img = image::open(path)?;
+    let mut reader = ImageReader::open(path)?.with_guessed_format()?;
+    reader.limits(image_limits());
+    let img = reader.decode()?;
     Ok(luminance_from_dynamic(&img))
 }
 
@@ -45,7 +56,9 @@ pub fn luminance_from_dynamic(img: &DynamicImage) -> Vec<Vec<u8>> {
 
 /// Load an image from file and return RGB pixel matrix preserving original color.
 pub fn load_rgb_matrix<P: AsRef<Path>>(path: P) -> Result<Vec<Vec<RgbPixel>>, ImageError> {
-    let img = image::open(path)?;
+    let mut reader = ImageReader::open(path)?.with_guessed_format()?;
+    reader.limits(image_limits());
+    let img = reader.decode()?;
     Ok(rgb_from_dynamic(&img))
 }
 

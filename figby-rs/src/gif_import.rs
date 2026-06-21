@@ -73,6 +73,15 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
         return Err(GifImportError::Decode("GIF has zero dimensions".into()));
     }
 
+    // Guard: check per-frame cell count before reading any frames.
+    if width.saturating_mul(height) > MAX_TOTAL_CELLS {
+        return Err(GifImportError::TooLarge {
+            width,
+            height,
+            frames: 1,
+        });
+    }
+
     let global_palette: Vec<[u8; 3]> = decoder
         .global_palette()
         .map(|pal| pal.chunks(3).map(|c| [c[0], c[1], c[2]]).collect())
@@ -80,25 +89,23 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
 
     let bg_color_index = decoder.bg_color().unwrap_or(0);
 
-    // Collect all frames by cloning from the decoder
+    // Collect all frames, bailing as soon as cumulative cell count exceeds cap.
     let mut raw_frames: Vec<gif::Frame<'static>> = Vec::new();
     let mut frame_count: usize = 0;
     while let Some(frame) = decoder.read_next_frame()? {
         raw_frames.push(frame.clone());
         frame_count += 1;
+        if width.saturating_mul(height).saturating_mul(frame_count) > MAX_TOTAL_CELLS {
+            return Err(GifImportError::TooLarge {
+                width,
+                height,
+                frames: frame_count,
+            });
+        }
     }
 
     if raw_frames.is_empty() {
         return Err(GifImportError::NoFrames);
-    }
-
-    let total_cells = width * height * frame_count;
-    if total_cells > MAX_TOTAL_CELLS {
-        return Err(GifImportError::TooLarge {
-            width,
-            height,
-            frames: frame_count,
-        });
     }
 
     let loop_count = match decoder.repeat() {
@@ -196,7 +203,9 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
                         break;
                     }
                     let idx = y * fw + x;
-                    let pixel_value = frame.buffer[idx];
+                    let Some(&pixel_value) = frame.buffer.get(idx) else {
+                        continue;
+                    };
                     let is_transparent =
                         frame.transparent.map(|t| pixel_value == t).unwrap_or(false);
                     if !is_transparent {
@@ -221,7 +230,10 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
                         break;
                     }
                     let idx = y * fw + x;
-                    let pixel_idx = frame.buffer[idx] as usize;
+                    let Some(&raw_pixel) = frame.buffer.get(idx) else {
+                        continue;
+                    };
+                    let pixel_idx = raw_pixel as usize;
                     let is_transparent = frame
                         .transparent
                         .map(|t| pixel_idx == t as usize)

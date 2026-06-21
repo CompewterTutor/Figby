@@ -493,7 +493,7 @@ fn extract_first_zip_entry(bytes: &[u8]) -> Result<Vec<u8>, FontError> {
         return Err(FontError::ZipError("ZIP archive is empty".to_string()));
     }
 
-    let mut entry = archive
+    let entry = archive
         .by_index(0)
         .map_err(|e| FontError::ZipError(format!("failed to read first ZIP entry: {}", e)))?;
 
@@ -566,7 +566,7 @@ pub fn read_zip_entry(path: &Path, entry_name: &str) -> Result<Vec<u8>, FontErro
     let mut archive = ZipArchive::new(file)
         .map_err(|e| FontError::ZipError(format!("failed to open ZIP archive: {}", e)))?;
 
-    let mut entry = archive
+    let entry = archive
         .by_name(entry_name)
         .map_err(|e| FontError::ZipError(format!("entry '{}' not found: {}", entry_name, e)))?;
 

@@ -25,7 +25,7 @@ const IMAGE_ACTIONS: &[(&str, char, &str)] = &[
     ("image_import", 'C', "reate Image"),
     ("nav_forward", 'T', "emplate"),
     ("image_import", 'V', "iew as ASCII"),
-    ("file_open", 'F', "igmap"),
+    ("file_open", 'F', "igmap  (Open Image)"),
     ("image_import", 'A', "nimated GIF Import"),
 ];
 

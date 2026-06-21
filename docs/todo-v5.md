@@ -406,3 +406,6 @@ Source: `docs/4.0-manual-testing-notes.md`
 
 - [x] `5.8.5` Phase merge: release/5.8 → main
   - **Difficulty:** Low
+
+Phase 5.8 complete. All 5 subtasks (5.8.1–5.8.5) implemented, tested, merged.
+Next phase: TBD.

@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+### Docs
+- Pre-release codebase audit complete (sessions 1+2, full read-through):
+  `docs/codebase-audit-2026-06-18.md`. Findings: B0 template RCE, B7 template
+  canvas-dim DoS, B1/B2/B4/B5/B6 parser DoS/panic family, B3 red test suite
+  (10 stale tests), broken ralph merge gate, A1 god-object, A2 stale docs.
+  Confirmed: 0 production unwrap/panic, parsers' underflow candidates guarded,
+  `palette_import.rs` as hardening model.
+- Added `docs/todo-v6.md` (Pre-Release Hardening & Polish) mapping every audit
+  finding to a ralph-format task with file:line refs; registered in `docs/todo.md`.
+
+## [5.8.0] - 2026-06-18
+### Added
+- Phase merge: release/5.8 → main. Phase 5.8 (Dynamic Lighting System) complete:
+  core lighting engine (5.8.1), canvas and layer integration with shading pass,
+  layer lighting/shadow flags (5.8.2), light management UI with in-canvas light
+  editor and light list panel (5.8.3), palette LUT integration with per-swatch
+  lit/shadow colors and specular highlights (5.8.4).
+
 ## [5.6.0] - 2026-06-18
 ### Added
 - Phase merge: release/5.6 → master. Phase 5.6 (Palette Enhancement & Marker Brush)

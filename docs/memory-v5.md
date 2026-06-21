@@ -92,4 +92,7 @@ Extended `Swatch` in `palette_import.rs` with `lit_hex`, `shadow_hex`, `specular
 
 ### 5.8.5 — Phase merge: release/5.8 → main
 
-Merged all Phase 5.8 work into default branch (master). Merge commit `480352d`. Phase 5.8 complete: core lighting engine (5.8.1), canvas and layer integration (5.8.2), light management UI (5.8.3), palette LUT integration (5.8.4). 34 files / 2262 lines merged. Next up: tbd.
+Merged all Phase 5.8 work (5.8.1–5.8.4) into default branch (master). Phase 5.8
+complete: core lighting engine (5.8.1), canvas and layer integration (5.8.2),
+light management UI (5.8.3), palette LUT integration (5.8.4). Merge commit
+`480352d`. 34 files / 2262 lines merged. Next phase: TBD.

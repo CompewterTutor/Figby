@@ -1344,3 +1344,9 @@ Three bugs found in phase merge review:
   phase merges (5.0.7, 5.1.5, ..., 5.6.6) merged into `master`. This is the same
   naming discrepancy noted in 5.2.4. The convention is inconsistent but stable:
   `main` in task text = `master` in git.
+
+## 5.8.5 — Phase merge: release/5.8 → main
+
+- Same `main` vs `master` branch-name discrepancy as 5.7.2 and prior phase
+  merges. Task text says `main`, actual default branch is `master`. Consistent
+  with the established convention.

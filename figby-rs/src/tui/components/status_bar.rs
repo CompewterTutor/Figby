@@ -36,6 +36,9 @@ pub struct StatusBarWidget<'a> {
     lighting_active: bool,
     light_type: Option<&'a str>,
     light_intensity: Option<f32>,
+    canvas_size: Option<(u16, u16)>,
+    brush_size: Option<u8>,
+    brush_shape: Option<&'a str>,
 }
 
 impl<'a> StatusBarWidget<'a> {
@@ -80,7 +83,21 @@ impl<'a> StatusBarWidget<'a> {
             lighting_active: false,
             light_type: None,
             light_intensity: None,
+            canvas_size: None,
+            brush_size: None,
+            brush_shape: None,
         }
+    }
+
+    pub fn with_canvas_size(mut self, width: u16, height: u16) -> Self {
+        self.canvas_size = Some((width, height));
+        self
+    }
+
+    pub fn with_brush(mut self, size: u8, shape: &'a str) -> Self {
+        self.brush_size = Some(size);
+        self.brush_shape = Some(shape);
+        self
     }
 
     pub fn with_lighting(
@@ -244,6 +261,26 @@ impl<'a> StatusBarWidget<'a> {
             items.push(Self::make_item(
                 vec![Span::styled(
                     format!(" {}:{} ", undo_icon, self.undo_count),
+                    Style::default().fg(self.theme.statusbar.label),
+                )],
+                false,
+            ));
+        }
+
+        if let Some((w, h)) = self.canvas_size {
+            items.push(Self::make_item(
+                vec![Span::styled(
+                    format!(" {w}×{h} "),
+                    Style::default().fg(self.theme.statusbar.label),
+                )],
+                false,
+            ));
+        }
+
+        if let (Some(size), Some(shape)) = (self.brush_size, self.brush_shape) {
+            items.push(Self::make_item(
+                vec![Span::styled(
+                    format!(" {shape}:{size} "),
                     Style::default().fg(self.theme.statusbar.label),
                 )],
                 false,

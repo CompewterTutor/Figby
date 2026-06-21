@@ -311,6 +311,26 @@ pub fn parse_header(line: &str) -> Result<FIGfont, FontError> {
         0
     };
 
+    if !(1..=255).contains(&height) {
+        return Err(FontError::ParseError(format!(
+            "font height {} is out of range 1..=255",
+            height
+        )));
+    }
+    if baseline < 0 {
+        return Err(FontError::ParseError(format!(
+            "font baseline {} is negative",
+            baseline
+        )));
+    }
+    if max_length < 0 {
+        return Err(FontError::ParseError(format!(
+            "font max_length {} is negative",
+            max_length
+        )));
+    }
+    let max_length = max_length.min(4096);
+
     Ok(FIGfont {
         format,
         hardblank,
@@ -473,12 +493,21 @@ fn extract_first_zip_entry(bytes: &[u8]) -> Result<Vec<u8>, FontError> {
         return Err(FontError::ZipError("ZIP archive is empty".to_string()));
     }
 
-    let mut entry = archive
+    let entry = archive
         .by_index(0)
         .map_err(|e| FontError::ZipError(format!("failed to read first ZIP entry: {}", e)))?;
 
+    const MAX_FONT_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB cap against zip bombs
+    if entry.size() > MAX_FONT_BYTES {
+        return Err(FontError::ZipError(format!(
+            "ZIP entry uncompressed size {} exceeds {} byte cap",
+            entry.size(),
+            MAX_FONT_BYTES
+        )));
+    }
     let mut content = Vec::new();
     entry
+        .take(MAX_FONT_BYTES)
         .read_to_end(&mut content)
         .map_err(|e| FontError::ZipError(format!("failed to read ZIP entry contents: {}", e)))?;
 
@@ -537,14 +566,26 @@ pub fn read_zip_entry(path: &Path, entry_name: &str) -> Result<Vec<u8>, FontErro
     let mut archive = ZipArchive::new(file)
         .map_err(|e| FontError::ZipError(format!("failed to open ZIP archive: {}", e)))?;
 
-    let mut entry = archive
+    let entry = archive
         .by_name(entry_name)
         .map_err(|e| FontError::ZipError(format!("entry '{}' not found: {}", entry_name, e)))?;
 
+    const MAX_FONT_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB cap against zip bombs
+    if entry.size() > MAX_FONT_BYTES {
+        return Err(FontError::ZipError(format!(
+            "ZIP entry '{}' uncompressed size {} exceeds {} byte cap",
+            entry_name,
+            entry.size(),
+            MAX_FONT_BYTES
+        )));
+    }
     let mut content = Vec::new();
-    entry.read_to_end(&mut content).map_err(|e| {
-        FontError::ZipError(format!("failed to read entry '{}': {}", entry_name, e))
-    })?;
+    entry
+        .take(MAX_FONT_BYTES)
+        .read_to_end(&mut content)
+        .map_err(|e| {
+            FontError::ZipError(format!("failed to read entry '{}': {}", entry_name, e))
+        })?;
 
     Ok(content)
 }

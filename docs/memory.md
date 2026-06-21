@@ -10,7 +10,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v2 — Templates, Images & TUI | [memory-v2.md](memory-v2.md) | Active |
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
-| v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 in progress) |
+| v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 complete) |
 
 ## Architectural Decisions
 
@@ -2529,7 +2529,7 @@ Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
 
 ### 5.8.5 — Phase merge: release/5.8 → master (2026-06-18)
 
-Merged release/5.8 branch into master at `480352d` (merge commit created on master via `--no-ff`).
-Brings 5.8.1 (core lighting engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI),
-and 5.8.4 (palette LUT integration) into the mainline. 34 files / 2262 lines merged. Phase 5.8
-complete. Next phase: tbd.
+Merged release/5.8 branch into master at `480352d`. Brings 5.8.1 (core lighting
+engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI), and 5.8.4
+(palette LUT integration) into the mainline. 34 files / 2262 lines merged. Phase
+5.8 complete. Next phase: TBD.

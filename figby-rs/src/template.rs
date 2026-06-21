@@ -137,8 +137,9 @@ pub struct RenderConfig {
     pub override_width: Option<u32>,
 }
 
-/// Resolve `${VAR}` env var and `$(cmd)` command substitution in a text value.
-/// Plain string literals pass through unchanged.
+/// Resolve `${VAR}` env var references in a text value.
+/// `$(...)` command substitution is intentionally NOT executed (security: untrusted templates).
+/// Plain string literals and `$(...)` syntax pass through unchanged.
 pub fn resolve_text_value(text: &str) -> Result<String, TemplateError> {
     let mut result = String::new();
     let mut remaining = text;
@@ -156,34 +157,6 @@ pub fn resolve_text_value(text: &str) -> Result<String, TemplateError> {
                 TemplateError::ResolveError(format!("env var '{}' not set", var_name))
             })?;
             result.push_str(&value);
-            remaining = &rest[closing + 1..];
-        } else if let Some(rest) = remaining.strip_prefix('(') {
-            let closing = rest.find(')').ok_or_else(|| {
-                TemplateError::ResolveError("unclosed command sub `$(...)`".to_string())
-            })?;
-            let cmd_str = &rest[..closing];
-            let shell = if cfg!(target_os = "windows") {
-                "cmd"
-            } else {
-                "sh"
-            };
-            let arg = if cfg!(target_os = "windows") {
-                "/C"
-            } else {
-                "-c"
-            };
-            let output = std::process::Command::new(shell)
-                .args([arg, cmd_str])
-                .output()
-                .map_err(|e| TemplateError::ResolveError(format!("command failed: {}", e)))?;
-            if !output.status.success() {
-                return Err(TemplateError::ResolveError(format!(
-                    "command exited with {}",
-                    output.status
-                )));
-            }
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            result.push_str(stdout.trim_end_matches('\n'));
             remaining = &rest[closing + 1..];
         } else {
             result.push('$');
@@ -523,6 +496,28 @@ pub fn render_template(
     let margin = tmpl.canvas.margin.unwrap_or(0) as usize;
     let padding = tmpl.canvas.padding.unwrap_or(0) as usize;
 
+    const MAX_CANVAS_CELLS: usize = 1_000_000;
+    const MAX_MARGIN: usize = 1_000;
+    const MAX_PADDING: usize = 1_000;
+    if width.saturating_mul(height) > MAX_CANVAS_CELLS {
+        return Err(TemplateError::ParseError(format!(
+            "canvas {}×{} exceeds max {} cells",
+            width, height, MAX_CANVAS_CELLS
+        )));
+    }
+    if margin > MAX_MARGIN {
+        return Err(TemplateError::ParseError(format!(
+            "canvas margin {} exceeds max {}",
+            margin, MAX_MARGIN
+        )));
+    }
+    if padding > MAX_PADDING {
+        return Err(TemplateError::ParseError(format!(
+            "canvas padding {} exceeds max {}",
+            padding, MAX_PADDING
+        )));
+    }
+
     let mut canvas = vec![vec![' '; width]; height];
 
     // Collect unique font names from non-image layers and pre-load them.
@@ -583,6 +578,19 @@ pub fn render_template(
                 if let Some(cs) = rascii_art::charsets::from_str(&img.charset) {
                     options = options.charset(cs);
                 }
+            }
+
+            // Security: reject absolute paths and '..' traversal (untrusted template).
+            let img_path = std::path::Path::new(&img.source);
+            if img_path.is_absolute()
+                || img_path
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(TemplateError::ImageError(format!(
+                    "image path '{}' rejected: must be relative with no '..' traversal",
+                    img.source
+                )));
             }
 
             let mut buf = String::new();
@@ -923,6 +931,23 @@ font = "standard"
     }
 
     #[test]
+    fn test_canvas_oversize_rejected() {
+        // width=4000000000 would OOM; must be caught before allocation.
+        let ftmp = "---\n[canvas]\nwidth = 4000000\nheight = 1000\n---\n";
+        let tmpl = parse_ftmp(ftmp).expect("parse must succeed");
+        let config = RenderConfig {
+            font_dir: ".".to_string(),
+            term_width: 80,
+            override_width: None,
+        };
+        let err = render_template(&tmpl, &config).unwrap_err();
+        assert!(
+            err.to_string().contains("exceeds max"),
+            "oversize canvas must be rejected, got: {err}"
+        );
+    }
+
+    #[test]
     fn test_end_to_end_template() {
         let ftmp = r#"---
 [canvas]
@@ -1032,29 +1057,34 @@ font = "standard"
     }
 
     #[test]
-    fn test_resolve_command_sub() {
+    fn test_resolve_command_sub_not_executed() {
+        // Security: $(...) must NOT execute — pass through as literal text.
         let result = resolve_text_value("$(echo hello)").unwrap();
-        assert_eq!(result, "hello");
+        assert_eq!(
+            result, "$(echo hello)",
+            "command substitution must not execute"
+        );
     }
 
     #[test]
-    fn test_resolve_command_sub_in_context() {
+    fn test_resolve_command_sub_in_context_not_executed() {
         let result = resolve_text_value("prefix_$(echo mid)_suffix").unwrap();
-        assert_eq!(result, "prefix_mid_suffix");
+        assert_eq!(result, "prefix_$(echo mid)_suffix");
     }
 
     #[test]
-    fn test_resolve_command_failure() {
-        let err = resolve_text_value("$(false)").unwrap_err();
-        assert!(err.to_string().contains("exited"));
+    fn test_resolve_command_sub_dangerous_not_executed() {
+        // Ensure a destructive command is passed through verbatim, never run.
+        let result = resolve_text_value("$(rm -rf /)").unwrap();
+        assert_eq!(result, "$(rm -rf /)");
     }
 
     #[test]
-    fn test_resolve_mixed_literal_and_substitutions() {
-        let result = resolve_text_value("$(echo A)${HOME}B").unwrap();
-        assert!(result.starts_with('A'), "should start with cmd output");
-        assert!(result.contains('/'), "should contain HOME path");
-        assert!(result.ends_with('B'), "should end with literal B");
+    fn test_resolve_mixed_literal_and_env() {
+        std::env::set_var("FIGBY_TEST_VAR", "42");
+        let result = resolve_text_value("$(echo A)${FIGBY_TEST_VAR}B").unwrap();
+        // $(...) literal, ${VAR} expanded
+        assert_eq!(result, "$(echo A)42B");
     }
 
     #[test]
@@ -1099,6 +1129,39 @@ width = 80
     }
 
     #[test]
+    fn test_img_absolute_path_rejected() {
+        let ftmp =
+            "---\n[canvas]\nwidth = 40\nheight = 10\n---\n{{img:/etc/passwd:40::false:0,0:}}\n";
+        let tmpl = parse_ftmp(ftmp).expect("parse must succeed");
+        let config = RenderConfig {
+            font_dir: ".".to_string(),
+            term_width: 40,
+            override_width: None,
+        };
+        let err = render_template(&tmpl, &config).unwrap_err();
+        assert!(
+            err.to_string().contains("rejected"),
+            "absolute path must be rejected, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_img_traversal_path_rejected() {
+        let ftmp = "---\n[canvas]\nwidth = 40\nheight = 10\n---\n{{img:../../etc/passwd:40::false:0,0:}}\n";
+        let tmpl = parse_ftmp(ftmp).expect("parse must succeed");
+        let config = RenderConfig {
+            font_dir: ".".to_string(),
+            term_width: 40,
+            override_width: None,
+        };
+        let err = render_template(&tmpl, &config).unwrap_err();
+        assert!(
+            err.to_string().contains("rejected"),
+            "traversal path must be rejected, got: {err}"
+        );
+    }
+
+    #[test]
     fn test_resolve_text_in_template_ftmp() {
         // Verify that ${VAR} in a variable's text field gets resolved.
         // Set a known env var for the test.
@@ -1127,12 +1190,25 @@ font = "standard"
 
     #[test]
     fn test_render_template_with_text_and_img_placeholders() {
-        // Path relative to figby-rs/ (where test binary runs)
-        let img_path = "../assets/img/figby.png";
-        if !std::path::Path::new(img_path).exists() {
-            eprintln!("skipping image test: file not found at {img_path}");
+        // Copy image into a local tempdir so the path is relative without '..'
+        let src_path = "../assets/img/figby.png";
+        if !std::path::Path::new(src_path).exists() {
+            eprintln!("skipping image test: file not found at {src_path}");
             return;
         }
+        // tempdir_in(".") creates a dir under figby-rs/ — use only the dir name
+        // to build a relative path without '..' (path() itself is absolute).
+        let img_tmpdir = tempfile::Builder::new()
+            .tempdir_in(".")
+            .expect("temp dir in '.'");
+        let dir_name = img_tmpdir
+            .path()
+            .file_name()
+            .expect("dir name")
+            .to_string_lossy()
+            .into_owned();
+        let rel_img = format!("{dir_name}/figby.png");
+        std::fs::copy(src_path, &rel_img).expect("copy image");
         let ftmp = format!(
             r#"---
 [canvas]
@@ -1145,7 +1221,7 @@ font = "standard"
 ---
 {{{{greeting}}}}{{{{img:{}:30:::0,0:}}}}
 "#,
-            img_path
+            rel_img
         );
         let tmpl = parse_ftmp(&ftmp).expect("should parse");
         assert_eq!(tmpl.layers.len(), 2);

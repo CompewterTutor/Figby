@@ -406,11 +406,15 @@ fn canvas_to_figcharacter_cell(
 }
 
 /// Shared glyph rendering: rasterize all required chars from a loaded font-kit `Font`.
+const POINT_SIZE_MIN: f32 = 4.0;
+const POINT_SIZE_MAX: f32 = 200.0;
+
 fn render_font_glyphs(
     font: &Font,
     point_size: f32,
     charset: &[&str],
 ) -> Result<(FIGfont, u32), FontGenError> {
+    let point_size = point_size.clamp(POINT_SIZE_MIN, POINT_SIZE_MAX);
     let metrics = font.metrics();
     let upem = metrics.units_per_em as f32;
     let scale = point_size / upem;
@@ -1107,5 +1111,56 @@ mod tests {
                 0x1680 + i as u32
             );
         }
+    }
+
+    #[test]
+    fn test_font_file_to_figfont_smoke() {
+        use std::io::Write;
+        static FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/to-convert/Lixdu.ttf");
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        tmp.write_all(FONT_BYTES).expect("write");
+        let charset = test_charset();
+        let font = font_file_to_figfont(tmp.path(), 16.0, charset)
+            .expect("bundled TTF should convert to FIGfont");
+        assert!(font.chars.len() >= 50, "should have at least 50 glyphs");
+        assert!(font.charheight > 0, "charheight should be positive");
+    }
+
+    #[test]
+    fn test_font_file_to_figfont_malformed() {
+        use std::io::Write;
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        tmp.write_all(b"not a font file \x00\x01\x02\x03")
+            .expect("write");
+        let charset = &["A", "B"];
+        let result = font_file_to_figfont(tmp.path(), 16.0, charset);
+        assert!(result.is_err(), "malformed bytes should return Err");
+    }
+
+    #[test]
+    fn test_point_size_clamping() {
+        use std::io::Write;
+        static FONT_BYTES: &[u8] = include_bytes!("../../assets/fonts/to-convert/Lixdu.ttf");
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        tmp.write_all(FONT_BYTES).expect("write");
+        let charset = test_charset();
+        let font_tiny = font_file_to_figfont(tmp.path(), -999.0, charset)
+            .expect("negative point_size should be clamped and succeed");
+        let font_huge = font_file_to_figfont(tmp.path(), 99999.0, charset)
+            .expect("huge point_size should be clamped and succeed");
+        assert!(
+            font_tiny.charheight <= 20,
+            "clamped tiny (min=4.0) should produce small charheight, got {}",
+            font_tiny.charheight
+        );
+        assert!(
+            font_huge.charheight <= 500,
+            "clamped huge (max=200.0) should produce bounded charheight, got {}",
+            font_huge.charheight
+        );
+        assert!(
+            font_huge.charheight > font_tiny.charheight,
+            "max point_size should produce larger glyphs than min"
+        );
     }
 }

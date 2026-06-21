@@ -229,7 +229,12 @@ pub const KEYMAP: &[KeyBinding] = &[
     KeyBinding {
         keys: "?",
         scope: Scope::Global,
-        description: "Toggle right panel (tabbed drawer)",
+        description: "Toggle side panel (Layers, Props, Tools, Effects)",
+    },
+    KeyBinding {
+        keys: "T",
+        scope: Scope::Global,
+        description: "Toggle animation timeline",
     },
     KeyBinding {
         keys: "Ctrl+K",
@@ -311,6 +316,11 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: r"\",
         scope: Scope::Canvas,
         description: "Cycle brush shape",
+    },
+    KeyBinding {
+        keys: "M",
+        scope: Scope::Canvas,
+        description: "Toggle marker sub-mode (brush tool)",
     },
     // Font Overview
     KeyBinding {

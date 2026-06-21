@@ -25,6 +25,8 @@ pub enum MenuAction {
     ViewZoomOut,
     ViewToggleGrid,
     ViewToggleUndoPanel,
+    ViewToggleTimeline,
+    ViewToggleSidePanel,
     ToolsSelect(Tool),
     HelpAbout,
     HelpKeybindings,
@@ -414,6 +416,8 @@ fn build_menus() -> Vec<TopMenu> {
                 ("Zoom Out", MenuAction::ViewZoomOut),
                 ("Toggle Grid", MenuAction::ViewToggleGrid),
                 ("Toggle Undo Panel", MenuAction::ViewToggleUndoPanel),
+                ("Toggle Timeline", MenuAction::ViewToggleTimeline),
+                ("Toggle Side Panel", MenuAction::ViewToggleSidePanel),
             ],
         },
         TopMenu {

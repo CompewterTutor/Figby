@@ -27,7 +27,8 @@ fn test_tui_smoke_all_panels_render() {
 
     let mut app = TuiApp::new();
     app.welcome_screen.show = false;
-    let backend = TestBackend::new(80, 24);
+    // toolbox_h = 12 tools + 1 + 10 brush = 23 rows; need ~30+ rows for palette to render
+    let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
     let buffer = terminal.backend().buffer();
@@ -54,6 +55,7 @@ fn test_tui_mode_switching() {
     use figby::tui::{AppMode, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     assert_eq!(app.mode, AppMode::FontEditor);
 
     app.handle_key_event(KeyCode::Tab);
@@ -70,7 +72,8 @@ fn test_tui_mode_switching() {
 
     let mut app2 = TuiApp::new();
     app2.welcome_screen.show = false;
-    app2.handle_key_event(KeyCode::Esc);
+    // Esc was removed from quit keybinding; 'q' is the quit key
+    app2.handle_key_event(KeyCode::Char('q'));
     assert!(app2.should_quit);
 }
 
@@ -95,6 +98,7 @@ fn test_tool_selection_roundtrip() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     assert_eq!(app.editor.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('v'));
@@ -609,7 +613,8 @@ fn test_palette_render_contains_labels() {
     let mut app = TuiApp::new();
     app.welcome_screen.show = false;
     app.editor.palette.select_color(0);
-    let backend = TestBackend::new(80, 24);
+    // toolbox_h = 23 rows; "Recent:" section is near bottom of palette — need tall terminal
+    let backend = TestBackend::new(80, 80);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
     let buffer = terminal.backend().buffer();
@@ -734,6 +739,7 @@ fn test_settings_toggle_visibility() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
     app.handle_key_event(KeyCode::Tab); // switch to ImageEditor so S opens Settings, not Smushing
     app.handle_key_event(KeyCode::Char('S'));
     assert!(
@@ -741,7 +747,8 @@ fn test_settings_toggle_visibility() {
         "settings should open on S"
     );
 
-    let backend = TestBackend::new(80, 24);
+    // toolbox_h = 23 rows; settings panel renders in palette_rect which needs 40+ rows
+    let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
     let buffer = terminal.backend().buffer();
@@ -819,47 +826,35 @@ fn test_fill_tool_keyboard() {
     app.handle_key_event(KeyCode::Char('g'));
     assert_eq!(app.editor.toolbox.selected, Tool::Fill);
 
-    // Draw a 2x2 region of @
-    app.editor.canvas.buffer.set(
-        1,
-        1,
-        CanvasCell {
-            ch: '@',
-            fg: None,
-            bg: None,
-            height: None,
-        },
-    );
-    app.editor.canvas.buffer.set(
-        1,
-        2,
-        CanvasCell {
-            ch: '@',
-            fg: None,
-            bg: None,
-            height: None,
-        },
-    );
-    app.editor.canvas.buffer.set(
-        2,
-        1,
-        CanvasCell {
-            ch: '@',
-            fg: None,
-            bg: None,
-            height: None,
-        },
-    );
-    app.editor.canvas.buffer.set(
-        2,
-        2,
-        CanvasCell {
-            ch: '@',
-            fg: None,
-            bg: None,
-            height: None,
-        },
-    );
+    // Draw a 2x2 region of @ on the active layer (not composite canvas.buffer)
+    let cell = CanvasCell {
+        ch: '@',
+        fg: None,
+        bg: None,
+        height: None,
+    };
+    app.editor
+        .layer_stack
+        .active_layer_mut()
+        .buffer_mut()
+        .set(1, 1, cell);
+    app.editor
+        .layer_stack
+        .active_layer_mut()
+        .buffer_mut()
+        .set(1, 2, cell);
+    app.editor
+        .layer_stack
+        .active_layer_mut()
+        .buffer_mut()
+        .set(2, 1, cell);
+    app.editor
+        .layer_stack
+        .active_layer_mut()
+        .buffer_mut()
+        .set(2, 2, cell);
+    // Sync composite canvas so cursor / fill sees the layer content
+    app.editor.recomposite_canvas();
 
     // Move cursor to (1, 1)
     app.editor.canvas.set_cursor(1, 1);
@@ -2133,6 +2128,7 @@ fn test_image_editor_mode_switch_and_toggle() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Tab to Image Editor mode
     app.handle_key_event(KeyCode::Tab);
@@ -2451,6 +2447,7 @@ fn test_palette_fg_keyboard_shortcut() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Switch to ImageEditor mode so font editor doesn't intercept palette keys
     app.handle_key_event(KeyCode::Tab);
@@ -2495,39 +2492,45 @@ fn test_selection_perimeter_delete() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
-    // Paint cells inside and outside the selection area
-    app.editor.canvas.buffer.set(
-        1,
-        1,
-        CanvasCell {
-            ch: 'A',
-            fg: None,
-            bg: None,
-            height: None,
-        },
-    );
-    app.editor.canvas.buffer.set(
-        2,
-        2,
-        CanvasCell {
-            ch: 'B',
-            fg: None,
-            bg: None,
-            height: None,
-        },
-    );
-    // Cell outside selection (should survive)
-    app.editor.canvas.buffer.set(
-        5,
-        5,
-        CanvasCell {
-            ch: 'X',
-            fg: None,
-            bg: None,
-            height: None,
-        },
-    );
+    // Paint cells on the active layer (not composite canvas.buffer)
+    let cell_a = CanvasCell {
+        ch: 'A',
+        fg: None,
+        bg: None,
+        height: None,
+    };
+    let cell_b = CanvasCell {
+        ch: 'B',
+        fg: None,
+        bg: None,
+        height: None,
+    };
+    let cell_x = CanvasCell {
+        ch: 'X',
+        fg: None,
+        bg: None,
+        height: None,
+    };
+    app.editor
+        .layer_stack
+        .active_layer_mut()
+        .buffer_mut()
+        .set(1, 1, cell_a);
+    app.editor
+        .layer_stack
+        .active_layer_mut()
+        .buffer_mut()
+        .set(2, 2, cell_b);
+    // Cell outside selection (should survive delete)
+    app.editor
+        .layer_stack
+        .active_layer_mut()
+        .buffer_mut()
+        .set(5, 5, cell_x);
+    // Sync composite canvas so Selection::marquee sees the layer content
+    app.editor.recomposite_canvas();
 
     // Create marquee selection from (0,0) to (3,3)
     let sel = Selection::marquee(&app.editor.canvas.buffer, 0, 0, 3, 3);

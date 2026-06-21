@@ -76,6 +76,18 @@ pub enum AppMode {
     Lighting,
 }
 
+/// Tracks which kind of project is open, so Tab cycling skips irrelevant modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SessionType {
+    /// No project opened yet — all modes available.
+    #[default]
+    Any,
+    /// Font project: cycle FontEditor ↔ AsciiPreview only.
+    Font,
+    /// Image project: cycle ImageEditor ↔ AsciiPreview only.
+    Image,
+}
+
 impl AppMode {
     pub fn title(&self) -> &str {
         match self {
@@ -83,6 +95,38 @@ impl AppMode {
             AppMode::ImageEditor => " Image Editor ",
             AppMode::AsciiPreview => " ASCII Preview ",
             AppMode::Lighting => " Lighting Editor ",
+        }
+    }
+
+    pub fn next_for(&self, session: SessionType) -> Self {
+        match session {
+            SessionType::Font => match self {
+                AppMode::FontEditor => AppMode::AsciiPreview,
+                AppMode::AsciiPreview => AppMode::FontEditor,
+                _ => AppMode::FontEditor,
+            },
+            SessionType::Image => match self {
+                AppMode::ImageEditor => AppMode::AsciiPreview,
+                AppMode::AsciiPreview => AppMode::ImageEditor,
+                _ => AppMode::ImageEditor,
+            },
+            SessionType::Any => self.next(),
+        }
+    }
+
+    pub fn prev_for(&self, session: SessionType) -> Self {
+        match session {
+            SessionType::Font => match self {
+                AppMode::FontEditor => AppMode::AsciiPreview,
+                AppMode::AsciiPreview => AppMode::FontEditor,
+                _ => AppMode::FontEditor,
+            },
+            SessionType::Image => match self {
+                AppMode::ImageEditor => AppMode::AsciiPreview,
+                AppMode::AsciiPreview => AppMode::ImageEditor,
+                _ => AppMode::ImageEditor,
+            },
+            SessionType::Any => self.prev(),
         }
     }
 
@@ -125,7 +169,7 @@ pub struct EditorState {
 }
 
 impl EditorState {
-    fn recomposite_canvas(&mut self) {
+    pub fn recomposite_canvas(&mut self) {
         self.canvas.buffer = self.layer_stack.composite();
     }
 
@@ -346,6 +390,7 @@ pub struct DialogState {
 
 pub struct TuiApp {
     pub mode: AppMode,
+    pub session_type: SessionType,
     pub should_quit: bool,
     pub icons: BTreeMap<String, String>,
     pub menu_bar: MenuBar,
@@ -483,6 +528,7 @@ impl TuiApp {
 
         Self {
             mode: AppMode::FontEditor,
+            session_type: SessionType::Any,
             should_quit: false,
             icons: icons.clone(),
             menu_bar: MenuBar::new(),
@@ -578,6 +624,8 @@ impl TuiApp {
                 RenderMode::Fast => true,
                 RenderMode::Dirty => {
                     self.dirty
+                        || self.app_fade_in.is_some()
+                        || self.welcome_fx.is_some()
                         || (self.throbber.is_active()
                             && now.saturating_duration_since(self.last_draw_time)
                                 >= Duration::from_millis(100))
@@ -756,6 +804,11 @@ impl TuiApp {
                     &self.icons,
                     &self.theme,
                 )
+                .with_canvas_size(
+                    self.editor.canvas.buffer.width() as u16,
+                    self.editor.canvas.buffer.height() as u16,
+                )
+                .with_brush(self.editor.brush.size, self.editor.brush.shape.name())
                 .with_lighting(lighting_active, light_type, light_intensity),
                 fl.status,
             );
@@ -952,6 +1005,11 @@ impl TuiApp {
                 &self.icons,
                 &self.theme,
             )
+            .with_canvas_size(
+                self.editor.canvas.buffer.width() as u16,
+                self.editor.canvas.buffer.height() as u16,
+            )
+            .with_brush(self.editor.brush.size, self.editor.brush.shape.name())
             .with_lighting(lighting_active, light_type, light_intensity),
             fl.status,
         );
@@ -1088,12 +1146,20 @@ impl TuiApp {
             if canvas_inner_rect.width > 1 && canvas_inner_rect.height > 1 {
                 let w = self.editor.canvas.buffer.width();
                 let h = self.editor.canvas.buffer.height();
+                // Draw border 1 cell outside canvas rect so canvas cells don't overwrite it.
+                let border_rect = Rect {
+                    x: canvas_inner_rect.x.saturating_sub(1),
+                    y: canvas_inner_rect.y.saturating_sub(1),
+                    width: (canvas_inner_rect.width + 2).min(inner.width),
+                    height: (canvas_inner_rect.height + 2).min(inner.height),
+                }
+                .intersection(inner);
                 let edge = Block::default()
                     .borders(Borders::ALL)
                     .border_type(BorderType::Double)
                     .title(format!(" {}x{} ", w, h))
                     .style(Style::default().fg(self.theme.canvas.border));
-                frame.render_widget(edge, canvas_inner_rect);
+                frame.render_widget(edge, border_rect);
             }
             // Sync glyph cursor for CharEditor mode
             if self.mode == AppMode::FontEditor
@@ -1492,12 +1558,14 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::FontOpen => {
+                self.session_type = SessionType::Font;
                 self.start_open();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
             }
             WelcomeAction::ImageOpenFigmap => {
+                self.session_type = SessionType::Image;
                 self.editor.image_editor = image_editor::ImageEditor::new();
                 self.mode = AppMode::ImageEditor;
                 self.start_open();
@@ -1506,12 +1574,14 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::FontNewFromFile => {
+                self.session_type = SessionType::Font;
                 self.dialogs.file_ops.enter_import_font();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
             }
             WelcomeAction::FontNewBlank => {
+                self.session_type = SessionType::Font;
                 self.editor.font_editor.font = None;
                 self.editor.font_editor.current_path = None;
                 self.editor.undo.clear();
@@ -1526,12 +1596,14 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::FontNewFromSystem | WelcomeAction::FontDuplicate => {
+                self.session_type = SessionType::Font;
                 // TODO: system font picker / duplicate flow
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
             }
             WelcomeAction::ImageNewBlank => {
+                self.session_type = SessionType::Image;
                 self.editor.image_editor = image_editor::ImageEditor::new();
                 self.mode = AppMode::ImageEditor;
                 self.editor.canvas = crate::tui::canvas::CanvasWidget::new(80, 24);
@@ -1545,6 +1617,7 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::ImageNewFromTemplate => {
+                self.session_type = SessionType::Image;
                 // TODO: template picker (5.0.4)
                 self.mode = AppMode::ImageEditor;
                 self.welcome_screen.show = false;
@@ -1552,12 +1625,14 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::ImageConvert => {
+                self.session_type = SessionType::Image;
                 self.dialogs.rascii_import.enter_import();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
             }
             WelcomeAction::ImageImportGif => {
+                self.session_type = SessionType::Image;
                 self.dialogs.file_ops.enter_import_gif();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
@@ -2740,17 +2815,29 @@ impl TuiApp {
                     return None;
                 }
                 KeyCode::Char('A') => {
-                    let thumb_w = 8;
-                    let thumb_h = 3;
                     let buffer = self.editor.layer_stack.composite();
-                    let thumbnail = capture_thumbnail(&buffer, thumb_w, thumb_h);
+                    let thumbnail = capture_thumbnail(&buffer, 8, 3);
+                    let layer_keyframes = self
+                        .editor
+                        .layer_stack
+                        .layers
+                        .iter()
+                        .map(|_| Some(timeline::LayerKeyframe::default()))
+                        .collect();
                     let frame = timeline::TimelineFrame {
                         thumbnail,
-                        has_keyframe: false,
-                        label: format!("Frame {}", self.timeline_state.frames.len()),
+                        has_keyframe: true,
+                        label: format!("F{}", self.timeline_state.frames.len()),
                         layer_state: Some(buffer),
-                        layer_keyframes: Vec::new(),
+                        layer_keyframes,
                     };
+                    self.timeline_state.layer_names = self
+                        .editor
+                        .layer_stack
+                        .layers
+                        .iter()
+                        .map(|l| l.name.clone())
+                        .collect();
                     self.timeline_state.add_frame(frame);
                     self.dirty = true;
                     return None;
@@ -3178,8 +3265,7 @@ impl TuiApp {
                 | KeyCode::Down
                 | KeyCode::Enter
                 | KeyCode::Backspace
-                | KeyCode::Esc
-                | KeyCode::Tab => {
+                | KeyCode::Esc => {
                     if self.editor.palette.handle_key(code) {
                         let color = self.editor.palette.selected_color;
                         let target = self.editor.palette.target;
@@ -3351,12 +3437,12 @@ impl TuiApp {
                 None
             }
             GA::NextMode => {
-                self.mode = self.mode.next();
+                self.mode = self.mode.next_for(self.session_type);
                 self.editor.undo.clear();
                 Some(AppEvent::ModeChanged)
             }
             GA::PrevMode => {
-                self.mode = self.mode.prev();
+                self.mode = self.mode.prev_for(self.session_type);
                 self.editor.undo.clear();
                 Some(AppEvent::ModeChanged)
             }
@@ -3561,9 +3647,9 @@ impl TuiApp {
                     self.timeline_state.add_frame(timeline::TimelineFrame {
                         thumbnail,
                         has_keyframe: false,
-                        label: format!("Frame {}", i),
+                        label: format!("F{}", i),
                         layer_state: Some(frame_buf),
-                        layer_keyframes: Vec::new(),
+                        layer_keyframes: vec![Some(timeline::LayerKeyframe::default())],
                     });
                 }
 
@@ -3987,6 +4073,16 @@ impl TuiApp {
             }
             menu::MenuAction::ViewToggleUndoPanel => {
                 self.dialogs.undo_panel.toggle();
+                self.menu_bar_state.reset();
+            }
+            menu::MenuAction::ViewToggleTimeline => {
+                self.timeline_visible = !self.timeline_visible;
+                self.dirty = true;
+                self.menu_bar_state.reset();
+            }
+            menu::MenuAction::ViewToggleSidePanel => {
+                self.side_panel.toggle_open();
+                self.dirty = true;
                 self.menu_bar_state.reset();
             }
             menu::MenuAction::ToolsSelect(tool) => {

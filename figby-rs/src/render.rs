@@ -3,16 +3,21 @@
 use crate::font::{FIGcharacter, FIGfont};
 use crate::smush::{smush_horizontal, SmushMode};
 
+static BLANK_GLYPH: std::sync::OnceLock<FIGcharacter> = std::sync::OnceLock::new();
+
 pub fn lookup_char<'a>(
     font: &'a FIGfont,
     code: u32,
     current_width: &mut usize,
 ) -> &'a FIGcharacter {
-    let ch = font.chars.get(&code).unwrap_or_else(|| {
-        font.chars
-            .get(&0)
-            .expect("FIGfont missing required char code 0")
-    });
+    // Try requested char, then char 0 (font-defined fallback glyph), then static blank.
+    // BLANK_GLYPH is only reached for fonts with no chars at all.
+    let blank = BLANK_GLYPH.get_or_init(FIGcharacter::default);
+    let ch = font
+        .chars
+        .get(&code)
+        .or_else(|| font.chars.get(&0))
+        .unwrap_or(blank);
     *current_width = ch.width();
     ch
 }

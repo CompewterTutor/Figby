@@ -1759,6 +1759,25 @@ impl TuiApp {
             }
         }
 
+        // Layer panel: click/drag on layer rows
+        if let Some(rp) = mouse_fl.right_panel {
+            if self.side_panel.open
+                && self.side_panel.active_tab == TabId::Layers
+                && self.editor.layer_panel.handle_mouse(
+                    mouse.column,
+                    mouse.row,
+                    mouse.kind,
+                    rp,
+                    &mut self.editor.layer_stack,
+                )
+            {
+                self.editor.recomposite_canvas();
+                self.editor.unsaved = true;
+                self.dirty = true;
+                return;
+            }
+        }
+
         if let Some(tb) = mouse_fl.toolbox_list {
             let tool_count = Tool::all().len() as u16;
             let toolbox_inner_y = tb.y + 1;

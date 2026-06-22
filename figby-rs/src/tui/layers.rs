@@ -647,6 +647,8 @@ pub struct LayerPanel {
     pub scroll: u16,
     pub theme: Theme,
     pub icons: std::collections::BTreeMap<String, String>,
+    drag_state: Option<(usize, usize)>,
+    drag_hover_row: Option<usize>,
 }
 
 impl LayerPanel {
@@ -655,6 +657,8 @@ impl LayerPanel {
             scroll: 0,
             theme: Theme::default(),
             icons: std::collections::BTreeMap::new(),
+            drag_state: None,
+            drag_hover_row: None,
         }
     }
 
@@ -663,6 +667,14 @@ impl LayerPanel {
         let modifiers = key.modifiers;
 
         match code {
+            KeyCode::Up if modifiers == KeyModifiers::SHIFT => {
+                stack.move_up(stack.active);
+                true
+            }
+            KeyCode::Down if modifiers == KeyModifiers::SHIFT => {
+                stack.move_down(stack.active);
+                true
+            }
             KeyCode::Up => {
                 if stack.active > 0 {
                     stack.active -= 1;
@@ -961,25 +973,36 @@ impl LayerPanel {
                 self.theme.menu.dropdown_bg
             };
             let indent = if layer.group.is_some() { "  " } else { "" };
+            let drag_handle = "⠿";
             let name_max = (inner.width as usize)
-                .saturating_sub(indent.len() + 3)
+                .saturating_sub(indent.len() + 5)
                 .max(4);
 
-            // Row 1: layer name.
+            // Row 1: drag handle + layer name.
             if display_row >= scroll {
                 let row = display_row - scroll;
                 if row < visible_rows {
+                    let is_drag_target = self
+                        .drag_state
+                        .map(|(from, to)| from != to && real_idx == to)
+                        .unwrap_or(false);
                     let active_marker = if is_active { "›" } else { " " };
                     let name_label = format!(
-                        "{}{} {}",
+                        "{}{} {} {}",
                         indent,
+                        drag_handle,
                         active_marker,
                         truncate_str(&layer.name, name_max),
                     );
+                    let fg = if is_drag_target {
+                        self.theme.general.primary
+                    } else {
+                        self.theme.menu.fg
+                    };
                     frame.render_widget(
                         ratatui::widgets::Paragraph::new(Line::from(Span::styled(
                             name_label,
-                            Style::default().bg(row_bg).fg(self.theme.menu.fg),
+                            Style::default().bg(row_bg).fg(fg),
                         ))),
                         Rect {
                             x: inner_x,
@@ -1065,6 +1088,102 @@ impl LayerPanel {
                 );
             }
             display_row += 1;
+        }
+    }
+
+    /// Map screen (col, row) within the content area to a layer index.
+    fn layer_at_pos(&self, col: u16, row: u16, area: Rect, stack: &LayerStack) -> Option<usize> {
+        let inner = Block::default().borders(Borders::ALL).inner(area);
+        let offset = 1usize;
+        if row < inner.y + offset as u16 || col < inner.x {
+            return None;
+        }
+        let vis_row = (row - inner.y) as usize;
+        if vis_row < offset {
+            return None;
+        }
+        let effective = vis_row.saturating_sub(offset) + self.scroll as usize;
+
+        let mut display_row: usize = 0;
+        let mut emitted = vec![false; stack.groups.len()];
+
+        for rev_idx in 0..stack.layers.len() {
+            let real_idx = stack.layers.len() - 1 - rev_idx;
+            let layer = &stack.layers[real_idx];
+
+            if let Some(g) = layer.group {
+                if g < emitted.len() && !emitted[g] {
+                    emitted[g] = true;
+                    if effective == display_row {
+                        return None;
+                    }
+                    display_row += 1;
+                    if let Some(group) = stack.groups.get(g) {
+                        if group.collapsed {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            if effective >= display_row && effective < display_row + 2 {
+                return Some(real_idx);
+            }
+            display_row += 2;
+        }
+        None
+    }
+
+    pub fn handle_mouse(
+        &mut self,
+        col: u16,
+        row: u16,
+        kind: crossterm::event::MouseEventKind,
+        area: Rect,
+        stack: &mut LayerStack,
+    ) -> bool {
+        use crossterm::event::{MouseButton, MouseEventKind};
+        let inner = Block::default().borders(Borders::ALL).inner(area);
+        match kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(idx) = self.layer_at_pos(col, row, area, stack) {
+                    if col <= inner.x + 1 {
+                        self.drag_state = Some((idx, idx));
+                        self.drag_hover_row = None;
+                        return true;
+                    }
+                    if stack.active != idx {
+                        stack.set_active(idx);
+                        return true;
+                    }
+                }
+                false
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if let Some((from, _to)) = self.drag_state {
+                    if let Some(idx) = self.layer_at_pos(col, row, area, stack) {
+                        self.drag_hover_row = Some(idx);
+                        if idx != from {
+                            self.drag_state = Some((from, idx));
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                if let Some((from, to)) = self.drag_state.take() {
+                    self.drag_hover_row = None;
+                    if from != to && to < stack.layers.len() {
+                        stack.reorder(from, to);
+                        return true;
+                    }
+                    return false;
+                }
+                false
+            }
+            _ => false,
         }
     }
 }

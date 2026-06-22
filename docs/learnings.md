@@ -1,5 +1,17 @@
 # Figby — Learnings
 
+## 6.9.2 — Layer panel: drag handle reorder
+
+- `Block::inner(area)` is sufficient for computing the content rect for hit testing,
+  even when the block has a title. You don't need the actual rendered block — just
+  `Block::default().borders(Borders::ALL).inner(area)` gives the same inner rect.
+- When implementing `layer_at_pos`, the walk order must exactly match `render_with_stack`:
+  reverse layer iteration (`len-1-rev_idx`), group headers consume 1 display row,
+  layers consume 2. The `emitted` set prevents duplicate group-header counting.
+- Mouse drag state in `LayerPanel` is `Option<(from_idx, current_to_idx)>` — the
+  `reorder()` call on `Up` completes the move. Visual feedback (highlighted target)
+  is rendered per-frame by checking `drag_state` during render.
+
 ## 6.9.1 — Layer panel: icon-based 2-row layout
 
 - When a layer occupies 2 display rows and the panel height only fits the name row,

@@ -438,7 +438,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     reorder layers by dragging the handle on left edge of each row.
   - **Difficulty:** Medium
 
-- [ ] `6.9.2` Layers: reorder by drag handle (manual-note #21)
+- [x] `6.9.2` Layers: reorder by drag handle (manual-note #21)
   - **Goal:** No way to reorder layers. Add a drag handle (left edge of each layer row
     in the panel); mouse-drag or `Shift+Up`/`Shift+Down` keybinds reorder layers.
     Layer stack recomposites immediately after reorder.

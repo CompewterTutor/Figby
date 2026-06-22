@@ -11,7 +11,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
 | v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 complete) |
-| v6 — Pre-Release Hardening | (in memory.md) | Active (6.9.1 complete) |
+| v6 — Pre-Release Hardening | (in memory.md) | Active (6.9.2 complete) |
 
 ## Architectural Decisions
 
@@ -2552,6 +2552,16 @@ Replaced text-heavy single-row layer entries with a 2-row icon-based design:
 Key implementation detail: display tracking uses `display_row += 2` per layer
 (group headers = 1 row). Scroll clamping targets the name row (first of the pair).
 If only the name row fits, row 2 is skipped rather than clipped mid-entry.
+
+### 6.9.2 — Layers: reorder by drag handle
+
+Added drag-and-drop reorder for the layer panel:
+- **Drag handle** ("⠿") rendered on the left edge of each layer name row (row 1)
+- **Mouse drag:** click drag handle → drag to target position → release to reorder via `LayerStack::reorder()`. Visual highlight on target position during drag
+- **Keyboard reorder:** Shift+Up / Shift+Down keybinds call `move_up()` / `move_down()`
+- **Click to select:** clicking any layer row (outside drag handle) sets it active
+
+Implementation: `LayerPanel` gained `drag_state: Option<(from, to)>` and `drag_hover_row` fields. New `layer_at_pos()` helper maps screen coords → layer index in the 2-row-per-layer display model. New `handle_mouse()` method dispatches Down/Drag/Up events. Wired into `TuiApp::handle_mouse_event()` after tab-label click handling.
 
 ### 5.8.5 — Phase merge: release/5.8 → master (2026-06-18)
 

@@ -5,7 +5,10 @@
 ### Added
 - Palette editor: add (A), delete (Del), edit hex (E), rename swatch (N), rename palette (R) operations; inline hex and name editing modes; View menu entry for Palette Editor; keymap documentation for Ctrl+Shift+P (6.8.4).
 
-## [Unreleased]
+## [6.0.3] - 2026-06-22
+
+### Added (2026-06-22 session)
+- Layer panel: redesigned to 2-row icon-based layout — row 1 shows layer name with active marker (›), row 2 shows compact attributes (visibility eye, lock icon, blend mode icon, opacity %) using Nerd Font icons. Removed verbose text labels and legacy 3-line help text (6.9.1).
 
 ### Added (2026-06-22 session)
 - Quit-confirm dialog: pressing `q`/FileQuit when `editor.unsaved` is true now shows

@@ -11,7 +11,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
 | v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 complete) |
-| v6 — Pre-Release Hardening | (in memory.md) | Active (6.8.4 complete) |
+| v6 — Pre-Release Hardening | (in memory.md) | Active (6.9.1 complete) |
 
 ## Architectural Decisions
 
@@ -2539,6 +2539,19 @@ specified dimensions and loads selected palette into `PaletteEditor`.
 Wired into `TuiApp` via `DialogState.new_image` field. `WelcomeAction::ImageNewBlank`
 opens the dialog instead of hardcoding 80×24. Palettes sourced from
 `palette_import::builtin_palettes()` (Grayscale, Primary, Warm, Cool).
+
+### 6.9.1 — Layer panel: icon-based 2-row layout
+
+Replaced text-heavy single-row layer entries with a 2-row icon-based design:
+- **Row 1:** layer name with active marker (`›`), indented for grouped layers
+- **Row 2:** compact attribute row — visibility icon (`layer_visibility_on`/`off`),
+  lock icon (`layer_lock`/`unlock`), opacity %, blend mode icon
+- Removed 3-line verbose help text; scrollbar indicators (▲/▼) retained
+- Removed legacy `render_mask_thumbnail()` method (mask still functional via `m` key)
+
+Key implementation detail: display tracking uses `display_row += 2` per layer
+(group headers = 1 row). Scroll clamping targets the name row (first of the pair).
+If only the name row fits, row 2 is skipped rather than clipped mid-entry.
 
 ### 5.8.5 — Phase merge: release/5.8 → master (2026-06-18)
 

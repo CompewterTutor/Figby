@@ -841,42 +841,16 @@ impl LayerPanel {
         let inner_y = inner.y;
         let inner_x = inner.x;
         let inner_h = inner.height as usize;
-        let help_lines = [
-            "↑↓ sel ↵vis llock Llight Sshad",
-            "Nnew Ddup Xdel ±opa Bbld Mmask",
-            ",↑ .↓ reorder ←→col",
-        ];
 
-        for (y, help) in help_lines.iter().enumerate() {
-            if y >= inner_h {
-                return;
-            }
-            let para = ratatui::widgets::Paragraph::new(Line::from(Span::styled(
-                *help,
-                Style::default()
-                    .fg(self.theme.general.secondary)
-                    .add_modifier(Modifier::DIM),
-            )));
-            frame.render_widget(
-                para,
-                Rect {
-                    x: inner_x,
-                    y: inner_y + y as u16,
-                    width: inner.width,
-                    height: 1,
-                },
-            );
-        }
-
-        let offset = help_lines.len() + 1;
+        let offset = 1;
         let visible_rows = inner_h.saturating_sub(offset);
         if visible_rows == 0 {
             return;
         }
 
-        // First pass: find total display items and active's display index.
-        let mut total_display: usize = 0;
-        let mut active_display_idx: usize = 0;
+        // First pass: count display rows (2 per layer, 1 per group header).
+        let mut total_display_rows: usize = 0;
+        let mut active_display_row: usize = 0;
         {
             let mut emitted = vec![false; stack.groups.len()];
             for rev_idx in 0..stack.layers.len() {
@@ -885,7 +859,7 @@ impl LayerPanel {
                 if let Some(g) = layer.group {
                     if g < emitted.len() && !emitted[g] {
                         emitted[g] = true;
-                        total_display += 1;
+                        total_display_rows += 1;
                         if let Some(group) = stack.groups.get(g) {
                             if group.collapsed {
                                 continue;
@@ -894,21 +868,21 @@ impl LayerPanel {
                     }
                 }
                 if real_idx == stack.active {
-                    active_display_idx = total_display;
+                    active_display_row = total_display_rows;
                 }
-                total_display += 1;
+                total_display_rows += 2;
             }
         }
 
-        // Clamp scroll so active layer is always visible.
-        if active_display_idx < self.scroll as usize {
-            self.scroll = active_display_idx as u16;
-        } else if active_display_idx >= self.scroll as usize + visible_rows {
+        // Clamp scroll so active layer name row is visible.
+        if active_display_row < self.scroll as usize {
+            self.scroll = active_display_row as u16;
+        } else if active_display_row >= self.scroll as usize + visible_rows {
             self.scroll =
-                (active_display_idx.saturating_sub(visible_rows.saturating_sub(1))) as u16;
+                (active_display_row.saturating_sub(visible_rows.saturating_sub(2))) as u16;
         }
         let scroll = self.scroll as usize;
-        let has_more_below = total_display > scroll + visible_rows;
+        let has_more_below = total_display_rows > scroll + visible_rows;
 
         // Scroll indicators.
         if scroll > 0 {
@@ -931,19 +905,19 @@ impl LayerPanel {
         }
 
         // Second pass: render visible items.
-        let vis_icon = "v";
-        let mut display_idx: usize = 0;
+        let mut display_row: usize = 0;
         let mut emitted_group_header = vec![false; stack.groups.len()];
 
         for rev_idx in 0..stack.layers.len() {
             let real_idx = stack.layers.len() - 1 - rev_idx;
             let layer = &stack.layers[real_idx];
 
+            // Group header row.
             if let Some(g) = layer.group {
                 if g < emitted_group_header.len() && !emitted_group_header[g] {
                     emitted_group_header[g] = true;
-                    if display_idx >= scroll {
-                        let row = display_idx - scroll;
+                    if display_row >= scroll {
+                        let row = display_row - scroll;
                         if row < visible_rows {
                             if let Some(group) = stack.groups.get(g) {
                                 let disclosure = if group.collapsed { "▶" } else { "▼" };
@@ -970,7 +944,7 @@ impl LayerPanel {
                             }
                         }
                     }
-                    display_idx += 1;
+                    display_row += 1;
 
                     if let Some(group) = stack.groups.get(g) {
                         if group.collapsed {
@@ -980,51 +954,108 @@ impl LayerPanel {
                 }
             }
 
-            if display_idx >= scroll {
-                let row = display_idx - scroll;
+            let is_active = real_idx == stack.active;
+            let row_bg = if is_active {
+                self.theme.menu.highlight
+            } else {
+                self.theme.menu.dropdown_bg
+            };
+            let indent = if layer.group.is_some() { "  " } else { "" };
+            let name_max = (inner.width as usize)
+                .saturating_sub(indent.len() + 3)
+                .max(4);
+
+            // Row 1: layer name.
+            if display_row >= scroll {
+                let row = display_row - scroll;
+                if row < visible_rows {
+                    let active_marker = if is_active { "›" } else { " " };
+                    let name_label = format!(
+                        "{}{} {}",
+                        indent,
+                        active_marker,
+                        truncate_str(&layer.name, name_max),
+                    );
+                    frame.render_widget(
+                        ratatui::widgets::Paragraph::new(Line::from(Span::styled(
+                            name_label,
+                            Style::default().bg(row_bg).fg(self.theme.menu.fg),
+                        ))),
+                        Rect {
+                            x: inner_x,
+                            y: inner_y + offset as u16 + row as u16,
+                            width: inner.width,
+                            height: 1,
+                        },
+                    );
+                }
+            }
+            display_row += 1;
+
+            // Row 2: compact icon-based attributes.
+            if display_row >= scroll {
+                let row = display_row - scroll;
                 if row >= visible_rows {
-                    break;
+                    // No room for row 2 - still need to increment display_row
+                    display_row += 1;
+                    continue;
                 }
 
-                let is_active = real_idx == stack.active;
-                let row_bg = if is_active {
-                    self.theme.menu.highlight
+                let vis_key = if layer.visible {
+                    "layer_visibility_on"
                 } else {
-                    self.theme.menu.dropdown_bg
+                    "layer_visibility_off"
+                };
+                let vis_icon = self
+                    .icons
+                    .get(vis_key)
+                    .map(|s| s.as_str())
+                    .unwrap_or(if layer.visible { "V" } else { "_" });
+
+                let lock_key = if layer.locked {
+                    "layer_lock"
+                } else {
+                    "layer_unlock"
+                };
+                let lock_icon = self
+                    .icons
+                    .get(lock_key)
+                    .map(|s| s.as_str())
+                    .unwrap_or(if layer.locked { "L" } else { "U" });
+
+                let opa_pct = (layer.opacity as f32 / 255.0 * 100.0).round() as u8;
+
+                let attr_style = Style::default()
+                    .bg(row_bg)
+                    .fg(self.theme.general.secondary)
+                    .add_modifier(Modifier::DIM);
+
+                let attr_label = if inner.width >= 8 {
+                    format!(
+                        "{}{}  {}  {}%  {}",
+                        indent,
+                        vis_icon,
+                        lock_icon,
+                        opa_pct,
+                        self.icons
+                            .get(layer.blend_mode.icon_key())
+                            .map(|s| s.as_str())
+                            .unwrap_or(layer.blend_mode.display_name()),
+                    )
+                } else {
+                    format!(
+                        "{}{}{} {}%",
+                        indent,
+                        if layer.visible { "V" } else { "_" },
+                        if layer.locked { "L" } else { "_" },
+                        opa_pct,
+                    )
                 };
 
-                let indent = if layer.group.is_some() { "  " } else { "" };
-                let vis_ch = if layer.visible { vis_icon } else { " " };
-                let lock_ch = if layer.locked { "L" } else { " " };
-                let light_ch = if layer.accepts_lighting { "A" } else { " " };
-                let shadow_ch = if layer.casts_shadow { "S" } else { " " };
-                let blend_icon = self
-                    .icons
-                    .get(layer.blend_mode.icon_key())
-                    .map(|s| s.as_str())
-                    .unwrap_or("");
-
-                let name_max = (inner.width as usize).saturating_sub(18).max(4);
-
-                let label = format!(
-                    "{}{} {} {} {} {} {} {:3}% {}{}",
-                    indent,
-                    vis_ch,
-                    lock_ch,
-                    light_ch,
-                    shadow_ch,
-                    if is_active { ">" } else { " " },
-                    blend_icon,
-                    (layer.opacity as f32 / 255.0 * 100.0).round() as u8,
-                    truncate_str(&layer.name, name_max),
-                    self.render_mask_thumbnail(layer),
-                );
-                let row_style = Style::default().bg(row_bg).fg(self.theme.menu.fg);
-
-                let row_para =
-                    ratatui::widgets::Paragraph::new(Line::from(Span::styled(label, row_style)));
                 frame.render_widget(
-                    row_para,
+                    ratatui::widgets::Paragraph::new(Line::from(Span::styled(
+                        attr_label, attr_style,
+                    ))),
                     Rect {
                         x: inner_x,
                         y: inner_y + offset as u16 + row as u16,
@@ -1033,28 +1064,7 @@ impl LayerPanel {
                     },
                 );
             }
-            display_idx += 1;
-        }
-    }
-
-    fn render_mask_thumbnail(&self, layer: &Layer) -> String {
-        if let Some(ref mask) = layer.mask {
-            let mut s = String::with_capacity(4);
-            s.push(' ');
-            for i in 0..3 {
-                if let Some(cell) = mask.buffer.get(i, 0) {
-                    if cell.ch == ' ' {
-                        s.push('░');
-                    } else {
-                        s.push('▓');
-                    }
-                } else {
-                    s.push(' ');
-                }
-            }
-            s
-        } else {
-            String::new()
+            display_row += 1;
         }
     }
 }
@@ -1745,27 +1755,6 @@ mod tests {
         stack.layers[0].mask.as_mut().unwrap().enabled = false;
         let comp = stack.composite();
         assert_eq!(comp.get(0, 0).unwrap().ch, 'A');
-    }
-
-    #[test]
-    fn test_mask_thumbnail() {
-        let panel = LayerPanel::new();
-        let layer = Layer::new(5, 5, "Test".to_string());
-        let thumb = panel.render_mask_thumbnail(&layer);
-        assert_eq!(thumb, ""); // No mask => empty string
-    }
-
-    #[test]
-    fn test_mask_thumbnail_with_mask() {
-        let panel = LayerPanel::new();
-        let mut layer = Layer::new(5, 5, "Test".to_string());
-        let mut mask = LayerMask::new(5, 5);
-        // Paint first two pixels
-        mask.buffer.set(0, 0, make_cell('▓'));
-        mask.buffer.set(1, 0, make_cell('▓'));
-        layer.mask = Some(mask);
-        let thumb = panel.render_mask_thumbnail(&layer);
-        assert_eq!(thumb, " ▓▓░");
     }
 
     #[test]

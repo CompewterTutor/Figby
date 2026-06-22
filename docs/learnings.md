@@ -1,5 +1,15 @@
 # Figby — Learnings
 
+## 6.9.1 — Layer panel: icon-based 2-row layout
+
+- When a layer occupies 2 display rows and the panel height only fits the name row,
+  skip row 2 rather than rendering a partial entry. Scroll clamping must target the
+  name row (first of the pair) so the active layer's name is always visible.
+- Nerd Font icons from `icons.yaml` (loaded into `BTreeMap<String,String>`) are the
+  canonical source for visibility/lock/blend icons. Fallback to ASCII chars when
+  icon not found (empty map or fallback string). The `icons` field on `LayerPanel`
+  is populated by `TuiApp::new()` via `editor.layer_panel.icons = icons.clone()`.
+
 ## 5.8.4 — Palette LUT integration
 
 - `SwatchLightingData` in `lighting.rs` and `Swatch` in `palette_import.rs` share similar fields but serve different roles: `Swatch` is the serialisable/UI model with `Option` fields for partial overrides, while `SwatchLightingData` is the flattened LUT input with resolved defaults. Keep the separation — the conversion happens in `PaletteEditor::lighting_swatches()`.

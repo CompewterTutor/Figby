@@ -427,7 +427,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > Visual and interaction improvements from manual testing. None block release but
 > all significantly affect first-run experience.
 
-- [ ] `6.9.1` Layer panel: icon-based layout with 2-row entries (manual-note #12)
+- [x] `6.9.1` Layer panel: icon-based layout with 2-row entries (manual-note #12)
   - **Goal:** Layer panel is text-heavy and confusing. Each entry should be 2 rows:
     row 1 = layer name (editable on double-click), row 2 = compact attributes (icon
     for visibility, lock icon, opacity %, blend mode abbreviation). Replace verbose

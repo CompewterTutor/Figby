@@ -154,6 +154,8 @@ pub fn lookup_global(code: KeyCode, modifiers: KeyModifiers) -> Option<GlobalAct
 pub enum Scope {
     Global,
     Canvas,
+    LayerPanel,
+    TextTool,
     FontOverview,
     FontCharEditor,
     Dialog,
@@ -165,6 +167,8 @@ impl Scope {
         match self {
             Scope::Global => "Global",
             Scope::Canvas => "Canvas",
+            Scope::LayerPanel => "Layer Panel",
+            Scope::TextTool => "Text Tool",
             Scope::FontOverview => "Font Overview",
             Scope::FontCharEditor => "Font Char Editor",
             Scope::Dialog => "Dialog",
@@ -247,6 +251,11 @@ pub const KEYMAP: &[KeyBinding] = &[
         description: "Toggle undo history panel",
     },
     KeyBinding {
+        keys: "Ctrl+Shift+P",
+        scope: Scope::Global,
+        description: "Open palette editor",
+    },
+    KeyBinding {
         keys: "Alt+F",
         scope: Scope::Global,
         description: "Open File menu",
@@ -321,6 +330,41 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "M",
         scope: Scope::Canvas,
         description: "Toggle marker sub-mode (brush tool)",
+    },
+    KeyBinding {
+        keys: "r",
+        scope: Scope::Canvas,
+        description: "Rotate canvas 90° (image editor)",
+    },
+    KeyBinding {
+        keys: "H / V",
+        scope: Scope::Canvas,
+        description: "Flip horizontal / vertical (image editor)",
+    },
+    KeyBinding {
+        keys: "Ctrl+A",
+        scope: Scope::Canvas,
+        description: "Select all",
+    },
+    KeyBinding {
+        keys: "Ctrl+X",
+        scope: Scope::Canvas,
+        description: "Cut selection",
+    },
+    KeyBinding {
+        keys: "Ctrl+C",
+        scope: Scope::Canvas,
+        description: "Copy selection",
+    },
+    KeyBinding {
+        keys: "Ctrl+V",
+        scope: Scope::Canvas,
+        description: "Paste",
+    },
+    KeyBinding {
+        keys: "Delete",
+        scope: Scope::Canvas,
+        description: "Delete selection",
     },
     // Font Overview
     KeyBinding {
@@ -398,6 +442,83 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "G",
         scope: Scope::FontCharEditor,
         description: "Generate from system font",
+    },
+    // Layer Panel
+    KeyBinding {
+        keys: "↑ / ↓",
+        scope: Scope::LayerPanel,
+        description: "Select layer",
+    },
+    KeyBinding {
+        keys: "Enter / Space",
+        scope: Scope::LayerPanel,
+        description: "Toggle layer visibility",
+    },
+    KeyBinding {
+        keys: "n / N",
+        scope: Scope::LayerPanel,
+        description: "New layer",
+    },
+    KeyBinding {
+        keys: "d / D",
+        scope: Scope::LayerPanel,
+        description: "Duplicate layer",
+    },
+    KeyBinding {
+        keys: "x / Delete",
+        scope: Scope::LayerPanel,
+        description: "Delete layer",
+    },
+    KeyBinding {
+        keys: "l",
+        scope: Scope::LayerPanel,
+        description: "Toggle layer lock",
+    },
+    KeyBinding {
+        keys: "m",
+        scope: Scope::LayerPanel,
+        description: "Merge down (or toggle mask enabled)",
+    },
+    KeyBinding {
+        keys: "M",
+        scope: Scope::LayerPanel,
+        description: "Toggle mask",
+    },
+    KeyBinding {
+        keys: "+ / -",
+        scope: Scope::LayerPanel,
+        description: "Opacity up / down",
+    },
+    KeyBinding {
+        keys: "Ctrl+G",
+        scope: Scope::LayerPanel,
+        description: "Group selected layer",
+    },
+    // Text Tool
+    KeyBinding {
+        keys: "t",
+        scope: Scope::TextTool,
+        description: "Activate text tool",
+    },
+    KeyBinding {
+        keys: "↑ / ↓",
+        scope: Scope::TextTool,
+        description: "Previous / next font",
+    },
+    KeyBinding {
+        keys: "Enter",
+        scope: Scope::TextTool,
+        description: "Commit text block to canvas",
+    },
+    KeyBinding {
+        keys: "Esc",
+        scope: Scope::TextTool,
+        description: "Cancel / clear text buffer",
+    },
+    KeyBinding {
+        keys: "[ / ]",
+        scope: Scope::TextTool,
+        description: "Scale text down / up",
     },
     // Timeline
     KeyBinding {

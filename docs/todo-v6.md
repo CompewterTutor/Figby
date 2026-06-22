@@ -274,14 +274,14 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Compiles clean; lighting behavior unchanged; `handle_key_event` -177 LOC.
   - **Difficulty:** Medium
 
-- [ ] `6.6.1g` Extract font-editor key dispatch → `FontEditor::handle_key`
+- [x] `6.6.1g` Extract font-editor key dispatch → `FontEditor::handle_key`
   - **Goal:** Identify the font-editor block in `handle_key_event` and move it to
     `font_editor.rs` as a method. Large block — map it first, then extract.
   - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/font_editor.rs`.
   - **Success:** Compiles clean; font-editor behavior unchanged; `handle_key_event` shrinks.
   - **Difficulty:** High
 
-- [ ] `6.6.1h` Extract image-editor key dispatch → `ImageEditor::handle_key`
+- [x] `6.6.1h` Extract image-editor key dispatch → `ImageEditor::handle_key`
   - **Goal:** Same pattern as 6.6.1g for the image-editor block.
   - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/image_editor.rs`.
   - **Success:** Compiles clean; image-editor behavior unchanged; `handle_key_event` shrinks.
@@ -307,7 +307,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     swallowed. Test: simulate `t` → type `"abc"` → assert canvas contains `abc`.
   - **Difficulty:** Medium
 
-- [ ] `6.7.2` Prompt to save on exit if unsaved changes (manual-note #18)
+- [x] `6.7.2` Prompt to save on exit if unsaved changes (manual-note #18)
   - **Goal:** Pressing `q`/`Esc` quits immediately, silently discarding unsaved work.
     Show a confirmation dialog ("Unsaved changes — save before quitting? [Y]es / [N]o /
     [C]ancel") when `app.dirty` is true. Honour the three choices.
@@ -317,7 +317,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     without save. Cancel → stays in editor.
   - **Difficulty:** Medium
 
-- [ ] `6.7.3` Fix panic on direct Unicode input of Deutsch chars (e2e-test-checklist #8.1)
+- [x] `6.7.3` Fix panic on direct Unicode input of Deutsch chars (e2e-test-checklist #8.1)
   - **Goal:** Typing ÄÖÜäöüß directly (not via keyboard reroute `-D`) panics with
     "missing char code 0" — fixed for render path by 6.5.1 blank-glyph fallback,
     but the TUI may still panic on these code points. Verify 6.5.1 covers the TUI
@@ -334,7 +334,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > Features that are present in menus/welcome screen but either do nothing or are
 > entirely absent from the UI. All are referenced in manual testing notes.
 
-- [ ] `6.8.1` Open image: implement file dialog (manual-notes #8, #11)
+- [x] `6.8.1` Open image: implement file dialog (manual-notes #8, #11)
   - **Goal:** "Open Image" on the welcome screen and `o`/`O` in image editor mode
     currently do nothing (welcome) or activate a bare path-entry prompt with no
     directory browser. Implement a proper file dialog: show current directory listing,
@@ -356,7 +356,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     that size. Palette selection populates the palette panel.
   - **Difficulty:** Medium
 
-- [ ] `6.8.3` Canvas size: add Edit Canvas Size action (manual-notes #7, #9) *(status bar display already implemented)*
+- [x] `6.8.3` Canvas size: add Edit Canvas Size action (manual-notes #7, #9) *(status bar display already implemented)*
   - **Goal:** No part of the UI shows current canvas dimensions. (1) Add `WxH` to the
     status bar. (2) Add "Edit Canvas Size" to the Image menu (or View menu) plus a
     keybind; opens a small dialog to resize (with crop/pad options). Resize should not
@@ -367,7 +367,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     is preserved (padded/cropped correctly).
   - **Difficulty:** Medium
 
-- [ ] `6.8.4` Add palette editor UI (manual-note #23; original spec items 5.6.3–5.6.4)
+- [x] `6.8.4` Add palette editor UI (manual-note #23; original spec items 5.6.3–5.6.4)
   - **Goal:** No palette editor exists: no keybind, no menu entry, no icon buttons in
     the palette toolbox. Implement palette editor panel: add/remove/edit colors, name
     the palette, import from file. Add icon buttons to palette toolbox (new color,
@@ -378,8 +378,9 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Can open palette editor, add a new color, rename it, close. Color
     appears in palette panel and can be used for drawing.
   - **Difficulty:** High
+  - **Done:** Added add/delete/edit-color operations to `palette_editor.rs` (A/Delete/E/N/R keys), palette rename (R key), hex inline editing for swatches, View menu entry (`MenuAction::ViewPaletteEditor`), and keymap documentation (`Ctrl+Shift+P`). 106 tests green, clippy/fmt clean.
 
-- [ ] `6.8.5` Default palettes: ship ~5-shade-per-hue built-in palettes (manual-note #17)
+- [x] `6.8.5` Default palettes: ship ~5-shade-per-hue built-in palettes (manual-note #17)
   - **Goal:** No built-in palettes exist. Add at minimum: a grayscale ramp, a primary
     color palette, and one warm + one cool themed palette. Each should have ~5 shades
     per hue. Palettes available in the new-image dialog (6.8.2) and via View menu.
@@ -388,7 +389,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Palettes appear in dropdown; selecting one populates the palette panel.
   - **Difficulty:** Low
 
-- [ ] `6.8.6` Lighting tool: surface or implement (manual-note #14)
+- [x] `6.8.6` Lighting tool: surface or implement (manual-note #14)
   - **Goal:** Lighting tool referenced in original spec and docs/lighting-design.md
     but absent from TUI tool palette, keybinds, and menus. Either: (a) implement the
     tool with basic directional-lighting preview if the logic exists in
@@ -400,7 +401,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     select it, observe canvas lighting effect.
   - **Difficulty:** High (full impl) / Low (placeholder)
 
-- [ ] `6.8.7` Keybinds popup: make scrollable + add missing keybinds (manual-note #15)
+- [x] `6.8.7` Keybinds popup: make scrollable + add missing keybinds (manual-note #15)
   - **Goal:** Keybinds help popup is not scrollable; many keybinds (layer operations,
     animation controls, palette editor, text tool sub-commands) are missing. Make
     the popup scrollable (arrow keys or PgUp/PgDn). Audit all keybinds in
@@ -409,7 +410,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Popup scrolls. All keybinds visible across all modes.
   - **Difficulty:** Low
 
-- [ ] `6.8.8` Timeline and layer panel: make scrollable (manual-note #19)
+- [x] `6.8.8` Timeline and layer panel: make scrollable (manual-note #19)
   - **Goal:** With many layers or animation frames, timeline and layer panel overflow
     and clip. Add scroll support (arrow keys + mouse wheel) to both panels. Show a
     scroll indicator when content overflows.
@@ -445,7 +446,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Drag or Shift+Arrow reorders layers. Canvas updates immediately.
   - **Difficulty:** Medium
 
-- [ ] `6.9.3` Add Layers menu and Timeline menu with actions (manual-note #20)
+- [x] `6.9.3` Add Layers menu and Timeline menu with actions (manual-note #20)
   - **Goal:** Layer actions (add, delete, duplicate, merge, move up/down, rename,
     toggle visibility/lock) exist only via keybinds — no menu. Add a Layers menu
     in the menu bar. Similarly add an Animation/Timeline menu with frame actions.
@@ -471,7 +472,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     immediately.
   - **Difficulty:** Low
 
-- [ ] `6.9.6` Better visual divider between tool palette and brush info (manual-note #22)
+- [x] `6.9.6` Better visual divider between tool palette and brush info (manual-note #22)
   - **Goal:** Weak visual separation between the last tool button and the brush
     info section below it in the toolbox. Add a separator line or padding to make
     the boundary clear.

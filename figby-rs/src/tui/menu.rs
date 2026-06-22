@@ -27,6 +27,21 @@ pub enum MenuAction {
     ViewToggleUndoPanel,
     ViewToggleTimeline,
     ViewToggleSidePanel,
+    ViewLoadBuiltinPalette(&'static str),
+    ViewPaletteEditor,
+    LayerNew,
+    LayerDuplicate,
+    LayerDelete,
+    LayerMergeDown,
+    LayerMoveUp,
+    LayerMoveDown,
+    LayerToggleVisibility,
+    LayerToggleLock,
+    AnimFrameAdd,
+    AnimFrameDelete,
+    AnimPlay,
+    AnimToggleTimeline,
+    ImageResizeCanvas,
     ToolsSelect(Tool),
     HelpAbout,
     HelpKeybindings,
@@ -377,11 +392,14 @@ impl StatefulWidget for &MenuBar {
 
 fn alt_menu_index(c: char) -> Option<usize> {
     match c {
-        'f' | 'F' => Some(0),
-        'e' | 'E' => Some(1),
-        'v' | 'V' => Some(2),
-        't' | 'T' => Some(3),
-        'h' | 'H' => Some(4),
+        'f' | 'F' => Some(0), // File
+        'e' | 'E' => Some(1), // Edit
+        'v' | 'V' => Some(2), // View
+        'i' | 'I' => Some(3), // Image
+        't' | 'T' => Some(4), // Tools
+        'l' | 'L' => Some(5), // Layers
+        'a' | 'A' => Some(6), // Animation
+        'h' | 'H' => Some(7), // Help
         _ => None,
     }
 }
@@ -418,7 +436,22 @@ fn build_menus() -> Vec<TopMenu> {
                 ("Toggle Undo Panel", MenuAction::ViewToggleUndoPanel),
                 ("Toggle Timeline", MenuAction::ViewToggleTimeline),
                 ("Toggle Side Panel", MenuAction::ViewToggleSidePanel),
+                ("Palette Editor", MenuAction::ViewPaletteEditor),
+                (
+                    "Palette: Grayscale",
+                    MenuAction::ViewLoadBuiltinPalette("Grayscale"),
+                ),
+                (
+                    "Palette: Primary",
+                    MenuAction::ViewLoadBuiltinPalette("Primary"),
+                ),
+                ("Palette: Warm", MenuAction::ViewLoadBuiltinPalette("Warm")),
+                ("Palette: Cool", MenuAction::ViewLoadBuiltinPalette("Cool")),
             ],
+        },
+        TopMenu {
+            label: "Image",
+            items: vec![("Resize Canvas", MenuAction::ImageResizeCanvas)],
         },
         TopMenu {
             label: "Tools",
@@ -437,6 +470,29 @@ fn build_menus() -> Vec<TopMenu> {
                 ("Eyedropper", MenuAction::ToolsSelect(Tool::Eyedropper)),
                 ("Spray", MenuAction::ToolsSelect(Tool::Spray)),
                 ("Text", MenuAction::ToolsSelect(Tool::Text)),
+                ("Lighting", MenuAction::ToolsSelect(Tool::Lighting)),
+            ],
+        },
+        TopMenu {
+            label: "Layers",
+            items: vec![
+                ("New Layer", MenuAction::LayerNew),
+                ("Duplicate Layer", MenuAction::LayerDuplicate),
+                ("Delete Layer", MenuAction::LayerDelete),
+                ("Merge Down", MenuAction::LayerMergeDown),
+                ("Move Up", MenuAction::LayerMoveUp),
+                ("Move Down", MenuAction::LayerMoveDown),
+                ("Toggle Visibility", MenuAction::LayerToggleVisibility),
+                ("Toggle Lock", MenuAction::LayerToggleLock),
+            ],
+        },
+        TopMenu {
+            label: "Animation",
+            items: vec![
+                ("Add Frame", MenuAction::AnimFrameAdd),
+                ("Delete Frame", MenuAction::AnimFrameDelete),
+                ("Play / Pause", MenuAction::AnimPlay),
+                ("Toggle Timeline", MenuAction::AnimToggleTimeline),
             ],
         },
         TopMenu {

@@ -25,6 +25,7 @@ pub enum FileOpsMode {
     Open,
     ImportFont,
     ImportGif,
+    OpenImage,
 }
 
 pub struct RecentFiles {
@@ -193,6 +194,17 @@ impl FileOpsDialog {
         self.refresh_directory();
     }
 
+    pub fn enter_open_image(&mut self) {
+        self.mode = FileOpsMode::OpenImage;
+        self.path_buffer.clear();
+        self.selected_entry = 0;
+        self.error_message.clear();
+        self.recent_files_for_display.clear();
+        self.browsing_zip = false;
+        self.current_zip_path.clear();
+        self.refresh_directory();
+    }
+
     pub fn enter_save_as(&mut self, current: Option<&Path>) {
         self.mode = FileOpsMode::SaveAs;
         self.path_buffer = current
@@ -277,6 +289,14 @@ impl FileOpsDialog {
             let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
             let visible = if self.mode == FileOpsMode::ImportGif {
                 is_dir || lower.ends_with(".gif")
+            } else if self.mode == FileOpsMode::OpenImage {
+                is_dir
+                    || lower.ends_with(".png")
+                    || lower.ends_with(".jpg")
+                    || lower.ends_with(".jpeg")
+                    || lower.ends_with(".bmp")
+                    || lower.ends_with(".webp")
+                    || lower.ends_with(".gif")
             } else if self.mode == FileOpsMode::ImportFont {
                 is_dir || lower.ends_with(".ttf") || lower.ends_with(".otf")
             } else {
@@ -389,6 +409,7 @@ impl FileOpsDialog {
             FileOpsMode::Open => self.handle_key_open(code),
             FileOpsMode::ImportFont => self.handle_key_import_font(code),
             FileOpsMode::ImportGif => self.handle_key_import_gif(code),
+            FileOpsMode::OpenImage => self.handle_key_open_image(code),
             FileOpsMode::Idle => false,
         }
     }
@@ -673,6 +694,85 @@ impl FileOpsDialog {
         }
     }
 
+    fn is_image_extension(lower: &str) -> bool {
+        lower.ends_with(".png")
+            || lower.ends_with(".jpg")
+            || lower.ends_with(".jpeg")
+            || lower.ends_with(".bmp")
+            || lower.ends_with(".webp")
+            || lower.ends_with(".gif")
+    }
+
+    fn handle_key_open_image(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Char(c) if !c.is_control() => {
+                self.path_buffer.push(c);
+                self.error_message.clear();
+                self.selected_entry = 0;
+                self.refresh_directory();
+                true
+            }
+            KeyCode::Backspace => {
+                self.path_buffer.pop();
+                self.error_message.clear();
+                self.selected_entry = 0;
+                self.refresh_directory();
+                true
+            }
+            KeyCode::Up => {
+                if !self.directory_entries.is_empty() && self.selected_entry > 0 {
+                    self.selected_entry -= 1;
+                }
+                true
+            }
+            KeyCode::Down => {
+                if !self.directory_entries.is_empty()
+                    && self.selected_entry < self.directory_entries.len() - 1
+                {
+                    self.selected_entry += 1;
+                }
+                true
+            }
+            KeyCode::Tab => {
+                if !self.directory_entries.is_empty() {
+                    self.select_entry();
+                }
+                true
+            }
+            KeyCode::Enter => {
+                if !self.path_buffer.trim().is_empty() {
+                    let p = PathBuf::from(self.path_buffer.trim());
+                    if p.is_file() {
+                        let lower = self.path_buffer.to_lowercase();
+                        if Self::is_image_extension(&lower) {
+                            self.mode = FileOpsMode::Idle;
+                        } else {
+                            self.error_message =
+                                "Select a .png/.jpg/.bmp/.webp/.gif file".to_string();
+                        }
+                        return true;
+                    }
+                }
+                if !self.directory_entries.is_empty() {
+                    let entry = self.directory_entries[self.selected_entry].clone();
+                    let lower = entry.to_lowercase();
+                    if Self::is_image_extension(&lower) {
+                        self.select_entry();
+                        self.mode = FileOpsMode::Idle;
+                    } else {
+                        self.select_entry();
+                    }
+                }
+                true
+            }
+            KeyCode::Esc => {
+                self.close();
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn handle_key_save_as(&mut self, code: KeyCode) -> bool {
         match code {
             KeyCode::Char(c) => {
@@ -724,6 +824,7 @@ impl FileOpsDialog {
             FileOpsMode::Open => self.render_open(frame, area),
             FileOpsMode::ImportFont => self.render_import_font(frame, area),
             FileOpsMode::ImportGif => self.render_import_gif(frame, area),
+            FileOpsMode::OpenImage => self.render_open_image(frame, area),
             FileOpsMode::Idle => {}
         }
     }
@@ -1028,6 +1129,97 @@ impl FileOpsDialog {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             " Tab: select  Enter: import  Esc: cancel  \u{2191}\u{2193}: navigate",
+            Style::default().fg(self.theme.dialog.meta),
+        )));
+
+        let paragraph = Paragraph::new(lines);
+        frame.render_widget(paragraph, inner);
+    }
+
+    fn render_open_image(&self, frame: &mut Frame, area: Rect) {
+        frame.render_widget(Clear, area);
+        let block = Block::default()
+            .title(" Open Image (.png/.jpg/.bmp/.webp/.gif) ")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(self.theme.dialog.border_path));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        if inner.width < 24 || inner.height < 8 {
+            return;
+        }
+
+        let mut lines: Vec<Line> = Vec::new();
+
+        lines.push(Line::from(Span::styled(
+            " Path:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )));
+
+        let path_display = if self.path_buffer.is_empty() {
+            " (type path or browse with arrows)".to_string()
+        } else {
+            self.path_buffer.clone()
+        };
+        lines.push(Line::from(Span::styled(
+            format!(" {}", path_display),
+            Style::default().fg(self.theme.dialog.border_path),
+        )));
+
+        if !self.error_message.is_empty() {
+            lines.push(Line::from(Span::styled(
+                format!(" Error: {}", self.error_message),
+                Style::default().fg(self.theme.dialog.error),
+            )));
+        }
+
+        lines.push(Line::from(""));
+
+        if self.directory_entries.is_empty() {
+            lines.push(Line::from(Span::styled(
+                " (no image files in directory)",
+                Style::default().fg(self.theme.dialog.meta),
+            )));
+        } else {
+            lines.push(Line::from(Span::styled(
+                " Directory:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+
+            let max_visible = (inner.height as usize).saturating_sub(6).min(8);
+            let start = self.selected_entry.saturating_sub(max_visible / 2);
+            let end = (start + max_visible).min(self.directory_entries.len());
+            for i in start..end {
+                let entry = &self.directory_entries[i];
+                let is_selected = i == self.selected_entry;
+                let prefix = if is_selected { " >" } else { "  " };
+                let parent = if self.path_buffer.is_empty() {
+                    PathBuf::from(".")
+                } else {
+                    let p = PathBuf::from(&self.path_buffer);
+                    if p.is_dir() {
+                        p
+                    } else {
+                        p.parent()
+                            .map(|pp| pp.to_path_buf())
+                            .unwrap_or_else(|| PathBuf::from("."))
+                    }
+                };
+                let is_dir = parent.join(entry).is_dir();
+                let suffix = if is_dir { "/" } else { "" };
+                let text = format!("{prefix}{entry}{suffix}");
+                let style = if is_selected {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                lines.push(Line::from(Span::styled(text, style)));
+            }
+        }
+
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            " Tab: select  Enter: open  Esc: cancel  \u{2191}\u{2193}: navigate",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -1443,6 +1635,85 @@ impl Widget for &FileOpsDialog {
 
                 let paragraph = Paragraph::new(lines);
                 Widget::render(paragraph, inner, buf);
+            }
+            FileOpsMode::OpenImage => {
+                Widget::render(Clear, area, buf);
+                let block = Block::default()
+                    .title(" Open Image (.png/.jpg/.bmp/.webp/.gif) ")
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(self.theme.dialog.border_path));
+                let inner = block.inner(area);
+                Widget::render(block, area, buf);
+                if inner.width < 24 || inner.height < 8 {
+                    return;
+                }
+                let mut lines: Vec<Line> = Vec::new();
+                lines.push(Line::from(Span::styled(
+                    " Path:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )));
+                let path_display = if self.path_buffer.is_empty() {
+                    " (type path or browse with arrows)".to_string()
+                } else {
+                    self.path_buffer.clone()
+                };
+                lines.push(Line::from(Span::styled(
+                    format!(" {}", path_display),
+                    Style::default().fg(self.theme.dialog.border_path),
+                )));
+                if !self.error_message.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        format!(" Error: {}", self.error_message),
+                        Style::default().fg(self.theme.dialog.error),
+                    )));
+                }
+                lines.push(Line::from(""));
+                if self.directory_entries.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        " (no image files in directory)",
+                        Style::default().fg(self.theme.dialog.meta),
+                    )));
+                } else {
+                    lines.push(Line::from(Span::styled(
+                        " Directory:",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )));
+                    let max_visible = (inner.height as usize).saturating_sub(6).min(8);
+                    let start = self.selected_entry.saturating_sub(max_visible / 2);
+                    let end = (start + max_visible).min(self.directory_entries.len());
+                    for i in start..end {
+                        let entry = &self.directory_entries[i];
+                        let is_selected = i == self.selected_entry;
+                        let prefix = if is_selected { " >" } else { "  " };
+                        let parent = if self.path_buffer.is_empty() {
+                            PathBuf::from(".")
+                        } else {
+                            let p = PathBuf::from(&self.path_buffer);
+                            if p.is_dir() {
+                                p
+                            } else {
+                                p.parent()
+                                    .map(|pp| pp.to_path_buf())
+                                    .unwrap_or_else(|| PathBuf::from("."))
+                            }
+                        };
+                        let is_dir = parent.join(entry).is_dir();
+                        let suffix = if is_dir { "/" } else { "" };
+                        let text = format!("{prefix}{entry}{suffix}");
+                        let style = if is_selected {
+                            Style::default().add_modifier(Modifier::REVERSED)
+                        } else {
+                            Style::default()
+                        };
+                        lines.push(Line::from(Span::styled(text, style)));
+                    }
+                }
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    " Tab: select  Enter: open  Esc: cancel  \u{2191}\u{2193}: navigate",
+                    Style::default().fg(self.theme.dialog.meta),
+                )));
+                Widget::render(Paragraph::new(lines), inner, buf);
             }
             FileOpsMode::Idle => {}
         }

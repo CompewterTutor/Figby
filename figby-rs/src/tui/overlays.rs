@@ -26,7 +26,7 @@ impl TuiApp {
             self.dialogs.file_ops.render(frame, overlay);
         }
 
-        // Keybindings overlay
+        // Keybindings overlay (scrollable)
         if self.show_keybindings {
             let area = frame.area();
             let overlay = Rect {
@@ -37,7 +37,7 @@ impl TuiApp {
             };
             frame.render_widget(Clear, overlay);
             let block = Block::default()
-                .title(" Keybindings (Esc to close) ")
+                .title(" Keybindings (Esc/q: close  ↑↓/PgUp/PgDn: scroll) ")
                 .borders(Borders::ALL)
                 .style(
                     Style::default()
@@ -65,7 +65,11 @@ impl TuiApp {
                     binding.keys, binding.description
                 )));
             }
-            frame.render_widget(Paragraph::new(lines), inner);
+            let total = lines.len();
+            let visible = inner.height as usize;
+            let max_scroll = total.saturating_sub(visible);
+            let scroll = self.keybindings_scroll.min(max_scroll) as u16;
+            frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), inner);
         }
 
         // Undo history panel overlay
@@ -139,9 +143,11 @@ impl TuiApp {
                 height: panel_h,
             };
             frame.render_widget(Clear, panel_rect);
-            self.animation
-                .emitter_panel
-                .render_config_panel(frame, panel_rect, &self.animation.particle_system.config);
+            self.animation.emitter_panel.render_config_panel(
+                frame,
+                panel_rect,
+                &self.animation.particle_system.config,
+            );
         }
 
         // Palette editor overlay
@@ -153,6 +159,40 @@ impl TuiApp {
                 self.dirty = true;
             }
             self.palette_editor.render(frame, frame.area(), &self.theme);
+        }
+
+        // Quit-confirm dialog
+        if self.quit_confirm_dialog {
+            let area = frame.area();
+            let w: u16 = 52.min(area.width);
+            let h: u16 = 7.min(area.height);
+            let dialog = Rect {
+                x: area.x + area.width.saturating_sub(w) / 2,
+                y: area.y + area.height.saturating_sub(h) / 2,
+                width: w,
+                height: h,
+            };
+            frame.render_widget(Clear, dialog);
+            let block = Block::default()
+                .title(" Unsaved Changes ")
+                .borders(Borders::ALL)
+                .style(
+                    Style::default()
+                        .bg(self.theme.menu.dropdown_bg)
+                        .fg(self.theme.menu.fg),
+                );
+            let inner = block.inner(dialog);
+            frame.render_widget(block, dialog);
+            let lines = vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  You have unsaved changes.",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from("  [Y] Save and quit   [N] Discard and quit   [C] Cancel"),
+            ];
+            frame.render_widget(Paragraph::new(lines), inner);
         }
     }
 }

@@ -1338,6 +1338,18 @@ Three bugs found in phase merge review:
   compiled. This means `gif_import.rs` can use `CanvasCell` directly without
   importing TUI-only modules.
 
+## 6.8.4 — Palette editor UI
+
+- Borrow checker requires `let name = self.name_buffer.clone();` before calling
+  `self.rename_selected(&name)` — cannot borrow `self` mutably and immutably
+  in the same expression even though the field access (`self.name_buffer`) is
+  disjoint from the method's target (`self.swatches`). Clone the string first.
+- When reusing `PanelMode::Naming` for two intents (duplicate vs rename), a
+  `naming_is_rename: bool` flag is simpler than adding yet another enum variant.
+- The palette editor already had full IO (save/load/import) but lacked
+  in-place manipulation — add/edit/delete operations on swatches are purely
+  in-memory Vec mutations, no file I/O needed.
+
 ## 5.7.2 — Phase merge: release/5.7 → main
 
 - Task description says `main` but actual default branch is `master`. All prior

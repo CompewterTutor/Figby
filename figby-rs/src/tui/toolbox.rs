@@ -21,6 +21,7 @@ pub enum Tool {
     Spray,
     Text,
     Emitter,
+    Lighting,
 }
 
 impl Tool {
@@ -38,6 +39,7 @@ impl Tool {
             Tool::Spray => "Sp",
             Tool::Text => "Te",
             Tool::Emitter => "Em",
+            Tool::Lighting => "Lg",
         }
     }
 
@@ -55,6 +57,7 @@ impl Tool {
             Tool::Spray => "Spray",
             Tool::Text => "Text",
             Tool::Emitter => "Emitter",
+            Tool::Lighting => "Lighting",
         }
     }
 
@@ -72,6 +75,7 @@ impl Tool {
             Tool::Spray => KeyCode::Char('a'),
             Tool::Text => KeyCode::Char('t'),
             Tool::Emitter => KeyCode::Char('m'),
+            Tool::Lighting => KeyCode::Char('n'),
         }
     }
 
@@ -89,6 +93,7 @@ impl Tool {
             Tool::Spray => "tool_spray",
             Tool::Text => "tool_text",
             Tool::Emitter => "tool_emitter",
+            Tool::Lighting => "tool_lighting",
         }
     }
 
@@ -106,6 +111,7 @@ impl Tool {
             Tool::Spray,
             Tool::Text,
             Tool::Emitter,
+            Tool::Lighting,
         ]
     }
 }

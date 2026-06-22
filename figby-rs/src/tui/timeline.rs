@@ -170,6 +170,8 @@ pub struct TimelineState {
     pub layer_names: Vec<String>,
     /// Vertical scroll offset for layers (row index of first visible layer).
     pub layer_row_offset: usize,
+    /// Updated each render pass — used by key handler to keep current frame in view.
+    pub cached_max_vis_frames: usize,
 }
 
 impl Default for TimelineState {
@@ -184,6 +186,7 @@ impl Default for TimelineState {
             tween: None,
             layer_names: Vec::new(),
             layer_row_offset: 0,
+            cached_max_vis_frames: 5,
         }
     }
 }
@@ -905,6 +908,7 @@ impl StatefulWidget for &AnimationTimeline {
 
         let frame_area_w = area.width - self.label_col_width;
         let max_vis_frames = (frame_area_w / stride) as usize;
+        state.cached_max_vis_frames = max_vis_frames.max(1);
         let f_start = state.scroll_offset.min(state.frames.len());
         let f_end = (f_start + max_vis_frames).min(state.frames.len());
 

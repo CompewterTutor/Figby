@@ -35,6 +35,7 @@ pub mod layout;
 pub mod light_panel;
 pub mod lighting;
 pub mod menu;
+mod overlays;
 pub mod palette;
 pub mod palette_editor;
 pub mod particles;
@@ -50,7 +51,6 @@ pub mod tools;
 pub mod undo;
 pub mod undo_panel;
 pub mod welcome;
-mod overlays;
 
 pub use brush::BrushState;
 pub use dialogs::RasciiImportDialog;
@@ -428,8 +428,9 @@ impl LightingState {
                     if let Some(ref mut scene) = self.scene {
                         let idx = self.panel.selected_index;
                         if idx < scene.lights.len() {
-                            if let lighting::Light::Point { ref mut position, .. } =
-                                scene.lights[idx]
+                            if let lighting::Light::Point {
+                                ref mut position, ..
+                            } = scene.lights[idx]
                             {
                                 position.1 = (position.1 - 1.0).max(0.0);
                                 *dirty = true;
@@ -446,8 +447,9 @@ impl LightingState {
                     if let Some(ref mut scene) = self.scene {
                         let idx = self.panel.selected_index;
                         if idx < scene.lights.len() {
-                            if let lighting::Light::Point { ref mut position, .. } =
-                                scene.lights[idx]
+                            if let lighting::Light::Point {
+                                ref mut position, ..
+                            } = scene.lights[idx]
                             {
                                 position.1 = (position.1 + 1.0).min(h as f32 - 1.0);
                                 *dirty = true;
@@ -465,7 +467,10 @@ impl LightingState {
                 if let Some(ref mut scene) = self.scene {
                     let idx = self.panel.selected_index;
                     if idx < scene.lights.len() {
-                        if let lighting::Light::Point { ref mut position, .. } = scene.lights[idx] {
+                        if let lighting::Light::Point {
+                            ref mut position, ..
+                        } = scene.lights[idx]
+                        {
                             position.0 = (position.0 - 1.0).max(0.0);
                             *dirty = true;
                         }
@@ -476,7 +481,10 @@ impl LightingState {
                 if let Some(ref mut scene) = self.scene {
                     let idx = self.panel.selected_index;
                     if idx < scene.lights.len() {
-                        if let lighting::Light::Point { ref mut position, .. } = scene.lights[idx] {
+                        if let lighting::Light::Point {
+                            ref mut position, ..
+                        } = scene.lights[idx]
+                        {
                             position.0 = (position.0 + 1.0).min(w as f32 - 1.0);
                             *dirty = true;
                         }
@@ -563,6 +571,8 @@ pub struct TuiApp {
     pub mode: AppMode,
     pub session_type: SessionType,
     pub should_quit: bool,
+    pub quit_confirm_dialog: bool,
+    quit_after_save: bool,
     pub icons: BTreeMap<String, String>,
     pub menu_bar: MenuBar,
     pub menu_bar_state: menu::MenuBarState,
@@ -580,6 +590,7 @@ pub struct TuiApp {
     dirty: bool,
     last_draw_time: Instant,
     pub show_keybindings: bool,
+    keybindings_scroll: usize,
     pub welcome_screen: welcome::WelcomeScreen,
     pub delta_time: Duration,
     fx_last_tick: Instant,
@@ -683,6 +694,8 @@ impl TuiApp {
             mode: AppMode::FontEditor,
             session_type: SessionType::Any,
             should_quit: false,
+            quit_confirm_dialog: false,
+            quit_after_save: false,
             icons: icons.clone(),
             menu_bar: MenuBar::new(),
             menu_bar_state: menu::MenuBarState::new(),
@@ -708,6 +721,7 @@ impl TuiApp {
             dirty: true,
             last_draw_time: Instant::now(),
             show_keybindings: false,
+            keybindings_scroll: 0,
             welcome_screen: welcome::WelcomeScreen::new(),
             delta_time: Duration::ZERO,
             fx_last_tick: Instant::now(),
@@ -746,7 +760,9 @@ impl TuiApp {
             },
             animation: AnimationState {
                 timeline_state: timeline::TimelineState::default(),
-                particle_system: particles::ParticleSystem::new(particles::ParticleConfig::default()),
+                particle_system: particles::ParticleSystem::new(
+                    particles::ParticleConfig::default(),
+                ),
                 emitter_active: false,
                 emitter_panel: particles::EmitterConfigPanel::new(),
                 show_live_particles: true,
@@ -809,9 +825,18 @@ impl TuiApp {
         Ok(())
     }
 
+    fn trigger_quit(&mut self) {
+        if self.editor.unsaved {
+            self.quit_confirm_dialog = true;
+            self.dirty = true;
+        } else {
+            self.should_quit = true;
+        }
+    }
+
     fn process_event(&mut self, event: &AppEvent) {
         match event {
-            AppEvent::Quit => self.should_quit = true,
+            AppEvent::Quit => self.trigger_quit(),
             AppEvent::Toolbox(crate::tui::events::ToolboxEvent::ToolSelected)
                 if self.editor.toolbox.selected != Tool::PolygonSelect =>
             {
@@ -891,7 +916,7 @@ impl TuiApp {
             .editor
             .toolbox
             .required_width(self.editor.brush.required_outer_width());
-        let toolbox_h = Tool::all().len() as u16 + 1 + layout::TOOLBOX_BRUSH_HEIGHT;
+        let toolbox_h = Tool::all().len() as u16 + 2 + layout::TOOLBOX_BRUSH_HEIGHT;
         let fl = layout::FrameLayout::compute(
             frame.area(),
             self.zen_mode,
@@ -930,19 +955,21 @@ impl TuiApp {
         // --- Lighting mode ---
         if self.mode == AppMode::Lighting {
             if let Some(tb_list) = fl.toolbox_list {
-                self.lighting.panel.render(frame, tb_list, &self.lighting.scene, &self.theme);
+                self.lighting
+                    .panel
+                    .render(frame, tb_list, &self.lighting.scene, &self.theme);
             }
             self.render_canvas_area(frame, fl.canvas);
             // Status bar
             let lighting_active = true;
-            let light_type = self
-                .lighting.scene
-                .as_ref()
-                .and_then(|s| LightPanel::light_type_str(s, self.lighting.panel.selected_index()));
-            let light_intensity = self
-                .lighting.scene
-                .as_ref()
-                .and_then(|s| LightPanel::light_intensity(s, self.lighting.panel.selected_index()));
+            let light_type =
+                self.lighting.scene.as_ref().and_then(|s| {
+                    LightPanel::light_type_str(s, self.lighting.panel.selected_index())
+                });
+            let light_intensity =
+                self.lighting.scene.as_ref().and_then(|s| {
+                    LightPanel::light_intensity(s, self.lighting.panel.selected_index())
+                });
             frame.render_widget(
                 components::status_bar::StatusBarWidget::new(
                     self.mode,
@@ -1022,6 +1049,14 @@ impl TuiApp {
                         tb_brush,
                         layout::toolbox_brush_borders(),
                     );
+                } else if self.editor.toolbox.selected == Tool::Lighting {
+                    let block = Block::default()
+                        .title(" Lighting ")
+                        .borders(layout::toolbox_brush_borders());
+                    let inner = block.inner(tb_brush);
+                    frame.render_widget(block, tb_brush);
+                    let info = Paragraph::new("Press G to\nopen lighting\neditor");
+                    frame.render_widget(info, inner);
                 } else {
                     self.editor
                         .brush
@@ -1063,7 +1098,7 @@ impl TuiApp {
             self.side_panel.render(
                 frame,
                 rp,
-                Some(&self.editor.layer_panel),
+                Some(&mut self.editor.layer_panel),
                 Some(&self.editor.layer_stack),
                 self.editor.toolbox.selected,
                 &self.editor.brush,
@@ -1091,7 +1126,11 @@ impl TuiApp {
                     .split(inner);
                 let anim_timeline = timeline::AnimationTimeline::panel_instance();
                 frame.render_widget(block, timeline_rect);
-                frame.render_stateful_widget(&anim_timeline, tl_split[0], &mut self.animation.timeline_state);
+                frame.render_stateful_widget(
+                    &anim_timeline,
+                    tl_split[0],
+                    &mut self.animation.timeline_state,
+                );
                 let toolbar =
                     Paragraph::new(" [A] Add Frame  [Del] Delete  [←/→] Switch  [Enter] Play")
                         .style(Style::default().fg(self.theme.general.secondary));
@@ -1131,14 +1170,16 @@ impl TuiApp {
         let status_glyph_count = self.editor.font_editor.font.as_ref().map(|f| f.chars.len());
         let lighting_active = self.mode == AppMode::Lighting;
         let light_type = if lighting_active {
-            self.lighting.scene
+            self.lighting
+                .scene
                 .as_ref()
                 .and_then(|s| LightPanel::light_type_str(s, self.lighting.panel.selected_index()))
         } else {
             None
         };
         let light_intensity = if lighting_active {
-            self.lighting.scene
+            self.lighting
+                .scene
                 .as_ref()
                 .and_then(|s| LightPanel::light_intensity(s, self.lighting.panel.selected_index()))
         } else {
@@ -1185,7 +1226,7 @@ impl TuiApp {
             .editor
             .toolbox
             .required_width(self.editor.brush.required_outer_width());
-        let toolbox_h = Tool::all().len() as u16 + 1 + layout::TOOLBOX_BRUSH_HEIGHT;
+        let toolbox_h = Tool::all().len() as u16 + 2 + layout::TOOLBOX_BRUSH_HEIGHT;
         let fl = layout::FrameLayout::compute(
             frame.area(),
             self.zen_mode,
@@ -1363,7 +1404,8 @@ impl TuiApp {
 
             if self.animation.emitter_active && self.animation.show_live_particles {
                 let saved = self.editor.canvas.buffer.clone();
-                self.animation.particle_system
+                self.animation
+                    .particle_system
                     .render_to_canvas(&mut self.editor.canvas.buffer);
                 frame.render_widget(&self.editor.canvas, canvas_inner_rect);
                 self.editor.canvas.buffer = saved;
@@ -1588,6 +1630,15 @@ impl TuiApp {
                 self.welcome_fx = None;
                 self.dirty = true;
             }
+            WelcomeAction::ImageOpen => {
+                self.session_type = SessionType::Image;
+                self.editor.image_editor = image_editor::ImageEditor::new();
+                self.mode = AppMode::ImageEditor;
+                self.dialogs.file_ops.enter_open_image();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
         }
     }
 
@@ -1688,7 +1739,7 @@ impl TuiApp {
                 .editor
                 .toolbox
                 .required_width(self.editor.brush.required_outer_width());
-            let toolbox_h = Tool::all().len() as u16 + 1 + layout::TOOLBOX_BRUSH_HEIGHT;
+            let toolbox_h = Tool::all().len() as u16 + 2 + layout::TOOLBOX_BRUSH_HEIGHT;
             layout::FrameLayout::compute(
                 Rect::new(0, 0, cols, rows),
                 self.zen_mode,
@@ -1876,7 +1927,8 @@ impl TuiApp {
                 if self.editor.toolbox.selected == Tool::Line {
                     self.editor.push_undo_snapshot("Line tool");
                     self.interaction.line_start = Some((bx, by));
-                    self.interaction.saved_buffer = Some(self.editor.layer_stack.active_layer().buffer.clone());
+                    self.interaction.saved_buffer =
+                        Some(self.editor.layer_stack.active_layer().buffer.clone());
                     return;
                 }
                 if self.editor.toolbox.selected == Tool::Eraser {
@@ -1918,8 +1970,9 @@ impl TuiApp {
                     self.animation.emitter_active = true;
                     self.animation.particle_system.config.emitter_x = bx as f64;
                     self.animation.particle_system.config.emitter_y = by as f64;
-                    self.animation.particle_system =
-                        particles::ParticleSystem::new(self.animation.particle_system.config.clone());
+                    self.animation.particle_system = particles::ParticleSystem::new(
+                        self.animation.particle_system.config.clone(),
+                    );
                     self.animation.emitter_panel = particles::EmitterConfigPanel::new();
                     self.animation.emitter_panel.open = true;
                     self.dirty = true;
@@ -1977,9 +2030,10 @@ impl TuiApp {
                 }
 
                 if self.editor.toolbox.selected == Tool::Line {
-                    if let (Some((sx, sy)), Some(ref saved)) =
-                        (self.interaction.line_start, self.interaction.saved_buffer.clone())
-                    {
+                    if let (Some((sx, sy)), Some(ref saved)) = (
+                        self.interaction.line_start,
+                        self.interaction.saved_buffer.clone(),
+                    ) {
                         let saved_clone = saved.clone();
                         let mut cell = canvas::CanvasCell {
                             ch: self.editor.brush.ch,
@@ -2117,8 +2171,13 @@ impl TuiApp {
                             self.editor.font_editor.current_path = Some(path);
                             self.last_save_time = Instant::now();
                             self.dialogs.file_ops.error_message.clear();
+                            if self.quit_after_save {
+                                self.quit_after_save = false;
+                                self.should_quit = true;
+                            }
                         }
                         Err(e) => {
+                            self.quit_after_save = false;
                             self.dialogs.file_ops.error_message = format!("Save failed: {e}");
                         }
                     },
@@ -2248,11 +2307,53 @@ impl TuiApp {
         let code = key.code;
         let modifiers = key.modifiers;
 
-        // Keybindings overlay: Esc closes it, swallow all other keys
+        // Keybindings overlay: Esc closes it, arrows scroll, swallow all other keys
         if self.show_keybindings {
-            if code == KeyCode::Esc {
-                self.show_keybindings = false;
-                self.dirty = true;
+            match code {
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.show_keybindings = false;
+                    self.keybindings_scroll = 0;
+                    self.dirty = true;
+                }
+                KeyCode::Up => {
+                    self.keybindings_scroll = self.keybindings_scroll.saturating_sub(1);
+                    self.dirty = true;
+                }
+                KeyCode::Down => {
+                    self.keybindings_scroll = self.keybindings_scroll.saturating_add(1);
+                    self.dirty = true;
+                }
+                KeyCode::PageUp => {
+                    self.keybindings_scroll = self.keybindings_scroll.saturating_sub(10);
+                    self.dirty = true;
+                }
+                KeyCode::PageDown => {
+                    self.keybindings_scroll = self.keybindings_scroll.saturating_add(10);
+                    self.dirty = true;
+                }
+                _ => {}
+            }
+            return None;
+        }
+
+        // Quit-confirm dialog: intercept all keys before anything else
+        if self.quit_confirm_dialog {
+            match code {
+                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                    self.quit_confirm_dialog = false;
+                    self.quit_after_save = true;
+                    self.dirty = true;
+                    self.start_save();
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') => {
+                    self.quit_confirm_dialog = false;
+                    self.should_quit = true;
+                }
+                KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => {
+                    self.quit_confirm_dialog = false;
+                    self.dirty = true;
+                }
+                _ => {}
             }
             return None;
         }
@@ -2313,6 +2414,17 @@ impl TuiApp {
                         self.perform_import_gif(path);
                         return Some(AppEvent::OpenRequested);
                     }
+                    file_ops::FileOpsMode::OpenImage => {
+                        let path = self.dialogs.file_ops.selected_path();
+                        if !path.exists() {
+                            self.dialogs.file_ops.error_message =
+                                format!("File not found: {}", path.display());
+                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::OpenImage;
+                            return None;
+                        }
+                        self.perform_open_image(path);
+                        return Some(AppEvent::ImageEditor);
+                    }
                     file_ops::FileOpsMode::Idle => None,
                 };
             }
@@ -2364,14 +2476,19 @@ impl TuiApp {
 
         // Keyframe editor: intercept all keys when open
         if self.animation.timeline_state.keyframe_editor.open
-            && self.animation.timeline_state.handle_keyframe_editor_key(code)
+            && self
+                .animation
+                .timeline_state
+                .handle_keyframe_editor_key(code)
         {
             self.dirty = true;
             return None;
         }
 
         // Tween panel: intercept keys when open
-        if self.animation.timeline_state.tween.is_some() && self.animation.timeline_state.handle_tween_key(code) {
+        if self.animation.timeline_state.tween.is_some()
+            && self.animation.timeline_state.handle_tween_key(code)
+        {
             self.dirty = true;
             return None;
         }
@@ -2462,37 +2579,15 @@ impl TuiApp {
 
         // Font Editor mode: dispatch to font_editor before canvas/tools
         if self.mode == AppMode::FontEditor {
-            // Sync brush char for CharEditor cell toggle
-            if matches!(
-                self.editor.font_editor.view,
-                font_editor::FontEditorView::CharEditor(_)
-            ) {
-                self.editor.font_editor.brush_char = self.editor.brush.ch;
-            }
-            let area_width = crossterm::terminal::size().unwrap_or((80, 24)).0;
-            if self
-                .editor
-                .font_editor
-                .handle_key(key.code, key.modifiers, area_width)
-            {
-                if self.editor.font_editor.view != font_editor::FontEditorView::Overview {
-                    self.editor.sync_font_char_to_canvas();
-                }
-                return Some(AppEvent::FontEditor(
-                    crate::tui::events::FontEditorEvent::Changed(self.editor.font_editor.view),
-                ));
+            if let Some(ev) = self.handle_font_editor_key(key) {
+                return Some(ev);
             }
         }
 
         // Image Editor mode: dispatch to image_editor before canvas/tools
         if self.mode == AppMode::ImageEditor {
-            let was_entering = self.editor.image_editor.entering_path();
-            if self.editor.image_editor.handle_key(code) {
-                self.editor.sync_image_to_canvas();
-                if was_entering && !self.editor.image_editor.entering_path() {
-                    self.editor.undo.clear();
-                }
-                return Some(AppEvent::ImageEditor);
+            if let Some(ev) = self.handle_image_editor_key(code) {
+                return Some(ev);
             }
         }
 
@@ -2754,14 +2849,25 @@ impl TuiApp {
             match code {
                 KeyCode::Left if self.animation.timeline_state.current_frame > 0 => {
                     self.animation.timeline_state.current_frame -= 1;
+                    let cf = self.animation.timeline_state.current_frame;
+                    if cf < self.animation.timeline_state.scroll_offset {
+                        self.animation.timeline_state.scroll_offset = cf;
+                    }
                     self.editor.sync_canvas_to_font_char();
                     self.dirty = true;
                     return None;
                 }
                 KeyCode::Right
-                    if self.animation.timeline_state.current_frame + 1 < self.animation.timeline_state.frames.len() =>
+                    if self.animation.timeline_state.current_frame + 1
+                        < self.animation.timeline_state.frames.len() =>
                 {
                     self.animation.timeline_state.current_frame += 1;
+                    let cf = self.animation.timeline_state.current_frame;
+                    let max_vis = self.animation.timeline_state.cached_max_vis_frames;
+                    if cf >= self.animation.timeline_state.scroll_offset + max_vis {
+                        self.animation.timeline_state.scroll_offset =
+                            cf.saturating_sub(max_vis.saturating_sub(1));
+                    }
                     self.editor.sync_canvas_to_font_char();
                     self.dirty = true;
                     return None;
@@ -2796,7 +2902,8 @@ impl TuiApp {
                 }
                 KeyCode::Delete if self.animation.timeline_state.frames.len() > 1 => {
                     let _ = self
-                        .animation.timeline_state
+                        .animation
+                        .timeline_state
                         .remove_frame(self.animation.timeline_state.current_frame);
                     self.dirty = true;
                     return None;
@@ -2809,7 +2916,10 @@ impl TuiApp {
         if self.mode == AppMode::Lighting {
             let w = self.editor.canvas.buffer.width() as i16;
             let h = self.editor.canvas.buffer.height() as i16;
-            match self.lighting.handle_key(code, modifiers, w, h, &mut self.dirty) {
+            match self
+                .lighting
+                .handle_key(code, modifiers, w, h, &mut self.dirty)
+            {
                 Some(false) => {
                     self.mode = self.prev_mode;
                     self.dirty = true;
@@ -2896,7 +3006,8 @@ impl TuiApp {
         // Emitter config panel: dispatch when panel is open
         if self.animation.emitter_panel.open {
             let handled = self
-                .animation.emitter_panel
+                .animation
+                .emitter_panel
                 .handle_config_key(code, &mut self.animation.particle_system.config);
             if handled {
                 self.dirty = true;
@@ -2948,7 +3059,8 @@ impl TuiApp {
 
         // Toggle keyframe editor (uppercase only to avoid conflict)
         if code == KeyCode::Char('K') {
-            self.animation.timeline_state.keyframe_editor.open = !self.animation.timeline_state.keyframe_editor.open;
+            self.animation.timeline_state.keyframe_editor.open =
+                !self.animation.timeline_state.keyframe_editor.open;
             self.dirty = true;
             return None;
         }
@@ -3197,9 +3309,10 @@ impl TuiApp {
                 if (mode == export::ExportMode::Gif || mode == export::ExportMode::Apng)
                     && !self.animation.timeline_state.frames.is_empty()
                 {
-                    self.dialogs
-                        .export_dialog
-                        .set_timeline(self.animation.timeline_state.fps, self.animation.timeline_state.frames.len());
+                    self.dialogs.export_dialog.set_timeline(
+                        self.animation.timeline_state.fps,
+                        self.animation.timeline_state.frames.len(),
+                    );
                 }
                 self.dirty = true;
                 None
@@ -3262,8 +3375,8 @@ impl TuiApp {
                 Some(AppEvent::ModeChanged)
             }
             GA::Quit => {
-                self.should_quit = true;
-                Some(AppEvent::Quit)
+                self.trigger_quit();
+                None
             }
         }
     }
@@ -3293,6 +3406,48 @@ impl TuiApp {
             }
         }
         self.start_save_as();
+    }
+
+    fn handle_image_editor_key(&mut self, code: KeyCode) -> Option<AppEvent> {
+        if matches!(code, KeyCode::Char('o') | KeyCode::Char('O'))
+            && !self.editor.image_editor.entering_path()
+        {
+            self.dialogs.file_ops.enter_open_image();
+            self.dirty = true;
+            return Some(AppEvent::ImageEditor);
+        }
+        let was_entering = self.editor.image_editor.entering_path();
+        if self.editor.image_editor.handle_key(code) {
+            self.editor.sync_image_to_canvas();
+            if was_entering && !self.editor.image_editor.entering_path() {
+                self.editor.undo.clear();
+            }
+            return Some(AppEvent::ImageEditor);
+        }
+        None
+    }
+
+    fn handle_font_editor_key(&mut self, key: KeyEvent) -> Option<AppEvent> {
+        if matches!(
+            self.editor.font_editor.view,
+            font_editor::FontEditorView::CharEditor(_)
+        ) {
+            self.editor.font_editor.brush_char = self.editor.brush.ch;
+        }
+        let area_width = crossterm::terminal::size().unwrap_or((80, 24)).0;
+        if self
+            .editor
+            .font_editor
+            .handle_key(key.code, key.modifiers, area_width)
+        {
+            if self.editor.font_editor.view != font_editor::FontEditorView::Overview {
+                self.editor.sync_font_char_to_canvas();
+            }
+            return Some(AppEvent::FontEditor(
+                crate::tui::events::FontEditorEvent::Changed(self.editor.font_editor.view),
+            ));
+        }
+        None
     }
 
     fn start_save_as(&mut self) {
@@ -3459,13 +3614,15 @@ impl TuiApp {
 
                     let thumbnail = capture_thumbnail(&frame_buf, thumb_w, thumb_h);
 
-                    self.animation.timeline_state.add_frame(timeline::TimelineFrame {
-                        thumbnail,
-                        has_keyframe: false,
-                        label: format!("F{}", i),
-                        layer_state: Some(frame_buf),
-                        layer_keyframes: vec![Some(timeline::LayerKeyframe::default())],
-                    });
+                    self.animation
+                        .timeline_state
+                        .add_frame(timeline::TimelineFrame {
+                            thumbnail,
+                            has_keyframe: false,
+                            label: format!("F{}", i),
+                            layer_state: Some(frame_buf),
+                            layer_keyframes: vec![Some(timeline::LayerKeyframe::default())],
+                        });
                 }
 
                 // Store frame delays and loop count in export dialog
@@ -3494,6 +3651,23 @@ impl TuiApp {
             Err(e) => {
                 self.dialogs.file_ops.error_message = format!("GIF import failed: {e}");
                 self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportGif;
+            }
+        }
+    }
+
+    fn perform_open_image(&mut self, path: std::path::PathBuf) {
+        let path_str = path.to_string_lossy().into_owned();
+        match self.editor.image_editor.load_from_path(&path_str) {
+            Ok(()) => {
+                self.editor.sync_image_to_canvas();
+                self.editor.undo.clear();
+                self.mode = AppMode::ImageEditor;
+                self.editor.unsaved = true;
+                self.dirty = true;
+            }
+            Err(e) => {
+                self.dialogs.file_ops.error_message = format!("Image open failed: {e}");
+                self.dialogs.file_ops.mode = file_ops::FileOpsMode::OpenImage;
             }
         }
     }
@@ -3728,8 +3902,12 @@ impl TuiApp {
         if self.animation.timeline_state.frames.is_empty() {
             return;
         }
-        let frames =
-            export::capture_timeline_frames(&self.animation.timeline_state, &self.editor.layer_stack, w, h);
+        let frames = export::capture_timeline_frames(
+            &self.animation.timeline_state,
+            &self.editor.layer_stack,
+            w,
+            h,
+        );
         if frames.is_empty() {
             return;
         }
@@ -3794,9 +3972,10 @@ impl TuiApp {
                 if (mode == export::ExportMode::Gif || mode == export::ExportMode::Apng)
                     && !self.animation.timeline_state.frames.is_empty()
                 {
-                    self.dialogs
-                        .export_dialog
-                        .set_timeline(self.animation.timeline_state.fps, self.animation.timeline_state.frames.len());
+                    self.dialogs.export_dialog.set_timeline(
+                        self.animation.timeline_state.fps,
+                        self.animation.timeline_state.frames.len(),
+                    );
                 }
                 self.menu_bar_state.reset();
             }
@@ -3805,7 +3984,7 @@ impl TuiApp {
                 self.menu_bar_state.reset();
             }
             menu::MenuAction::FileQuit => {
-                self.should_quit = true;
+                self.trigger_quit();
                 self.menu_bar_state.reset();
             }
             menu::MenuAction::EditUndo => {
@@ -3906,6 +4085,133 @@ impl TuiApp {
                     self.interaction.selection_polygon_points.clear();
                 }
                 self.menu_bar_state.reset();
+            }
+            menu::MenuAction::ViewLoadBuiltinPalette(name) => {
+                let palettes = crate::palette_import::builtin_palettes();
+                if let Some((_, swatches)) = palettes.into_iter().find(|(n, _)| *n == name) {
+                    self.palette_editor.swatches = swatches;
+                    self.palette_editor.name_buffer = name.to_string();
+                    self.palette_editor.open = true;
+                }
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::ViewPaletteEditor => {
+                self.palette_editor.open = !self.palette_editor.open;
+                if self.palette_editor.open {
+                    self.palette_editor
+                        .load_current_from_palette(&self.editor.palette);
+                    self.palette_editor.available_palettes(None);
+                    self.palette_editor.lighting_pickers_visible =
+                        self.mode == AppMode::Lighting || self.lighting.scene.is_some();
+                }
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerNew => {
+                let w = self.editor.layer_stack.layers[0].buffer.width();
+                let h = self.editor.layer_stack.layers[0].buffer.height();
+                self.editor.layer_stack.add(w, h);
+                self.editor.recomposite_canvas();
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerDuplicate => {
+                let idx = self.editor.layer_stack.active;
+                self.editor.layer_stack.duplicate(idx);
+                self.editor.recomposite_canvas();
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerDelete => {
+                let idx = self.editor.layer_stack.active;
+                self.editor.layer_stack.delete(idx);
+                self.editor.recomposite_canvas();
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerMergeDown => {
+                let idx = self.editor.layer_stack.active;
+                self.editor.layer_stack.merge_down(idx);
+                self.editor.recomposite_canvas();
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerMoveUp => {
+                let idx = self.editor.layer_stack.active;
+                if self.editor.layer_stack.move_up(idx) {
+                    self.editor.layer_stack.active = idx.saturating_sub(1);
+                    self.editor.recomposite_canvas();
+                }
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerMoveDown => {
+                let idx = self.editor.layer_stack.active;
+                if self.editor.layer_stack.move_down(idx) {
+                    let new_idx = (idx + 1).min(self.editor.layer_stack.layers.len() - 1);
+                    self.editor.layer_stack.active = new_idx;
+                    self.editor.recomposite_canvas();
+                }
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerToggleVisibility => {
+                let idx = self.editor.layer_stack.active;
+                self.editor.layer_stack.toggle_visibility(idx);
+                self.editor.recomposite_canvas();
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::LayerToggleLock => {
+                let idx = self.editor.layer_stack.active;
+                self.editor.layer_stack.toggle_lock(idx);
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::AnimFrameAdd => {
+                let buffer = self.editor.canvas.buffer.clone();
+                let thumbnail = capture_thumbnail(&buffer, 12, 6);
+                let layer_keyframes = self
+                    .editor
+                    .layer_stack
+                    .layers
+                    .iter()
+                    .map(|_| Some(timeline::LayerKeyframe::default()))
+                    .collect();
+                let new_frame = timeline::TimelineFrame {
+                    thumbnail,
+                    has_keyframe: true,
+                    label: format!("F{}", self.animation.timeline_state.frames.len()),
+                    layer_state: Some(buffer),
+                    layer_keyframes,
+                };
+                self.animation.timeline_state.add_frame(new_frame);
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::AnimFrameDelete => {
+                let cur = self.animation.timeline_state.current_frame;
+                let _ = self.animation.timeline_state.remove_frame(cur);
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::AnimPlay => {
+                self.animation.timeline_state.playing = !self.animation.timeline_state.playing;
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::AnimToggleTimeline => {
+                self.animation.timeline_visible = !self.animation.timeline_visible;
+                self.menu_bar_state.reset();
+                self.dirty = true;
+            }
+            menu::MenuAction::ImageResizeCanvas => {
+                self.dialogs.settings.canvas_width = self.editor.canvas.buffer.width() as u16;
+                self.dialogs.settings.canvas_height = self.editor.canvas.buffer.height() as u16;
+                self.dialogs.settings.settings_open = true;
+                self.menu_bar_state.reset();
+                self.dirty = true;
             }
             menu::MenuAction::HelpAbout => {
                 self.menu_bar_state.reset();

@@ -27,6 +27,7 @@ const IMAGE_ACTIONS: &[(&str, char, &str)] = &[
     ("image_import", 'V', "iew as ASCII"),
     ("file_open", 'F', "igmap  (Open Image)"),
     ("image_import", 'A', "nimated GIF Import"),
+    ("file_open", 'I', "mport/Open Image"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +50,7 @@ pub enum WelcomeAction {
     ImageConvert,
     ImageOpenFigmap,
     ImageImportGif,
+    ImageOpen,
 }
 
 pub struct WelcomeScreen {
@@ -433,6 +435,7 @@ impl WelcomeScreen {
             KeyCode::Char('A') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageImportGif)
             }
+            KeyCode::Char('I') if modifiers == KeyModifiers::NONE => Some(WelcomeAction::ImageOpen),
             KeyCode::Char('S') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::OpenSettings)
             }
@@ -536,7 +539,8 @@ fn image_action_for(idx: usize) -> WelcomeAction {
         1 => WelcomeAction::ImageNewFromTemplate,
         2 => WelcomeAction::ImageConvert,
         3 => WelcomeAction::ImageOpenFigmap,
-        _ => WelcomeAction::ImageImportGif,
+        4 => WelcomeAction::ImageImportGif,
+        _ => WelcomeAction::ImageOpen,
     }
 }
 

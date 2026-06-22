@@ -1,3 +1,4 @@
+use super::lighting::{Light, Scene};
 use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
@@ -5,7 +6,6 @@ use ratatui::{
     widgets::{Block, Paragraph},
     Frame,
 };
-use super::lighting::{Light, Scene};
 
 #[derive(Clone)]
 pub struct LightPanel {
@@ -87,7 +87,11 @@ impl LightPanel {
             let label = match light {
                 Light::Ambient { intensity, .. } => format!("Amb  {:.2}", intensity),
                 Light::Directional { intensity, .. } => format!("Dir  {:.2}", intensity),
-                Light::Point { intensity, position, .. } => format!(
+                Light::Point {
+                    intensity,
+                    position,
+                    ..
+                } => format!(
                     "Pnt  {:.2} ({},{})",
                     intensity, position.0 as u16, position.1 as u16
                 ),
@@ -99,7 +103,10 @@ impl LightPanel {
             } else {
                 Style::default().fg(theme.general.secondary)
             };
-            lines.push(Line::from(Span::styled(format!("{}{}", prefix, label), style)));
+            lines.push(Line::from(Span::styled(
+                format!("{}{}", prefix, label),
+                style,
+            )));
         }
 
         if lines.is_empty() {

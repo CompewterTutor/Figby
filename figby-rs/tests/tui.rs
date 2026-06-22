@@ -2236,10 +2236,10 @@ fn test_menu_help_keybindings() {
 
     let mut app = TuiApp::new();
 
-    // Open Help menu via Alt+H
+    // Open Help menu via Alt+H (index 7, after File/Edit/View/Image/Tools/Layers/Animation)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::ALT));
     assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(4));
+    assert_eq!(app.menu_bar_state.active_menu, Some(7));
 
     // Navigate to Keybindings (index 1) and select
     app.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
@@ -2717,10 +2717,10 @@ fn test_cli_dispatch_tools_select_brush_via_menu() {
         "should start with Eraser"
     );
 
-    // Open Tools menu via Alt+T (index 3)
+    // Open Tools menu via Alt+T (index 4, after Image menu was added at index 3)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::ALT));
     assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(3));
+    assert_eq!(app.menu_bar_state.active_menu, Some(4));
 
     // First item (index 0) is "Brush" — press Enter to select
     let event = app.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));

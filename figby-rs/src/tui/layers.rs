@@ -826,7 +826,7 @@ impl Default for LayerPanel {
 }
 
 impl LayerPanel {
-    pub fn render_with_stack(&self, frame: &mut Frame, area: Rect, stack: &LayerStack) {
+    pub fn render_with_stack(&mut self, frame: &mut Frame, area: Rect, stack: &LayerStack) {
         let block = Block::default()
             .title(" Layers ")
             .borders(Borders::ALL)
@@ -869,6 +869,68 @@ impl LayerPanel {
         }
 
         let offset = help_lines.len() + 1;
+        let visible_rows = inner_h.saturating_sub(offset);
+        if visible_rows == 0 {
+            return;
+        }
+
+        // First pass: find total display items and active's display index.
+        let mut total_display: usize = 0;
+        let mut active_display_idx: usize = 0;
+        {
+            let mut emitted = vec![false; stack.groups.len()];
+            for rev_idx in 0..stack.layers.len() {
+                let real_idx = stack.layers.len() - 1 - rev_idx;
+                let layer = &stack.layers[real_idx];
+                if let Some(g) = layer.group {
+                    if g < emitted.len() && !emitted[g] {
+                        emitted[g] = true;
+                        total_display += 1;
+                        if let Some(group) = stack.groups.get(g) {
+                            if group.collapsed {
+                                continue;
+                            }
+                        }
+                    }
+                }
+                if real_idx == stack.active {
+                    active_display_idx = total_display;
+                }
+                total_display += 1;
+            }
+        }
+
+        // Clamp scroll so active layer is always visible.
+        if active_display_idx < self.scroll as usize {
+            self.scroll = active_display_idx as u16;
+        } else if active_display_idx >= self.scroll as usize + visible_rows {
+            self.scroll =
+                (active_display_idx.saturating_sub(visible_rows.saturating_sub(1))) as u16;
+        }
+        let scroll = self.scroll as usize;
+        let has_more_below = total_display > scroll + visible_rows;
+
+        // Scroll indicators.
+        if scroll > 0 {
+            if let Some(cell) = frame.buffer_mut().cell_mut((
+                inner_x + inner.width.saturating_sub(1),
+                inner_y + offset as u16,
+            )) {
+                cell.set_char('▲');
+                cell.set_style(Style::default().fg(self.theme.general.secondary));
+            }
+        }
+        if has_more_below {
+            if let Some(cell) = frame.buffer_mut().cell_mut((
+                inner_x + inner.width.saturating_sub(1),
+                inner_y + inner_h as u16 - 1,
+            )) {
+                cell.set_char('▼');
+                cell.set_style(Style::default().fg(self.theme.general.secondary));
+            }
+        }
+
+        // Second pass: render visible items.
         let vis_icon = "v";
         let mut display_idx: usize = 0;
         let mut emitted_group_header = vec![false; stack.groups.len()];
@@ -880,29 +942,32 @@ impl LayerPanel {
             if let Some(g) = layer.group {
                 if g < emitted_group_header.len() && !emitted_group_header[g] {
                     emitted_group_header[g] = true;
-                    let y_pos = offset + display_idx;
-                    if y_pos < inner_h {
-                        if let Some(group) = stack.groups.get(g) {
-                            let disclosure = if group.collapsed { "▶" } else { "▼" };
-                            let count = stack.layers.iter().filter(|l| l.group == Some(g)).count();
-                            let group_label = format!(" {} {} ({})", disclosure, group.name, count);
-                            let row_style = Style::default()
-                                .bg(self.theme.menu.dropdown_bg)
-                                .fg(self.theme.general.secondary)
-                                .add_modifier(Modifier::BOLD);
-                            let para = ratatui::widgets::Paragraph::new(Line::from(Span::styled(
-                                group_label,
-                                row_style,
-                            )));
-                            frame.render_widget(
-                                para,
-                                Rect {
-                                    x: inner_x,
-                                    y: inner_y + y_pos as u16,
-                                    width: inner.width,
-                                    height: 1,
-                                },
-                            );
+                    if display_idx >= scroll {
+                        let row = display_idx - scroll;
+                        if row < visible_rows {
+                            if let Some(group) = stack.groups.get(g) {
+                                let disclosure = if group.collapsed { "▶" } else { "▼" };
+                                let count =
+                                    stack.layers.iter().filter(|l| l.group == Some(g)).count();
+                                let group_label =
+                                    format!(" {} {} ({})", disclosure, group.name, count);
+                                let row_style = Style::default()
+                                    .bg(self.theme.menu.dropdown_bg)
+                                    .fg(self.theme.general.secondary)
+                                    .add_modifier(Modifier::BOLD);
+                                let para = ratatui::widgets::Paragraph::new(Line::from(
+                                    Span::styled(group_label, row_style),
+                                ));
+                                frame.render_widget(
+                                    para,
+                                    Rect {
+                                        x: inner_x,
+                                        y: inner_y + offset as u16 + row as u16,
+                                        width: inner.width,
+                                        height: 1,
+                                    },
+                                );
+                            }
                         }
                     }
                     display_idx += 1;
@@ -915,57 +980,59 @@ impl LayerPanel {
                 }
             }
 
-            let y_pos = offset + display_idx;
-            if y_pos >= inner_h {
-                break;
+            if display_idx >= scroll {
+                let row = display_idx - scroll;
+                if row >= visible_rows {
+                    break;
+                }
+
+                let is_active = real_idx == stack.active;
+                let row_bg = if is_active {
+                    self.theme.menu.highlight
+                } else {
+                    self.theme.menu.dropdown_bg
+                };
+
+                let indent = if layer.group.is_some() { "  " } else { "" };
+                let vis_ch = if layer.visible { vis_icon } else { " " };
+                let lock_ch = if layer.locked { "L" } else { " " };
+                let light_ch = if layer.accepts_lighting { "A" } else { " " };
+                let shadow_ch = if layer.casts_shadow { "S" } else { " " };
+                let blend_icon = self
+                    .icons
+                    .get(layer.blend_mode.icon_key())
+                    .map(|s| s.as_str())
+                    .unwrap_or("");
+
+                let name_max = (inner.width as usize).saturating_sub(18).max(4);
+
+                let label = format!(
+                    "{}{} {} {} {} {} {} {:3}% {}{}",
+                    indent,
+                    vis_ch,
+                    lock_ch,
+                    light_ch,
+                    shadow_ch,
+                    if is_active { ">" } else { " " },
+                    blend_icon,
+                    (layer.opacity as f32 / 255.0 * 100.0).round() as u8,
+                    truncate_str(&layer.name, name_max),
+                    self.render_mask_thumbnail(layer),
+                );
+                let row_style = Style::default().bg(row_bg).fg(self.theme.menu.fg);
+
+                let row_para =
+                    ratatui::widgets::Paragraph::new(Line::from(Span::styled(label, row_style)));
+                frame.render_widget(
+                    row_para,
+                    Rect {
+                        x: inner_x,
+                        y: inner_y + offset as u16 + row as u16,
+                        width: inner.width,
+                        height: 1,
+                    },
+                );
             }
-
-            let is_active = real_idx == stack.active;
-            let row_bg = if is_active {
-                self.theme.menu.highlight
-            } else {
-                self.theme.menu.dropdown_bg
-            };
-
-            let indent = if layer.group.is_some() { "  " } else { "" };
-            let vis_ch = if layer.visible { vis_icon } else { " " };
-            let lock_ch = if layer.locked { "L" } else { " " };
-            let light_ch = if layer.accepts_lighting { "A" } else { " " };
-            let shadow_ch = if layer.casts_shadow { "S" } else { " " };
-            let blend_icon = self
-                .icons
-                .get(layer.blend_mode.icon_key())
-                .map(|s| s.as_str())
-                .unwrap_or("");
-
-            let name_max = (inner.width as usize).saturating_sub(18).max(4);
-
-            let label = format!(
-                "{}{} {} {} {} {} {} {:3}% {}{}",
-                indent,
-                vis_ch,
-                lock_ch,
-                light_ch,
-                shadow_ch,
-                if is_active { ">" } else { " " },
-                blend_icon,
-                (layer.opacity as f32 / 255.0 * 100.0).round() as u8,
-                truncate_str(&layer.name, name_max),
-                self.render_mask_thumbnail(layer),
-            );
-            let row_style = Style::default().bg(row_bg).fg(self.theme.menu.fg);
-
-            let row_para =
-                ratatui::widgets::Paragraph::new(Line::from(Span::styled(label, row_style)));
-            frame.render_widget(
-                row_para,
-                Rect {
-                    x: inner_x,
-                    y: inner_y + y_pos as u16,
-                    width: inner.width,
-                    height: 1,
-                },
-            );
             display_idx += 1;
         }
     }

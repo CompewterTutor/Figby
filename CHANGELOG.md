@@ -1,6 +1,32 @@
 # Changelog
 
+## [6.0.1] - 2026-06-22
+
+### Added
+- Palette editor: add (A), delete (Del), edit hex (E), rename swatch (N), rename palette (R) operations; inline hex and name editing modes; View menu entry for Palette Editor; keymap documentation for Ctrl+Shift+P (6.8.4).
+
 ## [Unreleased]
+
+### Added (2026-06-22 session)
+- Quit-confirm dialog: pressing `q`/FileQuit when `editor.unsaved` is true now shows
+  "Unsaved Changes" overlay with [Y]es save / [N]o discard / [C]ancel; `trigger_quit()`
+  helper centralizes all three quit paths (6.7.2).
+- Built-in palettes: `palette_import::builtin_palettes()` returns Grayscale (5),
+  Primary (20), Warm (15), Cool (15) swatches; accessible via View → Palette: * menu
+  entries which load into the palette editor panel (6.8.5).
+- Keybinds popup now scrollable: ↑/↓/PgUp/PgDn/q all work; `keybindings_scroll` field
+  on `TuiApp`; title updated to show controls (6.8.7).
+- Added 20+ missing keybinds to KEYMAP: Layer Panel scope (n/d/x/l/m/M/+/-/Ctrl+G),
+  Text Tool scope (↑↓/Enter/Esc/[/]), Canvas extras (Ctrl+A/X/C/V/Delete, r, H/V) (6.8.7).
+- Layers menu (New/Duplicate/Delete/Merge Down/Move Up/Move Down/Toggle Visibility/
+  Toggle Lock) and Animation menu (Add Frame/Delete Frame/Play/Toggle Timeline) added
+  to menu bar with full action handlers (6.9.3).
+- `handle_font_editor_key()` and `handle_image_editor_key()` methods extracted from
+  `handle_key_event`; each mode now dispatched via a single-line call (6.6.1g, 6.6.1h).
+
+### Fixed (2026-06-22 session)
+- Unicode chars (Ä Ö Ü ä ö ü ß) typed in Text tool no longer panic; verified covered
+  by 6.5.1 blank-glyph fallback; added `test_text_tool_unicode_no_panic` (6.7.3).
 
 ## [6.0.0] - 2026-06-22
 ### Security

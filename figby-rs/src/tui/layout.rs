@@ -5,14 +5,14 @@ pub const TOOLBOX_BRUSH_HEIGHT: u16 = 10;
 pub const TIMELINE_HEIGHT: u16 = 8;
 const DRAWER_WIDTH: u16 = 22;
 
-/// Collapsed borders for the toolbox list panel (top portion of left column).
-/// Omits BOTTOM — shared with brush/text area below.
+/// Full borders for the toolbox list panel (top portion of left column).
+/// BOTTOM draws the visual separator between tool list and brush/text area.
 pub fn toolbox_list_borders() -> Borders {
-    Borders::TOP | Borders::LEFT | Borders::RIGHT
+    Borders::ALL
 }
 
 /// Collapsed borders for the brush/text panel (bottom portion of left column).
-/// Omits TOP — shared with tool list above.
+/// Omits TOP — list's BOTTOM border above acts as the divider.
 pub fn toolbox_brush_borders() -> Borders {
     Borders::LEFT | Borders::RIGHT | Borders::BOTTOM
 }
@@ -45,10 +45,10 @@ impl FrameLayout {
     /// Compute layout for the given terminal area.
     ///
     /// Collapsed-border convention (ratatui recipe):
-    ///   - Toolbox list block uses `toolbox_list_borders()`: TOP, LEFT, RIGHT
-    ///     (omits BOTTOM — shared with brush/text area).
+    ///   - Toolbox list block uses `toolbox_list_borders()`: ALL borders.
+    ///     BOTTOM draws the visual separator between tool list and brush/text.
     ///   - Brush/text block uses `toolbox_brush_borders()`: LEFT, RIGHT, BOTTOM
-    ///     (omits TOP — shared with tool list).
+    ///     (omits TOP — list's BOTTOM is the divider).
     ///   - Canvas block omits LEFT when toolbox is visible (shares toolbox's
     ///     right border) and omits RIGHT when right panel is visible.
     ///   - Right panel block uses Borders::ALL (canvas omits its RIGHT when

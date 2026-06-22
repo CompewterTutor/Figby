@@ -139,7 +139,7 @@ impl SidePanel {
         &self,
         frame: &mut Frame<'_>,
         area: Rect,
-        layer_panel: Option<&LayerPanel>,
+        layer_panel: Option<&mut LayerPanel>,
         layer_stack: Option<&LayerStack>,
         active_tool: Tool,
         brush: &BrushState,

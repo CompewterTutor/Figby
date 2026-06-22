@@ -19,9 +19,12 @@ pub struct PaletteFile {
 
 enum PanelMode {
     Idle,
-    Naming,
+    Naming, // duplicate / rename palette name entry
     Loading,
     ChoosingFormat,
+    EditingHex,  // editing swatch hex value
+    EditingName, // editing swatch name
+    AddingColor, // hex input for new color
 }
 
 pub struct PaletteEditor {
@@ -36,6 +39,8 @@ pub struct PaletteEditor {
     pub modified: bool,
     pub import_format: Option<ImportFormat>,
     format_index: usize,
+    /// When Naming mode: true = renaming palette, false = duplicate-as
+    naming_is_rename: bool,
     /// Lighting pickers visible (when lighting mode active)
     pub lighting_pickers_visible: bool,
     /// Which sub-picker is active: None, Some("lit"), Some("shadow")
@@ -58,6 +63,7 @@ impl PaletteEditor {
             modified: false,
             import_format: None,
             format_index: 0,
+            naming_is_rename: false,
             lighting_pickers_visible: false,
             editing_lighting_field: None,
             lighting_hex_buffer: String::new(),
@@ -229,6 +235,58 @@ impl PaletteEditor {
         }
     }
 
+    pub fn add_color(&mut self) {
+        let hex = "#808080".to_string();
+        let name = format!("Color {}", self.swatches.len() + 1);
+        let mut swatch = Swatch::new(name, hex);
+        swatch.lit_hex = Some(swatch.hex.clone());
+        swatch.shadow_hex = Some(Swatch::default_shadow_hex(&swatch.hex));
+        self.swatches.push(swatch);
+        self.selected = self.swatches.len().saturating_sub(1);
+        self.modified = true;
+        self.message = None;
+    }
+
+    pub fn delete_selected(&mut self) {
+        if self.swatches.is_empty() {
+            return;
+        }
+        self.swatches.remove(self.selected);
+        if self.selected >= self.swatches.len() {
+            self.selected = self.swatches.len().saturating_sub(1);
+        }
+        self.modified = true;
+        self.message = None;
+    }
+
+    pub fn edit_selected_hex(&mut self, hex: &str) {
+        if self.selected >= self.swatches.len() {
+            return;
+        }
+        let hex = hex.trim_start_matches('#');
+        if hex.len() != 6 {
+            return;
+        }
+        let normalized = format!("#{}", hex.to_uppercase());
+        self.swatches[self.selected].hex = normalized.clone();
+        self.swatches[self.selected].lit_hex = Some(normalized);
+        self.swatches[self.selected].shadow_hex = Some(Swatch::default_shadow_hex(
+            &self.swatches[self.selected].hex,
+        ));
+        self.modified = true;
+    }
+
+    pub fn rename_selected(&mut self, new_name: &str) {
+        if self.selected >= self.swatches.len() {
+            return;
+        }
+        let name = new_name.trim().to_string();
+        if !name.is_empty() {
+            self.swatches[self.selected].name = name;
+            self.modified = true;
+        }
+    }
+
     /// Ensure a specific swatch index has lighting defaults.
     fn ensure_lighting_defaults(&mut self, idx: usize) {
         if idx >= self.swatches.len() {
@@ -386,7 +444,49 @@ impl PaletteEditor {
 
         lines.push(Line::from(""));
 
-        if let PanelMode::ChoosingFormat = self.mode {
+        if let PanelMode::EditingHex = self.mode {
+            lines.push(Line::from(Span::styled(
+                " Enter hex for selected swatch (e.g. #FF0000):",
+                Style::default().fg(theme.dialog.label),
+            )));
+            let hex_display = if self.lighting_hex_buffer.is_empty() {
+                " #______".to_string()
+            } else {
+                format!(" #{}", self.lighting_hex_buffer)
+            };
+            lines.push(Line::from(Span::styled(
+                hex_display,
+                Style::default().fg(theme.dialog.highlight),
+            )));
+        } else if let PanelMode::EditingName = self.mode {
+            lines.push(Line::from(Span::styled(
+                " Enter new name for selected swatch:",
+                Style::default().fg(theme.dialog.label),
+            )));
+            let name_display = if self.name_buffer.is_empty() {
+                " <empty>".to_string()
+            } else {
+                format!(" {}", self.name_buffer)
+            };
+            lines.push(Line::from(Span::styled(
+                name_display,
+                Style::default().fg(theme.dialog.highlight),
+            )));
+        } else if let PanelMode::AddingColor = self.mode {
+            lines.push(Line::from(Span::styled(
+                " Enter hex for new color (e.g. #FF0000):",
+                Style::default().fg(theme.dialog.label),
+            )));
+            let hex_display = if self.lighting_hex_buffer.is_empty() {
+                " #______".to_string()
+            } else {
+                format!(" #{}", self.lighting_hex_buffer)
+            };
+            lines.push(Line::from(Span::styled(
+                hex_display,
+                Style::default().fg(theme.dialog.highlight),
+            )));
+        } else if let PanelMode::ChoosingFormat = self.mode {
             lines.push(Line::from(Span::styled(
                 " Select import format:",
                 Style::default().fg(theme.dialog.label),
@@ -438,12 +538,23 @@ impl PaletteEditor {
         }
 
         lines.push(Line::from(""));
-        let format_hint = match self.import_format {
-            Some(f) => format!(
-                " [S]ave  [L]oad ({})  [D]uplicate  Esc=close",
-                f.display_name()
-            ),
-            None => " [S]ave  [L]oad  [D]uplicate  Esc=close".to_string(),
+        let format_hint = if matches!(self.mode, PanelMode::Idle) {
+            match self.import_format {
+                Some(f) => format!(
+                    " [S]ave  [L]oad ({})  [D]up  [A]dd  [E]dit  [N]ame  Del  [R]ename  Esc=close",
+                    f.display_name()
+                ),
+                None => " [S]ave  [L]oad  [D]up  [A]dd  [E]dit  [N]ame  Del  [R]ename  Esc=close"
+                    .to_string(),
+            }
+        } else {
+            match self.import_format {
+                Some(f) => format!(
+                    " [S]ave  [L]oad ({})  [D]uplicate  Esc=close",
+                    f.display_name()
+                ),
+                None => " [S]ave  [L]oad  [D]uplicate  Esc=close".to_string(),
+            }
         };
         lines.push(Line::from(Span::styled(
             format_hint,
@@ -460,6 +571,72 @@ impl PaletteEditor {
 
     pub fn handle_key(&mut self, code: KeyCode) -> bool {
         match self.mode {
+            PanelMode::EditingHex | PanelMode::AddingColor => {
+                let is_adding = matches!(self.mode, PanelMode::AddingColor);
+                match code {
+                    KeyCode::Char(c) if c.is_ascii_hexdigit() || c == '#' => {
+                        if self.lighting_hex_buffer.len() < 7 {
+                            self.lighting_hex_buffer.push(c);
+                        }
+                        true
+                    }
+                    KeyCode::Backspace => {
+                        self.lighting_hex_buffer.pop();
+                        true
+                    }
+                    KeyCode::Enter => {
+                        let hex =
+                            format!("#{:0>6}", self.lighting_hex_buffer.trim_start_matches('#'));
+                        if is_adding {
+                            let mut swatch =
+                                Swatch::new(format!("Color {}", self.swatches.len() + 1), hex);
+                            swatch.lit_hex = Some(swatch.hex.clone());
+                            swatch.shadow_hex = Some(Swatch::default_shadow_hex(&swatch.hex));
+                            self.swatches.push(swatch);
+                            self.selected = self.swatches.len().saturating_sub(1);
+                        } else {
+                            self.edit_selected_hex(&hex);
+                        }
+                        self.modified = true;
+                        self.message = None;
+                        self.mode = PanelMode::Idle;
+                        self.lighting_hex_buffer.clear();
+                        true
+                    }
+                    KeyCode::Esc => {
+                        self.mode = PanelMode::Idle;
+                        self.lighting_hex_buffer.clear();
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            PanelMode::EditingName => match code {
+                KeyCode::Char(c) if !c.is_control() => {
+                    self.name_buffer.push(c);
+                    true
+                }
+                KeyCode::Backspace => {
+                    self.name_buffer.pop();
+                    true
+                }
+                KeyCode::Enter => {
+                    let name = self.name_buffer.clone();
+                    if !name.trim().is_empty() {
+                        self.rename_selected(&name);
+                        self.message = None;
+                    }
+                    self.mode = PanelMode::Idle;
+                    self.name_buffer.clear();
+                    true
+                }
+                KeyCode::Esc => {
+                    self.mode = PanelMode::Idle;
+                    self.name_buffer.clear();
+                    true
+                }
+                _ => false,
+            },
             PanelMode::Naming => match code {
                 KeyCode::Char(c) => {
                     self.name_buffer.push(c);
@@ -472,11 +649,17 @@ impl PaletteEditor {
                 KeyCode::Enter => {
                     let name = self.name_buffer.trim().to_string();
                     if !name.is_empty() {
-                        let result = self.duplicate(&name);
-                        if let Err(e) = result {
-                            self.message = Some(format!("Duplicate error: {e}"));
+                        if self.naming_is_rename {
+                            self.name_buffer = name.clone();
+                            self.message = Some(format!("Palette: {name}"));
+                            self.naming_is_rename = false;
                         } else {
-                            self.message = Some("Duplicated".to_string());
+                            let result = self.duplicate(&name);
+                            if let Err(e) = result {
+                                self.message = Some(format!("Duplicate error: {e}"));
+                            } else {
+                                self.message = Some("Duplicated".to_string());
+                            }
                         }
                     }
                     self.mode = PanelMode::Idle;
@@ -484,6 +667,7 @@ impl PaletteEditor {
                 }
                 KeyCode::Esc => {
                     self.mode = PanelMode::Idle;
+                    self.naming_is_rename = false;
                     true
                 }
                 _ => false,
@@ -613,6 +797,46 @@ impl PaletteEditor {
                             Ok(()) => self.message = Some("Saved".to_string()),
                             Err(e) => self.message = Some(format!("Save error: {e}")),
                         }
+                        true
+                    }
+                    KeyCode::Char('a') | KeyCode::Char('A') => {
+                        self.mode = PanelMode::AddingColor;
+                        self.lighting_hex_buffer.clear();
+                        self.message = None;
+                        true
+                    }
+                    KeyCode::Delete | KeyCode::Backspace => {
+                        if !self.swatches.is_empty() {
+                            self.delete_selected();
+                            self.message = None;
+                        }
+                        true
+                    }
+                    KeyCode::Char('e') | KeyCode::Char('E') => {
+                        if !self.swatches.is_empty() {
+                            let hex = self.swatches[self.selected]
+                                .hex
+                                .trim_start_matches('#')
+                                .to_string();
+                            self.mode = PanelMode::EditingHex;
+                            self.lighting_hex_buffer = hex;
+                            self.message = None;
+                        }
+                        true
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') => {
+                        if !self.swatches.is_empty() {
+                            self.mode = PanelMode::EditingName;
+                            self.name_buffer = self.swatches[self.selected].name.clone();
+                            self.message = None;
+                        }
+                        true
+                    }
+                    KeyCode::Char('r') | KeyCode::Char('R') => {
+                        self.mode = PanelMode::Naming;
+                        self.name_buffer = self.name_buffer.clone();
+                        self.naming_is_rename = true;
+                        self.message = Some("Enter new palette name".to_string());
                         true
                     }
                     KeyCode::Char('l') | KeyCode::Char('L') => {

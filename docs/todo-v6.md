@@ -216,17 +216,76 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ## Phase 6.6 — Architecture (🟠 A1 — LARGE, may slip past v6)
 
-- [ ] `6.6.1` Split `tui/mod.rs` god object (4076 LOC) — incremental
-  - **Goal:** `handle_key_event` (1054 LOC), `handle_mouse_event` (510),
-    `render` (332); `TuiApp` ~45 fields. Per audit, prefer the **Component
-    Architecture** path: extract one mode/component at a time, each with
-    `render` + `handle_event`; model dialogs as an input-layer stack (topmost
-    consumes keys first). Group `TuiApp` fields into sub-structs (Animation,
-    Lighting, Interaction) to shrink the borrow surface. Do NOT attempt in one PR.
-  - **Touches:** `figby-rs/src/tui/mod.rs` (+ new module files).
-  - **Success:** mod.rs shrinks meaningfully; each extracted component has its own
-    handler + tests; behavior unchanged (test suite still green).
-  - **Difficulty:** High — split into sub-tasks before starting.
+- [ ] `6.6.1a` Group lighting fields into `LightingState` sub-struct
+  - **Goal:** Extract 5 lighting fields from `TuiApp` into `pub struct LightingState`:
+    `scene` (was `lighting_scene`), `lut` (was `lighting_lut`), `max_shadow_distance`,
+    `height_scale`, `panel` (was `light_panel`). Add `pub lighting: LightingState` to
+    `TuiApp`. Shrinks borrow surface; no behavior change.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only — 28 self-access rewrites + struct/new().
+    No test changes needed (tests don't access these fields directly).
+  - **Note:** Rust NLL handles field-split borrows (`self.lighting.scene` + `self.lighting.panel`
+    in same block). If compiler rejects, introduce `let idx = self.lighting.panel.selected_index;`
+    before the mutable scene borrow.
+  - **Success:** Compiles clean; `cargo test` green; `TuiApp` has 5 fewer top-level fields.
+  - **Difficulty:** Low
+
+- [ ] `6.6.1b` Group animation/particle fields into `AnimationState` sub-struct
+  - **Goal:** Extract from `TuiApp` into `pub struct AnimationState`:
+    `particle_system`, `emitter_active`, `emitter_panel`, `show_live_particles`,
+    `baked_layer_indices`, `timeline_state`, `timeline_visible`, `marker_accum`.
+    Add `pub animation: AnimationState` to `TuiApp`.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only — ~95 self-access rewrites + struct/new().
+  - **Success:** Compiles clean; `cargo test` green; 8 fewer top-level fields.
+  - **Difficulty:** Low
+
+- [ ] `6.6.1c` Group drag/interaction fields into `InteractionState` sub-struct
+  - **Goal:** Extract from `TuiApp` into `pub struct InteractionState`:
+    `selection_drag_origin`, `selection_polygon_points`, `selection_lasso_points`,
+    `prev_mouse_buf`, `mouse_batch_active`, `line_start`, `saved_buffer`.
+    Add `pub interaction: InteractionState` to `TuiApp`.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only.
+  - **Success:** Compiles clean; `cargo test` green; 7 fewer top-level fields.
+  - **Difficulty:** Low
+
+- [ ] `6.6.1d` Extract `render_light_panel` → method on `LightPanel`
+  - **Goal:** Move `fn render_light_panel(&self, frame, area)` (~62 LOC, `:1256-1317`)
+    from `TuiApp` impl into `light_panel.rs` as `LightPanel::render(...)`. Call site
+    in `TuiApp::render` becomes `self.lighting.panel.render(frame, area, &self.lighting.scene, &self.theme)`.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/light_panel.rs`.
+  - **Success:** Compiles clean; render behavior identical; `mod.rs` -62 LOC.
+  - **Difficulty:** Low
+
+- [ ] `6.6.1e` Extract `render_overlays` → `tui/overlays.rs`
+  - **Goal:** Move `fn render_overlays(&mut self, frame)` (~147 LOC, `:1318-1464`)
+    from `TuiApp` impl to a new file `figby-rs/src/tui/overlays.rs` as a free function
+    or `TuiApp` extension trait. Pure render logic, no state mutation beyond `dirty`.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, new `figby-rs/src/tui/overlays.rs`.
+  - **Success:** Compiles clean; `mod.rs` -147 LOC.
+  - **Difficulty:** Low
+
+- [ ] `6.6.1f` Extract lighting-mode key dispatch → `LightingState::handle_key`
+  - **Goal:** The lighting-mode block in `handle_key_event` (`:2848-3025`, ~177 LOC)
+    reads/mutates almost exclusively `self.lighting.*`. Move it to
+    `LightingState::handle_key(&mut self, key, w, h) -> bool` (returns true if consumed).
+    Call site: `if self.lighting.handle_key(key, w, h) { return None; }`.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only (method on `LightingState` defined in same file
+    or in `lighting.rs`).
+  - **Note:** Requires 6.6.1a complete first (needs `LightingState` struct).
+  - **Success:** Compiles clean; lighting behavior unchanged; `handle_key_event` -177 LOC.
+  - **Difficulty:** Medium
+
+- [ ] `6.6.1g` Extract font-editor key dispatch → `FontEditor::handle_key`
+  - **Goal:** Identify the font-editor block in `handle_key_event` and move it to
+    `font_editor.rs` as a method. Large block — map it first, then extract.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/font_editor.rs`.
+  - **Success:** Compiles clean; font-editor behavior unchanged; `handle_key_event` shrinks.
+  - **Difficulty:** High
+
+- [ ] `6.6.1h` Extract image-editor key dispatch → `ImageEditor::handle_key`
+  - **Goal:** Same pattern as 6.6.1g for the image-editor block.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/image_editor.rs`.
+  - **Success:** Compiles clean; image-editor behavior unchanged; `handle_key_event` shrinks.
+  - **Difficulty:** High
 
 ---
 

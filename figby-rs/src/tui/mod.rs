@@ -791,7 +791,7 @@ impl TuiApp {
         // --- Lighting mode ---
         if self.mode == AppMode::Lighting {
             if let Some(tb_list) = fl.toolbox_list {
-                self.render_light_panel(frame, tb_list);
+                self.lighting.panel.render(frame, tb_list, &self.lighting.scene, &self.theme);
             }
             self.render_canvas_area(frame, fl.canvas);
             // Status bar
@@ -1270,68 +1270,6 @@ impl TuiApp {
 
             self.editor.canvas.buffer = composited;
         }
-    }
-
-    /// Render the light list panel in the toolbox area (lighting mode).
-    fn render_light_panel(&self, frame: &mut Frame<'_>, area: Rect) {
-        let block = Block::default()
-            .title(" Lights ")
-            .borders(layout::toolbox_list_borders())
-            .style(Style::default().fg(self.theme.general.secondary));
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let scene = match &self.lighting.scene {
-            Some(s) => s,
-            None => return,
-        };
-
-        let mut lines: Vec<Line> = Vec::new();
-        for (i, light) in scene.lights.iter().enumerate() {
-            let prefix = if i == self.lighting.panel.selected_index {
-                " \u{25b6} "
-            } else {
-                "   "
-            };
-            let label = match light {
-                lighting::Light::Ambient { intensity, .. } => {
-                    format!("Amb  {:.2}", intensity)
-                }
-                lighting::Light::Directional { intensity, .. } => {
-                    format!("Dir  {:.2}", intensity)
-                }
-                lighting::Light::Point {
-                    intensity,
-                    position,
-                    ..
-                } => {
-                    format!(
-                        "Pnt  {:.2} ({},{})",
-                        intensity, position.0 as u16, position.1 as u16
-                    )
-                }
-            };
-            let style = if i == self.lighting.panel.selected_index {
-                Style::default()
-                    .fg(self.theme.general.primary)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(self.theme.general.secondary)
-            };
-            lines.push(Line::from(Span::styled(
-                format!("{}{}", prefix, label),
-                style,
-            )));
-        }
-
-        if lines.is_empty() {
-            lines.push(Line::from(Span::styled(
-                " (no lights) ",
-                Style::default().fg(self.theme.general.secondary),
-            )));
-        }
-
-        frame.render_widget(Paragraph::new(lines), inner);
     }
 
     /// Render all floating overlays (dialogs, keybindings, undo panel).

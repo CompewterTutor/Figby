@@ -1,3 +1,10 @@
+use ratatui::{
+    layout::Rect,
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Paragraph},
+    Frame,
+};
 use super::lighting::{Light, Scene};
 
 #[derive(Clone)]
@@ -49,6 +56,60 @@ impl LightPanel {
             | Light::Directional { intensity, .. }
             | Light::Point { intensity, .. } => *intensity,
         })
+    }
+
+    pub fn render(
+        &self,
+        frame: &mut Frame<'_>,
+        area: Rect,
+        scene: &Option<Scene>,
+        theme: &super::theme::Theme,
+    ) {
+        let block = Block::default()
+            .title(" Lights ")
+            .borders(super::layout::toolbox_list_borders())
+            .style(Style::default().fg(theme.general.secondary));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let scene = match scene {
+            Some(s) => s,
+            None => return,
+        };
+
+        let mut lines: Vec<Line> = Vec::new();
+        for (i, light) in scene.lights.iter().enumerate() {
+            let prefix = if i == self.selected_index {
+                " \u{25b6} "
+            } else {
+                "   "
+            };
+            let label = match light {
+                Light::Ambient { intensity, .. } => format!("Amb  {:.2}", intensity),
+                Light::Directional { intensity, .. } => format!("Dir  {:.2}", intensity),
+                Light::Point { intensity, position, .. } => format!(
+                    "Pnt  {:.2} ({},{})",
+                    intensity, position.0 as u16, position.1 as u16
+                ),
+            };
+            let style = if i == self.selected_index {
+                Style::default()
+                    .fg(theme.general.primary)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.general.secondary)
+            };
+            lines.push(Line::from(Span::styled(format!("{}{}", prefix, label), style)));
+        }
+
+        if lines.is_empty() {
+            lines.push(Line::from(Span::styled(
+                " (no lights) ",
+                Style::default().fg(theme.general.secondary),
+            )));
+        }
+
+        frame.render_widget(Paragraph::new(lines), inner);
     }
 }
 

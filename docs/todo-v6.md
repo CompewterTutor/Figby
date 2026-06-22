@@ -247,7 +247,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Compiles clean; `cargo test` green; 7 fewer top-level fields.
   - **Difficulty:** Low
 
-- [ ] `6.6.1d` Extract `render_light_panel` → method on `LightPanel`
+- [x] `6.6.1d` Extract `render_light_panel` → method on `LightPanel`
   - **Goal:** Move `fn render_light_panel(&self, frame, area)` (~62 LOC, `:1256-1317`)
     from `TuiApp` impl into `light_panel.rs` as `LightPanel::render(...)`. Call site
     in `TuiApp::render` becomes `self.lighting.panel.render(frame, area, &self.lighting.scene, &self.theme)`.

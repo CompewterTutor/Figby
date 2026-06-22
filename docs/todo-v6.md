@@ -216,7 +216,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ## Phase 6.6 — Architecture (🟠 A1 — LARGE, may slip past v6)
 
-- [ ] `6.6.1a` Group lighting fields into `LightingState` sub-struct
+- [x] `6.6.1a` Group lighting fields into `LightingState` sub-struct
   - **Goal:** Extract 5 lighting fields from `TuiApp` into `pub struct LightingState`:
     `scene` (was `lighting_scene`), `lut` (was `lighting_lut`), `max_shadow_distance`,
     `height_scale`, `panel` (was `light_panel`). Add `pub lighting: LightingState` to
@@ -229,7 +229,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Compiles clean; `cargo test` green; `TuiApp` has 5 fewer top-level fields.
   - **Difficulty:** Low
 
-- [ ] `6.6.1b` Group animation/particle fields into `AnimationState` sub-struct
+- [x] `6.6.1b` Group animation/particle fields into `AnimationState` sub-struct
   - **Goal:** Extract from `TuiApp` into `pub struct AnimationState`:
     `particle_system`, `emitter_active`, `emitter_panel`, `show_live_particles`,
     `baked_layer_indices`, `timeline_state`, `timeline_visible`, `marker_accum`.

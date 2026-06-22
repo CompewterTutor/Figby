@@ -378,6 +378,18 @@ impl EditorState {
     }
 }
 
+/// Animation/particle/timeline subsystem state.
+pub struct AnimationState {
+    pub timeline_state: timeline::TimelineState,
+    pub particle_system: particles::ParticleSystem,
+    pub emitter_active: bool,
+    pub emitter_panel: particles::EmitterConfigPanel,
+    pub show_live_particles: bool,
+    pub baked_layer_indices: Vec<usize>,
+    pub timeline_visible: bool,
+    pub marker_accum: HashMap<(i16, i16), f64>,
+}
+
 /// Lighting subsystem state — scene, LUT, shadow params, light-panel UI.
 pub struct LightingState {
     pub scene: Option<lighting::Scene>,
@@ -436,15 +448,8 @@ pub struct TuiApp {
     pub side_panel: SidePanel,
     pub editor: EditorState,
     pub dialogs: DialogState,
-    pub timeline_state: timeline::TimelineState,
-    pub particle_system: particles::ParticleSystem,
-    pub emitter_active: bool,
-    pub emitter_panel: particles::EmitterConfigPanel,
+    pub animation: AnimationState,
     pub palette_editor: palette_editor::PaletteEditor,
-    pub show_live_particles: bool,
-    pub baked_layer_indices: Vec<usize>,
-    pub timeline_visible: bool,
-    pub marker_accum: HashMap<(i16, i16), f64>,
     pub lighting: LightingState,
     pub palette_rgb_to_swatch: HashMap<(u8, u8, u8), usize>,
     pub prev_mode: AppMode,
@@ -594,15 +599,17 @@ impl TuiApp {
                 settings,
                 rascii_import,
             },
-            timeline_state: timeline::TimelineState::default(),
-            particle_system: particles::ParticleSystem::new(particles::ParticleConfig::default()),
-            emitter_active: false,
-            emitter_panel: particles::EmitterConfigPanel::new(),
+            animation: AnimationState {
+                timeline_state: timeline::TimelineState::default(),
+                particle_system: particles::ParticleSystem::new(particles::ParticleConfig::default()),
+                emitter_active: false,
+                emitter_panel: particles::EmitterConfigPanel::new(),
+                show_live_particles: true,
+                baked_layer_indices: Vec::new(),
+                timeline_visible: false,
+                marker_accum: HashMap::new(),
+            },
             palette_editor: palette_editor::PaletteEditor::new(),
-            show_live_particles: true,
-            baked_layer_indices: Vec::new(),
-            timeline_visible: false,
-            marker_accum: HashMap::new(),
             lighting: LightingState {
                 scene: None,
                 max_shadow_distance: 50,
@@ -746,7 +753,7 @@ impl TuiApp {
             self.side_panel.open,
             tw,
             toolbox_h,
-            self.timeline_visible,
+            self.animation.timeline_visible,
         );
 
         // --- Zen mode: canvas only, hint overlay ---
@@ -918,7 +925,7 @@ impl TuiApp {
                 Some(&self.editor.text_tool),
                 self.editor.eyedropper_sample,
                 self.editor.fill_threshold,
-                Some(&self.particle_system.config),
+                Some(&self.animation.particle_system.config),
                 self.editor.canvas.buffer.width() as u16,
                 self.editor.canvas.buffer.height() as u16,
                 font_name.as_deref(),
@@ -939,7 +946,7 @@ impl TuiApp {
                     .split(inner);
                 let anim_timeline = timeline::AnimationTimeline::panel_instance();
                 frame.render_widget(block, timeline_rect);
-                frame.render_stateful_widget(&anim_timeline, tl_split[0], &mut self.timeline_state);
+                frame.render_stateful_widget(&anim_timeline, tl_split[0], &mut self.animation.timeline_state);
                 let toolbar =
                     Paragraph::new(" [A] Add Frame  [Del] Delete  [←/→] Switch  [Enter] Play")
                         .style(Style::default().fg(self.theme.general.secondary));
@@ -1040,7 +1047,7 @@ impl TuiApp {
             self.side_panel.open,
             tw,
             toolbox_h,
-            self.timeline_visible,
+            self.animation.timeline_visible,
         );
 
         let mode_title = match self.mode {
@@ -1209,9 +1216,9 @@ impl TuiApp {
                 self.editor.canvas.buffer = shaded;
             }
 
-            if self.emitter_active && self.show_live_particles {
+            if self.animation.emitter_active && self.animation.show_live_particles {
                 let saved = self.editor.canvas.buffer.clone();
-                self.particle_system
+                self.animation.particle_system
                     .render_to_canvas(&mut self.editor.canvas.buffer);
                 frame.render_widget(&self.editor.canvas, canvas_inner_rect);
                 self.editor.canvas.buffer = saved;
@@ -1390,7 +1397,7 @@ impl TuiApp {
         }
 
         // Keyframe editor panel
-        if self.timeline_state.keyframe_editor.open {
+        if self.animation.timeline_state.keyframe_editor.open {
             let area = frame.area();
             let panel_w = area.width.clamp(30, 42);
             let panel_x = area.x + area.width.saturating_sub(panel_w);
@@ -1403,7 +1410,7 @@ impl TuiApp {
                 height: panel_h,
             };
             frame.render_widget(Clear, panel_rect);
-            self.timeline_state.render_keyframe_editor(
+            self.animation.timeline_state.render_keyframe_editor(
                 frame,
                 panel_rect,
                 &timeline::TimelineTheme::default(),
@@ -1411,7 +1418,7 @@ impl TuiApp {
         }
 
         // Tween panel
-        if self.timeline_state.tween.is_some() {
+        if self.animation.timeline_state.tween.is_some() {
             let area = frame.area();
             let panel_w = area.width.clamp(30, 42);
             let panel_x = area.x + area.width.saturating_sub(panel_w);
@@ -1424,7 +1431,7 @@ impl TuiApp {
                 height: panel_h,
             };
             frame.render_widget(Clear, panel_rect);
-            self.timeline_state.render_tween_panel(
+            self.animation.timeline_state.render_tween_panel(
                 frame,
                 panel_rect,
                 &timeline::TimelineTheme::default(),
@@ -1439,7 +1446,7 @@ impl TuiApp {
         }
 
         // Emitter config panel overlay
-        if self.emitter_panel.open {
+        if self.animation.emitter_panel.open {
             let area = frame.area();
             let panel_w = area.width.clamp(30, 36);
             let panel_x = area.x + area.width.saturating_sub(panel_w);
@@ -1452,8 +1459,8 @@ impl TuiApp {
                 height: panel_h,
             };
             frame.render_widget(Clear, panel_rect);
-            self.emitter_panel
-                .render_config_panel(frame, panel_rect, &self.particle_system.config);
+            self.animation.emitter_panel
+                .render_config_panel(frame, panel_rect, &self.animation.particle_system.config);
         }
 
         // Palette editor overlay
@@ -1752,7 +1759,7 @@ impl TuiApp {
                 self.side_panel.open,
                 tw,
                 toolbox_h,
-                self.timeline_visible,
+                self.animation.timeline_visible,
             )
         };
         let canvas_inner_rect = self.editor.compute_canvas_rect(
@@ -1972,13 +1979,13 @@ impl TuiApp {
                     *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
                     self.editor.recomposite_canvas();
                 } else if self.editor.toolbox.selected == Tool::Emitter {
-                    self.emitter_active = true;
-                    self.particle_system.config.emitter_x = bx as f64;
-                    self.particle_system.config.emitter_y = by as f64;
-                    self.particle_system =
-                        particles::ParticleSystem::new(self.particle_system.config.clone());
-                    self.emitter_panel = particles::EmitterConfigPanel::new();
-                    self.emitter_panel.open = true;
+                    self.animation.emitter_active = true;
+                    self.animation.particle_system.config.emitter_x = bx as f64;
+                    self.animation.particle_system.config.emitter_y = by as f64;
+                    self.animation.particle_system =
+                        particles::ParticleSystem::new(self.animation.particle_system.config.clone());
+                    self.animation.emitter_panel = particles::EmitterConfigPanel::new();
+                    self.animation.emitter_panel.open = true;
                     self.dirty = true;
                 } else if self.editor.brush.sub_mode == brush::BrushSubMode::Marker {
                     self.editor.push_undo_snapshot("Marker stroke");
@@ -1991,7 +1998,7 @@ impl TuiApp {
                         by,
                         shape,
                         size,
-                        &mut self.marker_accum,
+                        &mut self.animation.marker_accum,
                     );
                 } else {
                     self.editor.push_undo_snapshot("Brush");
@@ -2091,7 +2098,7 @@ impl TuiApp {
                             by,
                             shape,
                             size,
-                            &mut self.marker_accum,
+                            &mut self.animation.marker_accum,
                         );
                     } else {
                         let mut cell = canvas::CanvasCell {
@@ -2114,7 +2121,7 @@ impl TuiApp {
             MouseEventKind::Up(_) => {
                 if self.mouse_batch_active {
                     if self.editor.brush.sub_mode == brush::BrushSubMode::Marker
-                        && !self.marker_accum.is_empty()
+                        && !self.animation.marker_accum.is_empty()
                     {
                         let colors = self.editor.palette.selected_color_array();
                         if !colors.is_empty() {
@@ -2122,7 +2129,7 @@ impl TuiApp {
                             let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
                             tools::brush::commit_marker_accum(
                                 &mut buf,
-                                &mut self.marker_accum,
+                                &mut self.animation.marker_accum,
                                 &colors,
                                 target,
                                 mouse.modifiers.contains(KeyModifiers::ALT),
@@ -2244,13 +2251,13 @@ impl TuiApp {
         self.check_async_completion();
 
         // Update particle system if emitter is active
-        if self.emitter_active {
+        if self.animation.emitter_active {
             let now = Instant::now();
             let dt = now
                 .saturating_duration_since(self.last_frame_time)
                 .as_secs_f64();
             if dt > 0.0 {
-                self.particle_system.update(dt);
+                self.animation.particle_system.update(dt);
                 self.dirty = true;
             }
         }
@@ -2383,10 +2390,10 @@ impl TuiApp {
             // If format changed to GIF and timeline has frames, populate timeline data
             if self.dialogs.export_dialog.format == export::ExportMode::Gif
                 && prev_format != export::ExportMode::Gif
-                && !self.timeline_state.frames.is_empty()
+                && !self.animation.timeline_state.frames.is_empty()
             {
-                let fps = self.timeline_state.fps;
-                let count = self.timeline_state.frames.len();
+                let fps = self.animation.timeline_state.fps;
+                let count = self.animation.timeline_state.frames.len();
                 self.dialogs.export_dialog.set_timeline(fps, count);
             }
             if self.dialogs.export_dialog.play_requested {
@@ -2420,15 +2427,15 @@ impl TuiApp {
         }
 
         // Keyframe editor: intercept all keys when open
-        if self.timeline_state.keyframe_editor.open
-            && self.timeline_state.handle_keyframe_editor_key(code)
+        if self.animation.timeline_state.keyframe_editor.open
+            && self.animation.timeline_state.handle_keyframe_editor_key(code)
         {
             self.dirty = true;
             return None;
         }
 
         // Tween panel: intercept keys when open
-        if self.timeline_state.tween.is_some() && self.timeline_state.handle_tween_key(code) {
+        if self.animation.timeline_state.tween.is_some() && self.animation.timeline_state.handle_tween_key(code) {
             self.dirty = true;
             return None;
         }
@@ -2805,18 +2812,18 @@ impl TuiApp {
         }
 
         // Timeline: left/right navigate frames, A add, Delete remove
-        if self.timeline_visible {
+        if self.animation.timeline_visible {
             match code {
-                KeyCode::Left if self.timeline_state.current_frame > 0 => {
-                    self.timeline_state.current_frame -= 1;
+                KeyCode::Left if self.animation.timeline_state.current_frame > 0 => {
+                    self.animation.timeline_state.current_frame -= 1;
                     self.editor.sync_canvas_to_font_char();
                     self.dirty = true;
                     return None;
                 }
                 KeyCode::Right
-                    if self.timeline_state.current_frame + 1 < self.timeline_state.frames.len() =>
+                    if self.animation.timeline_state.current_frame + 1 < self.animation.timeline_state.frames.len() =>
                 {
-                    self.timeline_state.current_frame += 1;
+                    self.animation.timeline_state.current_frame += 1;
                     self.editor.sync_canvas_to_font_char();
                     self.dirty = true;
                     return None;
@@ -2834,25 +2841,25 @@ impl TuiApp {
                     let frame = timeline::TimelineFrame {
                         thumbnail,
                         has_keyframe: true,
-                        label: format!("F{}", self.timeline_state.frames.len()),
+                        label: format!("F{}", self.animation.timeline_state.frames.len()),
                         layer_state: Some(buffer),
                         layer_keyframes,
                     };
-                    self.timeline_state.layer_names = self
+                    self.animation.timeline_state.layer_names = self
                         .editor
                         .layer_stack
                         .layers
                         .iter()
                         .map(|l| l.name.clone())
                         .collect();
-                    self.timeline_state.add_frame(frame);
+                    self.animation.timeline_state.add_frame(frame);
                     self.dirty = true;
                     return None;
                 }
-                KeyCode::Delete if self.timeline_state.frames.len() > 1 => {
+                KeyCode::Delete if self.animation.timeline_state.frames.len() > 1 => {
                     let _ = self
-                        .timeline_state
-                        .remove_frame(self.timeline_state.current_frame);
+                        .animation.timeline_state
+                        .remove_frame(self.animation.timeline_state.current_frame);
                     self.dirty = true;
                     return None;
                 }
@@ -3086,24 +3093,24 @@ impl TuiApp {
         }
 
         // Emitter config panel: dispatch when panel is open
-        if self.emitter_panel.open {
+        if self.animation.emitter_panel.open {
             let handled = self
-                .emitter_panel
-                .handle_config_key(code, &mut self.particle_system.config);
+                .animation.emitter_panel
+                .handle_config_key(code, &mut self.animation.particle_system.config);
             if handled {
                 self.dirty = true;
                 return None;
             }
         }
         // Emitter bake / toggle keybindings (active even when panel closed)
-        if self.emitter_active {
+        if self.animation.emitter_active {
             match code {
                 KeyCode::Char('b') => {
                     let w = self.editor.canvas.buffer.width();
                     let h = self.editor.canvas.buffer.height();
-                    let buf = self.particle_system.bake_to_buffer(w, h);
+                    let buf = self.animation.particle_system.bake_to_buffer(w, h);
                     let indices = self.editor.layer_stack.add_frozen_frames(vec![buf], "bake");
-                    self.baked_layer_indices.extend(indices);
+                    self.animation.baked_layer_indices.extend(indices);
                     self.editor.recomposite_canvas();
                     self.dirty = true;
                     return None;
@@ -3111,16 +3118,16 @@ impl TuiApp {
                 KeyCode::Char('B') => {
                     let w = self.editor.canvas.buffer.width();
                     let h = self.editor.canvas.buffer.height();
-                    let frames = self.particle_system.bake_frames(10, w, h, 0.1);
+                    let frames = self.animation.particle_system.bake_frames(10, w, h, 0.1);
                     let indices = self.editor.layer_stack.add_frozen_frames(frames, "bake");
-                    self.baked_layer_indices.extend(indices);
+                    self.animation.baked_layer_indices.extend(indices);
                     self.editor.recomposite_canvas();
-                    self.show_live_particles = false;
+                    self.animation.show_live_particles = false;
                     self.dirty = true;
                     return None;
                 }
                 KeyCode::Char('v') => {
-                    self.show_live_particles = !self.show_live_particles;
+                    self.animation.show_live_particles = !self.animation.show_live_particles;
                     self.dirty = true;
                     return None;
                 }
@@ -3140,7 +3147,7 @@ impl TuiApp {
 
         // Toggle keyframe editor (uppercase only to avoid conflict)
         if code == KeyCode::Char('K') {
-            self.timeline_state.keyframe_editor.open = !self.timeline_state.keyframe_editor.open;
+            self.animation.timeline_state.keyframe_editor.open = !self.animation.timeline_state.keyframe_editor.open;
             self.dirty = true;
             return None;
         }
@@ -3164,30 +3171,30 @@ impl TuiApp {
 
         // T: toggle timeline panel
         if code == KeyCode::Char('T') && modifiers == KeyModifiers::NONE {
-            self.timeline_visible = !self.timeline_visible;
+            self.animation.timeline_visible = !self.animation.timeline_visible;
             self.dirty = true;
             return None;
         }
         // Shift+T: open tween panel
         if code == KeyCode::Char('T') && modifiers == KeyModifiers::SHIFT {
-            self.timeline_state.open_tween();
+            self.animation.timeline_state.open_tween();
             self.dirty = true;
             return None;
         }
 
         // Timeline: Enter to play animation from current frame
-        if code == KeyCode::Enter && !self.timeline_state.frames.is_empty() {
+        if code == KeyCode::Enter && !self.animation.timeline_state.frames.is_empty() {
             let w = self.editor.canvas.buffer.width();
             let h = self.editor.canvas.buffer.height();
             let frames = export::capture_timeline_frames(
-                &self.timeline_state,
+                &self.animation.timeline_state,
                 &self.editor.layer_stack,
                 w,
                 h,
             );
             if !frames.is_empty() {
-                let fps = self.timeline_state.fps;
-                let start_frame = self.timeline_state.current_frame;
+                let fps = self.animation.timeline_state.fps;
+                let start_frame = self.animation.timeline_state.current_frame;
                 self.play_animation(frames, fps, start_frame);
             }
             return None;
@@ -3222,7 +3229,7 @@ impl TuiApp {
                         .brush
                         .cycle_sub_mode(self.editor.palette.has_multi_select());
                     if self.editor.brush.sub_mode == brush::BrushSubMode::Normal {
-                        self.marker_accum.clear();
+                        self.animation.marker_accum.clear();
                     }
                     Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
                 }
@@ -3235,7 +3242,7 @@ impl TuiApp {
                                 let was_brush = self.editor.toolbox.selected == Tool::Brush;
                                 self.editor.toolbox.selected = *tool;
                                 if was_brush && *tool != Tool::Brush {
-                                    self.marker_accum.clear();
+                                    self.animation.marker_accum.clear();
                                 }
                                 found = Some(AppEvent::Toolbox(ToolboxEvent::ToolSelected));
                                 break;
@@ -3387,11 +3394,11 @@ impl TuiApp {
                 };
                 self.dialogs.export_dialog.enter_export(mode);
                 if (mode == export::ExportMode::Gif || mode == export::ExportMode::Apng)
-                    && !self.timeline_state.frames.is_empty()
+                    && !self.animation.timeline_state.frames.is_empty()
                 {
                     self.dialogs
                         .export_dialog
-                        .set_timeline(self.timeline_state.fps, self.timeline_state.frames.len());
+                        .set_timeline(self.animation.timeline_state.fps, self.animation.timeline_state.frames.len());
                 }
                 self.dirty = true;
                 None
@@ -3439,7 +3446,7 @@ impl TuiApp {
                 None
             }
             GA::ToggleTimeline => {
-                self.timeline_visible = !self.timeline_visible;
+                self.animation.timeline_visible = !self.animation.timeline_visible;
                 self.dirty = true;
                 None
             }
@@ -3634,8 +3641,8 @@ impl TuiApp {
                 // Populate timeline
                 let thumb_w = 8;
                 let thumb_h = 3;
-                self.timeline_state.frames.clear();
-                self.timeline_state.current_frame = 0;
+                self.animation.timeline_state.frames.clear();
+                self.animation.timeline_state.current_frame = 0;
 
                 for (i, frame_cells) in gif_data.frames.iter().enumerate() {
                     let mut frame_buf = canvas::CanvasBuffer::new(w, h);
@@ -3651,7 +3658,7 @@ impl TuiApp {
 
                     let thumbnail = capture_thumbnail(&frame_buf, thumb_w, thumb_h);
 
-                    self.timeline_state.add_frame(timeline::TimelineFrame {
+                    self.animation.timeline_state.add_frame(timeline::TimelineFrame {
                         thumbnail,
                         has_keyframe: false,
                         label: format!("F{}", i),
@@ -3672,13 +3679,13 @@ impl TuiApp {
                     .first()
                     .copied()
                     .unwrap_or(10);
-                self.timeline_state.fps = 100u16
+                self.animation.timeline_state.fps = 100u16
                     .checked_div(first_delay_cs)
                     .map(|fps| fps.clamp(1, 60) as u8)
                     .unwrap_or(10);
 
                 self.mode = AppMode::ImageEditor;
-                self.timeline_visible = true;
+                self.animation.timeline_visible = true;
                 self.editor.recomposite_canvas();
                 self.editor.unsaved = true;
                 self.dirty = true;
@@ -3756,9 +3763,9 @@ impl TuiApp {
             == crate::tui::export::ExportMode::Gif
             || format == crate::tui::export::ExportMode::Apng)
             && timeline_available
-            && !self.timeline_state.frames.is_empty()
+            && !self.animation.timeline_state.frames.is_empty()
         {
-            let ts = &self.timeline_state;
+            let ts = &self.animation.timeline_state;
             let num_frames = ts.frames.len();
             let layer_stack = &self.editor.layer_stack;
             (0..num_frames)
@@ -3917,11 +3924,11 @@ impl TuiApp {
     fn launch_player_from_export(&mut self) {
         let w = self.editor.canvas.buffer.width();
         let h = self.editor.canvas.buffer.height();
-        if self.timeline_state.frames.is_empty() {
+        if self.animation.timeline_state.frames.is_empty() {
             return;
         }
         let frames =
-            export::capture_timeline_frames(&self.timeline_state, &self.editor.layer_stack, w, h);
+            export::capture_timeline_frames(&self.animation.timeline_state, &self.editor.layer_stack, w, h);
         if frames.is_empty() {
             return;
         }
@@ -3984,11 +3991,11 @@ impl TuiApp {
                 };
                 self.dialogs.export_dialog.enter_export(mode);
                 if (mode == export::ExportMode::Gif || mode == export::ExportMode::Apng)
-                    && !self.timeline_state.frames.is_empty()
+                    && !self.animation.timeline_state.frames.is_empty()
                 {
                     self.dialogs
                         .export_dialog
-                        .set_timeline(self.timeline_state.fps, self.timeline_state.frames.len());
+                        .set_timeline(self.animation.timeline_state.fps, self.animation.timeline_state.frames.len());
                 }
                 self.menu_bar_state.reset();
             }
@@ -4083,7 +4090,7 @@ impl TuiApp {
                 self.menu_bar_state.reset();
             }
             menu::MenuAction::ViewToggleTimeline => {
-                self.timeline_visible = !self.timeline_visible;
+                self.animation.timeline_visible = !self.animation.timeline_visible;
                 self.dirty = true;
                 self.menu_bar_state.reset();
             }

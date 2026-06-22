@@ -378,6 +378,17 @@ impl EditorState {
     }
 }
 
+/// Mouse/drag/interaction transient state.
+pub struct InteractionState {
+    pub selection_drag_origin: Option<(i16, i16)>,
+    pub selection_polygon_points: Vec<(i16, i16)>,
+    pub selection_lasso_points: Vec<(i16, i16)>,
+    pub prev_mouse_buf: Option<(i16, i16)>,
+    pub mouse_batch_active: bool,
+    pub line_start: Option<(i16, i16)>,
+    pub saved_buffer: Option<canvas::CanvasBuffer>,
+}
+
 /// Animation/particle/timeline subsystem state.
 pub struct AnimationState {
     pub timeline_state: timeline::TimelineState,
@@ -417,14 +428,7 @@ pub struct TuiApp {
     pub menu_bar: MenuBar,
     pub menu_bar_state: menu::MenuBarState,
 
-    // Drag state (extracted from EditorState)
-    pub selection_drag_origin: Option<(i16, i16)>,
-    pub selection_polygon_points: Vec<(i16, i16)>,
-    pub selection_lasso_points: Vec<(i16, i16)>,
-    pub prev_mouse_buf: Option<(i16, i16)>,
-    mouse_batch_active: bool,
-    pub line_start: Option<(i16, i16)>,
-    pub saved_buffer: Option<canvas::CanvasBuffer>,
+    pub interaction: InteractionState,
     auto_save_interval: u64,
     last_save_time: Instant,
     pub throbber: ThrobberState,
@@ -544,13 +548,15 @@ impl TuiApp {
             menu_bar: MenuBar::new(),
             menu_bar_state: menu::MenuBarState::new(),
 
-            selection_drag_origin: None,
-            selection_polygon_points: Vec::new(),
-            selection_lasso_points: Vec::new(),
-            prev_mouse_buf: None,
-            mouse_batch_active: false,
-            line_start: None,
-            saved_buffer: None,
+            interaction: InteractionState {
+                selection_drag_origin: None,
+                selection_polygon_points: Vec::new(),
+                selection_lasso_points: Vec::new(),
+                prev_mouse_buf: None,
+                mouse_batch_active: false,
+                line_start: None,
+                saved_buffer: None,
+            },
             auto_save_interval: 0,
             last_save_time: Instant::now(),
             throbber: ThrobberState::new(),
@@ -670,7 +676,7 @@ impl TuiApp {
             AppEvent::Toolbox(crate::tui::events::ToolboxEvent::ToolSelected)
                 if self.editor.toolbox.selected != Tool::PolygonSelect =>
             {
-                self.selection_polygon_points.clear();
+                self.interaction.selection_polygon_points.clear();
             }
             AppEvent::Palette(crate::tui::events::PaletteEvent::ColorChanged(color, target)) => {
                 self.editor.palette.selected_color = Some(*color);
@@ -1110,7 +1116,7 @@ impl TuiApp {
             self.editor
                 .canvas
                 .polygon_vertices
-                .clone_from(&self.selection_polygon_points);
+                .clone_from(&self.interaction.selection_polygon_points);
 
             // Text overlays
             if self.editor.toolbox.selected == Tool::Text {
@@ -1792,7 +1798,7 @@ impl TuiApp {
                 let tools = Tool::all();
                 if idx < tools.len() {
                     self.editor.toolbox.selected = tools[idx];
-                    self.selection_polygon_points.clear();
+                    self.interaction.selection_polygon_points.clear();
                 }
                 return;
             }
@@ -1845,9 +1851,9 @@ impl TuiApp {
                     if !self.editor.text_tool.entering_text {
                         if let Some(idx) = self.editor.text_tool.hit_test(bx, by) {
                             self.editor.text_tool.selected_block = Some(idx);
-                            self.prev_mouse_buf = None;
-                            self.line_start = None;
-                            self.saved_buffer = None;
+                            self.interaction.prev_mouse_buf = None;
+                            self.interaction.line_start = None;
+                            self.interaction.saved_buffer = None;
                             return;
                         }
                         self.editor.text_tool.cursor_position = (bx, by);
@@ -1864,9 +1870,9 @@ impl TuiApp {
                     }
                 }
             }
-            self.prev_mouse_buf = None;
-            self.line_start = None;
-            self.saved_buffer = None;
+            self.interaction.prev_mouse_buf = None;
+            self.interaction.line_start = None;
+            self.interaction.saved_buffer = None;
             return;
         }
 
@@ -1887,9 +1893,9 @@ impl TuiApp {
                     | Tool::Emitter
             )
         {
-            self.prev_mouse_buf = None;
-            self.line_start = None;
-            self.saved_buffer = None;
+            self.interaction.prev_mouse_buf = None;
+            self.interaction.line_start = None;
+            self.interaction.saved_buffer = None;
             return;
         }
 
@@ -1899,8 +1905,8 @@ impl TuiApp {
                     self.editor
                         .screen_to_buffer(mouse.column, mouse.row, canvas_inner_rect)
                 else {
-                    self.prev_mouse_buf = None;
-                    self.line_start = None;
+                    self.interaction.prev_mouse_buf = None;
+                    self.interaction.line_start = None;
                     return;
                 };
                 self.editor
@@ -1912,16 +1918,16 @@ impl TuiApp {
                     self.editor.handle_selection_down(
                         bx.max(0),
                         by.max(0),
-                        &mut self.selection_drag_origin,
-                        &mut self.selection_polygon_points,
-                        &mut self.selection_lasso_points,
+                        &mut self.interaction.selection_drag_origin,
+                        &mut self.interaction.selection_polygon_points,
+                        &mut self.interaction.selection_lasso_points,
                     );
                     return;
                 }
 
                 // Start batch for drag operations, push initial snapshot
                 self.editor.undo.begin_batch();
-                self.mouse_batch_active = true;
+                self.interaction.mouse_batch_active = true;
                 if self.editor.toolbox.selected == Tool::Fill {
                     self.editor.push_undo_snapshot("Flood fill");
                     let mut cell = canvas::CanvasCell {
@@ -1939,8 +1945,8 @@ impl TuiApp {
                 }
                 if self.editor.toolbox.selected == Tool::Line {
                     self.editor.push_undo_snapshot("Line tool");
-                    self.line_start = Some((bx, by));
-                    self.saved_buffer = Some(self.editor.layer_stack.active_layer().buffer.clone());
+                    self.interaction.line_start = Some((bx, by));
+                    self.interaction.saved_buffer = Some(self.editor.layer_stack.active_layer().buffer.clone());
                     return;
                 }
                 if self.editor.toolbox.selected == Tool::Eraser {
@@ -2016,7 +2022,7 @@ impl TuiApp {
                     *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
                     self.editor.recomposite_canvas();
                 }
-                self.prev_mouse_buf = Some((bx, by));
+                self.interaction.prev_mouse_buf = Some((bx, by));
             }
             MouseEventKind::Drag(_) => {
                 let Some((bx, by)) =
@@ -2034,15 +2040,15 @@ impl TuiApp {
                     self.editor.handle_selection_drag(
                         bx,
                         by,
-                        &mut self.selection_drag_origin,
-                        &mut self.selection_lasso_points,
+                        &mut self.interaction.selection_drag_origin,
+                        &mut self.interaction.selection_lasso_points,
                     );
                     return;
                 }
 
                 if self.editor.toolbox.selected == Tool::Line {
                     if let (Some((sx, sy)), Some(ref saved)) =
-                        (self.line_start, self.saved_buffer.clone())
+                        (self.interaction.line_start, self.interaction.saved_buffer.clone())
                     {
                         let saved_clone = saved.clone();
                         let mut cell = canvas::CanvasCell {
@@ -2061,7 +2067,7 @@ impl TuiApp {
                     }
                     return;
                 }
-                if let Some((px, py)) = self.prev_mouse_buf {
+                if let Some((px, py)) = self.interaction.prev_mouse_buf {
                     if self.editor.toolbox.selected == Tool::Eraser {
                         let shape = self.editor.brush.shape;
                         let size = self.editor.brush.size;
@@ -2116,10 +2122,10 @@ impl TuiApp {
                         self.editor.recomposite_canvas();
                     }
                 }
-                self.prev_mouse_buf = Some((bx, by));
+                self.interaction.prev_mouse_buf = Some((bx, by));
             }
             MouseEventKind::Up(_) => {
-                if self.mouse_batch_active {
+                if self.interaction.mouse_batch_active {
                     if self.editor.brush.sub_mode == brush::BrushSubMode::Marker
                         && !self.animation.marker_accum.is_empty()
                     {
@@ -2139,17 +2145,17 @@ impl TuiApp {
                         }
                     }
                     self.editor.undo.end_batch();
-                    self.mouse_batch_active = false;
+                    self.interaction.mouse_batch_active = false;
                 }
                 if is_selection_tool {
                     self.editor.handle_selection_up(
-                        &mut self.selection_drag_origin,
-                        &mut self.selection_lasso_points,
+                        &mut self.interaction.selection_drag_origin,
+                        &mut self.interaction.selection_lasso_points,
                     );
                 }
-                self.prev_mouse_buf = None;
-                self.line_start = None;
-                self.saved_buffer = None;
+                self.interaction.prev_mouse_buf = None;
+                self.interaction.line_start = None;
+                self.interaction.saved_buffer = None;
             }
             MouseEventKind::Moved => {
                 if let Some((bx, by)) =
@@ -2767,11 +2773,11 @@ impl TuiApp {
 
         // Polygon select tool: Enter closes polygon, Esc cancels
         if self.editor.toolbox.selected == Tool::PolygonSelect
-            && !self.selection_polygon_points.is_empty()
+            && !self.interaction.selection_polygon_points.is_empty()
         {
             match code {
                 KeyCode::Enter => {
-                    let points = std::mem::take(&mut self.selection_polygon_points);
+                    let points = std::mem::take(&mut self.interaction.selection_polygon_points);
                     if points.len() >= 3 {
                         self.editor.selection = Some(tools::selection::Selection::polygon(
                             &self.editor.canvas.buffer,
@@ -2781,7 +2787,7 @@ impl TuiApp {
                     return None;
                 }
                 KeyCode::Esc => {
-                    self.selection_polygon_points.clear();
+                    self.interaction.selection_polygon_points.clear();
                     return None;
                 }
                 _ => {}
@@ -3255,7 +3261,7 @@ impl TuiApp {
             };
             if let Some(action) = handled {
                 if self.editor.toolbox.selected != Tool::PolygonSelect {
-                    self.selection_polygon_points.clear();
+                    self.interaction.selection_polygon_points.clear();
                 }
                 return Some(action);
             }
@@ -4102,7 +4108,7 @@ impl TuiApp {
             menu::MenuAction::ToolsSelect(tool) => {
                 self.editor.toolbox.selected = tool;
                 if tool != toolbox::Tool::PolygonSelect {
-                    self.selection_polygon_points.clear();
+                    self.interaction.selection_polygon_points.clear();
                 }
                 self.menu_bar_state.reset();
             }

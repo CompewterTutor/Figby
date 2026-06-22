@@ -238,7 +238,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Compiles clean; `cargo test` green; 8 fewer top-level fields.
   - **Difficulty:** Low
 
-- [ ] `6.6.1c` Group drag/interaction fields into `InteractionState` sub-struct
+- [x] `6.6.1c` Group drag/interaction fields into `InteractionState` sub-struct
   - **Goal:** Extract from `TuiApp` into `pub struct InteractionState`:
     `selection_drag_origin`, `selection_polygon_points`, `selection_lasso_points`,
     `prev_mouse_buf`, `mouse_batch_active`, `line_start`, `saved_buffer`.

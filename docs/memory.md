@@ -1,5 +1,11 @@
 # Figby — Memory Index
 
+## ⚠️ Hard Rules
+
+1. **Never delete files** without explicit user instruction. If removal seems
+   necessary, ask first. If approved, `mv` to `/tmp/` (recycle) instead of
+   `rm` — permanent deletion is never acceptable.
+
 Master memory index. Detailed entries live in versioned files below.
 
 ## Versioned Memory Files

@@ -255,7 +255,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Compiles clean; render behavior identical; `mod.rs` -62 LOC.
   - **Difficulty:** Low
 
-- [ ] `6.6.1e` Extract `render_overlays` → `tui/overlays.rs`
+- [x] `6.6.1e` Extract `render_overlays` → `tui/overlays.rs`
   - **Goal:** Move `fn render_overlays(&mut self, frame)` (~147 LOC, `:1318-1464`)
     from `TuiApp` impl to a new file `figby-rs/src/tui/overlays.rs` as a free function
     or `TuiApp` extension trait. Pure render logic, no state mutation beyond `dirty`.

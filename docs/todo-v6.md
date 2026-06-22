@@ -263,7 +263,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Compiles clean; `mod.rs` -147 LOC.
   - **Difficulty:** Low
 
-- [ ] `6.6.1f` Extract lighting-mode key dispatch → `LightingState::handle_key`
+- [x] `6.6.1f` Extract lighting-mode key dispatch → `LightingState::handle_key`
   - **Goal:** The lighting-mode block in `handle_key_event` (`:2848-3025`, ~177 LOC)
     reads/mutates almost exclusively `self.lighting.*`. Move it to
     `LightingState::handle_key(&mut self, key, w, h) -> bool` (returns true if consumed).

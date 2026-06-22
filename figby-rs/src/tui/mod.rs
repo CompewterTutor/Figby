@@ -410,6 +410,145 @@ pub struct LightingState {
     pub panel: light_panel::LightPanel,
 }
 
+impl LightingState {
+    /// Handle a key press in lighting mode.
+    /// Returns `Some(true)` = consumed, `Some(false)` = exit mode (Esc), `None` = not matched.
+    fn handle_key(
+        &mut self,
+        code: KeyCode,
+        modifiers: KeyModifiers,
+        w: i16,
+        h: i16,
+        dirty: &mut bool,
+    ) -> Option<bool> {
+        match code {
+            KeyCode::Esc => return Some(false),
+            KeyCode::Up => {
+                if modifiers == KeyModifiers::SHIFT {
+                    if let Some(ref mut scene) = self.scene {
+                        let idx = self.panel.selected_index;
+                        if idx < scene.lights.len() {
+                            if let lighting::Light::Point { ref mut position, .. } =
+                                scene.lights[idx]
+                            {
+                                position.1 = (position.1 - 1.0).max(0.0);
+                                *dirty = true;
+                            }
+                        }
+                    }
+                } else if self.panel.selected_index > 0 {
+                    self.panel.selected_index -= 1;
+                    *dirty = true;
+                }
+            }
+            KeyCode::Down => {
+                if modifiers == KeyModifiers::SHIFT {
+                    if let Some(ref mut scene) = self.scene {
+                        let idx = self.panel.selected_index;
+                        if idx < scene.lights.len() {
+                            if let lighting::Light::Point { ref mut position, .. } =
+                                scene.lights[idx]
+                            {
+                                position.1 = (position.1 + 1.0).min(h as f32 - 1.0);
+                                *dirty = true;
+                            }
+                        }
+                    }
+                } else if let Some(ref scene) = self.scene {
+                    if self.panel.selected_index + 1 < scene.lights.len() {
+                        self.panel.selected_index += 1;
+                        *dirty = true;
+                    }
+                }
+            }
+            KeyCode::Left => {
+                if let Some(ref mut scene) = self.scene {
+                    let idx = self.panel.selected_index;
+                    if idx < scene.lights.len() {
+                        if let lighting::Light::Point { ref mut position, .. } = scene.lights[idx] {
+                            position.0 = (position.0 - 1.0).max(0.0);
+                            *dirty = true;
+                        }
+                    }
+                }
+            }
+            KeyCode::Right => {
+                if let Some(ref mut scene) = self.scene {
+                    let idx = self.panel.selected_index;
+                    if idx < scene.lights.len() {
+                        if let lighting::Light::Point { ref mut position, .. } = scene.lights[idx] {
+                            position.0 = (position.0 + 1.0).min(w as f32 - 1.0);
+                            *dirty = true;
+                        }
+                    }
+                }
+            }
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                if let Some(ref mut scene) = self.scene {
+                    LightPanel::adjust_intensity(scene, self.panel.selected_index, 0.1);
+                    *dirty = true;
+                }
+            }
+            KeyCode::Char('-') | KeyCode::Char('_') => {
+                if let Some(ref mut scene) = self.scene {
+                    LightPanel::adjust_intensity(scene, self.panel.selected_index, -0.1);
+                    *dirty = true;
+                }
+            }
+            KeyCode::Char('A') => {
+                if let Some(ref mut scene) = self.scene {
+                    scene.add_light(lighting::Light::Ambient {
+                        intensity: 0.5,
+                        color: lighting::Rgb(255, 255, 255),
+                    });
+                    self.panel.selected_index = scene.lights.len() - 1;
+                    *dirty = true;
+                }
+            }
+            KeyCode::Char('D') => {
+                if let Some(ref mut scene) = self.scene {
+                    scene.add_light(lighting::Light::Directional {
+                        direction: (0.0, 0.0, 1.0),
+                        intensity: 0.8,
+                        color: lighting::Rgb(255, 255, 255),
+                    });
+                    self.panel.selected_index = scene.lights.len() - 1;
+                    *dirty = true;
+                }
+            }
+            KeyCode::Char('P') => {
+                if let Some(ref mut scene) = self.scene {
+                    scene.add_light(lighting::Light::Point {
+                        position: (w as f32 / 2.0, h as f32 / 2.0, 5.0),
+                        intensity: 0.8,
+                        color: lighting::Rgb(255, 255, 255),
+                        attenuation: lighting::Attenuation::default(),
+                    });
+                    self.panel.selected_index = scene.lights.len() - 1;
+                    *dirty = true;
+                }
+            }
+            KeyCode::Delete => {
+                if let Some(ref mut scene) = self.scene {
+                    let idx = self.panel.selected_index;
+                    if idx < scene.lights.len() {
+                        scene.remove_light(idx);
+                        if self.panel.selected_index >= scene.lights.len()
+                            && !scene.lights.is_empty()
+                        {
+                            self.panel.selected_index = scene.lights.len() - 1;
+                        }
+                        *dirty = true;
+                    }
+                }
+            }
+            KeyCode::Char('G') => {}
+            _ => return None,
+        }
+        Some(true)
+    }
+}
+
 /// Dialog/overlay state — file ops, export, undo panel, settings panel, rascii import.
 pub struct DialogState {
     pub file_ops: file_ops::FileOpsDialog,
@@ -2666,153 +2805,16 @@ impl TuiApp {
 
         // Lighting mode: key handling
         if self.mode == AppMode::Lighting {
-            let w = self.editor.canvas.buffer.width();
-            let h = self.editor.canvas.buffer.height();
-            match code {
-                KeyCode::Esc => {
+            let w = self.editor.canvas.buffer.width() as i16;
+            let h = self.editor.canvas.buffer.height() as i16;
+            match self.lighting.handle_key(code, modifiers, w, h, &mut self.dirty) {
+                Some(false) => {
                     self.mode = self.prev_mode;
                     self.dirty = true;
                     return None;
                 }
-                KeyCode::Up => {
-                    if modifiers == KeyModifiers::SHIFT {
-                        if let Some(ref mut scene) = self.lighting.scene {
-                            let idx = self.lighting.panel.selected_index;
-                            if idx < scene.lights.len() {
-                                if let lighting::Light::Point {
-                                    ref mut position, ..
-                                } = scene.lights[idx]
-                                {
-                                    position.1 = (position.1 - 1.0).max(0.0);
-                                    self.dirty = true;
-                                }
-                            }
-                        }
-                    } else if self.lighting.panel.selected_index > 0 {
-                        self.lighting.panel.selected_index -= 1;
-                        self.dirty = true;
-                    }
-                    return None;
-                }
-                KeyCode::Down => {
-                    if modifiers == KeyModifiers::SHIFT {
-                        if let Some(ref mut scene) = self.lighting.scene {
-                            let idx = self.lighting.panel.selected_index;
-                            if idx < scene.lights.len() {
-                                if let lighting::Light::Point {
-                                    ref mut position, ..
-                                } = scene.lights[idx]
-                                {
-                                    position.1 = (position.1 + 1.0).min(h as f32 - 1.0);
-                                    self.dirty = true;
-                                }
-                            }
-                        }
-                    } else if let Some(ref scene) = self.lighting.scene {
-                        if self.lighting.panel.selected_index + 1 < scene.lights.len() {
-                            self.lighting.panel.selected_index += 1;
-                            self.dirty = true;
-                        }
-                    }
-                    return None;
-                }
-                KeyCode::Left => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        let idx = self.lighting.panel.selected_index;
-                        if idx < scene.lights.len() {
-                            if let lighting::Light::Point {
-                                ref mut position, ..
-                            } = scene.lights[idx]
-                            {
-                                position.0 = (position.0 - 1.0).max(0.0);
-                                self.dirty = true;
-                            }
-                        }
-                    }
-                    return None;
-                }
-                KeyCode::Right => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        let idx = self.lighting.panel.selected_index;
-                        if idx < scene.lights.len() {
-                            if let lighting::Light::Point {
-                                ref mut position, ..
-                            } = scene.lights[idx]
-                            {
-                                position.0 = (position.0 + 1.0).min(w as f32 - 1.0);
-                                self.dirty = true;
-                            }
-                        }
-                    }
-                    return None;
-                }
-                KeyCode::Char('+') | KeyCode::Char('=') => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        LightPanel::adjust_intensity(scene, self.lighting.panel.selected_index, 0.1);
-                        self.dirty = true;
-                    }
-                    return None;
-                }
-                KeyCode::Char('-') | KeyCode::Char('_') => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        LightPanel::adjust_intensity(scene, self.lighting.panel.selected_index, -0.1);
-                        self.dirty = true;
-                    }
-                    return None;
-                }
-                KeyCode::Char('A') => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        scene.add_light(lighting::Light::Ambient {
-                            intensity: 0.5,
-                            color: lighting::Rgb(255, 255, 255),
-                        });
-                        self.lighting.panel.selected_index = scene.lights.len() - 1;
-                        self.dirty = true;
-                    }
-                    return None;
-                }
-                KeyCode::Char('D') => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        scene.add_light(lighting::Light::Directional {
-                            direction: (0.0, 0.0, 1.0),
-                            intensity: 0.8,
-                            color: lighting::Rgb(255, 255, 255),
-                        });
-                        self.lighting.panel.selected_index = scene.lights.len() - 1;
-                        self.dirty = true;
-                    }
-                    return None;
-                }
-                KeyCode::Char('P') => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        scene.add_light(lighting::Light::Point {
-                            position: (w as f32 / 2.0, h as f32 / 2.0, 5.0),
-                            intensity: 0.8,
-                            color: lighting::Rgb(255, 255, 255),
-                            attenuation: lighting::Attenuation::default(),
-                        });
-                        self.lighting.panel.selected_index = scene.lights.len() - 1;
-                        self.dirty = true;
-                    }
-                    return None;
-                }
-                KeyCode::Delete => {
-                    if let Some(ref mut scene) = self.lighting.scene {
-                        let idx = self.lighting.panel.selected_index;
-                        if idx < scene.lights.len() {
-                            scene.remove_light(idx);
-                            if self.lighting.panel.selected_index >= scene.lights.len()
-                                && !scene.lights.is_empty()
-                            {
-                                self.lighting.panel.selected_index = scene.lights.len() - 1;
-                            }
-                            self.dirty = true;
-                        }
-                    }
-                    return None;
-                }
-                KeyCode::Char('G') => return None,
-                _ => {}
+                Some(true) => return None,
+                None => {}
             }
         }
 

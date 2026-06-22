@@ -11,7 +11,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
 | v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 complete) |
-| v6 — Pre-Release Hardening | (in memory.md) | Active (6.9.2 complete) |
+| v6 — Pre-Release Hardening | (in memory.md) | Active (6.9.4 complete) |
 
 ## Architectural Decisions
 
@@ -2562,6 +2562,20 @@ Added drag-and-drop reorder for the layer panel:
 - **Click to select:** clicking any layer row (outside drag handle) sets it active
 
 Implementation: `LayerPanel` gained `drag_state: Option<(from, to)>` and `drag_hover_row` fields. New `layer_at_pos()` helper maps screen coords → layer index in the 2-row-per-layer display model. New `handle_mouse()` method dispatches Down/Drag/Up events. Wired into `TuiApp::handle_mouse_event()` after tab-label click handling.
+
+### 6.9.4 — Move tool options to right sidebar
+
+Removed the brush/text/lighting info panel from the bottom of the left toolbox
+column. Tool options were already displayed in the right sidebar's Props tab
+(via `SidePanel::render_tool_props`), so the left sidebar now shows only the
+tool list and palette.
+
+Changes:
+- Removed `TOOLBOX_BRUSH_HEIGHT` constant and `toolbox_brush_borders()` from `layout.rs`
+- Removed `toolbox_brush` field from `FrameLayout` struct and its split logic
+- Removed brush/text/lighting rendering block from `TuiApp::render()`
+- `toolbox_h` simplified to `Tool::all().len() as u16 + 2` (no brush height addend)
+- Updated `test_brush_render_contains_shape_name` to open side panel Props tab
 
 ### 5.8.5 — Phase merge: release/5.8 → master (2026-06-18)
 

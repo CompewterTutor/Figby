@@ -589,12 +589,15 @@ fn test_brush_preview_respects_max_size() {
 
 #[test]
 fn test_brush_render_contains_shape_name() {
+    use figby::tui::TabId;
     use figby::tui::TuiApp;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
     app.welcome_screen.show = false;
+    app.side_panel.open = true;
+    app.side_panel.active_tab = TabId::Props;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();

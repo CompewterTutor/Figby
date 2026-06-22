@@ -1,5 +1,17 @@
 # Figby — Learnings
 
+## 6.9.4 — Move tool options to right sidebar
+
+- When removing a sub-panel from a vertical split in ratatui, eliminate the
+  intermediate `Layout::vertical` split and assign the remaining area directly.
+  `toolbox_list = left_vert[0]` replaces `tb_vert[0]`. Update `FrameLayout`
+  struct to remove the now-unused `toolbox_brush: Option<Rect>`.
+- `replaceAll` is dangerous for short patterns like `+ 0` — it can match
+  unintended locations. Prefer targeted `edit` with surrounding context.
+  (Lesson: the corrupted `mouse_fl` block was caused by `replaceAll` matching
+  `layout::TOOLBOX_BRUSH_HEIGHT` at three sites plus the brush removal edit
+  interacting badly.)
+
 ## 6.9.2 — Layer panel: drag handle reorder
 
 - `Block::inner(area)` is sufficient for computing the content rect for hit testing,

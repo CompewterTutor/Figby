@@ -1,20 +1,12 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Borders;
 
-pub const TOOLBOX_BRUSH_HEIGHT: u16 = 10;
 pub const TIMELINE_HEIGHT: u16 = 8;
 const DRAWER_WIDTH: u16 = 22;
 
-/// Full borders for the toolbox list panel (top portion of left column).
-/// BOTTOM draws the visual separator between tool list and brush/text area.
+/// Full borders for the toolbox list panel.
 pub fn toolbox_list_borders() -> Borders {
     Borders::ALL
-}
-
-/// Collapsed borders for the brush/text panel (bottom portion of left column).
-/// Omits TOP — list's BOTTOM border above acts as the divider.
-pub fn toolbox_brush_borders() -> Borders {
-    Borders::LEFT | Borders::RIGHT | Borders::BOTTOM
 }
 
 /// All widget Rects for one frame, computed in a single pass.
@@ -29,8 +21,7 @@ pub struct FrameLayout {
     pub toolbox_full: Option<Rect>,
     /// Upper portion of toolbox column (for mouse hit-testing tool list items).
     pub toolbox_list: Option<Rect>,
-    /// Lower 10 rows of toolbox column (brush / text options).
-    pub toolbox_brush: Option<Rect>,
+
     /// Palette panel below the toolbox in the left column. None in zen mode.
     pub palette: Option<Rect>,
     /// Center canvas area.
@@ -46,9 +37,6 @@ impl FrameLayout {
     ///
     /// Collapsed-border convention (ratatui recipe):
     ///   - Toolbox list block uses `toolbox_list_borders()`: ALL borders.
-    ///     BOTTOM draws the visual separator between tool list and brush/text.
-    ///   - Brush/text block uses `toolbox_brush_borders()`: LEFT, RIGHT, BOTTOM
-    ///     (omits TOP — list's BOTTOM is the divider).
     ///   - Canvas block omits LEFT when toolbox is visible (shares toolbox's
     ///     right border) and omits RIGHT when right panel is visible.
     ///   - Right panel block uses Borders::ALL (canvas omits its RIGHT when
@@ -84,7 +72,6 @@ impl FrameLayout {
                 status,
                 toolbox_full: None,
                 toolbox_list: None,
-                toolbox_brush: None,
                 palette: None,
                 canvas: area,
                 right_panel: None,
@@ -127,17 +114,8 @@ impl FrameLayout {
         let left_vert = Layout::vertical([Constraint::Length(toolbox_h), Constraint::Min(0)])
             .spacing(0)
             .split(toolbox_full);
-        let toolbox_top = left_vert[0];
+        let toolbox_list = left_vert[0];
         let palette_rect = left_vert[1];
-
-        let tb_vert = Layout::vertical([
-            Constraint::Fill(1),
-            Constraint::Length(TOOLBOX_BRUSH_HEIGHT),
-        ])
-        .spacing(0)
-        .split(toolbox_top);
-        let toolbox_list = tb_vert[0];
-        let toolbox_brush = tb_vert[1];
 
         Self {
             menu,
@@ -146,7 +124,6 @@ impl FrameLayout {
             status,
             toolbox_full: Some(toolbox_full),
             toolbox_list: Some(toolbox_list),
-            toolbox_brush: Some(toolbox_brush),
             palette: Some(palette_rect),
             canvas,
             right_panel,
@@ -186,7 +163,7 @@ impl FrameLayout {
 
 impl Default for FrameLayout {
     fn default() -> Self {
-        Self::compute(Rect::new(0, 0, 80, 24), false, false, 8, 0, false)
+        Self::compute(Rect::new(0, 0, 80, 24), false, false, 20, 15, false)
     }
 }
 

@@ -454,7 +454,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Alt+L opens Layers menu; all layer actions accessible from menu.
   - **Difficulty:** Low
 
-- [ ] `6.9.4` Move tool options to right sidebar (manual-note #13)
+- [x] `6.9.4` Move tool options to right sidebar (manual-note #13)
   - **Goal:** Tool options (brush size, shape, opacity etc.) currently displayed below
     the toolbox on the left. User expected them in the right sidebar. Move or
     duplicate tool options panel to right sidebar, or make the location configurable.

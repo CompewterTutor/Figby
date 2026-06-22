@@ -10,6 +10,7 @@
 ### Added (2026-06-22 session)
 - Layer panel: redesigned to 2-row icon-based layout — row 1 shows layer name with active marker (›), row 2 shows compact attributes (visibility eye, lock icon, blend mode icon, opacity %) using Nerd Font icons. Removed verbose text labels and legacy 3-line help text (6.9.1).
 - Layer panel: drag handle (⠿) on each layer row for mouse-drag reorder; Shift+Up/Shift+Down keyboard reorder; mouse click to select layers (6.9.2).
+- Tool options (brush size/shape/opacity) moved from left toolbox column to right sidebar; left toolbox now shows tool list only. Brush info accessible via right sidebar Props tab (6.9.4).
 
 ### Added (2026-06-22 session)
 - Quit-confirm dialog: pressing `q`/FileQuit when `editor.unsaved` is true now shows

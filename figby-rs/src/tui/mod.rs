@@ -920,7 +920,7 @@ impl TuiApp {
             .editor
             .toolbox
             .required_width(self.editor.brush.required_outer_width());
-        let toolbox_h = Tool::all().len() as u16 + 2 + layout::TOOLBOX_BRUSH_HEIGHT;
+        let toolbox_h = Tool::all().len() as u16 + 2;
         let fl = layout::FrameLayout::compute(
             frame.area(),
             self.zen_mode,
@@ -1046,28 +1046,6 @@ impl TuiApp {
                 .toolbox
                 .set_borders(layout::toolbox_list_borders());
             frame.render_widget(&self.editor.toolbox, tb_list);
-            if let Some(tb_brush) = fl.toolbox_brush {
-                if self.editor.toolbox.selected == Tool::Text {
-                    self.editor.text_tool.render_options(
-                        frame,
-                        tb_brush,
-                        layout::toolbox_brush_borders(),
-                    );
-                } else if self.editor.toolbox.selected == Tool::Lighting {
-                    let block = Block::default()
-                        .title(" Lighting ")
-                        .borders(layout::toolbox_brush_borders());
-                    let inner = block.inner(tb_brush);
-                    frame.render_widget(block, tb_brush);
-                    let info = Paragraph::new("Press G to\nopen lighting\neditor");
-                    frame.render_widget(info, inner);
-                } else {
-                    self.editor
-                        .brush
-                        .set_borders(layout::toolbox_brush_borders());
-                    self.editor.brush.render(frame, tb_brush);
-                }
-            }
         }
 
         // Palette / settings panel below toolbox (left column)
@@ -1230,7 +1208,7 @@ impl TuiApp {
             .editor
             .toolbox
             .required_width(self.editor.brush.required_outer_width());
-        let toolbox_h = Tool::all().len() as u16 + 2 + layout::TOOLBOX_BRUSH_HEIGHT;
+        let toolbox_h = Tool::all().len() as u16 + 2;
         let fl = layout::FrameLayout::compute(
             frame.area(),
             self.zen_mode,
@@ -1732,7 +1710,7 @@ impl TuiApp {
                 .editor
                 .toolbox
                 .required_width(self.editor.brush.required_outer_width());
-            let toolbox_h = Tool::all().len() as u16 + 2 + layout::TOOLBOX_BRUSH_HEIGHT;
+            let toolbox_h = Tool::all().len() as u16 + 2;
             layout::FrameLayout::compute(
                 Rect::new(0, 0, cols, rows),
                 self.zen_mode,

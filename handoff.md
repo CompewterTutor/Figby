@@ -20,13 +20,16 @@ Branch: `release/6.6` (clean, all tests pass, clippy clean)
 | 6.8.8 | Timeline scrollable (cached_max_vis_frames); layer panel scrollable (`render_with_stack` → `&mut self`, two-pass) |
 | 6.8.3 | Canvas resize: Image → Resize Canvas menu action → opens settings dialog pre-filled with current canvas size |
 | 6.8.1 | Open image file dialog: `FileOpsMode::OpenImage` + `enter_open_image()` + `perform_open_image()` + welcome screen 'I' key |
+| 6.8.4 | Palette editor: add/delete/edit color, inline hex/name editing, View menu entry, keymap doc |
+| 6.8.2 | New image dialog: canvas size + palette selection |
 
 ## Files changed this session
 
-- `figby-rs/src/tui/mod.rs` — all the above handlers; `perform_open_image()`; `handle_image_editor_key` intercepts 'o' → `enter_open_image()`; `WelcomeAction::ImageOpen` dispatch
+- `figby-rs/src/tui/mod.rs` — all the above handlers; `perform_open_image()`; `handle_image_editor_key` intercepts 'o' → `enter_open_image()`; `WelcomeAction::ImageOpen` dispatch; `ViewPaletteEditor` action handler
 - `figby-rs/src/tui/overlays.rs` — quit-confirm dialog render, scrollable keybinds overlay
-- `figby-rs/src/tui/keymap.rs` — added `LayerPanel` / `TextTool` scopes; 20+ missing bindings
-- `figby-rs/src/tui/menu.rs` — Image menu + `ImageResizeCanvas`; Layers + Animation menus; `Tool::Lighting`
+- `figby-rs/src/tui/keymap.rs` — added `LayerPanel` / `TextTool` scopes; 20+ missing bindings; `Ctrl+Shift+P` keybind doc
+- `figby-rs/src/tui/menu.rs` — Image menu + `ImageResizeCanvas`; Layers + Animation menus; `Tool::Lighting`; `ViewPaletteEditor` menu action
+- `figby-rs/src/tui/palette_editor.rs` — add/delete/edit color operations, inline hex/name editing, palette rename, new PanelMode variants
 - `figby-rs/src/palette_import.rs` — `builtin_palettes()` + test
 - `figby-rs/src/tui/tools/text.rs` — `test_text_tool_unicode_no_panic`
 - `figby-rs/src/tui/layout.rs` — `toolbox_list_borders()` → `Borders::ALL`; updated comments
@@ -36,7 +39,7 @@ Branch: `release/6.6` (clean, all tests pass, clippy clean)
 - `figby-rs/src/tui/side_panel.rs` — `layer_panel: Option<&mut LayerPanel>` parameter
 - `figby-rs/src/tui/file_ops.rs` — `FileOpsMode::OpenImage`; `enter_open_image()`; `handle_key_open_image()`; `render_open_image()`; Widget impl arm for OpenImage
 - `figby-rs/src/tui/welcome.rs` — `WelcomeAction::ImageOpen`; 'I' key; `IMAGE_ACTIONS` 6th entry; `image_action_for(5)`
-- `docs/todo-v6.md` — marked 6.6.1g/h, 6.7.2, 6.7.3, 6.8.1, 6.8.3, 6.8.5, 6.8.6, 6.8.7, 6.8.8, 6.9.3, 6.9.6 done
+- `docs/todo-v6.md` — marked 6.6.1g/h, 6.7.2, 6.7.3, 6.8.1, 6.8.3, 6.8.4, 6.8.5, 6.8.6, 6.8.7, 6.8.8, 6.9.3, 6.9.6 done
 
 ## Current test state
 
@@ -45,8 +48,7 @@ Branch: `release/6.6` (clean, all tests pass, clippy clean)
 ## Remaining todo-v6.md (unchecked)
 
 **Phase 6.8 — Missing Core Features:**
-- [ ] 6.8.2 New image dialog: canvas size + palette selection (Medium)
-- [ ] 6.8.4 Palette editor UI (High)
+- [x] 6.8.2 New image dialog: canvas size + palette selection (Medium)
 
 **Phase 6.9 — UX Polish:**
 - [ ] 6.9.1 Layer panel: icon-based 2-row layout (Medium)
@@ -55,14 +57,14 @@ Branch: `release/6.6` (clean, all tests pass, clippy clean)
 
 ## Recommended next tasks (in priority order)
 
-1. **6.8.4** Palette editor UI (High priority)
-2. **6.8.2** New image dialog: canvas size + palette selection (Medium)
-3. **6.9.1** Layer panel: icon-based 2-row layout (Medium)
+1. **6.9.1** Layer panel: icon-based 2-row layout (Medium)
+2. **6.9.1** Layer panel: icon-based 2-row layout (Medium)
+3. **6.9.2** Layers: reorder by drag handle (Medium)
 
 ## Key decisions / non-obvious choices
 
 - `quit_confirm_dialog Y` triggers `start_save()` (async); `quit_after_save` flag checked in `AsyncResult::SaveComplete` handler. On save failure, `quit_after_save` cleared (no quit).
-- Built-in palettes load into `palette_editor.swatches` + open palette editor panel (via View menu). Not in new-image dialog (6.8.2 not done yet).
+- Built-in palettes load into `palette_editor.swatches` + open palette editor panel (via View menu, or selected in new-image dialog).
 - Font/image editor key dispatch left as thin wrapper on `TuiApp` (not moved to `FontEditor`/`ImageEditor` structs) because both need `EditorState` mutation (`sync_font_char_to_canvas`, `undo.clear`) that isn't accessible from within those structs.
 - `keybindings_scroll` resets to 0 on close.
 - `AnimFrameAdd` menu handler uses hardcoded `12×6` thumbnail (matches existing code pattern).

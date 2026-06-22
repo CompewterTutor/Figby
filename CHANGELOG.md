@@ -24,6 +24,10 @@
 - `handle_font_editor_key()` and `handle_image_editor_key()` methods extracted from
   `handle_key_event`; each mode now dispatched via a single-line call (6.6.1g, 6.6.1h).
 
+- New image dialog: Width/Height fields (Tab/arrow navigation, numeric entry),
+  palette dropdown (Left/Right to cycle), Enter confirms with canvas creation
+  at specified size + selected palette (6.8.2).
+
 ### Fixed (2026-06-22 session)
 - Unicode chars (Ä Ö Ü ä ö ü ß) typed in Text tool no longer panic; verified covered
   by 6.5.1 blank-glyph fallback; added `test_text_tool_unicode_no_panic` (6.7.3).

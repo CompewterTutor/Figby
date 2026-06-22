@@ -565,6 +565,7 @@ pub struct DialogState {
     pub undo_panel: undo_panel::UndoPanel,
     pub settings: status::CanvasSettings,
     pub rascii_import: dialogs::RasciiImportDialog,
+    pub new_image: dialogs::NewImageDialog,
 }
 
 pub struct TuiApp {
@@ -689,6 +690,8 @@ impl TuiApp {
 
         let mut rascii_import = dialogs::RasciiImportDialog::new();
         rascii_import.theme = theme.clone();
+        let mut new_image = dialogs::NewImageDialog::new();
+        new_image.theme = theme.clone();
 
         Self {
             mode: AppMode::FontEditor,
@@ -757,6 +760,7 @@ impl TuiApp {
                 undo_panel,
                 settings,
                 rascii_import,
+                new_image,
             },
             animation: AnimationState {
                 timeline_state: timeline::TimelineState::default(),
@@ -1595,18 +1599,7 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::ImageNewBlank => {
-                self.session_type = SessionType::Image;
-                self.editor.image_editor = image_editor::ImageEditor::new();
-                self.mode = AppMode::ImageEditor;
-                self.editor.canvas = crate::tui::canvas::CanvasWidget::new(80, 24);
-                self.editor.layer_stack = layers::LayerStack::new(80, 24);
-                self.editor.layer_panel = layers::LayerPanel::new();
-                self.editor.layer_panel.theme = self.theme.clone();
-                self.editor.layer_panel.icons = self.icons.clone();
-                self.editor.recomposite_canvas();
-                self.welcome_screen.show = false;
-                self.welcome_fx = None;
-                self.dirty = true;
+                self.dialogs.new_image.enter_new_image();
             }
             WelcomeAction::ImageNewFromTemplate => {
                 self.session_type = SessionType::Image;
@@ -2354,6 +2347,35 @@ impl TuiApp {
                     self.dirty = true;
                 }
                 _ => {}
+            }
+            return None;
+        }
+
+        // New image dialog active
+        if self.dialogs.new_image.active {
+            self.dialogs.new_image.handle_key(code);
+            if !self.dialogs.new_image.active && self.dialogs.new_image.confirmed {
+                let w = self.dialogs.new_image.result_width;
+                let h = self.dialogs.new_image.result_height;
+                let pal_name = self.dialogs.new_image.result_palette_name.clone();
+                let pal_swatches = self.dialogs.new_image.result_palette_swatches.clone();
+                self.session_type = SessionType::Image;
+                self.editor.image_editor = image_editor::ImageEditor::new();
+                self.mode = AppMode::ImageEditor;
+                self.editor.canvas = canvas::CanvasWidget::new(w, h);
+                self.editor.layer_stack = layers::LayerStack::new(w as usize, h as usize);
+                self.editor.layer_panel = layers::LayerPanel::new();
+                self.editor.layer_panel.theme = self.theme.clone();
+                self.editor.layer_panel.icons = self.icons.clone();
+                if !pal_swatches.is_empty() {
+                    self.palette_editor.open = true;
+                    self.palette_editor.name_buffer = pal_name;
+                    self.palette_editor.swatches = pal_swatches;
+                }
+                self.editor.recomposite_canvas();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
             }
             return None;
         }

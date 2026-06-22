@@ -2528,9 +2528,21 @@ Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
 
 22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.
 
+### 6.8.2 — New image dialog: canvas size + palette selection
+
+Added `NewImageDialog` in `figby-rs/src/tui/dialogs/new_image.rs` — a dialog with
+three navigable fields: Width (numeric entry, default 80), Height (numeric entry,
+default 24), and Palette (cycle through built-in names with Left/Right). Tab/Up/Down
+navigate fields, Enter confirms, Esc cancels. On confirm, creates `CanvasWidget` at
+specified dimensions and loads selected palette into `PaletteEditor`.
+
+Wired into `TuiApp` via `DialogState.new_image` field. `WelcomeAction::ImageNewBlank`
+opens the dialog instead of hardcoding 80×24. Palettes sourced from
+`palette_import::builtin_palettes()` (Grayscale, Primary, Warm, Cool).
+
 ### 5.8.5 — Phase merge: release/5.8 → master (2026-06-18)
 
 Merged release/5.8 branch into master at `480352d`. Brings 5.8.1 (core lighting
 engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI), and 5.8.4
-(palette LUT integration) into the mainline. 34 files / 2262 lines merged. Phase
+(palette LUT integration) into the mainline. 34 files / 2520 lines merged. Phase
 5.8 complete. Next phase: TBD.

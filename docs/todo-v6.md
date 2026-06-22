@@ -347,7 +347,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     image editor. Path entry mode also replaced or augmented with directory browser.
   - **Difficulty:** Medium
 
-- [ ] `6.8.2` New image dialog: canvas size + palette selection (manual-note #10)
+- [x] `6.8.2` New image dialog: canvas size + palette selection (manual-note #10)
   - **Goal:** "New Image" creates a canvas with hard-coded defaults. Add a creation
     dialog with fields: Width, Height (default 80×24), and a palette dropdown
     (list of built-in palette names). Tab/arrow to navigate fields, Enter to confirm.

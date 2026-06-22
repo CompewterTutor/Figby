@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use super::{file_ops, keymap, timeline, AppMode, TuiApp};
+use super::{dialogs, file_ops, keymap, timeline, AppMode, TuiApp};
 
 impl TuiApp {
     /// Render all floating overlays (dialogs, keybindings, undo panel).
@@ -120,6 +120,13 @@ impl TuiApp {
                 panel_rect,
                 &timeline::TimelineTheme::default(),
             );
+        }
+
+        // New Image dialog
+        if self.dialogs.new_image.active {
+            let overlay = super::centered_overlay(frame.area());
+            frame.render_widget(Clear, overlay);
+            dialogs::new_image::render_new_image_dialog(&self.dialogs.new_image, frame, overlay);
         }
 
         // Rascii import dialog

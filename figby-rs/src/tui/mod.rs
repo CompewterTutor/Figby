@@ -2496,7 +2496,8 @@ impl TuiApp {
             }
         }
 
-        // Text tool: text entry mode (before canvas, captures all keys)
+        // Text tool: text entry mode (before canvas/toolbox, captures all keys).
+        // When entering_text=true, ALL printable chars go to buffer — tool shortcuts suppressed.
         if self.editor.toolbox.selected == Tool::Text && self.editor.text_tool.entering_text {
             match code {
                 KeyCode::Enter => {
@@ -2514,10 +2515,11 @@ impl TuiApp {
                     self.editor.text_tool.text_buffer.pop();
                     return None;
                 }
-                KeyCode::Char(c) => {
+                KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
                     self.editor.text_tool.text_buffer.push(c);
                     return None;
                 }
+                // Arrow/function keys fall through (canvas cursor movement while typing)
                 _ => {}
             }
         }

@@ -294,7 +294,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > Source: manual testing notes (4.0-manual-testing-notes.md, 5.0-manual-testing-notes.md).
 > These are crashes and data-loss risks — gate release on all green.
 
-- [ ] `6.7.1` Fix text tool: keybinds eat input keys (manual-note #16)
+- [x] `6.7.1` Fix text tool: keybinds eat input keys (manual-note #16)
   - **Goal:** Typing in Text tool mode routes keystrokes through the global keybind
     handler before the text input buffer receives them. Most printable keys are
     consumed by shortcuts (e.g. `b`=brush, `e`=erase, `f`=fill), so users cannot

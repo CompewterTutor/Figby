@@ -4,7 +4,7 @@ use crossterm::event::{
 };
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
-use crossterm::terminal::EnterAlternateScreen;
+
 use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
@@ -2412,6 +2412,9 @@ impl TuiApp {
                         return Some(AppEvent::OpenRequested);
                     }
                     file_ops::FileOpsMode::ImportFont => {
+                        if self.dialogs.file_ops.path_buffer.trim().is_empty() {
+                            return None;
+                        }
                         let path = self.dialogs.file_ops.selected_path();
                         if !path.exists() {
                             self.dialogs.file_ops.error_message =
@@ -2423,6 +2426,9 @@ impl TuiApp {
                         return Some(AppEvent::OpenRequested);
                     }
                     file_ops::FileOpsMode::ImportGif => {
+                        if self.dialogs.file_ops.path_buffer.trim().is_empty() {
+                            return None;
+                        }
                         let path = self.dialogs.file_ops.selected_path();
                         if !path.exists() {
                             self.dialogs.file_ops.error_message =
@@ -2434,6 +2440,9 @@ impl TuiApp {
                         return Some(AppEvent::OpenRequested);
                     }
                     file_ops::FileOpsMode::OpenImage => {
+                        if self.dialogs.file_ops.path_buffer.trim().is_empty() {
+                            return None;
+                        }
                         let path = self.dialogs.file_ops.selected_path();
                         if !path.exists() {
                             self.dialogs.file_ops.error_message =
@@ -3951,16 +3960,7 @@ impl TuiApp {
             return;
         }
 
-        // play_fullscreen enters its own alt screen, so we leave TUI's alt screen first
         if let Err(e) = player::play_fullscreen(frames, fps) {
-            // Non-fatal — TUI continues after playback
-            let _ = e;
-        }
-
-        // play_fullscreen's LeaveAlternateScreen leaves us in main screen
-        // Re-enter alt screen for TUI
-        if let Err(e) = execute!(io::stdout(), EnterAlternateScreen) {
-            // Non-fatal — TUI will redraw on next draw
             let _ = e;
         }
 

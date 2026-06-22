@@ -3,8 +3,7 @@ use std::io::{self, Write};
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode};
-use crossterm::execute;
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -413,37 +412,40 @@ impl TerminalSession {
             was_raw_mode: false,
         })
     }
-
-    /// Switch to alternate screen for playback.
-    pub fn enter_player_mode(&mut self) -> io::Result<()> {
-        execute!(io::stdout(), EnterAlternateScreen)?;
-        Ok(())
-    }
-
-    /// Restore original terminal content by leaving alternate screen.
-    pub fn exit_player_mode(&self) -> io::Result<()> {
-        execute!(io::stdout(), LeaveAlternateScreen)?;
-        Ok(())
-    }
 }
 
-/// Play animation fullscreen: capture terminal, enter alt screen, play, restore.
+/// Play animation fullscreen: capture terminal, render at given FPS.
 ///
-/// Captures current terminal content as frame 0, enters alternate screen,
-/// renders all frames (including captured) at the given FPS, handles keyboard
-/// input, and restores original terminal content on finish or Esc.
+/// Captures current terminal content as frame 0 (blank if DECRQCRA unavailable),
+/// renders all frames at the given FPS, handles keyboard input.
+/// Does NOT manage alternate screen — caller is responsible for that.
 pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
-    let mut session = TerminalSession::capture()?;
+    let session = TerminalSession::capture()?;
 
     let mut all_frames = vec![session.captured_frame.clone()];
     all_frames.extend(frames);
+
+    // Cap frame dimensions to terminal size to avoid rendering issues
+    let (term_w, term_h) = terminal::size()?;
+    for frame in &mut all_frames {
+        let h = frame.len().min(term_h as usize);
+        let w = if h > 0 {
+            frame[0].len().min(term_w as usize)
+        } else {
+            0
+        };
+        frame.truncate(h);
+        for row in frame.iter_mut() {
+            row.truncate(w);
+        }
+    }
+
     let player = AnimationPlayer::new(all_frames, fps);
     player.play();
 
-    session.enter_player_mode()?;
-
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
     terminal.hide_cursor()?;
 
     let tick = Duration::from_millis(1000 / fps.max(1) as u64);
@@ -458,7 +460,7 @@ pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
         if event::poll(tick)? {
             if let Event::Key(key) = event::read()? {
                 let consumed = player.handle_key(key.code);
-                if consumed && key.code == KeyCode::Esc {
+                if consumed && (key.code == KeyCode::Esc || key.code == KeyCode::Char('q')) {
                     finished = true;
                 }
             }
@@ -478,8 +480,7 @@ pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
         }
     }
 
-    terminal.show_cursor()?;
-    session.exit_player_mode()?;
+    drop(terminal);
     Ok(())
 }
 

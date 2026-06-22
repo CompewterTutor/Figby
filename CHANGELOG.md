@@ -1,15 +1,60 @@
 # Changelog
 
 ## [Unreleased]
+
+## [6.0.0] - 2026-06-22
+### Security
+- Remove `$(cmd)` shell command substitution from template resolver (`template.rs:160`);
+  rendering a shared `.ftmp` can no longer execute arbitrary shell commands (B0/RCE).
+- Sandbox `{{img:PATH}}` template image paths to template directory; absolute paths
+  and `..` traversal are rejected (B0 adjacent).
+- Cap template canvas dimensions: `width*height > 1_000_000` cells rejected,
+  margin/padding clamped; prevents OOM from crafted frontmatter (B7/DoS).
+- Validate FIGfont header numerics: `height` must be 1..=255, negative baseline/
+  maxlength rejected; invalid header no longer accepted (B1).
+- Cap zip decompression: `read_to_end()` replaced with size-checked read; zip-bomb
+  fonts rejected before exhausting memory (B2).
+- Fix GIF memory-guard timing: dimension check now runs before the frame decode loop;
+  oversized GIF bails at first frame rather than after full decode (B4/DoS).
+- Range-check FLC control-file group indices: `gl`/`gr` validated as `b'0'..=b'3'`
+  before assignment; crafted `.flc` no longer panics (B5/panic).
+- Limit image decode dimensions: `image::io::Reader` now uses `Limits::default()`;
+  decompression-bomb images rejected (B6/DoS).
+
+### Fixed
+- Green test suite: 10 stale tests fixed — welcome-gate tests now dismiss welcome
+  screen before key events; layer-model tests read/write active layer buffer not
+  composite; palette shadow test updated to use `.round()` (B3).
+- Replace `.expect()` in `render.rs:lookup_char` with blank-glyph fallback; fonts
+  missing char 0 no longer panic (S1).
+- Text tool: printable keys (`b`/`e`/`f` etc.) no longer switch tools while
+  `entering_text=true`; `Char(c)` captured before toolbox-selector dispatch (6.7.1).
+
+### Added
+- `LightingState`, `AnimationState`, `InteractionState` sub-structs extracted from
+  `TuiApp`; shrinks borrow surface and god-object field count by 20 (6.6.1a–c).
+- `LightPanel::render()` method extracted from `TuiApp::render_light_panel()`;
+  `tui/overlays.rs` extracted from `TuiApp::render_overlays()`; lighting key
+  dispatch extracted to `LightingState::handle_key()` (6.6.1d–f).
+- Compile-time test validates embedded `ICONS_YAML`; malformed YAML now fails CI
+  instead of silently dropping all icons (A3/S2, 6.5.2).
+- Clamp `font_gen` point_size to 4.0..=200.0; unbounded value no longer causes
+  oversized canvas allocations (S5, 6.5.3).
+- GitHub Actions CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`
+  run on push/PR; legacy `.travis.yml` removed (6.2.2).
+- Hard `cargo test` gate in `scripts/ralph.sh` merge phase; LLM self-attestation
+  no longer the only merge check (6.2.1).
+- Brush size/shape indicator in toolbox panel; updates live on `[`/`]` (6.9.5).
+
+### Changed
+- `CLAUDE.md` and `AGENTS.md` updated to reflect current source layout and v6
+  milestone (A2, 6.4.1–6.4.2).
+- Shadow computation uses `.round()` instead of truncation; `default_shadow_hex`
+  now produces `#4D0000` for 30% shadow (6.1.3).
+
 ### Docs
-- Pre-release codebase audit complete (sessions 1+2, full read-through):
-  `docs/codebase-audit-2026-06-18.md`. Findings: B0 template RCE, B7 template
-  canvas-dim DoS, B1/B2/B4/B5/B6 parser DoS/panic family, B3 red test suite
-  (10 stale tests), broken ralph merge gate, A1 god-object, A2 stale docs.
-  Confirmed: 0 production unwrap/panic, parsers' underflow candidates guarded,
-  `palette_import.rs` as hardening model.
-- Added `docs/todo-v6.md` (Pre-Release Hardening & Polish) mapping every audit
-  finding to a ralph-format task with file:line refs; registered in `docs/todo.md`.
+- Pre-release codebase audit: `docs/codebase-audit-2026-06-18.md` (sessions 1+2,
+  complete read-through). Every finding mapped to a task in `docs/todo-v6.md`.
 
 ## [5.8.0] - 2026-06-18
 ### Added

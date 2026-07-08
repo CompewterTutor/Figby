@@ -262,3 +262,31 @@ file. This looks like a pre-existing double-dispatch issue in the generic
 nothing in this fix touches dialog-closing/mode-transition code), not
 something introduced by this session's changes. Flagging it rather than
 silently leaving it out; not fixed as part of this task.
+
+**Follow-up 2026-07-08 (6.0.13): two real in-TUI playback bugs, found from
+a user report.** The user reported animated playback in the TUI "never
+redraws the UI" afterward (though the app kept responding — painting still
+worked). Root-caused to two distinct, compounding bugs:
+
+1. `player::play_fullscreen()` renders through its own separate
+   `ratatui::Terminal` instance, not the one `TuiApp::run()` owns. Ratatui's
+   `Terminal::draw()` is diff-based against its *own* internal buffer cache
+   — after playback ends, the main terminal's cache is stale relative to
+   the real screen (which the *other* Terminal instance was writing to),
+   so it only repaints cells that differ from that stale cache. Since app
+   state typically hasn't changed during playback, that's usually nothing
+   — exactly matching "frozen, but painting still updates individual
+   cells" (paint strokes *do* differ from the cache, so those redraw).
+   Fixed with a `force_full_redraw` flag that makes `run()` call
+   `terminal.clear()` (resetting the diff cache) before its next draw.
+2. Separately, `AnimationPlayer::handle_key()` had no match arm for `'q'`
+   — both `play_fullscreen` and `play_raw`'s exit conditions check whether
+   `handle_key` reported the key as "consumed" before honoring their own
+   `Esc || 'q'` keycode check, but 'q' fell through to `_ => false`, so
+   that check could never fire. Esc worked; 'q' silently did nothing. This
+   likely compounded the "stuck" perception — a user reaching for the
+   near-universal "q to quit" convention would see no response at all.
+
+Both verified together over a real pty: imported a GIF into the TUI,
+played it, exited with `q` (previously dead), and confirmed the full
+editor UI redrew correctly afterward.

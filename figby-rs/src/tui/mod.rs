@@ -589,6 +589,15 @@ pub struct TuiApp {
     pub theme: theme::Theme,
     pub render_mode: RenderMode,
     dirty: bool,
+    /// Set when something outside ratatui's own `Terminal` has written to
+    /// the screen directly (e.g. the animation player's throwaway
+    /// `Terminal` instance in `player::play_fullscreen`) — `run()`'s loop
+    /// must `terminal.clear()` before its next `draw()`, since ratatui's
+    /// diff-based rendering only repaints cells that differ from its own
+    /// internal buffer cache, which such external writes leave stale.
+    /// `dirty` alone is not enough: it only controls whether `draw()` runs
+    /// at all, not whether that draw is a full repaint or a stale diff.
+    force_full_redraw: bool,
     last_draw_time: Instant,
     pub show_keybindings: bool,
     keybindings_scroll: usize,
@@ -722,6 +731,7 @@ impl TuiApp {
             theme: theme.clone(),
             render_mode,
             dirty: true,
+            force_full_redraw: false,
             last_draw_time: Instant::now(),
             show_keybindings: false,
             keybindings_scroll: 0,
@@ -812,6 +822,14 @@ impl TuiApp {
             };
 
             if needs_redraw {
+                if self.force_full_redraw {
+                    // Something outside our Terminal (the animation player)
+                    // wrote to the screen directly; ratatui's diff cache no
+                    // longer matches reality. clear() resets that cache so
+                    // the draw below is a full repaint, not a stale diff.
+                    terminal.clear()?;
+                    self.force_full_redraw = false;
+                }
                 terminal.draw(|f| self.render(f))?;
                 self.dirty = false;
                 self.last_draw_time = now;
@@ -4011,6 +4029,11 @@ impl TuiApp {
             let _ = e;
         }
 
+        // play_fullscreen renders through its own throwaway ratatui Terminal
+        // (see its doc comment), which leaves our real Terminal's diff cache
+        // stale relative to the actual screen — force a full repaint rather
+        // than a diffed one on the next draw.
+        self.force_full_redraw = true;
         self.dirty = true;
     }
 

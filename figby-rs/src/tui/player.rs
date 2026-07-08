@@ -207,6 +207,15 @@ impl AnimationPlayer {
                 self.seek(0);
                 true
             }
+            KeyCode::Char('q') | KeyCode::Char('Q') => {
+                // `play_fullscreen`'s (and `play_raw`'s) loops both check the
+                // raw keycode for Esc/'q' to decide whether to exit, but only
+                // act on it when `handle_key` reports the key as consumed —
+                // without this arm, 'q' fell through to `_ => false` and the
+                // exit check could never fire, so 'q' silently did nothing.
+                self.pause();
+                true
+            }
             KeyCode::Enter => {
                 self.play();
                 true
@@ -625,7 +634,7 @@ pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8, loop_playback: bool) -> io
                     finished = true;
                 } else {
                     let consumed = player.handle_key(key.code);
-                    if consumed && key.code == KeyCode::Esc {
+                    if consumed && (key.code == KeyCode::Esc || key.code == KeyCode::Char('q')) {
                         finished = true;
                     }
                 }
@@ -959,6 +968,30 @@ mod tests {
         player.handle_key(KeyCode::Esc);
         assert!(!player.is_playing());
         assert_eq!(player.current_frame(), 0);
+    }
+
+    #[test]
+    fn test_player_handle_key_q_is_consumed_and_pauses() {
+        // Regression test: 'q' previously fell through to `_ => false`, so
+        // callers' `consumed && key.code == Char('q')` exit checks (in both
+        // play_fullscreen and play_raw) could never fire — pressing 'q'
+        // silently did nothing instead of quitting the player.
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10);
+        player.play();
+        assert!(player.is_playing());
+
+        let consumed = player.handle_key(KeyCode::Char('q'));
+        assert!(
+            consumed,
+            "'q' must be reported as consumed to exit playback"
+        );
+        assert!(!player.is_playing());
+
+        player.play();
+        let consumed = player.handle_key(KeyCode::Char('Q'));
+        assert!(consumed, "'Q' must also be reported as consumed");
+        assert!(!player.is_playing());
     }
 
     #[test]

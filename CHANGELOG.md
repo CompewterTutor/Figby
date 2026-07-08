@@ -1,5 +1,36 @@
 # Changelog
 
+## [6.0.13] - 2026-07-08
+
+### Fixed
+- **In-TUI animation playback left the editor UI frozen/stale after
+  exiting.** `player::play_fullscreen()` renders through its own throwaway
+  `ratatui::Terminal` (a separate instance from the one `TuiApp::run()`
+  owns), so after playback ended, the main terminal's diff-based renderer
+  still had a stale internal buffer and only repainted cells that
+  genuinely differed from before playback — which was usually nothing,
+  since app state hadn't changed. Symptom: screen stuck showing the last
+  animation frame, except spots the user actively edited (which *did*
+  differ from the cache, so *those* redrew — "I can paint" but nothing
+  else updates). Added a `force_full_redraw` flag, set after
+  `play_fullscreen()` returns; `run()`'s loop now calls `terminal.clear()`
+  before its next `draw()` when set, forcing a full repaint instead of a
+  stale diff.
+- **`q` did nothing during playback (Esc was the only working exit key).**
+  `play_fullscreen`'s (and `play_raw`'s) loops both gate exiting on
+  `AnimationPlayer::handle_key()` reporting the key as "consumed", but
+  `handle_key` had no match arm for `'q'`/`'Q'` — it fell through to
+  `_ => false`, so the exit check could never fire no matter what the
+  loop's own keycode comparison said. Added the missing arm (pauses and
+  reports consumed, mirroring Esc's behavior minus the seek-to-0). Also
+  added `'q'` to `play_raw`'s exit check for consistency (it only
+  recognized Esc before). New regression test:
+  `test_player_handle_key_q_is_consumed_and_pauses`.
+- Both verified together end-to-end over a real pty: imported a GIF into
+  the TUI, played it, exited with `q`, and confirmed the full editor UI
+  (menu bar, toolbox, palette, timeline, status bar) redrew correctly
+  afterward instead of staying frozen.
+
 ## [6.0.12] - 2026-07-08
 
 ### Fixed

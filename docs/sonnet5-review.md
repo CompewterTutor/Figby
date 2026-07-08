@@ -290,3 +290,24 @@ worked). Root-caused to two distinct, compounding bugs:
 Both verified together over a real pty: imported a GIF into the TUI,
 played it, exited with `q` (previously dead), and confirmed the full
 editor UI redrew correctly afterward.
+
+**Follow-up 2026-07-08 (6.0.14): playback now happens in the canvas, not
+fullscreen — from a direct "why does it take over the whole screen?"
+question.** The two bugs above were real, but the underlying design was
+also wrong for the common case: `play_fullscreen` is a genuine fullscreen
+takeover (its own Terminal instance, whole-frame widget, blocking loop),
+which was reused as *the only* playback path for both "preview an export
+standalone" and "just watch my WIP animation while still editing" — very
+different use cases. Per the user's direction: kept the fullscreen player
+exactly as-is, but demoted it to a standalone preview only reachable from
+the Export dialog's Play button (renamed `play_animation` →
+`play_standalone_preview` for clarity); Timeline-Enter and Animation > Play
+(previously a dead no-op — it toggled a field nothing read) now use a new
+`play_inline()` path that renders the `AnimationPlayer` widget into the
+canvas `Rect` as part of the normal `render()` pass, with the menu bar,
+toolbox, palette, timeline, and status bar all still rendering normally
+around it — no fullscreen takeover, no second `Terminal` instance, so the
+whole class of bug fixed above doesn't even apply to this path. Also added
+a loop toggle (`l`, already implemented on `AnimationPlayer` but never
+wired to anything reachable) with a visible 🔁 indicator in the progress
+bar, per the user's request. Verified end-to-end over a real pty.

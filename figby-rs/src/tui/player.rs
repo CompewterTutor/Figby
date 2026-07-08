@@ -285,11 +285,12 @@ impl AnimationPlayer {
         };
         let total_digits = total.to_string().len();
         let counter_str = format!("{:0width$}/{}", cur + 1, total, width = total_digits);
+        let loop_str = if self.loop_.get() { " \u{1F501}" } else { "" };
         let speed_str = format!(" {:.2}x", self.speed.get());
 
         let prefix = format!("{} {}", play_ch, counter_str);
         let prefix_len = prefix.chars().count();
-        let suffix = speed_str;
+        let suffix = format!("{speed_str}{loop_str}");
         let suffix_len = suffix.chars().count();
 
         let bar_available = (area_width as usize).saturating_sub(prefix_len + suffix_len + 3);

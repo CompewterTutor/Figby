@@ -399,6 +399,12 @@ pub struct AnimationState {
     pub baked_layer_indices: Vec<usize>,
     pub timeline_visible: bool,
     pub marker_accum: HashMap<(i16, i16), f64>,
+    /// Active in-canvas animation playback (Timeline Enter / Animation >
+    /// Play), rendered in place of normal canvas content while set. Distinct
+    /// from the standalone fullscreen preview player (`player::play_fullscreen`,
+    /// used by the Export dialog's Play button), which still takes over the
+    /// whole terminal on request.
+    pub inline_player: Option<player::AnimationPlayer>,
 }
 
 /// Lighting subsystem state — scene, LUT, shadow params, light-panel UI.
@@ -783,6 +789,7 @@ impl TuiApp {
                 baked_layer_indices: Vec::new(),
                 timeline_visible: false,
                 marker_accum: HashMap::new(),
+                inline_player: None,
             },
             palette_editor: palette_editor::PaletteEditor::new(),
             lighting: LightingState {
@@ -809,12 +816,22 @@ impl TuiApp {
             self.handle_event()?;
 
             let now = Instant::now();
+            // Same throttle pattern as the throbber below: redraw at most
+            // once per the animation's own frame interval, rather than
+            // busy-looping — `advance()` only actually changes
+            // current_frame once real elapsed time crosses that interval.
+            let inline_playing_due = self.animation.inline_player.as_ref().is_some_and(|p| {
+                p.is_playing()
+                    && now.saturating_duration_since(self.last_draw_time)
+                        >= Duration::from_millis(1000 / p.fps().max(1) as u64)
+            });
             let needs_redraw = match self.render_mode {
                 RenderMode::Fast => true,
                 RenderMode::Dirty => {
                     self.dirty
                         || self.app_fade_in.is_some()
                         || self.welcome_fx.is_some()
+                        || inline_playing_due
                         || (self.throbber.is_active()
                             && now.saturating_duration_since(self.last_draw_time)
                                 >= Duration::from_millis(100))
@@ -822,6 +839,20 @@ impl TuiApp {
             };
 
             if needs_redraw {
+                if let Some(player) = self.animation.inline_player.as_ref() {
+                    if player.is_playing() {
+                        let elapsed = now.saturating_duration_since(self.last_draw_time);
+                        player.advance(elapsed);
+                        let (cur, total) = player.progress();
+                        if total > 0 && cur >= total.saturating_sub(1) && !player.is_looping() {
+                            // Natural end of a non-looping playthrough: stop
+                            // ticking (stays visible on the last frame until
+                            // the user dismisses with Esc/q) instead of
+                            // redrawing forever at the animation's fps.
+                            player.pause();
+                        }
+                    }
+                }
                 if self.force_full_redraw {
                     // Something outside our Terminal (the animation player)
                     // wrote to the screen directly; ratatui's diff cache no
@@ -1235,6 +1266,21 @@ impl TuiApp {
             toolbox_h,
             self.animation.timeline_visible,
         );
+
+        if let Some(player) = self.animation.inline_player.as_ref() {
+            let canvas_borders = if self.zen_mode {
+                Borders::NONE
+            } else {
+                fl.canvas_borders()
+            };
+            let block = Block::default()
+                .title(" Playing  [Space] pause  [\u{2190}/\u{2192}] seek  [+/-] speed  [l] loop  [Esc/q] stop ")
+                .borders(canvas_borders);
+            let inner = block.inner(canvas_area);
+            frame.render_widget(block, canvas_area);
+            frame.render_widget(player, inner);
+            return;
+        }
 
         let mode_title = match self.mode {
             AppMode::ImageEditor => {
@@ -2366,6 +2412,21 @@ impl TuiApp {
             return None;
         }
 
+        // In-canvas animation playback: intercept all keys, mirroring the
+        // controls already implemented on AnimationPlayer::handle_key
+        // (space=pause, arrows=seek, +/-=speed, l/L=loop toggle). Esc/q
+        // dismiss playback and return to normal editing.
+        if let Some(player) = self.animation.inline_player.as_ref() {
+            let consumed = player.handle_key(code);
+            let should_dismiss =
+                consumed && matches!(code, KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q'));
+            self.dirty = true;
+            if should_dismiss {
+                self.animation.inline_player = None;
+            }
+            return None;
+        }
+
         // New image dialog active
         if self.dialogs.new_image.active {
             self.dialogs.new_image.handle_key(code);
@@ -3145,21 +3206,10 @@ impl TuiApp {
             return None;
         }
 
-        // Timeline: Enter to play animation from current frame
+        // Timeline: Enter to play animation from current frame, in place in
+        // the canvas (the rest of the editor UI stays visible around it).
         if code == KeyCode::Enter && !self.animation.timeline_state.frames.is_empty() {
-            let w = self.editor.canvas.buffer.width();
-            let h = self.editor.canvas.buffer.height();
-            let frames = export::capture_timeline_frames(
-                &self.animation.timeline_state,
-                &self.editor.layer_stack,
-                w,
-                h,
-            );
-            if !frames.is_empty() {
-                let fps = self.animation.timeline_state.fps;
-                let start_frame = self.animation.timeline_state.current_frame;
-                self.play_animation(frames, fps, start_frame);
-            }
+            self.start_inline_playback_from_timeline();
             return None;
         }
 
@@ -3998,10 +4048,17 @@ impl TuiApp {
         }
         let fps = self.dialogs.export_dialog.fps;
         let start_frame = self.dialogs.export_dialog.preview_frame;
-        self.play_animation(frames, fps, start_frame);
+        self.play_standalone_preview(frames, fps, start_frame);
     }
 
-    fn play_animation(
+    /// Fullscreen "preview standalone" playback — takes over the whole
+    /// terminal via `player::play_fullscreen`. Used only by the Export
+    /// dialog's Play button, e.g. to preview how a GIF/APNG export will
+    /// actually look played back outside the editor. Normal in-editor
+    /// playback (Timeline Enter / Animation > Play) uses `play_inline`
+    /// instead, which stays inside the canvas and leaves the rest of the
+    /// editor UI visible and interactive.
+    fn play_standalone_preview(
         &mut self,
         frames: Vec<Vec<Vec<canvas::CanvasCell>>>,
         fps: u8,
@@ -4034,6 +4091,51 @@ impl TuiApp {
         // stale relative to the actual screen — force a full repaint rather
         // than a diffed one on the next draw.
         self.force_full_redraw = true;
+        self.dirty = true;
+    }
+
+    /// Capture the current timeline (at canvas resolution, so frames are
+    /// already sized correctly — no scaling needed) and start playing it in
+    /// place in the canvas, from the current frame.
+    fn start_inline_playback_from_timeline(&mut self) {
+        if self.animation.timeline_state.frames.is_empty() {
+            return;
+        }
+        let w = self.editor.canvas.buffer.width();
+        let h = self.editor.canvas.buffer.height();
+        let frames = export::capture_timeline_frames(
+            &self.animation.timeline_state,
+            &self.editor.layer_stack,
+            w,
+            h,
+        );
+        if frames.is_empty() {
+            return;
+        }
+        let fps = self.animation.timeline_state.fps;
+        let start_frame = self.animation.timeline_state.current_frame;
+        self.play_inline(frames, fps, start_frame);
+    }
+
+    /// Start in-canvas animation playback: `render_canvas_area` renders the
+    /// player in place of normal canvas content while `inline_player` is
+    /// set, and `run()`'s loop ticks it each frame — no fullscreen takeover,
+    /// no separate Terminal instance, and the rest of the editor UI (menu,
+    /// toolbox, palette, timeline, status bar) keeps rendering normally
+    /// around it. Dismissed via Esc/q in `handle_key_event`.
+    fn play_inline(
+        &mut self,
+        frames: Vec<Vec<Vec<canvas::CanvasCell>>>,
+        fps: u8,
+        start_frame: usize,
+    ) {
+        if frames.is_empty() {
+            return;
+        }
+        let player = player::AnimationPlayer::new(frames, fps.max(1));
+        player.seek(start_frame);
+        player.play();
+        self.animation.inline_player = Some(player);
         self.dirty = true;
     }
 
@@ -4286,7 +4388,10 @@ impl TuiApp {
                 self.dirty = true;
             }
             menu::MenuAction::AnimPlay => {
-                self.animation.timeline_state.playing = !self.animation.timeline_state.playing;
+                // Was previously a no-op: it toggled TimelineState::playing,
+                // a field nothing else ever reads. Now actually starts
+                // in-canvas playback, same as pressing Enter on the timeline.
+                self.start_inline_playback_from_timeline();
                 self.menu_bar_state.reset();
                 self.dirty = true;
             }

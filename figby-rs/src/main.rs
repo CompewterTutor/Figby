@@ -1136,7 +1136,7 @@ fn main() {
         // play_raw is a single-fps engine (no per-frame delay support), so
         // approximate an overall fps from the GIF's first real frame delay —
         // the same convention used when a GIF import seeds the TUI
-        // timeline's fps (see tui/mod.rs's play_animation setup).
+        // timeline's fps (see tui/mod.rs's perform_import_gif).
         let first_delay_cs = gif_result.frame_delays.first().copied().unwrap_or(10);
         let fps = 100u16
             .checked_div(first_delay_cs.max(1))

@@ -1,5 +1,43 @@
 # Changelog
 
+## [6.0.14] - 2026-07-08
+
+### Added
+- **In-canvas animation playback.** Pressing Enter on the timeline or
+  Animation > Play now plays the animation in place inside the canvas
+  area — the menu bar, toolbox, palette, timeline, and status bar all stay
+  visible and the app never leaves the normal editor Terminal instance.
+  Previously both triggered a fullscreen takeover (`play_fullscreen`);
+  `Animation > Play` was in fact a dead no-op (it toggled a
+  `TimelineState::playing` field nothing ever read).
+- New `AnimationState::inline_player: Option<player::AnimationPlayer>` +
+  `TuiApp::play_inline()` / `start_inline_playback_from_timeline()`.
+  `render_canvas_area()` renders the player into the canvas `Rect` in place
+  of normal content while active; `run()`'s loop advances and
+  redraw-throttles it using the same pattern already used for the throbber
+  spinner (redraw at most once per the animation's own frame interval, not
+  a busy loop). A non-looping playthrough auto-pauses on its last frame
+  instead of redrawing forever once nothing is changing.
+- Playback controls (space/seek/speed/loop-toggle/Esc/q to stop) are
+  intercepted directly in `handle_key_event` and reuse
+  `AnimationPlayer::handle_key()` — the exact same logic already exercised
+  by the fullscreen/CLI players. The canvas border title shows the control
+  legend while playing, and the progress bar now shows a 🔁 indicator when
+  looping is on (previously invisible even though the underlying toggle
+  already existed).
+- The old fullscreen player is preserved, unchanged, as a **standalone
+  preview** feature — still reachable from the Export dialog's Play
+  button (`launch_player_from_export` → renamed `play_standalone_preview`
+  for clarity), for previewing how a GIF/APNG export will look played back
+  outside the editor.
+- Verified end-to-end over a real pty: imported a GIF, played it via
+  Enter, confirmed the toolbox/palette/timeline/menu/status bar all stayed
+  visible around the playing canvas, toggled loop with `l` (🔁 appeared in
+  the progress bar), and dismissed with `q` — canvas correctly reverted to
+  normal editing with no freeze (this path never creates a second
+  `Terminal` instance, so the redraw-desync bug fixed in 6.0.13 doesn't
+  even apply to it).
+
 ## [6.0.13] - 2026-07-08
 
 ### Fixed

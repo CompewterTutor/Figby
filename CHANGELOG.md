@@ -1,5 +1,18 @@
 # Changelog
 
+## [6.0.6] - 2026-07-08
+
+### Docs
+- README: added `--tui` to the CLI flag table, added a Features bullet
+  documenting the TUI's animation timeline/keyframing/GIF import-export
+  (previously undocumented — only mentioned as a future "Roadmap" item
+  despite being fully implemented), updated Project Status to v6, and
+  rewrote Roadmap to list genuinely-outstanding post-v6 deferred work
+  instead of already-shipped features.
+- `docs/animation-audit.md`: added a superseded notice — several of its
+  listed gaps were closed within days of it being written; points readers
+  to `docs/sonnet5-review.md` for current status.
+
 ## [6.0.5] - 2026-07-08
 
 ### Added

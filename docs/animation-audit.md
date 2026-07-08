@@ -1,5 +1,14 @@
 # Animation Audit: 4.5–4.8 Implementation vs Spec
 
+> **⚠️ Superseded — 2026-07-08.** Several gaps this audit lists as open were
+> fixed within days of it being written (e.g. "no timeline panel in main
+> layout" → closed by `5.5.2`; "GIF import missing" → closed by `5.7.1`), and
+> the "dead `impl Widget for &ExportDialog`" item below was actually removed
+> even earlier, in `5.5.3`, before this audit was written. Treat the
+> per-phase tables below as a historical snapshot, not current status. See
+> [docs/sonnet5-review.md](sonnet5-review.md) for a re-verified pass against
+> current `HEAD` (and its punch list for what's genuinely still open).
+
 Audit date: 2026-06-18
 Files examined: `figby-rs/src/tui/timeline.rs`, `player.rs`, `export.rs`
 Spec source: `docs/todo-v4.md` phases 4.5–4.8

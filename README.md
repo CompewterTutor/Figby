@@ -24,6 +24,13 @@ Original C source lives in `c-figlet/` for reference; the Rust port lives in
 - Deutsch flag character re-routing (`-D`/`-E`)
 - Compressed font support (ZIP/deflate)
 - UTF-8 native — no `wchar_t` hacks
+- Full-screen TUI editor (`--tui`): drawing tools, layers, palette/font
+  editing, image import, and an **animation timeline** — keyframing,
+  tweening (linear/ease-in/ease-out/bounce), onion skinning, animated GIF
+  import with real per-frame timing, and GIF/APNG/ANSI export. See
+  [docs/sonnet5-review.md](docs/sonnet5-review.md) for current known
+  limitations of the animation subsystem (e.g. playback is TUI-only for now,
+  no standalone CLI player yet).
 
 ## Installation
 
@@ -102,6 +109,7 @@ figby [OPTIONS] [MESSAGE]
 | `-F` | List available fonts and exit |
 | `-h` | Print help |
 | `-V` | Print version |
+| `--tui` | Launch the full-screen TUI editor (drawing, layers, animation timeline) |
 
 ### Examples
 
@@ -198,20 +206,32 @@ and maintainability.
 
 ## Project Status
 
-Active development — porting FIGlet 2.2.5 to safe, idiomatic Rust.
+Active development — a safe, idiomatic Rust FIGlet port that has grown into
+a full ASCII-art TUI editor.
 
 - **v1** — C-to-Rust port (complete): parser, render engine, CLI, control
   files, multi-byte input, test suite. See [docs/todo-v1.md](docs/todo-v1.md).
-- **v2** — Polish & extensions (active): README, templates, image-to-ASCII,
-  font creation, TUI editor. See [docs/todo-v2.md](docs/todo-v2.md).
+- **v2–v5** — Polish & extensions (complete): templates, image-to-ASCII, font
+  creation, and the full TUI editor (drawing tools, layers, palette editor,
+  animation timeline/keyframes/GIF import-export).
+- **v6** — Pre-release hardening & polish (complete): security fixes, green
+  test suite, CI gate, parser hardening, architecture cleanup. See
+  [docs/todo-v6.md](docs/todo-v6.md).
 
 ## Roadmap
 
-- Template system (`.ftmp`) with variable substitution and image embedding
-- Image-to-ASCII conversion via `rascii_art`
-- System font → FIGfont creation from installed fonts
-- Comprehensive TUI editor with drawing tools, font/charset editing,
-  image editing with FIGlet text overlay, layers, and animation timeline
+Not yet done (tracked in [docs/todo-v6.md](docs/todo-v6.md)'s deferred
+section unless noted):
+
+- Standalone CLI animation player / intro-banner playback outside the TUI
+- Real terminal-content capture for the animation player (currently stubbed)
+- Reduced-motion (`--no-anim`) and color-depth fallback
+- Panic-hook terminal restore + autosave
+- Additional export formats: SVG, asciinema, sixel
+- Template starter library
+- Release tooling (cargo-dist / release-plz / VHS demos)
+- Onboarding (`?`-help, which-key, tutorial)
+- Figby → rename/de-brand (flagged as a copyrighted name in the v6 audit)
 
 See [docs/todo.md](docs/todo.md) for the full milestone index.
 

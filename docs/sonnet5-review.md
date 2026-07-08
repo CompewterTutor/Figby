@@ -142,20 +142,21 @@ This reuses fully-implemented, tested code (`play_raw`) rather than building
 new playback machinery — the gap is wiring and the ANSI-timing bug above, not
 missing capability.
 
-## 5. Documentation drift
+## 5. Documentation drift — ✅ fixed 2026-07-08 (6.0.6)
 
-- **README undersells the animation feature.** The only animation-related
-  line in `README.md` (line 214) lists "animation timeline" under **Roadmap**
+- **README undersold the animation feature.** The only animation-related
+  line in `README.md` used to list "animation timeline" under **Roadmap**
   (i.e., "planned"), with no mention of GIF import, keyframes, tweening, or
   playback — despite all of it being implemented and the v6 milestone (which
-  covered surfacing the timeline panel) being 100% complete. Worth moving out
-  of Roadmap and into the feature list, and worth documenting what does *not*
-  work yet (terminal capture, per-frame GIF export timing) so users don't hit
-  the gaps in §3 unwarned.
-- `docs/animation-audit.md` (2026-06-18) should be marked superseded/updated —
-  several items it lists as gaps were closed within days of being written;
-  readers relying on it now will think the timeline panel still isn't in the
-  main layout, which is no longer true.
+  covered surfacing the timeline panel) being 100% complete. Now: `--tui` is
+  documented in the CLI flag table, the Features list describes the
+  animation timeline/keyframing/GIF import-export capabilities (linking back
+  to this doc for known limitations), Project Status reflects v6, and
+  Roadmap now lists only genuinely-outstanding deferred work.
+- `docs/animation-audit.md` (2026-06-18) now carries a superseded notice at
+  the top pointing here — several items it lists as gaps were closed within
+  days of being written; readers relying on it would otherwise think the
+  timeline panel still isn't in the main layout, which is no longer true.
 
 ## 6. Everything else (TODO/FIXME sweep)
 
@@ -178,7 +179,7 @@ All minor, non-blocking, unrelated to animation.
 | 4 | Implement real `try_query_terminal_cells` (DECRQCRA or drop the "capture terminal as frame 0" claim from docs) | Medium | Open |
 | 5 | Move playback off the TUI event-loop thread | Medium | Open |
 | 6 | Add unit tests to `gif_import.rs` (currently 0) | Low | ✅ Fixed 2026-07-08 (6.0.5) — 7 tests: round-trip, delays, disposal, malformed/oversized input |
-| 7 | Update README animation section + mark `animation-audit.md` superseded | Low | Open |
+| 7 | Update README animation section + mark `animation-audit.md` superseded | Low | ✅ Fixed 2026-07-08 (6.0.6) |
 | 8 | Remove dead `impl Widget for &ExportDialog` | Low | ✅ N/A — already removed upstream (5.5.3), review claim was stale |
 
 Everything above is additive/fix-only — no architectural rework needed. The

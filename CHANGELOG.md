@@ -1,5 +1,23 @@
 # Changelog
 
+## [6.0.12] - 2026-07-08
+
+### Fixed
+- The TUI's own animated GIF import (File > Import GIF /
+  `WelcomeAction::ImageImportGif`) imported at the GIF's native pixel
+  resolution (1 pixel = 1 cell), same issue `--play` had before 6.0.10 —
+  a real-world GIF either created an unusably huge canvas or got rejected
+  outright by the animation import size cap. `perform_import_gif()` now
+  computes the actual canvas viewport size (reusing
+  `layout::FrameLayout::compute`, the same layout logic already used for
+  mouse hit-testing) and scales via `gif_import::import_gif_scaled()` with
+  `GifScaleTarget::FitBox`, so the imported canvas fits the visible editor
+  instead of overflowing it or being rejected. Verified end-to-end by
+  driving the real TUI over a pty: importing a 480x360, 90-frame GIF that
+  `import_gif` alone rejects as "too large" now produces a correctly-sized
+  (40x15 in a 120x40 terminal) canvas with all frames populated in the
+  timeline.
+
 ## [6.0.11] - 2026-07-08
 
 ### Added

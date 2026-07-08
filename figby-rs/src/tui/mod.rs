@@ -3597,7 +3597,42 @@ impl TuiApp {
     }
 
     fn perform_import_gif(&mut self, path: std::path::PathBuf) {
-        match crate::gif_import::import_gif(&path) {
+        // Scale to fit the actual canvas viewport instead of importing at
+        // native pixel resolution (1 pixel = 1 cell). Without this, a
+        // real-world GIF either creates an unusably huge canvas or gets
+        // rejected outright by the animation import size cap — the same
+        // issue `--play` had before it gained scaling (see
+        // docs/sonnet5-review.md's 6.0.10 follow-up).
+        let scale = {
+            let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
+            let tw = self
+                .editor
+                .toolbox
+                .required_width(self.editor.brush.required_outer_width());
+            let toolbox_h = Tool::all().len() as u16 + 2;
+            // Assume the timeline panel will be visible post-import (it is
+            // set below on success), so the canvas is sized for the layout
+            // it'll actually appear in rather than one that immediately
+            // shrinks once the timeline panel opens.
+            let fl = layout::FrameLayout::compute(
+                Rect::new(0, 0, cols, rows),
+                self.zen_mode,
+                self.side_panel.open,
+                tw,
+                toolbox_h,
+                true,
+            );
+            let canvas_rect = self.editor.compute_canvas_rect(
+                ratatui::widgets::Block::default()
+                    .borders(fl.canvas_borders())
+                    .inner(fl.canvas),
+            );
+            crate::gif_import::GifScaleTarget::FitBox(
+                canvas_rect.width.max(1) as usize,
+                canvas_rect.height.max(1) as usize,
+            )
+        };
+        match crate::gif_import::import_gif_scaled(&path, scale) {
             Ok(gif_data) => {
                 if gif_data.frames.is_empty() {
                     return;

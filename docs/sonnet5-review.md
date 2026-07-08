@@ -238,3 +238,27 @@ any-key affordance). `player::play_raw()` gained a `loop_playback: bool`
 parameter. Verified end-to-end over a real pty: playback wraps past the
 last frame back to frame 1 repeatedly and exits cleanly on an arbitrary
 keypress.
+
+**Follow-up 2026-07-08 (6.0.12): TUI GIF import also scales.** The scaling
+work above only covered `--play`; the TUI's own File > Import GIF path
+(`perform_import_gif()`, `tui/mod.rs`) had the identical problem — imports
+at native pixel resolution, same size-cap rejection risk, plus an
+unusably huge canvas for anything but small GIFs. Now computes the actual
+canvas viewport via `layout::FrameLayout::compute()` (the same call
+already used for mouse hit-testing, so it reflects the real toolbox/side-
+panel/timeline chrome) and scales with `GifScaleTarget::FitBox`. Verified
+by driving the real TUI over a pty: File > Import GIF > the same 480x360,
+90-frame GIF that fails outright via unscaled `import_gif` now produces a
+40x15 canvas (fit to the 120x40 terminal used for the test) with all
+frames populated in the timeline.
+
+*Aside noticed during this verification, not yet investigated:* after the
+GIF import dialog's Enter-to-confirm succeeded (canvas correctly sized,
+timeline populated, mode switched to Image Editor), the same keypress
+also appeared to trigger a stray "Open Font" dialog with a "stream did not
+contain valid UTF-8" error, reusing the GIF's path as if it were a font
+file. This looks like a pre-existing double-dispatch issue in the generic
+`AppEvent::OpenRequested` handling (unrelated to the scaling change here —
+nothing in this fix touches dialog-closing/mode-transition code), not
+something introduced by this session's changes. Flagging it rather than
+silently leaving it out; not fixed as part of this task.

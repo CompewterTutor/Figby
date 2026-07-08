@@ -3964,6 +3964,14 @@ impl TuiApp {
             return;
         }
 
+        // Deliberately synchronous, not backgrounded onto a thread: the
+        // player and the TUI both write directly to the same exclusive
+        // terminal fd via crossterm/ratatui, so nothing useful could run
+        // concurrently while play_fullscreen owns the terminal and its own
+        // keyboard input (pause/seek/Esc/q) anyway — a background thread
+        // here would add a channel + lifecycle surface purely to reproduce
+        // the same blocking behavior, with a real risk of the two writers
+        // racing on stdout if not synchronized carefully.
         if let Err(e) = player::play_fullscreen(frames, fps) {
             let _ = e;
         }

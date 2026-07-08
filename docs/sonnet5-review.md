@@ -107,11 +107,18 @@ instantaneously with no perceptible animation. This is the most relevant gap
 to the "play a banner in the terminal" ask — the export format that looks
 terminal-native doesn't actually replay as one.
 
-**P1 — Playback still blocks the TUI event loop.**
-`play_animation` (`tui/mod.rs:3947`) calls `player::play_fullscreen` (line
-3963) synchronously. The 2026-06-22 fix removed the double alt-screen
-management bug, but did not add threading — spec'd as "separate thread" in
-the original 4.8.3 task. Still a direct, blocking call.
+**~~P1 — Playback still blocks the TUI event loop~~ — investigated
+2026-07-08, closed as not-a-bug (user-confirmed).** `play_animation` still
+calls `player::play_fullscreen` synchronously. The original 4.8.3 spec called
+for a "separate thread," but that's not actually beneficial here: the TUI and
+the player both write directly to the same exclusive terminal fd via
+crossterm/ratatui, so nothing useful runs concurrently while the player owns
+the terminal and its own keyboard input (pause/seek/Esc/q) anyway. A
+background thread would add a channel + lifecycle surface purely to
+reproduce identical blocking behavior, with a real risk of the two writers
+racing on stdout if not synchronized carefully. Left as a direct call, with a
+new doc comment at the call site (`tui/mod.rs`) explaining why, so a future
+contributor doesn't "fix" this without the context.
 
 **~~P1 — A fully-built standalone player is orphaned~~ — fixed 2026-07-08
 (6.0.7).** `player::play_raw()` is now wired up as `figby --play <path.gif>`.
@@ -188,7 +195,7 @@ All minor, non-blocking, unrelated to animation.
 | 2 | Make `export_cells_to_ansi_multi` actually use its delay parameter (encode real timing) | Low | ✅ Fixed 2026-07-08 (6.0.4) — emits a self-playing `sh` script |
 | 3 | Wire `player::play_raw()` to a CLI entry point; reuse it for an intro-banner flag | Medium | ✅ Fixed 2026-07-08 (6.0.7) — `figby --play <gif>`; also fixed a hang bug found while wiring it up |
 | 4 | Implement real `try_query_terminal_cells` (DECRQCRA or drop the "capture terminal as frame 0" claim from docs) | Medium | ✅ Resolved 2026-07-08 (6.0.8) — docs corrected, no functional change was possible/needed (see below) |
-| 5 | Move playback off the TUI event-loop thread | Medium | Open |
+| 5 | Move playback off the TUI event-loop thread | Medium | ✅ Resolved 2026-07-08 — investigated, closed as not-a-bug (user-confirmed) |
 | 6 | Add unit tests to `gif_import.rs` (currently 0) | Low | ✅ Fixed 2026-07-08 (6.0.5) — 7 tests: round-trip, delays, disposal, malformed/oversized input |
 | 7 | Update README animation section + mark `animation-audit.md` superseded | Low | ✅ Fixed 2026-07-08 (6.0.6) |
 | 8 | Remove dead `impl Widget for &ExportDialog` | Low | ✅ N/A — already removed upstream (5.5.3), review claim was stale |
@@ -199,3 +206,11 @@ keyframes, tweening) are genuinely solid; the gaps are concentrated entirely
 in the "get pixels onto a real terminal with correct timing outside the full
 editor" path, which lines up exactly with the intro-banner idea that prompted
 this review.
+
+**Update 2026-07-08: all 8 items resolved** (6.0.4–6.0.8, one commit per
+item). Net result for the original question — "can Figby play an animated
+banner in the terminal?" — yes: `figby --play <path.gif>` now does exactly
+that, GIF-imported timing survives to export, and ANSI multi-frame export
+actually encodes real per-frame delays instead of discarding them. Two items
+(4, 5) turned out not to be bugs on closer inspection and were closed with
+corrected documentation instead of code changes — see their entries above.

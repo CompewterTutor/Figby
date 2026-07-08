@@ -1,5 +1,18 @@
 # Changelog
 
+## [6.0.9] - 2026-07-08
+
+### Docs (no functional change)
+- Investigated "move animation playback off the TUI event-loop thread"
+  (review item 5): closed as not-a-bug rather than implemented. The TUI and
+  the animation player both write directly to the same exclusive terminal
+  fd via crossterm/ratatui, so a background thread would only reproduce the
+  same blocking behavior via a channel, with real risk of the two writers
+  racing on stdout. Added a doc comment at the `play_animation()` call site
+  (`tui/mod.rs`) explaining this so it isn't "fixed" again without context.
+- This closes out all 8 items from `docs/sonnet5-review.md`'s punch list
+  (6.0.4–6.0.9). See that doc's closing update for a summary.
+
 ## [6.0.8] - 2026-07-08
 
 ### Docs (no functional change)

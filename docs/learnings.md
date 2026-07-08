@@ -1396,3 +1396,31 @@ Three bugs found in phase merge review:
 - Same `main` vs `master` branch-name discrepancy as 5.7.2 and prior phase
   merges. Task text says `main`, actual default branch is `master`. Consistent
   with the established convention.
+
+## Rotate tool — mouse drag/keyboard wiring (post-v6)
+
+- `TuiApp::handle_key_event` dispatches to `handle_font_editor_key` /
+  `handle_image_editor_key` (gated on `self.mode`) *before* the generic
+  toolbox tool-shortcut matching runs. In `AppMode::ImageEditor`,
+  `ImageEditor::handle_key` unconditionally claims a bunch of single-char
+  keys for its own adjustment-mode bindings (`r`/`R` reset, plus `b`, `k`,
+  `t`, `w`, `c`, `i`, `d`, `y`, `o`), so those letters never reach the
+  toolbox shortcut dispatch while in Image Editor mode — pressing `r` there
+  does NOT select the Rotate tool. This is pre-existing and independent of
+  the Rotate tool's own logic (verified with `Toolbox::handle_key` directly,
+  which works fine — the conflict is purely in `TuiApp`'s routing order).
+  Anyone adding a new single-letter tool shortcut should check whether
+  `ImageEditor::handle_key` (or `FontEditor`'s equivalent) already claims
+  that letter — the match arms shadow silently, with no compiler warning,
+  since Rust can't statically prove two `if`-guarded arms are unreachable
+  duplicates of each other.
+- Found the same class of bug in `welcome.rs::WelcomeScreen::handle_key`:
+  it has two `KeyCode::Char('I') if modifiers == KeyModifiers::NONE` arms
+  in the *same* match — one returns `WelcomeAction::FontNewFromFile`, the
+  other (dead, unreachable) returns `WelcomeAction::ImageOpen`. Since arms
+  are matched top-to-bottom and the guards are textually identical, the
+  first always wins; the Image tab's "I - mport/Open Image" binding never
+  fires. `cargo clippy` does not flag this either, for the same reason as
+  above (duplicate literal + duplicate guard, but guards aren't proven
+  equivalent). When two tab-scoped actions share a shortcut letter, the
+  match arm needs to check which tab/panel is active, not just modifiers.

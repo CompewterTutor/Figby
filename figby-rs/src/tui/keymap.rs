@@ -307,9 +307,14 @@ pub const KEYMAP: &[KeyBinding] = &[
         description: "Brush/Eraser/Lasso/Select/Circle/Polygon",
     },
     KeyBinding {
-        keys: "g/i/d/a/t",
+        keys: "g/i/d/a/t/u/r",
         scope: Scope::Canvas,
-        description: "Fill/Line/Eyedropper/Spray/Text",
+        description: "Fill/Line/Eyedropper/Spray/Text/Move/Rotate",
+    },
+    KeyBinding {
+        keys: "arrows (Move tool)",
+        scope: Scope::Canvas,
+        description: "Nudge selection contents, or whole layer if none",
     },
     KeyBinding {
         keys: "[ / ]",
@@ -332,14 +337,14 @@ pub const KEYMAP: &[KeyBinding] = &[
         description: "Toggle marker sub-mode (brush tool)",
     },
     KeyBinding {
-        keys: "r",
+        keys: "drag (Rotate tool)",
         scope: Scope::Canvas,
-        description: "Rotate canvas 90° (image editor)",
+        description: "Rotate selection, or whole layer if none, 90° per drag step",
     },
     KeyBinding {
-        keys: "H / V",
+        keys: "left/right (Rotate tool)",
         scope: Scope::Canvas,
-        description: "Flip horizontal / vertical (image editor)",
+        description: "Rotate selection, or whole layer if none, one 90° step",
     },
     KeyBinding {
         keys: "Ctrl+A",
@@ -493,6 +498,11 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "Ctrl+G",
         scope: Scope::LayerPanel,
         description: "Group selected layer",
+    },
+    KeyBinding {
+        keys: "F2",
+        scope: Scope::LayerPanel,
+        description: "Rename layer",
     },
     // Text Tool
     KeyBinding {

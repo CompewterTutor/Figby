@@ -6,7 +6,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, StatefulWidget, Widget}
 use ratatui::Frame;
 
 use super::canvas::CanvasBuffer;
-use super::layers::BlendMode;
+use super::layers::{BlendMode, LayerStack};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayerKeyframe {
@@ -192,6 +192,15 @@ impl Default for TimelineState {
 }
 
 impl TimelineState {
+    /// Refresh the display-only layer-name column from the current layer
+    /// stack. Must be called any time a frame is added (manual capture,
+    /// menu "Add Frame", GIF import) — the timeline widget sizes its
+    /// layer rows from `layer_names.len()`, so a stale/empty value here is
+    /// why the timeline can appear to only have one layer.
+    pub fn sync_layer_names(&mut self, stack: &LayerStack) {
+        self.layer_names = stack.layers.iter().map(|l| l.name.clone()).collect();
+    }
+
     /// Add a frame to the end of the timeline.
     pub fn add_frame(&mut self, frame: TimelineFrame) {
         self.frames.push(frame);
@@ -1083,6 +1092,34 @@ mod tests {
             layer_state: None,
             layer_keyframes: Vec::new(),
         }
+    }
+
+    #[test]
+    fn test_sync_layer_names_populates_from_stack() {
+        let mut stack = LayerStack::new(5, 5);
+        stack.add(5, 5);
+        stack.add(5, 5);
+        stack.layers[1].name = "Midground".to_string();
+        stack.layers[2].name = "Foreground".to_string();
+
+        let mut state = TimelineState::default();
+        assert!(state.layer_names.is_empty());
+        state.sync_layer_names(&stack);
+        assert_eq!(
+            state.layer_names,
+            vec!["Background", "Midground", "Foreground"]
+        );
+    }
+
+    #[test]
+    fn test_sync_layer_names_overwrites_stale_value() {
+        let stack = LayerStack::new(5, 5);
+        let mut state = TimelineState {
+            layer_names: vec!["Stale".to_string(), "Stale2".to_string()],
+            ..TimelineState::default()
+        };
+        state.sync_layer_names(&stack);
+        assert_eq!(state.layer_names, vec!["Background"]);
     }
 
     // ─── Render tests ────────────────────────────────────────────────

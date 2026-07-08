@@ -1,5 +1,6 @@
 use crate::tui::canvas::{CanvasBuffer, CanvasCell};
 
+#[derive(Clone)]
 pub struct Selection {
     mask: Vec<Vec<bool>>,
     width: usize,
@@ -202,6 +203,41 @@ impl Selection {
         let (n_min_x, n_min_y, _, _) = self.translate_bounds(dx, dy);
         Self::paste_into(buffer, &clip, n_min_x as i16, n_min_y as i16);
         *self = self.translate_mask(dx, dy);
+    }
+
+    /// Rotate the mask 90° around the center of its own bounds. Uses the
+    /// same `(dx, dy) -> (-dy, dx)` (clockwise) / `(dy, -dx)` (counter-
+    /// clockwise) point transform that `rotate_tool::rotate_region` applies
+    /// to buffer content, so a selection and its underlying pixels stay in
+    /// sync when rotated together. Mask dimensions never change — cells
+    /// that rotate outside the buffer are dropped, matching `translate_mask`.
+    pub fn rotate_90(&self, clockwise: bool) -> Self {
+        let mut new = Self::new(self.width, self.height);
+        if !self.is_active() {
+            return new;
+        }
+        let (x_min, y_min, x_max, y_max) = self.bounds;
+        let cx = (x_min + x_max) as f64 / 2.0;
+        let cy = (y_min + y_max) as f64 / 2.0;
+        for y in y_min..=y_max {
+            for x in x_min..=x_max {
+                if self.mask[y][x] {
+                    let dx = x as f64 - cx;
+                    let dy = y as f64 - cy;
+                    let (rdx, rdy) = if clockwise { (-dy, dx) } else { (dy, -dx) };
+                    let nx = (cx + rdx).round();
+                    let ny = (cy + rdy).round();
+                    if nx >= 0.0 && ny >= 0.0 {
+                        let (nx, ny) = (nx as usize, ny as usize);
+                        if nx < self.width && ny < self.height {
+                            new.mask[ny][nx] = true;
+                        }
+                    }
+                }
+            }
+        }
+        new.recompute_bounds();
+        new
     }
 
     fn translate_mask(&self, dx: i16, dy: i16) -> Self {
@@ -440,6 +476,52 @@ mod tests {
         let (x_min, y_min, _, _) = sel.bounds();
         assert!(x_min >= 7);
         assert!(y_min >= 5);
+    }
+
+    #[test]
+    fn test_selection_rotate_90_clockwise_turns_vertical_strip_horizontal() {
+        let buf = canvas_20x20();
+        // Vertical strip at x=2, y=0..=2.
+        let sel = Selection::marquee(&buf, 2, 0, 2, 2);
+        let rotated = sel.rotate_90(true);
+        // Rotating clockwise around the strip's own center turns it into a
+        // horizontal strip at y=1, x=1..=3.
+        assert!(rotated.is_selected(1, 1));
+        assert!(rotated.is_selected(2, 1));
+        assert!(rotated.is_selected(3, 1));
+        assert!(!rotated.is_selected(2, 0));
+        assert!(!rotated.is_selected(2, 2));
+        let (x_min, y_min, x_max, y_max) = rotated.bounds();
+        assert_eq!((x_min, y_min, x_max, y_max), (1, 1, 3, 1));
+    }
+
+    #[test]
+    fn test_selection_rotate_90_counterclockwise_is_inverse_of_clockwise() {
+        let buf = canvas_20x20();
+        let sel = Selection::marquee(&buf, 2, 0, 2, 2);
+        let rotated_and_back = sel.rotate_90(true).rotate_90(false);
+        assert!(rotated_and_back.is_selected(2, 0));
+        assert!(rotated_and_back.is_selected(2, 1));
+        assert!(rotated_and_back.is_selected(2, 2));
+    }
+
+    #[test]
+    fn test_selection_rotate_90_inactive_selection_stays_inactive() {
+        let sel = Selection::new(10, 10);
+        assert!(!sel.is_active());
+        let rotated = sel.rotate_90(true);
+        assert!(!rotated.is_active());
+    }
+
+    #[test]
+    fn test_selection_rotate_four_times_returns_to_original() {
+        let buf = canvas_20x20();
+        let sel = Selection::marquee(&buf, 4, 4, 4, 4);
+        let mut rotated = sel.rotate_90(true);
+        for _ in 0..3 {
+            rotated = rotated.rotate_90(true);
+        }
+        assert!(rotated.is_selected(4, 4));
     }
 
     #[test]

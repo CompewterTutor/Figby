@@ -10,6 +10,8 @@ use super::theme::Theme;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
     Brush,
+    Move,
+    Rotate,
     Marquee,
     Lasso,
     CircleSelect,
@@ -28,6 +30,8 @@ impl Tool {
     pub fn display_name(&self) -> &str {
         match self {
             Tool::Brush => "Br",
+            Tool::Move => "Mv",
+            Tool::Rotate => "Rt",
             Tool::Marquee => "Ma",
             Tool::Lasso => "La",
             Tool::CircleSelect => "Ci",
@@ -46,6 +50,8 @@ impl Tool {
     pub fn full_name(&self) -> &str {
         match self {
             Tool::Brush => "Brush",
+            Tool::Move => "Move",
+            Tool::Rotate => "Rotate",
             Tool::Marquee => "Select",
             Tool::Lasso => "Lasso",
             Tool::CircleSelect => "Circle",
@@ -64,6 +70,8 @@ impl Tool {
     pub fn key_shortcut(&self) -> KeyCode {
         match self {
             Tool::Brush => KeyCode::Char('b'),
+            Tool::Move => KeyCode::Char('u'),
+            Tool::Rotate => KeyCode::Char('r'),
             Tool::Marquee => KeyCode::Char('v'),
             Tool::Lasso => KeyCode::Char('l'),
             Tool::CircleSelect => KeyCode::Char('c'),
@@ -82,6 +90,8 @@ impl Tool {
     pub fn icon_key(&self) -> &str {
         match self {
             Tool::Brush => "tool_brush",
+            Tool::Move => "tool_move",
+            Tool::Rotate => "tool_rotate",
             Tool::Marquee => "tool_marquee",
             Tool::Lasso => "tool_lasso",
             Tool::CircleSelect => "tool_circle",
@@ -100,6 +110,8 @@ impl Tool {
     pub fn all() -> &'static [Tool] {
         &[
             Tool::Brush,
+            Tool::Move,
+            Tool::Rotate,
             Tool::Marquee,
             Tool::Lasso,
             Tool::CircleSelect,
@@ -256,5 +268,33 @@ mod tests {
         let tb = Toolbox::new();
         let w = tb.required_width(200);
         assert_eq!(w, 20);
+    }
+
+    #[test]
+    fn test_tool_shortcuts_are_unique() {
+        let mut seen = std::collections::HashSet::new();
+        for tool in Tool::all() {
+            if let KeyCode::Char(c) = tool.key_shortcut() {
+                assert!(
+                    seen.insert(c),
+                    "duplicate tool shortcut '{c}' (tool {:?})",
+                    tool
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_move_tool_shortcut_selects_move() {
+        let mut tb = Toolbox::new();
+        assert!(tb.handle_key(KeyCode::Char('u')));
+        assert_eq!(tb.selected, Tool::Move);
+    }
+
+    #[test]
+    fn test_rotate_tool_shortcut_selects_rotate() {
+        let mut tb = Toolbox::new();
+        assert!(tb.handle_key(KeyCode::Char('r')));
+        assert_eq!(tb.selected, Tool::Rotate);
     }
 }

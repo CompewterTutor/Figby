@@ -134,6 +134,32 @@ impl SidePanel {
         None
     }
 
+    /// Compute the content rect below the tab header + separator, matching
+    /// the layout `render` actually draws into. Callers that need to
+    /// translate mouse coordinates into a tab's content area (e.g. the
+    /// layers panel's click handling) must use this instead of the raw
+    /// panel `area`, since `render` draws its own border plus a two-row
+    /// tab bar before handing off to the per-tab content.
+    pub fn content_area(&self, area: Rect) -> Rect {
+        let block = Block::default().borders(Borders::ALL);
+        let inner = block.inner(area);
+        let content_y = inner.y + 2;
+        if content_y >= area.y + area.height {
+            return Rect {
+                x: inner.x,
+                y: content_y,
+                width: inner.width,
+                height: 0,
+            };
+        }
+        Rect {
+            x: inner.x,
+            y: content_y,
+            width: inner.width,
+            height: (area.y + area.height).saturating_sub(content_y),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &self,
@@ -219,16 +245,7 @@ impl SidePanel {
         }
 
         // Content area
-        let content_y = inner.y + 2;
-        if content_y >= area.y + area.height {
-            return;
-        }
-        let content_area = Rect {
-            x: inner.x,
-            y: content_y,
-            width: inner.width,
-            height: (area.y + area.height).saturating_sub(content_y),
-        };
+        let content_area = self.content_area(area);
         if content_area.height == 0 {
             return;
         }
@@ -464,6 +481,7 @@ impl SidePanel {
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
         lines.push(Line::from("  b  Brush"));
+        lines.push(Line::from("  u  Move"));
         lines.push(Line::from("  e  Eraser"));
         lines.push(Line::from("  l  Lasso"));
         lines.push(Line::from("  v  Select"));
@@ -548,5 +566,31 @@ impl SidePanel {
                 .add_modifier(Modifier::DIM),
         );
         frame.render_widget(para, area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_content_area_matches_render_layout() {
+        // area: 30x20 panel. Outer border (1) + tab row (1) + separator (1)
+        // = content starts 3 rows down from the panel's own y, 1 col in.
+        let panel = SidePanel::new(BTreeMap::new(), Theme::default());
+        let area = Rect::new(0, 0, 30, 20);
+        let content = panel.content_area(area);
+        assert_eq!(content.x, 1);
+        assert_eq!(content.y, 3);
+        assert_eq!(content.width, 28);
+        assert_eq!(content.height, 17);
+    }
+
+    #[test]
+    fn test_content_area_too_small_yields_zero_height() {
+        let panel = SidePanel::new(BTreeMap::new(), Theme::default());
+        let area = Rect::new(0, 0, 30, 3);
+        let content = panel.content_area(area);
+        assert_eq!(content.height, 0);
     }
 }

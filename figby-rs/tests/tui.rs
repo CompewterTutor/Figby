@@ -2786,3 +2786,46 @@ fn test_multiple_widgets_interaction() {
     assert_eq!(erased.ch, ' ', "eraser should clear cell to space");
     assert_eq!(erased.fg, None, "eraser should clear foreground color");
 }
+
+#[test]
+fn test_rotate_tool_arrow_key_rotates_whole_layer() {
+    use crossterm::event::KeyCode;
+    use figby::tui::canvas::{CanvasCell, CanvasWidget};
+    use figby::tui::layers::LayerStack;
+    use figby::tui::{AppMode, Tool, TuiApp};
+
+    let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
+    // Arrow keys drive the canvas cursor (and, here, the Rotate tool) only
+    // in ImageEditor mode; in FontEditor mode they navigate the glyph grid.
+    app.mode = AppMode::ImageEditor;
+    // Select the Rotate tool directly rather than via its 'r' shortcut key:
+    // in ImageEditor mode 'r' is already claimed by ImageEditor's own
+    // reset-adjustments binding, which runs first (pre-existing conflict,
+    // exercised separately by toolbox::test_rotate_tool_shortcut_selects_rotate).
+    app.editor.toolbox.selected = Tool::Rotate;
+    // Use a known square canvas so the rotation's destination cell is
+    // predictable (rotating a non-square buffer moves things differently).
+    app.editor.canvas = CanvasWidget::new(3, 3);
+    app.editor.layer_stack = LayerStack::new(3, 3);
+
+    app.editor.layer_stack.active_layer_mut().buffer_mut().set(
+        1,
+        0,
+        CanvasCell {
+            ch: 'X',
+            fg: None,
+            bg: None,
+            height: None,
+        },
+    );
+    app.editor.recomposite_canvas();
+
+    app.handle_key_event(KeyCode::Right);
+
+    assert_eq!(
+        app.editor.canvas.buffer.get(2, 1).unwrap().ch,
+        'X',
+        "Right arrow with the Rotate tool should rotate the whole layer 90° clockwise"
+    );
+}

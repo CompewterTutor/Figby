@@ -384,6 +384,18 @@ impl LayerStack {
         }
     }
 
+    pub fn rename(&mut self, index: usize, name: String) -> bool {
+        if name.trim().is_empty() {
+            return false;
+        }
+        if let Some(layer) = self.layers.get_mut(index) {
+            layer.name = name;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn group_of_layer(&self, layer_idx: usize) -> Option<usize> {
         self.layers.get(layer_idx).and_then(|l| l.group)
     }
@@ -649,6 +661,8 @@ pub struct LayerPanel {
     pub icons: std::collections::BTreeMap<String, String>,
     drag_state: Option<(usize, usize)>,
     drag_hover_row: Option<usize>,
+    pub renaming: Option<usize>,
+    pub rename_buffer: String,
 }
 
 impl LayerPanel {
@@ -659,6 +673,8 @@ impl LayerPanel {
             icons: std::collections::BTreeMap::new(),
             drag_state: None,
             drag_hover_row: None,
+            renaming: None,
+            rename_buffer: String::new(),
         }
     }
 
@@ -666,7 +682,38 @@ impl LayerPanel {
         let code = key.code;
         let modifiers = key.modifiers;
 
+        if let Some(idx) = self.renaming {
+            match code {
+                KeyCode::Enter => {
+                    stack.rename(idx, self.rename_buffer.trim().to_string());
+                    self.renaming = None;
+                    self.rename_buffer.clear();
+                }
+                KeyCode::Esc => {
+                    self.renaming = None;
+                    self.rename_buffer.clear();
+                }
+                KeyCode::Backspace => {
+                    self.rename_buffer.pop();
+                }
+                KeyCode::Char(c) => {
+                    self.rename_buffer.push(c);
+                }
+                _ => {}
+            }
+            return true;
+        }
+
         match code {
+            KeyCode::F(2) => {
+                self.renaming = Some(stack.active);
+                self.rename_buffer = stack
+                    .layers
+                    .get(stack.active)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_default();
+                true
+            }
             KeyCode::Up if modifiers == KeyModifiers::SHIFT => {
                 stack.move_up(stack.active);
                 true
@@ -987,14 +1034,20 @@ impl LayerPanel {
                         .map(|(from, to)| from != to && real_idx == to)
                         .unwrap_or(false);
                     let active_marker = if is_active { "›" } else { " " };
+                    let is_renaming = self.renaming == Some(real_idx);
+                    let display_name = if is_renaming {
+                        format!("{}\u{2588}", self.rename_buffer)
+                    } else {
+                        layer.name.clone()
+                    };
                     let name_label = format!(
                         "{}{} {} {}",
                         indent,
                         drag_handle,
                         active_marker,
-                        truncate_str(&layer.name, name_max),
+                        truncate_str(&display_name, name_max),
                     );
-                    let fg = if is_drag_target {
+                    let fg = if is_renaming || is_drag_target {
                         self.theme.general.primary
                     } else {
                         self.theme.menu.fg
@@ -1671,6 +1724,91 @@ mod tests {
         assert!(stack.groups[g].collapsed);
         assert!(stack.toggle_group_collapsed(g));
         assert!(!stack.groups[g].collapsed);
+    }
+
+    #[test]
+    fn test_rename_layer() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.rename(0, "Sketch".to_string()));
+        assert_eq!(stack.layers[0].name, "Sketch");
+    }
+
+    #[test]
+    fn test_rename_layer_nonexistent() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.rename(5, "X".to_string()));
+    }
+
+    #[test]
+    fn test_rename_layer_empty_name_noop() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.rename(0, "   ".to_string()));
+        assert_eq!(stack.layers[0].name, "Background");
+    }
+
+    #[test]
+    fn test_layer_panel_rename_via_f2() {
+        let mut stack = make_stack(10, 10);
+        let mut panel = LayerPanel::new();
+
+        let f2 = KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE);
+        assert!(panel.handle_key(f2, &mut stack));
+        assert_eq!(panel.renaming, Some(0));
+        assert_eq!(panel.rename_buffer, "Background");
+
+        for c in "Sky".chars() {
+            let key = KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE);
+            assert!(panel.handle_key(key, &mut stack));
+        }
+        assert_eq!(panel.rename_buffer, "BackgroundSky");
+
+        let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        assert!(panel.handle_key(enter, &mut stack));
+        assert_eq!(stack.layers[0].name, "BackgroundSky");
+        assert_eq!(panel.renaming, None);
+    }
+
+    #[test]
+    fn test_handle_mouse_selects_correct_layer_with_content_area() {
+        use crossterm::event::{MouseButton, MouseEventKind};
+
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10); // index 0 "Background", index 1 "Layer 2"
+        stack.active = 0;
+        let mut panel = LayerPanel::new();
+
+        // Mirrors SidePanel::content_area: a rect already offset past the
+        // side panel's own border + tab bar, exactly as it's rendered. The
+        // panel then draws one more border of its own inside this rect.
+        let area = Rect::new(0, 5, 20, 10);
+        // inner.y = area.y + 1 = 6; row offset = 1 => first layer row = 7.
+        let row = 7;
+        let col = 5;
+        assert!(panel.handle_mouse(
+            col,
+            row,
+            MouseEventKind::Down(MouseButton::Left),
+            area,
+            &mut stack
+        ));
+        assert_eq!(
+            stack.active, 1,
+            "clicking the first visible row should select the topmost layer (index 1), not be off by the tab-bar offset"
+        );
+    }
+
+    #[test]
+    fn test_layer_panel_rename_esc_cancels() {
+        let mut stack = make_stack(10, 10);
+        let mut panel = LayerPanel::new();
+        panel.handle_key(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE), &mut stack);
+        panel.handle_key(
+            KeyEvent::new(KeyCode::Char('X'), KeyModifiers::NONE),
+            &mut stack,
+        );
+        panel.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &mut stack);
+        assert_eq!(panel.renaming, None);
+        assert_eq!(stack.layers[0].name, "Background");
     }
 
     #[test]

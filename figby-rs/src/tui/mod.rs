@@ -173,6 +173,16 @@ impl EditorState {
         self.canvas.buffer = self.layer_stack.composite();
     }
 
+    /// Load a timeline frame's captured raster (`TimelineFrame::layer_state`)
+    /// into the active layer and recomposite. Timeline navigation only moves
+    /// `current_frame` — without this, the canvas stays frozen on whatever
+    /// content was loaded at import/capture time no matter which frame is
+    /// selected.
+    pub fn load_timeline_frame(&mut self, buffer: &canvas::CanvasBuffer) {
+        *self.layer_stack.active_layer_mut().buffer_mut() = buffer.clone();
+        self.recomposite_canvas();
+    }
+
     fn push_undo_snapshot(&mut self, label: &str) {
         self.undo.push_snapshot(
             self.layer_stack.active_layer().buffer.clone(),
@@ -270,8 +280,40 @@ impl EditorState {
                 let mut buf = self.layer_stack.active_layer().buffer.clone();
                 sel.move_selection(&mut buf, dx, dy);
                 *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.recomposite_canvas();
             }
         }
+    }
+
+    /// Nudge the whole active layer by one cell. Used by the Move tool's
+    /// arrow-key shortcut when there's no selection to move instead.
+    fn move_layer(&mut self, dx: i16, dy: i16) {
+        let moved =
+            tools::move_tool::translate_buffer(&self.layer_stack.active_layer().buffer, dx, dy);
+        *self.layer_stack.active_layer_mut().buffer_mut() = moved;
+        self.recomposite_canvas();
+    }
+
+    /// Rotate the active selection 90°, or the whole active layer if no
+    /// selection is active. Used by the Rotate tool's arrow-key shortcut,
+    /// one discrete step per keypress.
+    fn rotate_selection_or_layer(&mut self, clockwise: bool) {
+        if let Some(ref sel) = self.selection {
+            if sel.is_active() {
+                let mut buf = self.layer_stack.active_layer().buffer.clone();
+                buf = tools::rotate_tool::rotate_region(&buf, sel.bounds(), clockwise);
+                *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.selection = Some(sel.rotate_90(clockwise));
+                self.recomposite_canvas();
+                return;
+            }
+        }
+        let rotated = tools::rotate_tool::rotate_whole_buffer(
+            &self.layer_stack.active_layer().buffer,
+            clockwise,
+        );
+        *self.layer_stack.active_layer_mut().buffer_mut() = rotated;
+        self.recomposite_canvas();
     }
 
     fn handle_selection_down(
@@ -386,7 +428,22 @@ pub struct InteractionState {
     pub prev_mouse_buf: Option<(i16, i16)>,
     pub mouse_batch_active: bool,
     pub line_start: Option<(i16, i16)>,
+    /// Layer buffer snapshot taken at Line/Move/Rotate drag start. Every
+    /// drag event recomputes the result from this pristine snapshot (never
+    /// incrementally from the previous event), so repeated recomputation
+    /// stays exact instead of drifting.
     pub saved_buffer: Option<canvas::CanvasBuffer>,
+    /// Buffer position where a Move-tool drag started; deltas for the whole
+    /// drag are computed from this anchor. See `saved_buffer`.
+    pub move_origin: Option<(i16, i16)>,
+    /// Buffer position where a Rotate-tool drag started; drag distance maps
+    /// to a number of 90° steps, computed from this anchor each event (see
+    /// `saved_buffer`) rather than accumulated, so it never drifts.
+    pub rotate_origin: Option<(i16, i16)>,
+    /// Selection mask snapshot taken at Move/Rotate drag start, if any was
+    /// active. `None` means the whole active layer is being transformed
+    /// instead of just the selected region.
+    pub saved_selection: Option<tools::selection::Selection>,
 }
 
 /// Animation/particle/timeline subsystem state.
@@ -726,6 +783,9 @@ impl TuiApp {
                 mouse_batch_active: false,
                 line_start: None,
                 saved_buffer: None,
+                move_origin: None,
+                rotate_origin: None,
+                saved_selection: None,
             },
             auto_save_interval: 0,
             last_save_time: Instant::now(),
@@ -1809,7 +1869,7 @@ impl TuiApp {
                     mouse.column,
                     mouse.row,
                     mouse.kind,
-                    rp,
+                    self.side_panel.content_area(rp),
                     &mut self.editor.layer_stack,
                 )
             {
@@ -1926,11 +1986,16 @@ impl TuiApp {
                     | Tool::Eyedropper
                     | Tool::Spray
                     | Tool::Emitter
+                    | Tool::Move
+                    | Tool::Rotate
             )
         {
             self.interaction.prev_mouse_buf = None;
             self.interaction.line_start = None;
             self.interaction.saved_buffer = None;
+            self.interaction.move_origin = None;
+            self.interaction.rotate_origin = None;
+            self.interaction.saved_selection = None;
             return;
         }
 
@@ -1983,6 +2048,22 @@ impl TuiApp {
                     self.interaction.line_start = Some((bx, by));
                     self.interaction.saved_buffer =
                         Some(self.editor.layer_stack.active_layer().buffer.clone());
+                    return;
+                }
+                if self.editor.toolbox.selected == Tool::Move {
+                    self.editor.push_undo_snapshot("Move");
+                    self.interaction.move_origin = Some((bx, by));
+                    self.interaction.saved_buffer =
+                        Some(self.editor.layer_stack.active_layer().buffer.clone());
+                    self.interaction.saved_selection = self.editor.selection.clone();
+                    return;
+                }
+                if self.editor.toolbox.selected == Tool::Rotate {
+                    self.editor.push_undo_snapshot("Rotate");
+                    self.interaction.rotate_origin = Some((bx, by));
+                    self.interaction.saved_buffer =
+                        Some(self.editor.layer_stack.active_layer().buffer.clone());
+                    self.interaction.saved_selection = self.editor.selection.clone();
                     return;
                 }
                 if self.editor.toolbox.selected == Tool::Eraser {
@@ -2105,6 +2186,70 @@ impl TuiApp {
                     }
                     return;
                 }
+                if self.editor.toolbox.selected == Tool::Move {
+                    if let Some((ox, oy)) = self.interaction.move_origin {
+                        let dx = bx - ox;
+                        let dy = by - oy;
+                        let has_selection = self
+                            .interaction
+                            .saved_selection
+                            .as_ref()
+                            .is_some_and(|s| s.is_active());
+                        if has_selection {
+                            if let (Some(mut moved_sel), Some(mut buf)) = (
+                                self.interaction.saved_selection.clone(),
+                                self.interaction.saved_buffer.clone(),
+                            ) {
+                                moved_sel.move_selection(&mut buf, dx, dy);
+                                *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                                self.editor.selection = Some(moved_sel);
+                                self.editor.recomposite_canvas();
+                            }
+                        } else if let Some(ref saved_buf) = self.interaction.saved_buffer {
+                            let moved = tools::move_tool::translate_buffer(saved_buf, dx, dy);
+                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = moved;
+                            self.editor.recomposite_canvas();
+                        }
+                    }
+                    return;
+                }
+                if self.editor.toolbox.selected == Tool::Rotate {
+                    if let Some((ox, _)) = self.interaction.rotate_origin {
+                        let steps = rotate_drag_steps(bx - ox);
+                        let clockwise = steps > 0;
+                        let has_selection = self
+                            .interaction
+                            .saved_selection
+                            .as_ref()
+                            .is_some_and(|s| s.is_active());
+                        if has_selection {
+                            if let (Some(mut sel), Some(mut buf)) = (
+                                self.interaction.saved_selection.clone(),
+                                self.interaction.saved_buffer.clone(),
+                            ) {
+                                for _ in 0..steps.unsigned_abs() {
+                                    buf = tools::rotate_tool::rotate_region(
+                                        &buf,
+                                        sel.bounds(),
+                                        clockwise,
+                                    );
+                                    sel = sel.rotate_90(clockwise);
+                                }
+                                *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                                self.editor.selection = Some(sel);
+                                self.editor.recomposite_canvas();
+                            }
+                        } else if let Some(ref saved_buf) = self.interaction.saved_buffer {
+                            let mut buf = saved_buf.clone();
+                            for _ in 0..steps.unsigned_abs() {
+                                buf = tools::rotate_tool::rotate_whole_buffer(&buf, clockwise);
+                            }
+                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
+                            self.editor.recomposite_canvas();
+                        }
+                    }
+                    return;
+                }
                 if let Some((px, py)) = self.interaction.prev_mouse_buf {
                     if self.editor.toolbox.selected == Tool::Eraser {
                         let shape = self.editor.brush.shape;
@@ -2194,6 +2339,9 @@ impl TuiApp {
                 self.interaction.prev_mouse_buf = None;
                 self.interaction.line_start = None;
                 self.interaction.saved_buffer = None;
+                self.interaction.move_origin = None;
+                self.interaction.rotate_origin = None;
+                self.interaction.saved_selection = None;
             }
             MouseEventKind::Moved => {
                 if let Some((bx, by)) =
@@ -2824,6 +2972,27 @@ impl TuiApp {
             }
         }
 
+        // Rotate tool: Left/Right step the selection (or whole layer, if none
+        // is active) 90° at a time. Checked ahead of the generic selection-nudge
+        // block below so Rotate's arrows rotate instead of moving the selection.
+        if self.editor.toolbox.selected == Tool::Rotate {
+            match code {
+                KeyCode::Left => {
+                    self.editor.push_undo_snapshot("Rotate");
+                    self.editor.rotate_selection_or_layer(false);
+                    self.editor.unsaved = true;
+                    return None;
+                }
+                KeyCode::Right => {
+                    self.editor.push_undo_snapshot("Rotate");
+                    self.editor.rotate_selection_or_layer(true);
+                    self.editor.unsaved = true;
+                    return None;
+                }
+                _ => {}
+            }
+        }
+
         // Selection operations (before canvas cursor movement)
         let selection_active = self
             .editor
@@ -2907,6 +3076,36 @@ impl TuiApp {
                     _ => {}
                 }
             }
+        } else if self.editor.toolbox.selected == Tool::Move {
+            // No selection: Move tool's arrow keys nudge the whole layer
+            // instead of just a selected region.
+            match code {
+                KeyCode::Up => {
+                    self.editor.push_undo_snapshot("Move layer");
+                    self.editor.move_layer(0, -1);
+                    self.editor.unsaved = true;
+                    return None;
+                }
+                KeyCode::Down => {
+                    self.editor.push_undo_snapshot("Move layer");
+                    self.editor.move_layer(0, 1);
+                    self.editor.unsaved = true;
+                    return None;
+                }
+                KeyCode::Left => {
+                    self.editor.push_undo_snapshot("Move layer");
+                    self.editor.move_layer(-1, 0);
+                    self.editor.unsaved = true;
+                    return None;
+                }
+                KeyCode::Right => {
+                    self.editor.push_undo_snapshot("Move layer");
+                    self.editor.move_layer(1, 0);
+                    self.editor.unsaved = true;
+                    return None;
+                }
+                _ => {}
+            }
         }
 
         // Polygon select tool: Enter closes polygon, Esc cancels
@@ -2964,6 +3163,7 @@ impl TuiApp {
                     if cf < self.animation.timeline_state.scroll_offset {
                         self.animation.timeline_state.scroll_offset = cf;
                     }
+                    self.load_current_timeline_frame();
                     self.editor.sync_canvas_to_font_char();
                     self.dirty = true;
                     return None;
@@ -2979,6 +3179,7 @@ impl TuiApp {
                         self.animation.timeline_state.scroll_offset =
                             cf.saturating_sub(max_vis.saturating_sub(1));
                     }
+                    self.load_current_timeline_frame();
                     self.editor.sync_canvas_to_font_char();
                     self.dirty = true;
                     return None;
@@ -3000,13 +3201,9 @@ impl TuiApp {
                         layer_state: Some(buffer),
                         layer_keyframes,
                     };
-                    self.animation.timeline_state.layer_names = self
-                        .editor
-                        .layer_stack
-                        .layers
-                        .iter()
-                        .map(|l| l.name.clone())
-                        .collect();
+                    self.animation
+                        .timeline_state
+                        .sync_layer_names(&self.editor.layer_stack);
                     self.animation.timeline_state.add_frame(frame);
                     self.dirty = true;
                     return None;
@@ -3016,6 +3213,7 @@ impl TuiApp {
                         .animation
                         .timeline_state
                         .remove_frame(self.animation.timeline_state.current_frame);
+                    self.load_current_timeline_frame();
                     self.dirty = true;
                     return None;
                 }
@@ -3642,6 +3840,23 @@ impl TuiApp {
         }
     }
 
+    /// Load the currently-selected timeline frame's captured raster back
+    /// into the canvas, if it has one. Call after changing
+    /// `animation.timeline_state.current_frame` — moving the playhead alone
+    /// does not touch the canvas.
+    fn load_current_timeline_frame(&mut self) {
+        let cf = self.animation.timeline_state.current_frame;
+        if let Some(buffer) = self
+            .animation
+            .timeline_state
+            .frames
+            .get(cf)
+            .and_then(|f| f.layer_state.clone())
+        {
+            self.editor.load_timeline_frame(&buffer);
+        }
+    }
+
     fn perform_import_font(&mut self, path: std::path::PathBuf) {
         if self.throbber.is_active() {
             return;
@@ -3734,6 +3949,9 @@ impl TuiApp {
                 let thumb_h = 3;
                 self.animation.timeline_state.frames.clear();
                 self.animation.timeline_state.current_frame = 0;
+                self.animation
+                    .timeline_state
+                    .sync_layer_names(&self.editor.layer_stack);
 
                 for (i, frame_cells) in gif_data.frames.iter().enumerate() {
                     let mut frame_buf = canvas::CanvasBuffer::new(w, h);
@@ -4377,6 +4595,9 @@ impl TuiApp {
                     layer_state: Some(buffer),
                     layer_keyframes,
                 };
+                self.animation
+                    .timeline_state
+                    .sync_layer_names(&self.editor.layer_stack);
                 self.animation.timeline_state.add_frame(new_frame);
                 self.menu_bar_state.reset();
                 self.dirty = true;
@@ -4457,6 +4678,15 @@ fn centered_overlay(area: Rect) -> Rect {
     }
 }
 
+/// Map a Rotate-tool drag's horizontal distance to a signed step count: every
+/// `ROTATE_DRAG_STEP` cells is one 90° turn, sign gives direction, and the
+/// result is reduced mod 4 since four steps is a no-op (keeps replay loops
+/// short for long drags).
+fn rotate_drag_steps(dx: i16) -> i16 {
+    const ROTATE_DRAG_STEP: i16 = 4;
+    (dx / ROTATE_DRAG_STEP) % 4
+}
+
 /// Downsample a `CanvasBuffer` to `thumb_w × thumb_h` char grid for timeline thumbnails.
 fn capture_thumbnail(buffer: &canvas::CanvasBuffer, thumb_w: u16, thumb_h: u16) -> Vec<Vec<char>> {
     let bw = buffer.width();
@@ -4484,4 +4714,254 @@ fn format_clock() -> String {
     let m = (total_secs / 60) % 60;
     let s = total_secs % 60;
     format!("{h:02}:{m:02}:{s:02}")
+}
+
+#[cfg(test)]
+mod editor_state_tests {
+    use super::*;
+
+    fn make_test_editor(w: usize, h: usize) -> EditorState {
+        EditorState {
+            canvas: canvas::CanvasWidget::new(w as u16, h as u16),
+            toolbox: toolbox::Toolbox::new(),
+            brush: brush::BrushState::new(),
+            palette: palette::Palette::new(),
+            font_editor: font_editor::FontEditor::new(),
+            image_editor: image_editor::ImageEditor::new(),
+            text_tool: tools::text::TextToolState::new(""),
+            undo: undo::UndoSystem::new(50),
+            unsaved: false,
+            selection: None,
+            clipboard: None,
+            layer_stack: layers::LayerStack::new(w, h),
+            layer_panel: layers::LayerPanel::new(),
+            fill_threshold: 10,
+            eyedropper_sample: None,
+        }
+    }
+
+    #[test]
+    fn test_load_timeline_frame_updates_canvas_and_active_layer() {
+        let mut editor = make_test_editor(3, 3);
+        let mut buf = canvas::CanvasBuffer::new(3, 3);
+        buf.set(
+            0,
+            0,
+            canvas::CanvasCell {
+                ch: 'X',
+                fg: None,
+                bg: None,
+                height: None,
+            },
+        );
+
+        editor.load_timeline_frame(&buf);
+
+        assert_eq!(editor.canvas.buffer.get(0, 0).unwrap().ch, 'X');
+        assert_eq!(
+            editor.layer_stack.active_layer().buffer.get(0, 0).unwrap().ch,
+            'X',
+            "the active layer should carry the frame's raster so future edits and recomposites stay consistent"
+        );
+    }
+
+    #[test]
+    fn test_load_timeline_frame_overwrites_prior_canvas_content() {
+        let mut editor = make_test_editor(2, 2);
+        editor.layer_stack.active_layer_mut().buffer_mut().set(
+            1,
+            1,
+            canvas::CanvasCell {
+                ch: 'A',
+                fg: None,
+                bg: None,
+                height: None,
+            },
+        );
+        editor.recomposite_canvas();
+        assert_eq!(editor.canvas.buffer.get(1, 1).unwrap().ch, 'A');
+
+        let frame_buf = canvas::CanvasBuffer::new(2, 2); // blank frame
+        editor.load_timeline_frame(&frame_buf);
+
+        assert_eq!(
+            editor.canvas.buffer.get(1, 1).unwrap().ch,
+            ' ',
+            "selecting a different timeline frame should replace the previously shown content"
+        );
+    }
+
+    #[test]
+    fn test_move_layer_shifts_content_and_recomposites_canvas() {
+        let mut editor = make_test_editor(4, 4);
+        editor.layer_stack.active_layer_mut().buffer_mut().set(
+            1,
+            1,
+            canvas::CanvasCell {
+                ch: 'X',
+                fg: None,
+                bg: None,
+                height: None,
+            },
+        );
+        editor.recomposite_canvas();
+
+        editor.move_layer(1, 0);
+
+        assert_eq!(
+            editor
+                .layer_stack
+                .active_layer()
+                .buffer
+                .get(2, 1)
+                .unwrap()
+                .ch,
+            'X',
+            "move_layer should shift the active layer's content"
+        );
+        assert_eq!(
+            editor.canvas.buffer.get(2, 1).unwrap().ch,
+            'X',
+            "move_layer must recomposite so the canvas reflects the shift immediately"
+        );
+    }
+
+    #[test]
+    fn test_move_selection_recomposites_canvas() {
+        let mut editor = make_test_editor(4, 4);
+        editor.layer_stack.active_layer_mut().buffer_mut().set(
+            0,
+            0,
+            canvas::CanvasCell {
+                ch: 'Y',
+                fg: None,
+                bg: None,
+                height: None,
+            },
+        );
+        editor.recomposite_canvas();
+        editor.selection = Some(tools::selection::Selection::marquee(
+            &editor.canvas.buffer,
+            0,
+            0,
+            0,
+            0,
+        ));
+
+        editor.move_selection(1, 1);
+
+        assert_eq!(
+            editor.canvas.buffer.get(1, 1).unwrap().ch,
+            'Y',
+            "move_selection must recomposite so the canvas reflects the move immediately, \
+             not just the underlying layer buffer"
+        );
+    }
+
+    #[test]
+    fn test_rotate_layer_no_selection_rotates_whole_buffer_and_recomposites() {
+        let mut editor = make_test_editor(3, 3);
+        editor.layer_stack.active_layer_mut().buffer_mut().set(
+            1,
+            0,
+            canvas::CanvasCell {
+                ch: 'X',
+                fg: None,
+                bg: None,
+                height: None,
+            },
+        );
+        editor.recomposite_canvas();
+
+        editor.rotate_selection_or_layer(true);
+
+        assert_eq!(
+            editor
+                .layer_stack
+                .active_layer()
+                .buffer
+                .get(2, 1)
+                .unwrap()
+                .ch,
+            'X',
+            "rotate_selection_or_layer should rotate the whole layer clockwise when no selection is active"
+        );
+        assert_eq!(
+            editor.canvas.buffer.get(2, 1).unwrap().ch,
+            'X',
+            "rotate_selection_or_layer must recomposite so the canvas reflects the rotation immediately"
+        );
+    }
+
+    #[test]
+    fn test_rotate_selection_rotates_mask_and_content_together() {
+        let mut editor = make_test_editor(3, 3);
+        editor.layer_stack.active_layer_mut().buffer_mut().set(
+            2,
+            0,
+            canvas::CanvasCell {
+                ch: 'X',
+                fg: None,
+                bg: None,
+                height: None,
+            },
+        );
+        editor.recomposite_canvas();
+        editor.selection = Some(tools::selection::Selection::marquee(
+            &editor.canvas.buffer,
+            0,
+            0,
+            2,
+            0,
+        ));
+
+        editor.rotate_selection_or_layer(true);
+
+        assert_eq!(
+            editor.canvas.buffer.get(1, 1).unwrap().ch,
+            'X',
+            "rotating an active selection must rotate its content, not just the mask"
+        );
+        assert!(
+            editor.selection.as_ref().unwrap().is_selected(1, 1),
+            "rotating an active selection must move its mask along with the content"
+        );
+        assert!(
+            !editor.selection.as_ref().unwrap().is_selected(2, 0),
+            "the mask's old position should no longer be selected after rotating"
+        );
+    }
+}
+
+#[cfg(test)]
+mod rotate_drag_steps_tests {
+    use super::rotate_drag_steps;
+
+    #[test]
+    fn test_rotate_drag_steps_below_threshold_is_zero() {
+        assert_eq!(rotate_drag_steps(0), 0);
+        assert_eq!(rotate_drag_steps(3), 0);
+        assert_eq!(rotate_drag_steps(-3), 0);
+    }
+
+    #[test]
+    fn test_rotate_drag_steps_one_step_each_direction() {
+        assert_eq!(rotate_drag_steps(4), 1);
+        assert_eq!(rotate_drag_steps(-4), -1);
+    }
+
+    #[test]
+    fn test_rotate_drag_steps_multiple_steps() {
+        assert_eq!(rotate_drag_steps(20), 1, "20/4=5 steps, reduced mod 4");
+        assert_eq!(rotate_drag_steps(-20), -1);
+    }
+
+    #[test]
+    fn test_rotate_drag_steps_full_turn_is_a_noop() {
+        assert_eq!(
+            rotate_drag_steps(16),
+            0,
+            "16/4=4 steps == full turn == identity"
+        );
+    }
 }

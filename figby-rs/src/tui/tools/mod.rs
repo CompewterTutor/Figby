@@ -3,6 +3,8 @@ pub mod eraser;
 pub mod eyedropper;
 pub mod fill;
 pub mod line;
+pub mod move_tool;
+pub mod rotate_tool;
 pub mod selection;
 pub mod spray;
 pub mod text;

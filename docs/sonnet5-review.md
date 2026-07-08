@@ -115,10 +115,13 @@ compositing, palette fallback, transparency detection, the memory-guard from
 GIFs, oversized GIFs, and disposal-method correctness is implicit only via the
 security fuzz suite, not functional unit tests.
 
-**P2 — Duplicate/dead render path.** `ExportDialog` has both a
-`render(&self, frame, area)` method (used) and an `impl Widget for
-&ExportDialog` (`export.rs:719-907`, never called from `mod.rs`) — carried
-over unchanged from the 2026-06-18 audit.
+**~~P2 — Duplicate/dead render path~~ — correction, already fixed upstream.**
+This review carried the 2026-06-18 audit's claim forward without
+re-verifying it: `impl Widget for &ExportDialog` does **not** exist in the
+current tree. `git log -S` shows it was introduced in `955ad65` (4.3.2) and
+removed again in `e4e6f1b` (5.5.3, "Verify animation export end-to-end") —
+i.e. it was cleaned up well before the audit that still listed it as dead
+code. No action needed; noted here only so the punch list below is accurate.
 
 ## 4. Path to an actual "animated intro banner" feature
 
@@ -177,7 +180,7 @@ All minor, non-blocking, unrelated to animation.
 | 5 | Move playback off the TUI event-loop thread | Medium | Open |
 | 6 | Add unit tests to `gif_import.rs` (currently 0) | Low | Open |
 | 7 | Update README animation section + mark `animation-audit.md` superseded | Low | Open |
-| 8 | Remove dead `impl Widget for &ExportDialog` | Low | Open |
+| 8 | Remove dead `impl Widget for &ExportDialog` | Low | ✅ N/A — already removed upstream (5.5.3), review claim was stale |
 
 Everything above is additive/fix-only — no architectural rework needed. The
 animation subsystem's core data model and TUI editing experience (timeline,

@@ -27,7 +27,7 @@ const IMAGE_ACTIONS: &[(&str, char, &str)] = &[
     ("image_import", 'V', "iew as ASCII"),
     ("file_open", 'F', "igmap  (Open Image)"),
     ("image_import", 'A', "nimated GIF Import"),
-    ("file_open", 'I', "mport/Open Image"),
+    ("file_open", 'L', "oad Image"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -407,36 +407,40 @@ impl WelcomeScreen {
             KeyCode::Up => Some(WelcomeAction::ScrollUp),
             KeyCode::Down => Some(WelcomeAction::ScrollDown),
             KeyCode::Char('?') => Some(WelcomeAction::ToggleHelp),
-            KeyCode::Char('N') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('n') | KeyCode::Char('N') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::FontNewFromSystem)
             }
-            KeyCode::Char('I') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('i') | KeyCode::Char('I') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::FontNewFromFile)
             }
-            KeyCode::Char('B') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('b') | KeyCode::Char('B') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::FontNewBlank)
             }
-            KeyCode::Char('O') if modifiers == KeyModifiers::NONE => Some(WelcomeAction::FontOpen),
-            KeyCode::Char('D') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('o') | KeyCode::Char('O') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::FontOpen)
+            }
+            KeyCode::Char('d') | KeyCode::Char('D') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::FontDuplicate)
             }
-            KeyCode::Char('C') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('c') | KeyCode::Char('C') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageNewBlank)
             }
-            KeyCode::Char('T') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('t') | KeyCode::Char('T') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageNewFromTemplate)
             }
-            KeyCode::Char('V') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('v') | KeyCode::Char('V') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageConvert)
             }
-            KeyCode::Char('F') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('f') | KeyCode::Char('F') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageOpenFigmap)
             }
-            KeyCode::Char('A') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('a') | KeyCode::Char('A') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::ImageImportGif)
             }
-            KeyCode::Char('I') if modifiers == KeyModifiers::NONE => Some(WelcomeAction::ImageOpen),
-            KeyCode::Char('S') if modifiers == KeyModifiers::NONE => {
+            KeyCode::Char('l') | KeyCode::Char('L') if modifiers == KeyModifiers::NONE => {
+                Some(WelcomeAction::ImageOpen)
+            }
+            KeyCode::Char('s') | KeyCode::Char('S') if modifiers == KeyModifiers::NONE => {
                 Some(WelcomeAction::OpenSettings)
             }
             KeyCode::Char(c) if modifiers == KeyModifiers::CONTROL => match c {
@@ -661,4 +665,53 @@ fn parse_ansi_lines(text: &str) -> Vec<Line<'static>> {
             Line::from(spans)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_action_shortcuts_have_no_duplicates() {
+        let mut seen = std::collections::HashSet::new();
+        for (_, key_char, _) in FONT_ACTIONS.iter().chain(IMAGE_ACTIONS.iter()) {
+            assert!(
+                seen.insert(key_char.to_ascii_lowercase()),
+                "duplicate welcome screen shortcut '{key_char}'"
+            );
+        }
+    }
+
+    #[test]
+    fn test_every_action_char_dispatches_its_own_action() {
+        let screen = WelcomeScreen::new();
+        for (i, (_, key_char, _)) in FONT_ACTIONS.iter().enumerate() {
+            assert_eq!(
+                screen.handle_key(KeyCode::Char(*key_char), KeyModifiers::NONE, 0),
+                Some(font_action_for(i)),
+                "font action {i} shortcut '{key_char}' should dispatch its own action"
+            );
+        }
+        for (i, (_, key_char, _)) in IMAGE_ACTIONS.iter().enumerate() {
+            assert_eq!(
+                screen.handle_key(KeyCode::Char(*key_char), KeyModifiers::NONE, 0),
+                Some(image_action_for(i)),
+                "image action {i} shortcut '{key_char}' should dispatch its own action"
+            );
+        }
+    }
+
+    #[test]
+    fn test_action_shortcuts_work_without_shift() {
+        let screen = WelcomeScreen::new();
+        for (_, key_char, _) in FONT_ACTIONS.iter().chain(IMAGE_ACTIONS.iter()) {
+            let lower = key_char.to_ascii_lowercase();
+            assert!(
+                screen
+                    .handle_key(KeyCode::Char(lower), KeyModifiers::NONE, 0)
+                    .is_some(),
+                "shortcut '{key_char}' should also work as unshifted '{lower}'"
+            );
+        }
+    }
 }

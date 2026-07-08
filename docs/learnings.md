@@ -1415,12 +1415,42 @@ Three bugs found in phase merge review:
   since Rust can't statically prove two `if`-guarded arms are unreachable
   duplicates of each other.
 - Found the same class of bug in `welcome.rs::WelcomeScreen::handle_key`:
-  it has two `KeyCode::Char('I') if modifiers == KeyModifiers::NONE` arms
-  in the *same* match — one returns `WelcomeAction::FontNewFromFile`, the
-  other (dead, unreachable) returns `WelcomeAction::ImageOpen`. Since arms
-  are matched top-to-bottom and the guards are textually identical, the
-  first always wins; the Image tab's "I - mport/Open Image" binding never
-  fires. `cargo clippy` does not flag this either, for the same reason as
+  it had two `KeyCode::Char('I') if modifiers == KeyModifiers::NONE` arms
+  in the *same* match — one returned `WelcomeAction::FontNewFromFile`, the
+  other (dead, unreachable) returned `WelcomeAction::ImageOpen`. Since arms
+  are matched top-to-bottom and the guards were textually identical, the
+  first always won; the Image panel's "I - mport/Open Image" binding never
+  fired. `cargo clippy` does not flag this either, for the same reason as
   above (duplicate literal + duplicate guard, but guards aren't proven
-  equivalent). When two tab-scoped actions share a shortcut letter, the
-  match arm needs to check which tab/panel is active, not just modifiers.
+  equivalent). Fixed by giving the Image action its own letter ('L' — Load
+  Image) instead of trying to disambiguate by context, since font and
+  image action panels render simultaneously (not tabs) — there's no "which
+  panel is active" to key off of.
+- The user's real complaint ("the a doesn't work either") turned out to be
+  a *second*, more fundamental bug, not just the 'I' duplicate: every
+  welcome-screen action shortcut matched only the exact-case literal
+  (`'A'`, `'N'`, `'S'`, etc.) with `modifiers == KeyModifiers::NONE`. On a
+  terminal that reports an unshifted keypress as lowercase with no SHIFT
+  flag (the common case), pressing the plain letter shown in the UI does
+  nothing — you have to hold Shift, inconsistent with every other
+  single-letter shortcut in the app (toolbox tool shortcuts are matched
+  case-insensitively via `c.to_ascii_lowercase()` in `mod.rs`, and
+  `ImageEditor::handle_key` matches both cases explicitly). Fixed by
+  changing every `KeyCode::Char('X')` arm in `welcome.rs::handle_key` to
+  `KeyCode::Char('x') | KeyCode::Char('X')`.
+  Fixing this had a surprising side effect: five existing tests
+  (`test_line_tool_keyboard_paint`, `test_spray_tool_keyboard_paint`,
+  `test_eyedropper_tool_keyboard_does_not_paint`,
+  `test_text_tool_enter_text_mode`, `test_text_tool_commit_text`) started
+  failing because they never set `app.welcome_screen.show = false` before
+  sending tool-shortcut keys — they were only passing because the welcome
+  screen ignored lowercase letters and let the keypress fall through to
+  the toolbox dispatch. Once the welcome screen legitimately started
+  handling lowercase too, it correctly intercepted those same letters
+  first. The fix is to add `app.welcome_screen.show = false;` to each of
+  those tests (matching the convention nearly every other test in
+  `tests/tui.rs` already follows), not to weaken the welcome-screen fix.
+  Lesson: a test that doesn't explicitly dismiss the welcome screen is
+  implicitly depending on whatever the welcome screen ignores — that's an
+  easy way for an unrelated bug fix to "break" tests that were never
+  actually exercising the feature they claimed to.

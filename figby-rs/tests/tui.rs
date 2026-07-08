@@ -1705,6 +1705,7 @@ fn test_line_tool_keyboard_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Select Line tool
     app.handle_key_event(KeyCode::Char('i'));
@@ -1730,6 +1731,7 @@ fn test_spray_tool_keyboard_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Select SprayPaint tool
     app.handle_key_event(KeyCode::Char('a'));
@@ -1768,6 +1770,7 @@ fn test_eyedropper_tool_keyboard_does_not_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Place a cell
     app.editor.canvas.buffer.set(
@@ -2574,6 +2577,7 @@ fn test_text_tool_enter_text_mode() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Select Text tool
     app.handle_key_event(KeyCode::Char('t'));
@@ -2598,6 +2602,7 @@ fn test_text_tool_commit_text() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Load a font manually so commit_block can render
     let font_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
@@ -2827,5 +2832,51 @@ fn test_rotate_tool_arrow_key_rotates_whole_layer() {
         app.editor.canvas.buffer.get(2, 1).unwrap().ch,
         'X',
         "Right arrow with the Rotate tool should rotate the whole layer 90° clockwise"
+    );
+}
+
+#[test]
+fn test_welcome_screen_shortcuts_work_with_or_without_shift() {
+    use crossterm::event::KeyCode;
+    use figby::tui::file_ops::FileOpsMode;
+    use figby::tui::TuiApp;
+
+    // 'A' (Animated GIF Import) previously only matched the shifted,
+    // uppercase char — plain 'a' (no shift) silently did nothing.
+    let mut app = TuiApp::new();
+    assert!(app.welcome_screen.show);
+    app.handle_key_event(KeyCode::Char('a'));
+    assert_eq!(
+        app.dialogs.file_ops.mode,
+        FileOpsMode::ImportGif,
+        "lowercase 'a' should trigger the same action as shifted 'A'"
+    );
+
+    // Shifted form must still work too.
+    let mut app2 = TuiApp::new();
+    app2.handle_key_event(KeyCode::Char('A'));
+    assert_eq!(app2.dialogs.file_ops.mode, FileOpsMode::ImportGif);
+}
+
+#[test]
+fn test_welcome_screen_font_and_image_import_keys_do_not_collide() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::tui::welcome::WelcomeAction;
+    use figby::tui::TuiApp;
+
+    // 'I'/'i' previously matched two different actions (FontNewFromFile and
+    // ImageOpen) in the same match statement; the first arm always won and
+    // the Image panel's "Import/Open Image" binding was dead code. The
+    // Image action now uses 'L' (Load Image) instead.
+    let app = TuiApp::new();
+    assert_eq!(
+        app.welcome_screen
+            .handle_key(KeyCode::Char('i'), KeyModifiers::NONE, 0),
+        Some(WelcomeAction::FontNewFromFile)
+    );
+    assert_eq!(
+        app.welcome_screen
+            .handle_key(KeyCode::Char('l'), KeyModifiers::NONE, 0),
+        Some(WelcomeAction::ImageOpen)
     );
 }

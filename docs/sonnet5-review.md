@@ -227,3 +227,14 @@ terminal by default, or to `--play-width <N>` explicitly. The size cap now
 checks scaled output size rather than native size. Verified against a real
 480x360, 90-frame GIF that previously failed with "too large" — it now
 imports and plays to completion.
+
+**Follow-up 2026-07-08 (6.0.11): loop until dismissed.** `--play` only ever
+played once and auto-exited (by design, per the 6.0.7 fix). Added
+`--loop`: repeats indefinitely, any keypress dismisses (interactive
+pause/seek/speed controls are bypassed in this mode, since there's no
+natural end to wait for — this was a deliberate simplification, confirmed
+with the user, over trying to preserve those controls alongside a bail-on-
+any-key affordance). `player::play_raw()` gained a `loop_playback: bool`
+parameter. Verified end-to-end over a real pty: playback wraps past the
+last frame back to frame 1 repeatedly and exits cleanly on an arbitrary
+keypress.

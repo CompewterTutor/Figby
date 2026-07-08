@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.0.11] - 2026-07-08
+
+### Added
+- `figby --play --loop`: repeats the animation indefinitely instead of
+  playing once and auto-exiting. Any keypress dismisses it immediately
+  (interactive pause/seek/speed controls are bypassed in this mode — there's
+  no natural end to wait for, so any key just exits). `player::play_raw()`
+  gained a `loop_playback: bool` parameter to support this. Verified
+  end-to-end over a real pty: playback wraps past the last frame back to
+  frame 1 repeatedly, and exits cleanly on an arbitrary keypress.
+
 ## [6.0.10] - 2026-07-08
 
 ### Added

@@ -578,9 +578,18 @@ pub fn render_frame_raw(frame: &AnimationFrame) -> String {
 ///
 /// Enters raw mode (no echo, no line buffering), renders frames by writing
 /// pre-computed ANSI escape codes directly to stdout (bypassing ratatui's
-/// Terminal::draw diffing). Frame timing via `sleep`. Keyboard controls:
-/// Space=pause, Esc=exit, Left/Right=seek, +/-=speed.
-pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
+/// Terminal::draw diffing). Frame timing via `sleep`.
+///
+/// When `loop_playback` is `false` (the normal case): keyboard controls are
+/// Space=pause, Esc=exit, Left/Right=seek, +/-=speed, l/L=toggle loop; and
+/// playback auto-exits once a non-looping animation naturally reaches its
+/// last frame.
+///
+/// When `loop_playback` is `true`: the animation repeats indefinitely (no
+/// natural end to wait for), and the normal interactive controls are
+/// bypassed — any keypress exits immediately. This is the "banner" mode:
+/// loop until dismissed, rather than play-once-and-return.
+pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8, loop_playback: bool) -> io::Result<()> {
     if frames.is_empty() {
         return Ok(());
     }
@@ -589,6 +598,9 @@ pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
     let precomputed: Vec<String> = frames.iter().map(render_frame_raw).collect();
     let player = AnimationPlayer::new(frames, fps);
     player.play();
+    if loop_playback {
+        player.toggle_loop();
+    }
 
     terminal::enable_raw_mode()?;
     write!(io::stdout(), "\x1b[?25l\x1b[2J")?;
@@ -608,9 +620,14 @@ pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
 
         if event::poll(Duration::ZERO)? {
             if let Event::Key(key) = event::read()? {
-                let consumed = player.handle_key(key.code);
-                if consumed && key.code == KeyCode::Esc {
+                if loop_playback {
+                    // No natural end while looping — any keypress dismisses.
                     finished = true;
+                } else {
+                    let consumed = player.handle_key(key.code);
+                    if consumed && key.code == KeyCode::Esc {
+                        finished = true;
+                    }
                 }
             }
         }
@@ -1143,7 +1160,13 @@ mod tests {
 
     #[test]
     fn test_play_raw_empty_frames() {
-        let result = play_raw(vec![], 30);
+        let result = play_raw(vec![], 30, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_play_raw_empty_frames_looping() {
+        let result = play_raw(vec![], 30, true);
         assert!(result.is_ok());
     }
 

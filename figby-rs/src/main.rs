@@ -359,6 +359,11 @@ struct CliArgs {
         help = "Scale playback to N terminal columns, preserving aspect ratio [default: fit to terminal]"
     )]
     play_width: Option<usize>,
+    #[arg(
+        long = "loop",
+        help = "With --play: repeat the animation until any key is pressed, instead of playing once"
+    )]
+    play_loop: bool,
     #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
@@ -1137,7 +1142,7 @@ fn main() {
             .checked_div(first_delay_cs.max(1))
             .map(|f| f.clamp(1, 60) as u8)
             .unwrap_or(10);
-        if let Err(e) = figby::tui::player::play_raw(gif_result.frames, fps) {
+        if let Err(e) = figby::tui::player::play_raw(gif_result.frames, fps, args.play_loop) {
             eprintln!("Playback error: {e}");
             process::exit(1);
         }

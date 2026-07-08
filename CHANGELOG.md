@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.0.5] - 2026-07-08
+
+### Added
+- `gif_import.rs` unit tests (previously zero): single-frame round-trip,
+  multi-frame per-frame delay preservation, `Background` disposal-method
+  region clearing, malformed-file error, nonexistent-path error, oversized
+  dimensions rejection, and error `Display` formatting. 7 new tests.
+
 ## [6.0.4] - 2026-07-08
 
 ### Fixed

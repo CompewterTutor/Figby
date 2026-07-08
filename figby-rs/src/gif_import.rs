@@ -261,3 +261,149 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
         palette_colors,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gif::{Encoder, Repeat};
+    use std::io::Write;
+
+    /// (width, height, left, top, rgb, delay, dispose) for one test-GIF frame.
+    type TestFrameSpec = (u16, u16, u16, u16, [u8; 3], u16, DisposalMethod);
+
+    /// Encodes a small in-memory GIF from solid-color frames and writes it
+    /// to a temp file, returning the file (kept alive for its Drop) and path.
+    fn write_test_gif(
+        width: u16,
+        height: u16,
+        frames: &[TestFrameSpec],
+        repeat: Repeat,
+    ) -> tempfile::NamedTempFile {
+        let mut buf = Vec::new();
+        {
+            let mut encoder = Encoder::new(&mut buf, width, height, &[]).expect("encoder");
+            encoder.set_repeat(repeat).expect("set_repeat");
+            for &(fw, fh, left, top, [r, g, b], delay, dispose) in frames {
+                let pixels: Vec<u8> = std::iter::repeat_n([r, g, b], fw as usize * fh as usize)
+                    .flatten()
+                    .collect();
+                let mut frame = gif::Frame::from_rgb(fw, fh, &pixels);
+                frame.left = left;
+                frame.top = top;
+                frame.delay = delay;
+                frame.dispose = dispose;
+                encoder.write_frame(&frame).expect("write_frame");
+            }
+        }
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        tmp.write_all(&buf).expect("write gif bytes");
+        tmp
+    }
+
+    #[test]
+    fn test_import_single_frame_roundtrip() {
+        let tmp = write_test_gif(
+            2,
+            2,
+            &[(2, 2, 0, 0, [255, 0, 0], 12, DisposalMethod::Any)],
+            Repeat::Infinite,
+        );
+        let result = import_gif(tmp.path()).expect("import should succeed");
+        assert_eq!(result.frames.len(), 1);
+        assert_eq!(result.frame_delays, vec![12]);
+        assert_eq!(result.loop_count, 0); // Infinite -> 0
+        assert_eq!(result.frames[0].len(), 2);
+        assert_eq!(result.frames[0][0].len(), 2);
+        // Solid red frame — every cell's bg should carry the red channel.
+        for row in &result.frames[0] {
+            for cell in row {
+                assert_eq!(cell.bg, Some(Color::Rgb(255, 0, 0)));
+            }
+        }
+    }
+
+    #[test]
+    fn test_import_multi_frame_preserves_delays() {
+        let tmp = write_test_gif(
+            1,
+            1,
+            &[
+                (1, 1, 0, 0, [255, 0, 0], 5, DisposalMethod::Any),
+                (1, 1, 0, 0, [0, 255, 0], 20, DisposalMethod::Any),
+                (1, 1, 0, 0, [0, 0, 255], 99, DisposalMethod::Any),
+            ],
+            Repeat::Finite(3),
+        );
+        let result = import_gif(tmp.path()).expect("import should succeed");
+        assert_eq!(result.frames.len(), 3);
+        // Real per-frame delays must be preserved in order, not flattened.
+        assert_eq!(result.frame_delays, vec![5, 20, 99]);
+        assert_eq!(result.loop_count, 3);
+    }
+
+    #[test]
+    fn test_import_disposal_background_clears_region() {
+        // Frame 1: opaque red covering the whole 4x4 canvas, disposal=Background.
+        // Frame 2: opaque blue covering only the top-left 2x2 corner.
+        // After frame 1's Background disposal runs (before frame 2 renders),
+        // the whole canvas should reset to the (paletteless) bg cell, so the
+        // untouched bottom-right corner of frame 2 must NOT still be red.
+        let tmp = write_test_gif(
+            4,
+            4,
+            &[
+                (4, 4, 0, 0, [255, 0, 0], 10, DisposalMethod::Background),
+                (2, 2, 0, 0, [0, 0, 255], 10, DisposalMethod::Any),
+            ],
+            Repeat::Infinite,
+        );
+        let result = import_gif(tmp.path()).expect("import should succeed");
+        assert_eq!(result.frames.len(), 2);
+
+        let frame2 = &result.frames[1];
+        // Top-left 2x2 was drawn blue by frame 2.
+        assert_eq!(frame2[0][0].bg, Some(Color::Rgb(0, 0, 255)));
+        assert_eq!(frame2[1][1].bg, Some(Color::Rgb(0, 0, 255)));
+        // Bottom-right corner was outside frame 2 and must have been reset
+        // by frame 1's Background disposal, not left over as red.
+        assert_ne!(frame2[3][3].bg, Some(Color::Rgb(255, 0, 0)));
+    }
+
+    #[test]
+    fn test_import_malformed_gif_returns_error() {
+        let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        tmp.write_all(b"not a gif at all, just garbage bytes")
+            .expect("write garbage");
+        let result = import_gif(tmp.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_import_nonexistent_path_returns_io_error() {
+        let result = import_gif(Path::new("/nonexistent/path/to/nowhere.gif"));
+        assert!(matches!(result, Err(GifImportError::Io(_))));
+    }
+
+    #[test]
+    fn test_import_oversized_dimensions_rejected() {
+        // Header-only GIF (no frames) at dimensions whose product exceeds
+        // MAX_TOTAL_CELLS — must be rejected before any frame is read.
+        let tmp = write_test_gif(2000, 2000, &[], Repeat::Infinite);
+        let result = import_gif(tmp.path());
+        assert!(matches!(result, Err(GifImportError::TooLarge { .. })));
+    }
+
+    #[test]
+    fn test_import_error_display() {
+        assert_eq!(GifImportError::NoFrames.to_string(), "GIF has no frames");
+        assert_eq!(
+            GifImportError::TooLarge {
+                width: 10,
+                height: 10,
+                frames: 5
+            }
+            .to_string(),
+            "GIF too large: 10x10 x 5 frames"
+        );
+    }
+}

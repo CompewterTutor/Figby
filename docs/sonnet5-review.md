@@ -109,11 +109,10 @@ engine — pre-computed ANSI, sleep-based timing, full keyboard controls
 or CLI. This is effectively 100+ lines of working, tested, dead code that is
 the natural basis for a standalone `figby play` command.
 
-**P2 — `gif_import.rs` has zero tests.** Despite non-trivial logic (disposal
-compositing, palette fallback, transparency detection, the memory-guard from
-`6.3.3`), there is not a single `#[test]` in the file. Coverage for malformed
-GIFs, oversized GIFs, and disposal-method correctness is implicit only via the
-security fuzz suite, not functional unit tests.
+**~~P2 — `gif_import.rs` has zero tests~~ — fixed 2026-07-08 (6.0.5).** Added
+7 unit tests covering single/multi-frame round-trip, per-frame delay
+preservation, `Background` disposal-region clearing, malformed-file and
+nonexistent-path errors, and oversized-dimension rejection.
 
 **~~P2 — Duplicate/dead render path~~ — correction, already fixed upstream.**
 This review carried the 2026-06-18 audit's claim forward without
@@ -178,7 +177,7 @@ All minor, non-blocking, unrelated to animation.
 | 3 | Wire `player::play_raw()` to a CLI entry point; reuse it for an intro-banner flag | Medium | Open |
 | 4 | Implement real `try_query_terminal_cells` (DECRQCRA or drop the "capture terminal as frame 0" claim from docs) | Medium | Open |
 | 5 | Move playback off the TUI event-loop thread | Medium | Open |
-| 6 | Add unit tests to `gif_import.rs` (currently 0) | Low | Open |
+| 6 | Add unit tests to `gif_import.rs` (currently 0) | Low | ✅ Fixed 2026-07-08 (6.0.5) — 7 tests: round-trip, delays, disposal, malformed/oversized input |
 | 7 | Update README animation section + mark `animation-audit.md` superseded | Low | Open |
 | 8 | Remove dead `impl Widget for &ExportDialog` | Low | ✅ N/A — already removed upstream (5.5.3), review claim was stale |
 

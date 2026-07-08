@@ -1,5 +1,25 @@
 # Changelog
 
+## [6.0.7] - 2026-07-08
+
+### Added
+- `figby --play <path.gif>` — plays an animated GIF fullscreen in the
+  terminal via the raw-mode player, then exits. Wires up `player::play_raw()`
+  (previously fully-implemented but never called from anywhere) to a real
+  entry point. FPS is approximated from the GIF's first real frame delay,
+  matching the existing convention used when a GIF import seeds the TUI
+  timeline's fps.
+
+### Fixed
+- `play_raw()` never auto-exited when a non-looping animation finished
+  playing — the exit condition required the player to already be paused,
+  but nothing ever paused it automatically, so an unattended `--play` would
+  hang forever redrawing the last frame. Now exits once the final frame has
+  had its full on-screen interval during natural (non-looping, still
+  "playing") playback. Verified end-to-end via a real pty (tmux): a 4-frame
+  and a 14-frame test GIF both play through and exit 0 on their own; an
+  oversized GIF is still rejected cleanly by the existing memory guard.
+
 ## [6.0.6] - 2026-07-08
 
 ### Docs

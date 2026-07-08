@@ -102,12 +102,16 @@ terminal-native doesn't actually replay as one.
 management bug, but did not add threading — spec'd as "separate thread" in
 the original 4.8.3 task. Still a direct, blocking call.
 
-**P1 — A fully-built standalone player is orphaned.**
-`player::play_raw()` (`player.rs:566-619`) is a complete raw-mode playback
-engine — pre-computed ANSI, sleep-based timing, full keyboard controls
-(space/arrows/+/-/l/L/Esc/q). It is **never called** from anywhere in the TUI
-or CLI. This is effectively 100+ lines of working, tested, dead code that is
-the natural basis for a standalone `figby play` command.
+**~~P1 — A fully-built standalone player is orphaned~~ — fixed 2026-07-08
+(6.0.7).** `player::play_raw()` is now wired up as `figby --play <path.gif>`.
+Wiring it up surfaced a second, real bug in `play_raw()` itself: its exit
+condition required the player to already be *paused* to end playback, but
+nothing ever paused it automatically — an unattended, non-looping animation
+played forever on its last frame instead of returning control. Fixed to
+auto-exit once the final frame has had its natural on-screen interval.
+Verified end-to-end over a real pty (tmux, not just unit tests): a 4-frame
+and a 14-frame GIF both play through and exit 0 unattended; an oversized GIF
+is still rejected cleanly by the existing memory guard.
 
 **~~P2 — `gif_import.rs` has zero tests~~ — fixed 2026-07-08 (6.0.5).** Added
 7 unit tests covering single/multi-frame round-trip, per-frame delay
@@ -122,25 +126,21 @@ removed again in `e4e6f1b` (5.5.3, "Verify animation export end-to-end") —
 i.e. it was cleaned up well before the audit that still listed it as dead
 code. No action needed; noted here only so the punch list below is accurate.
 
-## 4. Path to an actual "animated intro banner" feature
+## 4. Path to an actual "animated intro banner" feature — mostly done
 
-Three already-written, currently-disconnected pieces cover ~80% of this:
+Three already-written, currently-disconnected pieces were identified as
+covering ~80% of this:
 
-1. **Fix `export_cells_to_ansi_multi`** to actually emit per-frame delay as a
-   literal sleep, or switch the ANSI export target to an asciinema-cast-style
-   format with embedded timestamps (asciinema export is already listed, unbuilt,
-   in `todo-v6.md`'s deferred section — this is the same feature).
-2. **Wire `player::play_raw()`** up as a real entry point — either a CLI
-   subcommand (`figby play <exported-file>`) or a `--intro` flag on the
-   existing flat CLI, since `main.rs` has no subcommand infra yet and adding
-   one is a larger change than adding a flag.
-3. **Optionally** call that same playback path once before rendering the
-   welcome screen at TUI startup, using a bundled `.gif`/`.txt` animation as
-   the app's own intro banner.
-
-This reuses fully-implemented, tested code (`play_raw`) rather than building
-new playback machinery — the gap is wiring and the ANSI-timing bug above, not
-missing capability.
+1. ~~Fix `export_cells_to_ansi_multi`~~ — ✅ done (6.0.4).
+2. ~~Wire `player::play_raw()` up as a real entry point~~ — ✅ done (6.0.7):
+   `figby --play <path.gif>`.
+3. **Still open (optional):** call that same playback path once before
+   rendering the welcome screen at TUI startup, using a bundled `.gif` as the
+   app's own intro banner. Not done — `--play` is a separate one-shot CLI
+   command for now, not wired into `--tui` startup. Deliberately left open:
+   auto-playing an animation before every TUI launch is a UX/product call
+   (does it block startup? is it skippable? does everyone want it every
+   time?) that's better made explicitly than assumed.
 
 ## 5. Documentation drift — ✅ fixed 2026-07-08 (6.0.6)
 
@@ -175,7 +175,7 @@ All minor, non-blocking, unrelated to animation.
 |---|------|--------|--------|
 | 1 | Fix `GA::Export` clobbering GIF-imported `frame_delays` via `set_timeline` — only reset delays if not already populated from a GIF import | Low | ✅ Fixed 2026-07-08 (6.0.4) |
 | 2 | Make `export_cells_to_ansi_multi` actually use its delay parameter (encode real timing) | Low | ✅ Fixed 2026-07-08 (6.0.4) — emits a self-playing `sh` script |
-| 3 | Wire `player::play_raw()` to a CLI entry point; reuse it for an intro-banner flag | Medium | Open |
+| 3 | Wire `player::play_raw()` to a CLI entry point; reuse it for an intro-banner flag | Medium | ✅ Fixed 2026-07-08 (6.0.7) — `figby --play <gif>`; also fixed a hang bug found while wiring it up |
 | 4 | Implement real `try_query_terminal_cells` (DECRQCRA or drop the "capture terminal as frame 0" claim from docs) | Medium | Open |
 | 5 | Move playback off the TUI event-loop thread | Medium | Open |
 | 6 | Add unit tests to `gif_import.rs` (currently 0) | Low | ✅ Fixed 2026-07-08 (6.0.5) — 7 tests: round-trip, delays, disposal, malformed/oversized input |

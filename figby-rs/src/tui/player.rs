@@ -599,16 +599,24 @@ pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
             }
         }
 
+        // `cur` (just rendered + slept on above) was already the final frame
+        // of a non-looping, still-playing animation — it's had its full
+        // interval on screen, so this is a natural end-of-playback, not a
+        // user pausing partway through. Exit automatically instead of
+        // waiting for player.is_playing() to become false, which nothing
+        // ever sets on its own — that made an unattended `figby --play`
+        // hang forever on the last frame.
+        let (_, total_frames) = player.progress();
+        let finished_naturally = total_frames > 0
+            && cur >= total_frames.saturating_sub(1)
+            && !player.is_looping()
+            && player.is_playing();
+
         if player.is_playing() {
             player.advance(frame_interval);
         }
 
-        let (cur_frame, total_frames) = player.progress();
-        if total_frames > 0
-            && cur_frame >= total_frames.saturating_sub(1)
-            && !player.is_looping()
-            && !player.is_playing()
-        {
+        if finished_naturally && !finished {
             finished = true;
         }
     }

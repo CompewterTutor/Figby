@@ -364,17 +364,37 @@ pub fn export_cells_to_ansi(cells: &[Vec<CanvasCell>]) -> String {
     output
 }
 
+/// Export multiple frames as a self-playing POSIX shell script.
+///
+/// Plain ANSI escape codes have no "wait" instruction, so a `cat`-able text
+/// file of concatenated frames has no way to reproduce real per-frame
+/// timing — every frame would render instantly back-to-back. Instead this
+/// emits a `#!/bin/sh` script that `printf`s each frame and `sleep`s for its
+/// real delay before the next one. Run it with `sh <file>` (or `chmod +x`
+/// it first).
 pub fn export_cells_to_ansi_multi(
     frames: &[Vec<Vec<CanvasCell>>],
-    _frame_delays_cs: &[u16],
+    frame_delays_cs: &[u16],
 ) -> String {
     if frames.is_empty() {
         return String::new();
     }
     let mut output = String::new();
-    for frame in frames {
-        output.push_str("\x1b[2J\x1b[H");
-        output.push_str(&export_cells_to_ansi(frame));
+    output.push_str("#!/bin/sh\n");
+    let last = frames.len() - 1;
+    for (i, frame) in frames.iter().enumerate() {
+        let mut frame_text = String::from("\x1b[2J\x1b[H");
+        frame_text.push_str(&export_cells_to_ansi(frame));
+        // Single-quote for a shell literal; escape embedded single quotes.
+        let escaped = frame_text.replace('\'', "'\\''");
+        output.push_str("printf '%s' '");
+        output.push_str(&escaped);
+        output.push_str("'\n");
+        if i != last {
+            let delay_cs = frame_delays_cs.get(i).copied().unwrap_or(10).max(1);
+            let delay_secs = delay_cs as f64 / 100.0;
+            output.push_str(&format!("sleep {delay_secs:.2}\n"));
+        }
     }
     output
 }
@@ -1036,5 +1056,32 @@ mod tests {
         assert!(result.contains('C'));
         assert!(result.contains('D'));
         assert!(result.contains('E'));
+    }
+
+    #[test]
+    fn test_output_ansi_multi_encodes_real_delays() {
+        let frames: Vec<Vec<Vec<CanvasCell>>> = ['A', 'B', 'C']
+            .iter()
+            .map(|&ch| make_buffer(1, 1, ch, None, None))
+            .collect();
+        let result = export_cells_to_ansi_multi(&frames, &[5, 250, 999]);
+
+        assert!(result.starts_with("#!/bin/sh\n"));
+        // Real per-frame delays (in seconds) must actually appear, not be
+        // silently dropped — this is what makes the exported script play
+        // back at the source's real timing instead of instantly.
+        assert!(result.contains("sleep 0.05\n"));
+        assert!(result.contains("sleep 2.50\n"));
+        // No sleep after the final frame — nothing left to display.
+        assert_eq!(result.matches("sleep").count(), 2);
+    }
+
+    #[test]
+    fn test_output_ansi_multi_escapes_single_quotes() {
+        // A canvas cell could contain a literal `'`; the shell script must
+        // escape it or the generated script would be broken/unsafe.
+        let frame = make_buffer(1, 1, '\'', None, None);
+        let result = export_cells_to_ansi_multi(&[frame.clone(), frame], &[10, 10]);
+        assert!(result.contains("'\\''"));
     }
 }

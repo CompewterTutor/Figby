@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.0.4] - 2026-07-08
+
+### Fixed
+- GIF-imported per-frame delays were silently discarded the moment the Export
+  dialog was opened (`enter_export()` unconditionally called `clear_timeline()`),
+  and again if the export format was cycled to GIF (`set_timeline()` always
+  recomputed a uniform FPS-derived delay). Both paths now preserve real
+  per-frame timing from an imported GIF instead of flattening it.
+- `export_cells_to_ansi_multi()` accepted a per-frame delay parameter but
+  never used it — a multi-frame ANSI export, when `cat`'d, flashed through
+  every frame instantly with no timing. It now emits a self-playing POSIX
+  shell script (`printf` per frame + real `sleep <delay>`); run with
+  `sh export.ans`.
+
 ## [6.0.1] - 2026-06-22
 
 ### Added

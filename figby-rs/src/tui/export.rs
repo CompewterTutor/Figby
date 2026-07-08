@@ -119,7 +119,12 @@ impl ExportDialog {
         self.path_buffer = format!("export{}", mode.extension());
         self.error_message.clear();
         self.selected_entry = 0;
-        self.clear_timeline();
+        // Deliberately does NOT clear_timeline() here: a GIF import may have
+        // already populated real per-frame delays (see gif_import.rs) before
+        // the dialog was ever opened. Clearing unconditionally on every open
+        // silently threw that timing away in favor of a uniform FPS-derived
+        // one. Stale state from a *previous* export session is reset by
+        // close(), so there is nothing left over to clear here anyway.
         self.refresh_directory();
     }
 
@@ -921,6 +926,21 @@ mod tests {
         assert_eq!(dialog.fps, 24);
         assert_eq!(dialog.frame_delays.len(), 15);
         assert_eq!(dialog.frame_delays[0], 100 / 24);
+    }
+
+    #[test]
+    fn test_enter_export_preserves_imported_frame_delays() {
+        // Simulates a GIF import: real per-frame delays are set directly on
+        // the dialog (mimicking tui/mod.rs's `export_dialog.frame_delays =
+        // gif_data.frame_delays`) *before* the export dialog is ever opened.
+        let mut dialog = ExportDialog::new();
+        dialog.set_per_frame_delays(vec![5, 20, 5, 50]);
+        dialog.timeline_available = true;
+
+        // Opening the export dialog must not discard that real timing.
+        dialog.enter_export(ExportMode::Gif);
+        assert!(dialog.timeline_available);
+        assert_eq!(dialog.frame_delays, vec![5, 20, 5, 50]);
     }
 
     #[test]

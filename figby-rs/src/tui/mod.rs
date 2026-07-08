@@ -2463,13 +2463,17 @@ impl TuiApp {
         if self.dialogs.export_dialog.active {
             let prev_format = self.dialogs.export_dialog.format;
             self.dialogs.export_dialog.handle_key(code);
-            // If format changed to GIF and timeline has frames, populate timeline data
+            // If format changed to GIF and timeline has frames, populate timeline data.
+            // Skip this if frame_delays already matches the frame count — that means
+            // real per-frame timing (e.g. from a GIF import) is already sitting there,
+            // and set_timeline() would flatten it to a uniform FPS-derived delay.
+            let count = self.animation.timeline_state.frames.len();
             if self.dialogs.export_dialog.format == export::ExportMode::Gif
                 && prev_format != export::ExportMode::Gif
-                && !self.animation.timeline_state.frames.is_empty()
+                && count > 0
+                && self.dialogs.export_dialog.frame_delays.len() != count
             {
                 let fps = self.animation.timeline_state.fps;
-                let count = self.animation.timeline_state.frames.len();
                 self.dialogs.export_dialog.set_timeline(fps, count);
             }
             if self.dialogs.export_dialog.play_requested {

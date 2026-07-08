@@ -29,9 +29,12 @@ Original C source lives in `c-figlet/` for reference; the Rust port lives in
   tweening (linear/ease-in/ease-out/bounce), onion skinning, animated GIF
   import with real per-frame timing, and GIF/APNG/ANSI export.
 - `--play <file.gif>`: play an animated GIF fullscreen in the terminal, then
-  exit — no TUI required. See [docs/sonnet5-review.md](docs/sonnet5-review.md)
-  for current known limitations of the animation subsystem (e.g. playback
-  doesn't yet honor a GIF's real per-frame timing, only an approximate FPS).
+  exit — no TUI required. Scales to fit the terminal by default (or to
+  `--play-width <N>` columns), so GIFs larger than the terminal — or larger
+  than would otherwise fit the animation import size cap — still play. See
+  [docs/sonnet5-review.md](docs/sonnet5-review.md) for current known
+  limitations of the animation subsystem (e.g. playback doesn't yet honor a
+  GIF's real per-frame timing, only an approximate FPS).
 
 ## Installation
 
@@ -111,6 +114,8 @@ figby [OPTIONS] [MESSAGE]
 | `-h` | Print help |
 | `-V` | Print version |
 | `--tui` | Launch the full-screen TUI editor (drawing, layers, animation timeline) |
+| `--play <file.gif>` | Play an animated GIF fullscreen in the terminal, then exit |
+| `--play-width <N>` | Scale playback to N columns [default: fit to terminal] |
 
 ### Examples
 

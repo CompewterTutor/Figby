@@ -354,6 +354,11 @@ struct CliArgs {
         help = "Play an animated GIF fullscreen in the terminal, then exit"
     )]
     play_path: Option<String>,
+    #[arg(
+        long = "play-width",
+        help = "Scale playback to N terminal columns, preserving aspect ratio [default: fit to terminal]"
+    )]
+    play_width: Option<usize>,
     #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
@@ -1102,13 +1107,27 @@ fn main() {
     let infocode = args.infocode;
 
     if let Some(ref path) = args.play_path {
-        let gif_result = match figby::gif_import::import_gif(std::path::Path::new(path)) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("Error importing GIF '{path}': {e}");
-                process::exit(1);
+        let scale = match args.play_width {
+            Some(w) => figby::gif_import::GifScaleTarget::FitWidth(w),
+            None => {
+                // Fit within the current terminal, reserving 1 row for the
+                // playback progress bar. Falls back to a common default if
+                // the terminal size can't be queried (e.g. not a real tty).
+                let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
+                figby::gif_import::GifScaleTarget::FitBox(
+                    cols as usize,
+                    (rows as usize).saturating_sub(1).max(1),
+                )
             }
         };
+        let gif_result =
+            match figby::gif_import::import_gif_scaled(std::path::Path::new(path), scale) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Error importing GIF '{path}': {e}");
+                    process::exit(1);
+                }
+            };
         // play_raw is a single-fps engine (no per-frame delay support), so
         // approximate an overall fps from the GIF's first real frame delay —
         // the same convention used when a GIF import seeds the TUI

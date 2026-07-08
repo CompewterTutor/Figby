@@ -62,7 +62,94 @@ impl From<gif::DecodingError> for GifImportError {
 
 const MAX_TOTAL_CELLS: usize = 1_000_000;
 
+/// How an imported GIF's frames should be sized for output.
+///
+/// Compositing (disposal methods, partial-frame positioning) always happens
+/// at the GIF's native resolution regardless of this setting — only the
+/// final stored frames are scaled — so `Native` and a `FitWidth`/`FitBox`
+/// that happens to equal native dimensions produce identical output.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GifScaleTarget {
+    /// Keep the GIF's native pixel dimensions (1 pixel = 1 cell).
+    Native,
+    /// Scale to exactly `width` columns; height is derived from the source
+    /// aspect ratio, compensating for terminal cells being roughly twice as
+    /// tall as they are wide (same convention as `image_input::luminance_to_ascii`).
+    FitWidth(usize),
+    /// Scale to fit within a `(max_cols, max_rows)` box, preserving aspect
+    /// ratio (same terminal-cell compensation as `FitWidth`). Scales up or
+    /// down as needed to fill the box on the more constrained axis.
+    FitBox(usize, usize),
+}
+
+impl GifScaleTarget {
+    fn resolve(self, native_w: usize, native_h: usize) -> (usize, usize) {
+        match self {
+            GifScaleTarget::Native => (native_w, native_h),
+            GifScaleTarget::FitWidth(w) => {
+                let w = w.max(1);
+                let h = ((w as f64 * native_h as f64 / native_w as f64) * 0.5)
+                    .ceil()
+                    .max(1.0) as usize;
+                (w, h)
+            }
+            GifScaleTarget::FitBox(max_w, max_h) => {
+                let scale_w = max_w.max(1) as f64 / native_w as f64;
+                let scale_h = max_h.max(1) as f64 / (native_h as f64 * 0.5);
+                let scale = scale_w.min(scale_h);
+                let w = (native_w as f64 * scale).round().max(1.0) as usize;
+                let h = (native_h as f64 * scale * 0.5).round().max(1.0) as usize;
+                (w, h)
+            }
+        }
+    }
+}
+
+/// Bilinearly scale a composited frame's cells to `(out_w, out_h)`.
+///
+/// Each cell's background color is treated as its pixel value (untouched/
+/// transparent cells — `bg: None` — count as black); the result is a solid
+/// grid of `Color::Rgb` cells, matching how gif_import already flattens
+/// transparency during native-resolution compositing.
+fn scale_canvas(canvas: &[Vec<CanvasCell>], out_w: usize, out_h: usize) -> Vec<Vec<CanvasCell>> {
+    let rgb: Vec<Vec<(u8, u8, u8)>> = canvas
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|cell| match cell.bg {
+                    Some(Color::Rgb(r, g, b)) => (r, g, b),
+                    _ => (0, 0, 0),
+                })
+                .collect()
+        })
+        .collect();
+    crate::image_input::bilinear_resize_rgb(&rgb, out_w, out_h)
+        .into_iter()
+        .map(|row| {
+            row.into_iter()
+                .map(|(r, g, b)| CanvasCell {
+                    ch: ' ',
+                    fg: None,
+                    bg: Some(Color::Rgb(r, g, b)),
+                    height: None,
+                })
+                .collect()
+        })
+        .collect()
+}
+
 pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
+    import_gif_scaled(path, GifScaleTarget::Native)
+}
+
+/// Same as [`import_gif`], but scales every composited frame to
+/// `scale`. Useful for playing back a GIF larger than the terminal (or
+/// larger than [`MAX_TOTAL_CELLS`] would otherwise allow at native
+/// resolution) at a terminal-friendly size.
+pub fn import_gif_scaled(
+    path: &Path,
+    scale: GifScaleTarget,
+) -> Result<GifImportResult, GifImportError> {
     let file = File::open(path)?;
     let mut decoder = gif::Decoder::new(file)?;
 
@@ -73,13 +160,23 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
         return Err(GifImportError::Decode("GIF has zero dimensions".into()));
     }
 
-    // Guard: check per-frame cell count before reading any frames.
+    // Guard: check native per-frame cell count before reading any frames.
+    // This is independent of the requested output scale — disposal-method
+    // compositing needs a full native-resolution canvas regardless of how
+    // small the final scaled output will be.
     if width.saturating_mul(height) > MAX_TOTAL_CELLS {
         return Err(GifImportError::TooLarge {
             width,
             height,
             frames: 1,
         });
+    }
+
+    let (out_w, out_h) = scale.resolve(width, height);
+    if out_w == 0 || out_h == 0 {
+        return Err(GifImportError::Decode(
+            "scaled output dimensions must be non-zero".into(),
+        ));
     }
 
     let global_palette: Vec<[u8; 3]> = decoder
@@ -89,16 +186,19 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
 
     let bg_color_index = decoder.bg_color().unwrap_or(0);
 
-    // Collect all frames, bailing as soon as cumulative cell count exceeds cap.
+    // Collect all frames, bailing as soon as cumulative *output* cell count
+    // exceeds cap — that's what actually accumulates in composited_frames
+    // below (native-resolution frame data is never held for more than one
+    // frame at a time).
     let mut raw_frames: Vec<gif::Frame<'static>> = Vec::new();
     let mut frame_count: usize = 0;
     while let Some(frame) = decoder.read_next_frame()? {
         raw_frames.push(frame.clone());
         frame_count += 1;
-        if width.saturating_mul(height).saturating_mul(frame_count) > MAX_TOTAL_CELLS {
+        if out_w.saturating_mul(out_h).saturating_mul(frame_count) > MAX_TOTAL_CELLS {
             return Err(GifImportError::TooLarge {
-                width,
-                height,
+                width: out_w,
+                height: out_h,
                 frames: frame_count,
             });
         }
@@ -251,7 +351,11 @@ pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
             }
         }
 
-        composited_frames.push(canvas.clone());
+        if (out_w, out_h) == (width, height) {
+            composited_frames.push(canvas.clone());
+        } else {
+            composited_frames.push(scale_canvas(&canvas, out_w, out_h));
+        }
     }
 
     Ok(GifImportResult {
@@ -298,6 +402,82 @@ mod tests {
         let mut tmp = tempfile::NamedTempFile::new().expect("tempfile");
         tmp.write_all(&buf).expect("write gif bytes");
         tmp
+    }
+
+    #[test]
+    fn test_scale_target_native_is_identity() {
+        assert_eq!(GifScaleTarget::Native.resolve(64, 48), (64, 48));
+    }
+
+    #[test]
+    fn test_scale_target_fit_width_preserves_aspect() {
+        // 100x50 native (2:1) at width 20 -> height derives from aspect with
+        // the 0.5 terminal-cell-height compensation: 20 * 50/100 * 0.5 = 5.
+        let (w, h) = GifScaleTarget::FitWidth(20).resolve(100, 50);
+        assert_eq!((w, h), (20, 5));
+    }
+
+    #[test]
+    fn test_scale_target_fit_box_constrained_by_width() {
+        // 400x100 native is wide; fitting into a 40x40 box should be
+        // constrained by width, not height.
+        let (w, h) = GifScaleTarget::FitBox(40, 40).resolve(400, 100);
+        assert_eq!(w, 40);
+        assert!((1..=40).contains(&h));
+    }
+
+    #[test]
+    fn test_scale_target_fit_box_constrained_by_height() {
+        // 100x400 native is tall; fitting into a 40x40 box should be
+        // constrained by height, not width.
+        let (w, h) = GifScaleTarget::FitBox(40, 40).resolve(100, 400);
+        assert_eq!(h, 40);
+        assert!((1..=40).contains(&w));
+    }
+
+    #[test]
+    fn test_import_gif_scaled_downscales_frame_dimensions() {
+        let tmp = write_test_gif(
+            8,
+            8,
+            &[(8, 8, 0, 0, [0, 200, 0], 10, DisposalMethod::Any)],
+            Repeat::Infinite,
+        );
+        let result = import_gif_scaled(tmp.path(), GifScaleTarget::FitWidth(4))
+            .expect("scaled import should succeed");
+        assert_eq!(result.frames.len(), 1);
+        assert_eq!(result.frames[0][0].len(), 4); // width
+        assert_eq!(result.frames[0].len(), 2); // height: 4 * 8/8 * 0.5 = 2
+                                               // A solid-color source should stay solid after bilinear resize.
+        assert_eq!(result.frames[0][0][0].bg, Some(Color::Rgb(0, 200, 0)));
+    }
+
+    #[test]
+    fn test_import_gif_scaled_allows_oversized_native_gif() {
+        // 700x700 = 490,000 cells/frame (under the 1,000,000 per-frame cap),
+        // but 3 frames = 1,470,000 cells cumulative (over cap) at native
+        // resolution -- unscaled import_gif must reject this exact GIF...
+        let tmp = write_test_gif(
+            700,
+            700,
+            &[
+                (700, 700, 0, 0, [255, 0, 0], 10, DisposalMethod::Any),
+                (700, 700, 0, 0, [0, 255, 0], 10, DisposalMethod::Any),
+                (700, 700, 0, 0, [0, 0, 255], 10, DisposalMethod::Any),
+            ],
+            Repeat::Infinite,
+        );
+        assert!(matches!(
+            import_gif(tmp.path()),
+            Err(GifImportError::TooLarge { .. })
+        ));
+
+        // ...but scaling down to a terminal-friendly size brings the
+        // cumulative *output* well under the cap, so it must succeed.
+        let result = import_gif_scaled(tmp.path(), GifScaleTarget::FitWidth(80))
+            .expect("scaled import of an oversized-native GIF should succeed");
+        assert_eq!(result.frames.len(), 3);
+        assert_eq!(result.frames[0][0].len(), 80);
     }
 
     #[test]

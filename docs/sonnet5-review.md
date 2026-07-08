@@ -207,10 +207,23 @@ in the "get pixels onto a real terminal with correct timing outside the full
 editor" path, which lines up exactly with the intro-banner idea that prompted
 this review.
 
-**Update 2026-07-08: all 8 items resolved** (6.0.4–6.0.8, one commit per
+**Update 2026-07-08: all 8 items resolved** (6.0.4–6.0.9, one commit per
 item). Net result for the original question — "can Figby play an animated
 banner in the terminal?" — yes: `figby --play <path.gif>` now does exactly
 that, GIF-imported timing survives to export, and ANSI multi-frame export
 actually encodes real per-frame delays instead of discarding them. Two items
 (4, 5) turned out not to be bugs on closer inspection and were closed with
 corrected documentation instead of code changes — see their entries above.
+
+**Follow-up 2026-07-08 (6.0.10): scaled playback.** `--play` originally
+imported GIFs at native pixel resolution (1 pixel = 1 terminal cell), which
+meant real-world GIFs bigger than roughly 1000x1000 total pixels (or just
+several-hundred-pixel GIFs with enough frames) got rejected outright by the
+animation import size cap, and anything wider/taller than the terminal would
+overflow it regardless. Added `gif_import::GifScaleTarget` /
+`import_gif_scaled()` (bilinear resize, same convention already used by
+`image_input`'s image-to-ASCII path) and wired `--play` to scale to the
+terminal by default, or to `--play-width <N>` explicitly. The size cap now
+checks scaled output size rather than native size. Verified against a real
+480x360, 90-frame GIF that previously failed with "too large" — it now
+imports and plays to completion.

@@ -1,5 +1,24 @@
 # Changelog
 
+## [6.0.10] - 2026-07-08
+
+### Added
+- `gif_import::GifScaleTarget` + `import_gif_scaled()`: bilinearly scale
+  every composited frame of an imported GIF to a requested size
+  (`Native`, `FitWidth(cols)`, or `FitBox(max_cols, max_rows)`, the last
+  preserving aspect ratio with the standard 2:1 terminal-cell compensation).
+  Compositing (disposal methods, partial-frame positioning) still happens
+  at native resolution for correctness; only the stored output is scaled.
+- `figby --play` now scales to fit the current terminal by default, or to
+  `--play-width <N>` columns explicitly. Because the cumulative memory
+  guard now checks the *scaled output* size rather than native size, GIFs
+  that previously failed with "too large" at native resolution (e.g. a
+  480x360, 90-frame GIF — previously rejected outright) now import and
+  play successfully once scaled down. Verified end-to-end over a real pty.
+- 7 new tests: `GifScaleTarget::resolve()` for all three variants, a
+  downscale-dimensions check, and an oversized-native-GIF-succeeds-when-
+  scaled regression test mirroring the real-world case above.
+
 ## [6.0.9] - 2026-07-08
 
 ### Docs (no functional change)

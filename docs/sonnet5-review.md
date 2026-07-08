@@ -81,11 +81,22 @@ flat uniform timing, not the source GIF's actual timing. `set_per_frame_delays`
 (`export.rs:153`) exists and would fix this, but it is called **only from
 tests** (`export.rs:1353,1389,1434`) — never from production code.
 
-**P0 — Terminal-content capture is still a stub.**
-`try_query_terminal_cells` (`player.rs:373`) takes `_w`/`_h` (unused, still
-underscore-prefixed) and unconditionally returns `Err(Unsupported)`. "Capture
-current terminal output as frame 0" is not implemented; the captured frame is
-always blank. This was flagged in the 2026-06-18 audit and is unchanged.
+**~~P0 — Terminal-content capture is still a stub~~ — resolved 2026-07-08
+(6.0.8), verdict: not a bug, docs were wrong.** `try_query_terminal_cells`
+still unconditionally returns `Err(Unsupported)` (blank captured frame) —
+but investigating this properly (rather than carrying the 2026-06-18 audit's
+framing forward again) turned up that the surrounding doc comments were
+actively misleading, not just incomplete. They suggested DECRQCRA was a
+viable future implementation path. It isn't: DECRQCRA's response (DECCKSR)
+is a terminal-defined *checksum* of a region, used by conformance suites
+(vttest) to verify already-known content renders correctly — it cannot be
+inverted to recover arbitrary unknown screen content. No standard escape
+sequence can do that; a couple of terminals (kitty, iTerm2) have proprietary,
+non-portable extensions crossterm doesn't wrap. So `Err(Unsupported)` +
+blank frame is the **correct, final** behavior, not an unfinished stub. Fixed
+the doc comments to say so (and fixed a separate, unrelated staleness in the
+same doc comment: it referenced `enter_player_mode()`/`exit_player_mode()`,
+methods that no longer exist).
 
 **P1 — ANSI multi-frame export has no timing at all.**
 `export_cells_to_ansi_multi` (`output.rs:367-380`) takes a `_frame_delays_cs`
@@ -176,7 +187,7 @@ All minor, non-blocking, unrelated to animation.
 | 1 | Fix `GA::Export` clobbering GIF-imported `frame_delays` via `set_timeline` — only reset delays if not already populated from a GIF import | Low | ✅ Fixed 2026-07-08 (6.0.4) |
 | 2 | Make `export_cells_to_ansi_multi` actually use its delay parameter (encode real timing) | Low | ✅ Fixed 2026-07-08 (6.0.4) — emits a self-playing `sh` script |
 | 3 | Wire `player::play_raw()` to a CLI entry point; reuse it for an intro-banner flag | Medium | ✅ Fixed 2026-07-08 (6.0.7) — `figby --play <gif>`; also fixed a hang bug found while wiring it up |
-| 4 | Implement real `try_query_terminal_cells` (DECRQCRA or drop the "capture terminal as frame 0" claim from docs) | Medium | Open |
+| 4 | Implement real `try_query_terminal_cells` (DECRQCRA or drop the "capture terminal as frame 0" claim from docs) | Medium | ✅ Resolved 2026-07-08 (6.0.8) — docs corrected, no functional change was possible/needed (see below) |
 | 5 | Move playback off the TUI event-loop thread | Medium | Open |
 | 6 | Add unit tests to `gif_import.rs` (currently 0) | Low | ✅ Fixed 2026-07-08 (6.0.5) — 7 tests: round-trip, delays, disposal, malformed/oversized input |
 | 7 | Update README animation section + mark `animation-audit.md` superseded | Low | ✅ Fixed 2026-07-08 (6.0.6) |

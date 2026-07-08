@@ -367,13 +367,24 @@ pub fn capture_terminal_content() -> io::Result<AnimationFrame> {
     }
 }
 
-/// Try to read terminal cell content via DECRQCRA (xterm-compatible).
-/// Currently returns unsupported; future implementation may parse responses
-/// from terminals that support the DECRQCRA escape sequence.
+/// Always returns `Unsupported` — there is no portable way to read back
+/// arbitrary previously-rendered terminal cell content.
+///
+/// An earlier version of this doc comment suggested DECRQCRA (Request
+/// Checksum of Rectangular Area) as a future implementation path. That was
+/// mistaken: DECRQCRA's response (DECCKSR) is a terminal-defined *checksum*
+/// of a region, used by conformance test suites (e.g. vttest) to verify a
+/// terminal renders *already-known* content correctly — it cannot be
+/// inverted to recover unknown character/color data, so it can't implement
+/// "capture the screen as an animation frame." No standard escape sequence
+/// does that; a few terminals (kitty, iTerm2) expose proprietary,
+/// non-portable extensions for it, which crossterm does not wrap. Returning
+/// `Unsupported` (and falling back to a blank frame) is the correct
+/// behavior here, not a stub awaiting completion.
 fn try_query_terminal_cells(_w: usize, _h: usize) -> io::Result<AnimationFrame> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
-        "DECRQCRA terminal content query not available on this terminal",
+        "reading back terminal cell content is not portably supported",
     ))
 }
 
@@ -382,13 +393,16 @@ fn blank_frame(w: usize, h: usize) -> AnimationFrame {
     vec![vec![CanvasCell::default(); w]; h]
 }
 
-/// Terminal session managing capture → playback → restore lifecycle.
+/// Terminal session managing capture → playback lifecycle.
 ///
-/// Call `capture()` to snapshot current terminal content, then
-/// `enter_player_mode()` / `exit_player_mode()` to toggle alt screen.
-/// The captured frame can be prepended to an animation as frame 0.
+/// Call `capture()` to get a session whose `captured_frame` can be
+/// prepended to an animation as frame 0. Note `capture()` cannot actually
+/// read existing on-screen content (see `try_query_terminal_cells`), so
+/// `captured_frame` is always blank today, just sized to the real terminal
+/// dimensions. Does not manage the alternate screen — callers own that.
 pub struct TerminalSession {
-    /// Captured terminal content as first frame.
+    /// Captured terminal content as first frame — always blank; see the
+    /// struct-level doc comment.
     pub captured_frame: AnimationFrame,
     /// Terminal dimensions at capture time (cols, rows).
     pub terminal_size: (u16, u16),
@@ -416,9 +430,11 @@ impl TerminalSession {
 
 /// Play animation fullscreen: capture terminal, render at given FPS.
 ///
-/// Captures current terminal content as frame 0 (blank if DECRQCRA unavailable),
-/// renders all frames at the given FPS, handles keyboard input.
-/// Does NOT manage alternate screen — caller is responsible for that.
+/// Prepends a captured frame 0 — always blank, since there is no portable
+/// way to read back existing terminal content (see
+/// `try_query_terminal_cells`) — then renders all frames at the given FPS
+/// and handles keyboard input. Does NOT manage alternate screen — caller is
+/// responsible for that.
 pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
     let session = TerminalSession::capture()?;
 

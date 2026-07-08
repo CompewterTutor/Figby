@@ -27,10 +27,11 @@ Original C source lives in `c-figlet/` for reference; the Rust port lives in
 - Full-screen TUI editor (`--tui`): drawing tools, layers, palette/font
   editing, image import, and an **animation timeline** — keyframing,
   tweening (linear/ease-in/ease-out/bounce), onion skinning, animated GIF
-  import with real per-frame timing, and GIF/APNG/ANSI export. See
-  [docs/sonnet5-review.md](docs/sonnet5-review.md) for current known
-  limitations of the animation subsystem (e.g. playback is TUI-only for now,
-  no standalone CLI player yet).
+  import with real per-frame timing, and GIF/APNG/ANSI export.
+- `--play <file.gif>`: play an animated GIF fullscreen in the terminal, then
+  exit — no TUI required. See [docs/sonnet5-review.md](docs/sonnet5-review.md)
+  for current known limitations of the animation subsystem (e.g. playback
+  doesn't yet honor a GIF's real per-frame timing, only an approximate FPS).
 
 ## Installation
 
@@ -223,8 +224,6 @@ a full ASCII-art TUI editor.
 Not yet done (tracked in [docs/todo-v6.md](docs/todo-v6.md)'s deferred
 section unless noted):
 
-- Standalone CLI animation player / intro-banner playback outside the TUI
-- Real terminal-content capture for the animation player (currently stubbed)
 - Reduced-motion (`--no-anim`) and color-depth fallback
 - Panic-hook terminal restore + autosave
 - Additional export formats: SVG, asciinema, sixel

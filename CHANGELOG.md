@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.0.8] - 2026-07-08
+
+### Docs (no functional change)
+- Corrected misleading doc comments around `try_query_terminal_cells()` /
+  `TerminalSession`: they suggested implementing DECRQCRA was a matter of
+  future work. It isn't — DECRQCRA's response is a terminal-defined
+  *checksum* of a region (used by conformance suites like vttest to verify
+  known content, not to recover unknown content), so it cannot implement
+  "read back the screen." There is no portable escape sequence that does;
+  a couple of terminals (kitty, iTerm2) have proprietary extensions
+  crossterm doesn't wrap. Returning `Unsupported` + a blank frame is the
+  correct, final behavior here, not a stub. Also fixed a stale reference to
+  `enter_player_mode()`/`exit_player_mode()`, which no longer exist (removed
+  by the pre-6.0 alt-screen-corruption fix) but were still named in a doc
+  comment.
+
 ## [6.0.7] - 2026-07-08
 
 ### Added

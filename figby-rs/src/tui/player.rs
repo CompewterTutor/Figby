@@ -132,6 +132,9 @@ impl AnimationPlayer {
         } else {
             let new_frame = (current + advanced as usize).min(total.saturating_sub(1));
             self.current_frame.set(new_frame);
+            if new_frame >= total.saturating_sub(1) {
+                self.playing.set(false);
+            }
         }
 
         self.accumulator.set(acc);

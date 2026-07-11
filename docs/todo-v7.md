@@ -25,7 +25,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 > (play/pause cursor) depends on the same `TimelineState::current_frame` field
 > validated by 7.0.1.
 
-- [ ] `7.0.1` Commit timeline frame edits on switch (manual-note #6)
+- [x] `7.0.1` Commit timeline frame edits on switch (manual-note #6)
   - **Goal:** Editing a frame, advancing to another frame, then coming back
     loses all edits — the animation editor is useless. Two independent
     `CanvasBuffer` copies exist: the live `EditorState::layer_stack` active layer
@@ -55,7 +55,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     after a frame switch. Park all three as follow-ups under 7.3 architecture.
   - **Difficulty:** Medium
 
-- [ ] `7.0.2` Fix false "Cannot read file: stream did not contain valid UTF-8" on GIF import (manual-note #1)
+- [x] `7.0.2` Fix false "Cannot read file: stream did not contain valid UTF-8" on GIF import (manual-note #1)
   - **Goal:** Importing an animated GIF (a) emits a bogus
     `Cannot read file: stream did not contain valid UTF-8` error and (b) leaves
     the file-open dialog open so the user must press Escape to dismiss it —
@@ -79,7 +79,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     tests still pass.
   - **Difficulty:** Low
 
-- [ ] `7.0.3` Reconcile playback cursor with timeline `current_frame` (manual-note #3)
+- [x] `7.0.3` Reconcile playback cursor with timeline `current_frame` (manual-note #3)
   - **Goal:** Play/pause is "weirdly separated" from the timeline. The
     `AnimationPlayer::current_frame: Cell<usize>` at `player.rs:29` and the
     `TimelineState::current_frame: usize` at `timeline.rs:165` are two

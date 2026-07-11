@@ -37,3 +37,9 @@ assets/fonts/to-convert/
 assets/fonts/converted/
 figby-fonts/
 lixdu-18.flf
+
+# Local AI tool configs
+.agents/
+.bob/
+.goose/
+skills-lock.json

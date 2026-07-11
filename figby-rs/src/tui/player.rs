@@ -132,6 +132,9 @@ impl AnimationPlayer {
         } else {
             let new_frame = (current + advanced as usize).min(total.saturating_sub(1));
             self.current_frame.set(new_frame);
+            if new_frame >= total.saturating_sub(1) {
+                self.playing.set(false);
+            }
         }
 
         self.accumulator.set(acc);
@@ -225,7 +228,6 @@ impl AnimationPlayer {
             }
             KeyCode::Esc => {
                 self.pause();
-                self.seek(0);
                 true
             }
             KeyCode::Char('q') | KeyCode::Char('Q') => {
@@ -1005,7 +1007,7 @@ mod tests {
     }
 
     #[test]
-    fn test_player_handle_key_esc_resets() {
+    fn test_player_handle_key_esc_pauses_and_preserves_frame() {
         let frames = make_test_frames(10, 3, 2);
         let player = AnimationPlayer::new(frames, 10);
         player.play();
@@ -1015,7 +1017,11 @@ mod tests {
 
         player.handle_key(KeyCode::Esc);
         assert!(!player.is_playing());
-        assert_eq!(player.current_frame(), 0);
+        assert_eq!(
+            player.current_frame(),
+            5,
+            "Esc should preserve current frame, not seek(0)"
+        );
     }
 
     #[test]

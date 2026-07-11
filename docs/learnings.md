@@ -1455,6 +1455,17 @@ Three bugs found in phase merge review:
   easy way for an unrelated bug fix to "break" tests that were never
   actually exercising the feature they claimed to.
 
+## 7.0.1 — Commit timeline frame edits on switch
+
+- The exact pattern from the `KeyCode::Char('A')` capture block at `mod.rs:3401-3418`
+  (`composite()` → `capture_thumbnail()` → assign to `frame.layer_state`)
+  was reused for `commit_current_timeline_frame`. Duplication is acceptable
+  here because the A-key block also creates new `TimelineFrame` instances
+  (`layer_keyframes`, `label`, `add_frame()`), while the commit helper
+  only updates the existing frame. The shared logic could be refactored into
+  a private helper in a later phase, but the scope guardrails for 7.0.1 forbid
+  touching the A-key block.
+
 ## 6.10.1 — `capture_timeline_frames` ignoring per-frame `layer_state`
 
 - When `capture_timeline_frames` iterates `(0..timeline.frames.len())`, the
@@ -1470,3 +1481,11 @@ Three bugs found in phase merge review:
   via 'A'-key, then press Enter to play. If every frame shows the same content,
   the bug is present. If frames vary, it's fixed. `tmux` can mask this because
   tmux's own compositing can hide ratatui cache staleness.
+
+## 7.0.3 — Reconcile playback cursor with timeline `current_frame`
+
+- When animation playback and timeline UI have independent frame cursors, the
+  timeline strip freezes on the start frame and the canvas reverts to the start
+  frame after stop. Fix: sync `current_frame` from player to timeline state on
+  each tick and on stop/dismiss. The `playing` field on `TimelineState` was
+  already dead code (nothing read it).

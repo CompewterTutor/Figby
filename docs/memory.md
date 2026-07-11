@@ -2590,6 +2590,33 @@ engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI), and 5.8.
 (palette LUT integration) into the mainline. 34 files / 2520 lines merged. Phase
 5.8 complete. Next phase: TBD.
 
+### 7.0.1 — Commit timeline frame edits on switch
+
+`commit_current_timeline_frame()` helper writes the live `layer_stack.composite()`
+buffer into the currently-selected frame's `layer_state`, recaptures thumbnail,
+and sets `has_keyframe = true`. Called at the **top** of Left/Right/timeline-click
+handlers **before** mutating `current_frame`. This ensures edits survive frame
+switching — previously only the frame→layer direction was wired, so every switch
+unconditionally overwrote live edits with stale snapshots.
+
+3 call sites added: Left arrow (`mod.rs:3374`), Right arrow (`mod.rs:3385`),
+timeline click (`mod.rs:1992`). Regression test `test_timeline_frame_edits_persist_on_switch`
+simulates edit → switch → switch-back and asserts cell content survives round-trip.
+
+### 7.0.2 — Fix false "Cannot read file: stream did not contain valid UTF-8" on GIF import
+
+Two bugs in the ImportGif dialog path:
+1. `ImportGif` arm returned `Some(AppEvent::OpenRequested)` after calling
+   `perform_import_gif(path)`; the dispatcher forwarded `OpenRequested` to
+   `perform_open()`, which called `std::fs::read_to_string(&path)` on the binary
+   GIF → UTF-8 decode failed → false error. Fix: return `None` instead.
+2. `perform_import_gif`'s success path never reset
+   `self.dialogs.file_ops.mode = FileOpsMode::Idle`, leaving the file-open
+   dialog open after successful import. Fix: set `Idle` in the `Ok` branch.
+
+Diff: `mod.rs:2870` return `None` (was `Some(AppEvent::OpenRequested)`),
+`mod.rs:4262` set `file_ops.mode = Idle` after `composite()`.
+
 ### 6.10.1 — Fix `capture_timeline_frames` ignoring per-frame `layer_state`
 
 `capture_timeline_frames()` in `export.rs` was rebuilding every animation frame
@@ -2602,3 +2629,18 @@ Fix: check for `timeline.frames[frame_idx].layer_state` first; if present,
 return it directly instead of re-rendering through the live layer stack.
 Added regression test `test_capture_uses_per_frame_layer_state_when_present`
 that would generate identical frames without the fix and distinct frames with it.
+
+### 7.0.3 — Reconcile playback cursor with timeline `current_frame`
+
+`AnimationPlayer::current_frame` (player.rs:29) and `TimelineState::current_frame`
+(timeline.rs:165) were two independent cursors that never reconciled after
+playback start. The tick handler advanced the player's `Cell<usize>` but never
+wrote to `timeline_state.current_frame`, so the timeline strip stayed frozen on
+the play-start frame. `stop_inline_playback` dropped the player without saving
+the last frame, leaving the canvas on the start frame.
+
+Fix: sync `timeline_state.current_frame` from `player.current_frame()` on every
+tick. On stop/dismiss, copy the player frame and call
+`load_current_timeline_frame()` so the canvas holds the last-rendered frame.
+Removed `self.seek(0)` from player's Esc arm and the vestigial
+`TimelineState::playing` field.

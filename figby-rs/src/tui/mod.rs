@@ -933,7 +933,20 @@ impl TuiApp {
                 if let Some(player) = self.animation.inline_player.as_ref() {
                     if player.is_playing() {
                         let elapsed = now.saturating_duration_since(self.last_draw_time);
-                        player.advance(elapsed);
+                        let advanced = player.advance(elapsed);
+                        if advanced > 0 {
+                            // Force a full repaint whenever the visible frame
+                            // actually changes, rather than trusting
+                            // ratatui's cell-level diff — reported (Windows
+                            // Terminal / WSL): the progress bar and frame
+                            // counter update correctly every tick, but the
+                            // raster content itself stays frozen, matching
+                            // the same diff-cache-staleness class of bug
+                            // already fixed for the fullscreen player (see
+                            // docs/sonnet5-review.md, 6.0.13) via this same
+                            // force_full_redraw flag.
+                            self.force_full_redraw = true;
+                        }
                         let (cur, total) = player.progress();
                         if total > 0 && cur >= total.saturating_sub(1) && !player.is_looping() {
                             // Natural end of a non-looping playthrough: stop

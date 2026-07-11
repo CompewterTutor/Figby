@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.0.19] - 2026-07-11
+
+### Fixed
+- In-canvas animation playback's frame content could stay visually frozen
+  on some terminals (reported: Windows Terminal / WSL) even though the
+  frame counter and progress bar advanced correctly every tick — the
+  same class of ratatui diff-cache staleness already fixed for the
+  standalone fullscreen player in 6.0.13, just not previously applied to
+  inline playback. Now sets `force_full_redraw` (bypassing the stale
+  cell-diff) every time the player's current frame actually advances.
+
 ## [6.0.18] - 2026-07-11
 
 ### Fixed

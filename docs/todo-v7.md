@@ -79,7 +79,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     tests still pass.
   - **Difficulty:** Low
 
-- [ ] `7.0.3` Reconcile playback cursor with timeline `current_frame` (manual-note #3)
+- [x] `7.0.3` Reconcile playback cursor with timeline `current_frame` (manual-note #3)
   - **Goal:** Play/pause is "weirdly separated" from the timeline. The
     `AnimationPlayer::current_frame: Cell<usize>` at `player.rs:29` and the
     `TimelineState::current_frame: usize` at `timeline.rs:165` are two

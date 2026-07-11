@@ -2629,3 +2629,18 @@ Fix: check for `timeline.frames[frame_idx].layer_state` first; if present,
 return it directly instead of re-rendering through the live layer stack.
 Added regression test `test_capture_uses_per_frame_layer_state_when_present`
 that would generate identical frames without the fix and distinct frames with it.
+
+### 7.0.3 — Reconcile playback cursor with timeline `current_frame`
+
+`AnimationPlayer::current_frame` (player.rs:29) and `TimelineState::current_frame`
+(timeline.rs:165) were two independent cursors that never reconciled after
+playback start. The tick handler advanced the player's `Cell<usize>` but never
+wrote to `timeline_state.current_frame`, so the timeline strip stayed frozen on
+the play-start frame. `stop_inline_playback` dropped the player without saving
+the last frame, leaving the canvas on the start frame.
+
+Fix: sync `timeline_state.current_frame` from `player.current_frame()` on every
+tick. On stop/dismiss, copy the player frame and call
+`load_current_timeline_frame()` so the canvas holds the last-rendered frame.
+Removed `self.seek(0)` from player's Esc arm and the vestigial
+`TimelineState::playing` field.

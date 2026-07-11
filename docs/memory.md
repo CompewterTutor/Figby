@@ -2589,3 +2589,16 @@ Merged release/5.8 branch into master at `480352d`. Brings 5.8.1 (core lighting
 engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI), and 5.8.4
 (palette LUT integration) into the mainline. 34 files / 2520 lines merged. Phase
 5.8 complete. Next phase: TBD.
+
+### 6.10.1 — Fix `capture_timeline_frames` ignoring per-frame `layer_state`
+
+`capture_timeline_frames()` in `export.rs` was rebuilding every animation frame
+from the live (unchanging) layer stack instead of each frame's own `layer_state`
+raster snapshot (populated by GIF import / 'A'-key manual capture). The
+current_frame counter advanced (progress bar looked right) but the picture never
+changed — affecting both inline playback and GIF/APNG export.
+
+Fix: check for `timeline.frames[frame_idx].layer_state` first; if present,
+return it directly instead of re-rendering through the live layer stack.
+Added regression test `test_capture_uses_per_frame_layer_state_when_present`
+that would generate identical frames without the fix and distinct frames with it.

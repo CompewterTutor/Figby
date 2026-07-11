@@ -1454,3 +1454,19 @@ Three bugs found in phase merge review:
   implicitly depending on whatever the welcome screen ignores — that's an
   easy way for an unrelated bug fix to "break" tests that were never
   actually exercising the feature they claimed to.
+
+## 6.10.1 — `capture_timeline_frames` ignoring per-frame `layer_state`
+
+- When `capture_timeline_frames` iterates `(0..timeline.frames.len())`, the
+  per-layer keyframe-interpolation path re-renders from the *live* layer stack
+  — which is unchanged across every `frame_idx`. So captured frames (GIF import
+  or 'A'-key manual captures that have their own `layer_state` raster snapshot)
+  all produce identical output. The fix: check `layer_state` on each frame
+  first and use it directly. The `current_frame` counter still advances (making
+  the progress bar look correct), so this bug is easy to miss during visual
+  inspection — the regression test is essential.
+- The `click_test_hookup` approach for manual verification in Windows Terminal:
+  run the TUI binary, import a multi-frame GIF or build multiple captured frames
+  via 'A'-key, then press Enter to play. If every frame shows the same content,
+  the bug is present. If frames vary, it's fixed. `tmux` can mask this because
+  tmux's own compositing can hide ratatui cache staleness.

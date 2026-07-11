@@ -671,6 +671,25 @@ pub fn capture_timeline_frames(
     }
     (0..timeline.frames.len())
         .map(|frame_idx| {
+            // A captured raster snapshot (GIF import, or an 'A'-key manual
+            // frame capture) is already a finished composite for this
+            // frame — use it directly. Falling through to the per-layer
+            // keyframe-interpolation path below would instead re-render
+            // the *live* layer stack (unchanged across every frame_idx)
+            // and only vary position/opacity/blend-mode, so every
+            // captured frame would come out identical — current_frame
+            // still advances (so the progress bar/counter looks right),
+            // but playback/export visibly never changes.
+            if let Some(buf) = &timeline.frames[frame_idx].layer_state {
+                return (0..height)
+                    .map(|y| {
+                        (0..width)
+                            .map(|x| buf.get(x, y).copied().unwrap_or_default())
+                            .collect()
+                    })
+                    .collect();
+            }
+
             let mut result_buf = CanvasBuffer::new(width, height);
             for (layer_idx, layer) in layer_stack.layers.iter().enumerate() {
                 if !layer.visible {
@@ -1040,6 +1059,68 @@ mod tests {
         let stack = LayerStack::new(5, 5);
         let frames = capture_timeline_frames(&timeline, &stack, 5, 5);
         assert!(frames.is_empty());
+    }
+
+    #[test]
+    fn test_capture_uses_per_frame_layer_state_when_present() {
+        // GIF import / 'A'-key manual capture stamps each TimelineFrame
+        // with its own fully-composited `layer_state` snapshot. Without
+        // reading it, capture_timeline_frames would instead re-derive
+        // every frame from the *live*, unchanging layer stack — making
+        // every captured frame identical regardless of frame_idx, which
+        // is exactly the "counter advances, picture never changes" bug
+        // this test guards against.
+        let stack = LayerStack::new(2, 2); // live layer stays blank throughout
+
+        let mut buf0 = CanvasBuffer::new(2, 2);
+        buf0.set(
+            0,
+            0,
+            CanvasCell {
+                ch: '0',
+                fg: Some(Color::Red),
+                bg: None,
+                height: None,
+            },
+        );
+        let mut buf1 = CanvasBuffer::new(2, 2);
+        buf1.set(
+            0,
+            0,
+            CanvasCell {
+                ch: '1',
+                fg: Some(Color::Green),
+                bg: None,
+                height: None,
+            },
+        );
+
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: Some(buf0),
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F1".into(),
+            layer_state: Some(buf1),
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+
+        let frames = capture_timeline_frames(&timeline, &stack, 2, 2);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0][0][0].ch, '0');
+        assert_eq!(frames[0][0][0].fg, Some(Color::Red));
+        assert_eq!(frames[1][0][0].ch, '1');
+        assert_eq!(frames[1][0][0].fg, Some(Color::Green));
+        assert_ne!(
+            frames[0], frames[1],
+            "each frame's own layer_state snapshot must be used, not the live (unchanging) layer stack"
+        );
     }
 
     #[test]

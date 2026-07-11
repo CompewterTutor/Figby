@@ -482,6 +482,18 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ---
 
+## Phase 6.10 — Export Animation Bug (ad-hoc fix)
+
+- [x] `6.10.1` Fix `capture_timeline_frames` ignoring per-frame `layer_state`
+  - **Goal:** GIF-imported / 'A'-key captured frames showed same content
+    throughout playback/export because `capture_timeline_frames()` rebuilt
+    every frame from the live (unchanging) layer stack instead of each
+    frame's own `layer_state` snapshot. Now reads `layer_state` directly
+    when present. Regression test confirms each frame gets its own buffer.
+  - **Touches:** `figby-rs/src/tui/export.rs` (fix + test).
+  - **Success:** Playback content changes per frame; export output correct.
+  - **Difficulty:** Low
+
 ## Deferred to post-v6 (tracked, not blocking)
 
 Color-depth fallback (C1), reduced-motion `--no-anim` (C2), panic-hook terminal

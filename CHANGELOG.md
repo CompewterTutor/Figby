@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.0.20] - 2026-07-11
+
+### Fixed
+- GIF-imported / 'A'-key captured animation frames showed same picture
+  throughout playback and export because `capture_timeline_frames` was
+  re-rendering from the live (unchanging) layer stack instead of each
+  frame's own `layer_state` raster snapshot. Now reads `layer_state`
+  directly when present. Regression test included.
+
 ## [6.0.19] - 2026-07-11
 
 ### Fixed

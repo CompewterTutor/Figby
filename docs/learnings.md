@@ -1,5 +1,13 @@
 # Figby — Learnings
 
+## 7.1.1 — Fix quit-confirm dialog sizing + mouse input
+
+- `Rect::contains` in ratatui-core 0.1.1 takes `Position`, not `(u16, u16)`.
+  Use `.into()` to convert: `rect.contains((col, row).into())`.
+- Button rects for Paragraph hit-testing: character positions within `inner` rect
+  map directly to terminal pixel positions (1 char = 1 col). Compute x from char
+  index within the line, y from line index within the Paragraph.
+
 ## 6.9.4 — Move tool options to right sidebar
 
 - When removing a sub-panel from a vertical split in ratatui, eliminate the

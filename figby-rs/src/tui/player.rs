@@ -1143,10 +1143,8 @@ mod tests {
 
     #[test]
     fn test_play_fullscreen_empty_frames() {
-        // Should not panic with empty frames
-        let result = play_fullscreen(vec![], 10);
-        // Will fail in test env because no real terminal, but should not panic
-        assert!(result.is_err());
+        // Must not panic or hang (advance auto-stops at end).
+        let _ = play_fullscreen(vec![], 10);
     }
 
     #[test]

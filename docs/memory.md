@@ -2590,6 +2590,19 @@ engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI), and 5.8.
 (palette LUT integration) into the mainline. 34 files / 2520 lines merged. Phase
 5.8 complete. Next phase: TBD.
 
+### 7.0.1 — Commit timeline frame edits on switch
+
+`commit_current_timeline_frame()` helper writes the live `layer_stack.composite()`
+buffer into the currently-selected frame's `layer_state`, recaptures thumbnail,
+and sets `has_keyframe = true`. Called at the **top** of Left/Right/timeline-click
+handlers **before** mutating `current_frame`. This ensures edits survive frame
+switching — previously only the frame→layer direction was wired, so every switch
+unconditionally overwrote live edits with stale snapshots.
+
+3 call sites added: Left arrow (`mod.rs:3374`), Right arrow (`mod.rs:3385`),
+timeline click (`mod.rs:1992`). Regression test `test_timeline_frame_edits_persist_on_switch`
+simulates edit → switch → switch-back and asserts cell content survives round-trip.
+
 ### 6.10.1 — Fix `capture_timeline_frames` ignoring per-frame `layer_state`
 
 `capture_timeline_frames()` in `export.rs` was rebuilding every animation frame

@@ -1455,6 +1455,17 @@ Three bugs found in phase merge review:
   easy way for an unrelated bug fix to "break" tests that were never
   actually exercising the feature they claimed to.
 
+## 7.0.1 — Commit timeline frame edits on switch
+
+- The exact pattern from the `KeyCode::Char('A')` capture block at `mod.rs:3401-3418`
+  (`composite()` → `capture_thumbnail()` → assign to `frame.layer_state`)
+  was reused for `commit_current_timeline_frame`. Duplication is acceptable
+  here because the A-key block also creates new `TimelineFrame` instances
+  (`layer_keyframes`, `label`, `add_frame()`), while the commit helper
+  only updates the existing frame. The shared logic could be refactored into
+  a private helper in a later phase, but the scope guardrails for 7.0.1 forbid
+  touching the A-key block.
+
 ## 6.10.1 — `capture_timeline_frames` ignoring per-frame `layer_state`
 
 - When `capture_timeline_frames` iterates `(0..timeline.frames.len())`, the

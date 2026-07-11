@@ -1994,6 +1994,7 @@ impl TuiApp {
                                 grid_area,
                                 &self.animation.timeline_state,
                             ) {
+                                self.commit_current_timeline_frame();
                                 self.animation.timeline_state.current_frame = idx;
                                 self.load_current_timeline_frame();
                                 self.editor.sync_canvas_to_font_char();
@@ -3372,6 +3373,7 @@ impl TuiApp {
         if self.animation.timeline_visible {
             match code {
                 KeyCode::Left if self.animation.timeline_state.current_frame > 0 => {
+                    self.commit_current_timeline_frame();
                     self.animation.timeline_state.current_frame -= 1;
                     let cf = self.animation.timeline_state.current_frame;
                     if cf < self.animation.timeline_state.scroll_offset {
@@ -3386,6 +3388,7 @@ impl TuiApp {
                     if self.animation.timeline_state.current_frame + 1
                         < self.animation.timeline_state.frames.len() =>
                 {
+                    self.commit_current_timeline_frame();
                     self.animation.timeline_state.current_frame += 1;
                     let cf = self.animation.timeline_state.current_frame;
                     let max_vis = self.animation.timeline_state.cached_max_vis_frames;
@@ -4048,6 +4051,22 @@ impl TuiApp {
                     let _ = tx.send(AsyncResult::OpenComplete(result));
                 });
             }
+        }
+    }
+
+    /// Write the current live editor canvas into the currently-selected
+    /// timeline frame's `layer_state`, recapture thumbnail, and mark as
+    /// keyframe. Call BEFORE changing `current_frame` so edits don't get
+    /// lost on frame switch.
+    fn commit_current_timeline_frame(&mut self) {
+        let cf = self.animation.timeline_state.current_frame;
+        if cf < self.animation.timeline_state.frames.len() {
+            let buffer = self.editor.layer_stack.composite();
+            let thumbnail = capture_thumbnail(&buffer, 8, 3);
+            let frame = &mut self.animation.timeline_state.frames[cf];
+            frame.layer_state = Some(buffer);
+            frame.thumbnail = thumbnail;
+            frame.has_keyframe = true;
         }
     }
 

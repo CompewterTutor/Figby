@@ -120,7 +120,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 
 ## Phase 7.1 — Dialog & Keymap Polish (🔴 — fix before any release)
 
-- [ ] `7.1.1` Fix quit-confirm dialog sizing + add mouse input (manual-note #2)
+- [x] `7.1.1` Fix quit-confirm dialog sizing + add mouse input (manual-note #2)
   - **Goal:** The "Unsaved changes — save before quitting?" dialog has two
     bugs. (a) Text is cut off: outer width is hard-coded to 52 (`overlays.rs:185`)
     but the hint line at `overlays.rs:211`

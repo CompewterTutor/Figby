@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.0.17] - 2026-07-11
+
+### Added
+- The side panel (drawer) now opens by default at startup when the
+  terminal is wide enough that opening it still leaves a reasonably
+  usable canvas (toolbox width + drawer width + a 60-column canvas
+  floor). Narrower terminals keep the previous closed-by-default
+  behavior; `?` still toggles it manually either way.
+
 ## [6.0.16] - 2026-07-11
 
 ### Fixed

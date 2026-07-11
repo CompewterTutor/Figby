@@ -883,9 +883,25 @@ impl TuiApp {
         }
     }
 
+    /// Whether the side panel (drawer) should start open by default: only
+    /// when the terminal is wide enough that opening it still leaves a
+    /// reasonably usable canvas, rather than cramming toolbox + canvas +
+    /// drawer into too little space.
+    fn default_side_panel_open(&self, term_width: u16) -> bool {
+        const MIN_CANVAS_WIDTH: u16 = 60;
+        let toolbox_width = self
+            .editor
+            .toolbox
+            .required_width(self.editor.brush.required_outer_width());
+        term_width >= toolbox_width + layout::DRAWER_WIDTH + MIN_CANVAS_WIDTH
+    }
+
     pub fn run(&mut self) -> io::Result<()> {
         let mut terminal = ratatui::init();
         execute!(io::stdout(), EnableBracketedPaste, EnableMouseCapture)?;
+
+        let (term_width, _) = crossterm::terminal::size().unwrap_or((80, 24));
+        self.side_panel.open = self.default_side_panel_open(term_width);
 
         while !self.should_quit {
             self.handle_event()?;
@@ -5185,6 +5201,31 @@ mod editor_state_tests {
             !editor.selection.as_ref().unwrap().is_selected(2, 0),
             "the mask's old position should no longer be selected after rotating"
         );
+    }
+}
+
+#[cfg(test)]
+mod default_side_panel_open_tests {
+    use super::TuiApp;
+
+    #[test]
+    fn test_default_side_panel_open_respects_width_threshold() {
+        let app = TuiApp::new();
+        let toolbox_width = app
+            .editor
+            .toolbox
+            .required_width(app.editor.brush.required_outer_width());
+        let threshold = toolbox_width + super::layout::DRAWER_WIDTH + 60;
+
+        assert!(!app.default_side_panel_open(threshold - 1));
+        assert!(app.default_side_panel_open(threshold));
+        assert!(app.default_side_panel_open(threshold + 20));
+    }
+
+    #[test]
+    fn test_default_side_panel_open_closed_for_narrow_classic_80col_terminal() {
+        let app = TuiApp::new();
+        assert!(!app.default_side_panel_open(80));
     }
 }
 

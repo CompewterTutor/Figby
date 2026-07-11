@@ -2,7 +2,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Borders;
 
 pub const TIMELINE_HEIGHT: u16 = 8;
-const DRAWER_WIDTH: u16 = 28;
+pub const DRAWER_WIDTH: u16 = 28;
 
 /// Full borders for the toolbox list panel.
 pub fn toolbox_list_borders() -> Borders {

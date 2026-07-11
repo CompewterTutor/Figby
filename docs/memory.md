@@ -2603,6 +2603,20 @@ unconditionally overwrote live edits with stale snapshots.
 timeline click (`mod.rs:1992`). Regression test `test_timeline_frame_edits_persist_on_switch`
 simulates edit → switch → switch-back and asserts cell content survives round-trip.
 
+### 7.0.2 — Fix false "Cannot read file: stream did not contain valid UTF-8" on GIF import
+
+Two bugs in the ImportGif dialog path:
+1. `ImportGif` arm returned `Some(AppEvent::OpenRequested)` after calling
+   `perform_import_gif(path)`; the dispatcher forwarded `OpenRequested` to
+   `perform_open()`, which called `std::fs::read_to_string(&path)` on the binary
+   GIF → UTF-8 decode failed → false error. Fix: return `None` instead.
+2. `perform_import_gif`'s success path never reset
+   `self.dialogs.file_ops.mode = FileOpsMode::Idle`, leaving the file-open
+   dialog open after successful import. Fix: set `Idle` in the `Ok` branch.
+
+Diff: `mod.rs:2870` return `None` (was `Some(AppEvent::OpenRequested)`),
+`mod.rs:4262` set `file_ops.mode = Idle` after `composite()`.
+
 ### 6.10.1 — Fix `capture_timeline_frames` ignoring per-frame `layer_state`
 
 `capture_timeline_frames()` in `export.rs` was rebuilding every animation frame

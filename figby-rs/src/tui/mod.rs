@@ -2867,7 +2867,7 @@ impl TuiApp {
                             return None;
                         }
                         self.perform_import_gif(path);
-                        return Some(AppEvent::OpenRequested);
+                        return None;
                     }
                     file_ops::FileOpsMode::OpenImage => {
                         if self.dialogs.file_ops.path_buffer.trim().is_empty() {
@@ -4259,6 +4259,7 @@ impl TuiApp {
                 self.editor.recomposite_canvas();
                 self.editor.unsaved = true;
                 self.dirty = true;
+                self.dialogs.file_ops.mode = file_ops::FileOpsMode::Idle;
             }
             Err(e) => {
                 self.dialogs.file_ops.error_message = format!("GIF import failed: {e}");

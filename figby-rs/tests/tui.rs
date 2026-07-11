@@ -2971,6 +2971,7 @@ fn test_timeline_frame_edits_persist_on_switch() {
     });
 
     // Switch to frame 1 (triggers commit of frame 0)
+    app.animation.timeline_visible = true;
     app.handle_key_event(KeyCode::Right);
     assert_eq!(
         app.animation.timeline_state.current_frame, 1,

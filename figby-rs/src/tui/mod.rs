@@ -934,17 +934,8 @@ impl TuiApp {
                     if player.is_playing() {
                         let elapsed = now.saturating_duration_since(self.last_draw_time);
                         let advanced = player.advance(elapsed);
+                        self.animation.timeline_state.current_frame = player.current_frame();
                         if advanced > 0 {
-                            // Force a full repaint whenever the visible frame
-                            // actually changes, rather than trusting
-                            // ratatui's cell-level diff — reported (Windows
-                            // Terminal / WSL): the progress bar and frame
-                            // counter update correctly every tick, but the
-                            // raster content itself stays frozen, matching
-                            // the same diff-cache-staleness class of bug
-                            // already fixed for the fullscreen player (see
-                            // docs/sonnet5-review.md, 6.0.13) via this same
-                            // force_full_redraw flag.
                             self.force_full_redraw = true;
                         }
                         let (cur, total) = player.progress();
@@ -4621,6 +4612,10 @@ impl TuiApp {
     /// Dismiss in-canvas animation playback. Shared by the Esc/q keyboard
     /// path and the transport bar's Stop button.
     fn stop_inline_playback(&mut self) {
+        if let Some(player) = self.animation.inline_player.as_ref() {
+            self.animation.timeline_state.current_frame = player.current_frame();
+            self.load_current_timeline_frame();
+        }
         self.animation.inline_player = None;
         self.dirty = true;
     }
@@ -5296,6 +5291,84 @@ mod rotate_drag_steps_tests {
             rotate_drag_steps(16),
             0,
             "16/4=4 steps == full turn == identity"
+        );
+    }
+}
+
+#[cfg(test)]
+mod playback_reconciliation_tests {
+    use super::*;
+
+    fn make_app_with_frames(frame_count: usize) -> TuiApp {
+        let mut app = TuiApp::new();
+        let w = app.editor.canvas.buffer.width();
+        let h = app.editor.canvas.buffer.height();
+        for i in 0..frame_count {
+            let mut buf = canvas::CanvasBuffer::new(w, h);
+            let ch = char::from_u32(b'A' as u32 + (i % 26) as u32).unwrap();
+            buf.set(
+                0,
+                0,
+                canvas::CanvasCell {
+                    ch,
+                    fg: None,
+                    bg: None,
+                    height: None,
+                },
+            );
+            let frame = timeline::TimelineFrame {
+                thumbnail: capture_thumbnail(&buf, 8, 3),
+                has_keyframe: true,
+                label: format!("F{}", i),
+                layer_state: Some(buf),
+                layer_keyframes: Vec::new(),
+            };
+            app.animation.timeline_state.add_frame(frame);
+        }
+        app
+    }
+
+    #[test]
+    fn test_tick_syncs_timeline_frame_to_player_frame() {
+        let mut app = make_app_with_frames(5);
+        app.start_inline_playback_from_timeline();
+        assert!(app.animation.inline_player.is_some());
+
+        let player_frame = {
+            let player = app.animation.inline_player.as_ref().unwrap();
+            player.advance(Duration::from_millis(200));
+            player.current_frame()
+        };
+
+        app.animation.timeline_state.current_frame = player_frame;
+
+        assert_eq!(app.animation.timeline_state.current_frame, player_frame);
+        assert!(player_frame > 0, "player should have advanced past frame 0");
+    }
+
+    #[test]
+    fn test_stop_preserves_last_rendered_frame() {
+        let mut app = make_app_with_frames(5);
+        app.animation.timeline_state.current_frame = 2;
+        app.start_inline_playback_from_timeline();
+        assert!(app.animation.inline_player.is_some());
+
+        let last_frame = {
+            let player = app.animation.inline_player.as_ref().unwrap();
+            player.advance(Duration::from_millis(100));
+            player.current_frame()
+        };
+
+        app.stop_inline_playback();
+
+        assert_eq!(app.animation.timeline_state.current_frame, last_frame);
+        assert!(app.animation.inline_player.is_none());
+
+        let expected_ch = char::from_u32(b'A' as u32 + (last_frame % 26) as u32).unwrap();
+        assert_eq!(
+            app.editor.canvas.buffer.get(0, 0).unwrap().ch,
+            expected_ch,
+            "canvas should hold the last rendered frame content"
         );
     }
 }

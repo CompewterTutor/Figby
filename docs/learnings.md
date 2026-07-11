@@ -1481,3 +1481,11 @@ Three bugs found in phase merge review:
   via 'A'-key, then press Enter to play. If every frame shows the same content,
   the bug is present. If frames vary, it's fixed. `tmux` can mask this because
   tmux's own compositing can hide ratatui cache staleness.
+
+## 7.0.3 — Reconcile playback cursor with timeline `current_frame`
+
+- When animation playback and timeline UI have independent frame cursors, the
+  timeline strip freezes on the start frame and the canvas reverts to the start
+  frame after stop. Fix: sync `current_frame` from player to timeline state on
+  each tick and on stop/dismiss. The `playing` field on `TimelineState` was
+  already dead code (nothing read it).

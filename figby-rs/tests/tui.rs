@@ -2926,3 +2926,96 @@ fn test_enter_starts_playback_even_with_layers_panel_open() {
         "Enter must not fall through to the Layers panel's toggle-visibility binding"
     );
 }
+
+#[test]
+fn test_timeline_frame_edits_persist_on_switch() {
+    use crossterm::event::KeyCode;
+    use figby::tui::canvas::{CanvasCell, CanvasWidget};
+    use figby::tui::layers::LayerStack;
+    use figby::tui::timeline::TimelineFrame;
+    use figby::tui::{AppMode, TuiApp};
+
+    let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
+    app.mode = AppMode::ImageEditor;
+    app.editor.canvas = CanvasWidget::new(3, 3);
+    app.editor.layer_stack = LayerStack::new(3, 3);
+
+    // Draw 'X' at (0,0) on frame 0
+    app.editor.layer_stack.active_layer_mut().buffer_mut().set(
+        0,
+        0,
+        CanvasCell {
+            ch: 'X',
+            fg: None,
+            bg: None,
+            height: None,
+        },
+    );
+    app.editor.recomposite_canvas();
+
+    // Add two timeline frames
+    app.animation.timeline_state.add_frame(TimelineFrame {
+        thumbnail: vec![],
+        has_keyframe: true,
+        label: "F0".to_string(),
+        layer_state: None,
+        layer_keyframes: vec![],
+    });
+    app.animation.timeline_state.add_frame(TimelineFrame {
+        thumbnail: vec![],
+        has_keyframe: true,
+        label: "F1".to_string(),
+        layer_state: None,
+        layer_keyframes: vec![],
+    });
+
+    // Switch to frame 1 (triggers commit of frame 0)
+    app.animation.timeline_visible = true;
+    app.handle_key_event(KeyCode::Right);
+    assert_eq!(
+        app.animation.timeline_state.current_frame, 1,
+        "Right arrow should advance to frame 1"
+    );
+
+    // Draw 'Y' at (1,1) on frame 1
+    app.editor.layer_stack.active_layer_mut().buffer_mut().set(
+        1,
+        1,
+        CanvasCell {
+            ch: 'Y',
+            fg: None,
+            bg: None,
+            height: None,
+        },
+    );
+    app.editor.recomposite_canvas();
+
+    // Switch back to frame 0 (triggers commit of frame 1, loads frame 0)
+    app.handle_key_event(KeyCode::Left);
+    assert_eq!(
+        app.animation.timeline_state.current_frame, 0,
+        "Left arrow should go back to frame 0"
+    );
+
+    // Frame 0's 'X' must survive the round-trip
+    assert_eq!(
+        app.editor.canvas.buffer.get(0, 0).unwrap().ch,
+        'X',
+        "Frame 0 edit 'X' at (0,0) should persist after switch back"
+    );
+
+    // Switch to frame 1 again (triggers commit of frame 0, loads frame 1)
+    app.handle_key_event(KeyCode::Right);
+    assert_eq!(
+        app.animation.timeline_state.current_frame, 1,
+        "Right arrow should advance to frame 1 again"
+    );
+
+    // Frame 1's 'Y' must survive the round-trip
+    assert_eq!(
+        app.editor.canvas.buffer.get(1, 1).unwrap().ch,
+        'Y',
+        "Frame 1 edit 'Y' at (1,1) should persist after switch back"
+    );
+}

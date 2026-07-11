@@ -25,7 +25,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 > (play/pause cursor) depends on the same `TimelineState::current_frame` field
 > validated by 7.0.1.
 
-- [ ] `7.0.1` Commit timeline frame edits on switch (manual-note #6)
+- [x] `7.0.1` Commit timeline frame edits on switch (manual-note #6)
   - **Goal:** Editing a frame, advancing to another frame, then coming back
     loses all edits — the animation editor is useless. Two independent
     `CanvasBuffer` copies exist: the live `EditorState::layer_stack` active layer

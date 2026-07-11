@@ -55,7 +55,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     after a frame switch. Park all three as follow-ups under 7.3 architecture.
   - **Difficulty:** Medium
 
-- [ ] `7.0.2` Fix false "Cannot read file: stream did not contain valid UTF-8" on GIF import (manual-note #1)
+- [x] `7.0.2` Fix false "Cannot read file: stream did not contain valid UTF-8" on GIF import (manual-note #1)
   - **Goal:** Importing an animated GIF (a) emits a bogus
     `Cannot read file: stream did not contain valid UTF-8` error and (b) leaves
     the file-open dialog open so the user must press Escape to dismiss it —

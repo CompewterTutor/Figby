@@ -15,3 +15,18 @@
 [x] Can't find anywhere to toggle loop animation — now a persistent 🔁 button in the transport bar; also now defaults from the imported GIF's own loop setting instead of always starting off.
 [x] should have a transport controls section for animations with icons for play pause, etc — persistent, mouse-clickable ▶/⏸/⏹/🔁 bar in the timeline toolbar row (previously static text); also fixed a latent bug where clicks during playback leaked through to canvas drawing.
 
+## pt deux
+
+[ ] So when i import an animated gif there's an error and the dialog box doesn't close (Error: Cannot read file: stream did not contain valid UTF-8) but it loads fine i just have to close the dialog with escape
+[ ] quitting dialog asking to save isn't sized correctly, it cuts off, and it doesn't accept mouse input
+[ ] the playback of an animation is still not correct behavior. Right now there's some weird separation of playing and the timeline - they should be intrinsically connected. When I pause playback, we're still at frame 0 even if i pause in the middle of playback. play should be advancing the frame counter and displaying the frame it's on. pause stops the playback and stops at the right frame, like every other app in history.
+[ ] there needs to be an overhaul of keyboard shortcuts. there are too many overlaps. frame advance arrows don't work because that's also the command to change sidebar focus. make some of these, like change sidebar panel to alt arrows
+[ ] brush props don't seem to be changeable outside of \
+[ ] there's a huge problem editing a frame, changing frames, change back - all edits are gone essentially the entire animation editor is useless
+[ ] files are HUGE. that mod.rs file is like 6k lines wtf can we plan splitting that up into some smaller files? state management on the whole looks so bolted on in different places, like amateur hour.
+[ ] half the props panels for tools are just the old toolbox? i don't even know what the point is here.
+[ ] particle effects... where's the inertia? vector of travel? need collision layers, particles should have their own timelines at some point, a big change i'm sure.
+[ ] lighting makes no sense
+
+
+

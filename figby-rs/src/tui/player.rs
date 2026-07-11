@@ -156,6 +156,20 @@ impl AnimationPlayer {
         self.frames.len()
     }
 
+    /// (width, height) of a single frame in cells, plus one row reserved
+    /// for the progress bar. Used to size/center the render area the same
+    /// way the normal canvas centers its buffer within its panel.
+    pub fn content_dimensions(&self) -> (u16, u16) {
+        let h = self.frames.first().map(|f| f.len()).unwrap_or(0);
+        let w = self
+            .frames
+            .first()
+            .and_then(|f| f.first())
+            .map(|row| row.len())
+            .unwrap_or(0);
+        (w as u16, h.saturating_add(1) as u16)
+    }
+
     pub fn current_frame(&self) -> usize {
         self.current_frame.get()
     }
@@ -806,6 +820,21 @@ mod tests {
         let frames = make_test_frames(10, 3, 2);
         let player = AnimationPlayer::new(frames, 10).with_loop(false);
         assert!(!player.is_looping());
+    }
+
+    #[test]
+    fn test_content_dimensions() {
+        // make_test_frames(count, w, h) — width 3, height 2, + 1 reserved
+        // progress-bar row.
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10);
+        assert_eq!(player.content_dimensions(), (3, 3));
+    }
+
+    #[test]
+    fn test_content_dimensions_empty_frames() {
+        let player = AnimationPlayer::new(vec![], 10);
+        assert_eq!(player.content_dimensions(), (0, 1));
     }
 
     #[test]

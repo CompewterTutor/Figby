@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.0.16] - 2026-07-11
+
+### Fixed
+- In-canvas animation playback rendered the frame content flush against
+  the panel's top-left corner instead of centered like the normal
+  (non-playing) canvas, and stranded the progress bar at the bottom of
+  the whole panel, disconnected from the visible frame — looked broken
+  even though playback was actually advancing correctly. Now centers the
+  player's content the same way `EditorState::compute_canvas_rect`
+  centers the normal canvas buffer (`AnimationPlayer::content_dimensions`
+  + matching centering math in `render_canvas_area`).
+
 ## [6.0.15] - 2026-07-11
 
 ### Added

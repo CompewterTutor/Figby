@@ -1367,7 +1367,22 @@ impl TuiApp {
                 .borders(canvas_borders);
             let inner = block.inner(canvas_area);
             frame.render_widget(block, canvas_area);
-            frame.render_widget(player, inner);
+
+            // Center the frame content the same way the normal (non-playing)
+            // canvas centers its buffer within its panel (`compute_canvas_rect`)
+            // — otherwise playback jarringly jumps the content to the panel's
+            // top-left corner and strands the progress bar (always the last
+            // row of whatever area it's given) far from the visible frame.
+            let (content_w, content_h) = player.content_dimensions();
+            let render_w = content_w.min(inner.width);
+            let render_h = content_h.min(inner.height);
+            let player_rect = Rect {
+                x: inner.x + (inner.width.saturating_sub(render_w) / 2),
+                y: inner.y + (inner.height.saturating_sub(render_h) / 2),
+                width: render_w,
+                height: render_h,
+            };
+            frame.render_widget(player, player_rect);
             return;
         }
 

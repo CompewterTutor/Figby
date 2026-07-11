@@ -589,12 +589,15 @@ fn test_brush_preview_respects_max_size() {
 
 #[test]
 fn test_brush_render_contains_shape_name() {
+    use figby::tui::TabId;
     use figby::tui::TuiApp;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
     app.welcome_screen.show = false;
+    app.side_panel.open = true;
+    app.side_panel.active_tab = TabId::Props;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -1702,6 +1705,7 @@ fn test_line_tool_keyboard_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Select Line tool
     app.handle_key_event(KeyCode::Char('i'));
@@ -1727,6 +1731,7 @@ fn test_spray_tool_keyboard_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Select SprayPaint tool
     app.handle_key_event(KeyCode::Char('a'));
@@ -1765,6 +1770,7 @@ fn test_eyedropper_tool_keyboard_does_not_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Place a cell
     app.editor.canvas.buffer.set(
@@ -2236,10 +2242,10 @@ fn test_menu_help_keybindings() {
 
     let mut app = TuiApp::new();
 
-    // Open Help menu via Alt+H
+    // Open Help menu via Alt+H (index 7, after File/Edit/View/Image/Tools/Layers/Animation)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::ALT));
     assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(4));
+    assert_eq!(app.menu_bar_state.active_menu, Some(7));
 
     // Navigate to Keybindings (index 1) and select
     app.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
@@ -2571,6 +2577,7 @@ fn test_text_tool_enter_text_mode() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Select Text tool
     app.handle_key_event(KeyCode::Char('t'));
@@ -2595,6 +2602,7 @@ fn test_text_tool_commit_text() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
 
     // Load a font manually so commit_block can render
     let font_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
@@ -2717,10 +2725,10 @@ fn test_cli_dispatch_tools_select_brush_via_menu() {
         "should start with Eraser"
     );
 
-    // Open Tools menu via Alt+T (index 3)
+    // Open Tools menu via Alt+T (index 4, after Image menu was added at index 3)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::ALT));
     assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(3));
+    assert_eq!(app.menu_bar_state.active_menu, Some(4));
 
     // First item (index 0) is "Brush" — press Enter to select
     let event = app.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -2782,4 +2790,139 @@ fn test_multiple_widgets_interaction() {
     let erased = app.editor.canvas.buffer.get(1, 1).unwrap();
     assert_eq!(erased.ch, ' ', "eraser should clear cell to space");
     assert_eq!(erased.fg, None, "eraser should clear foreground color");
+}
+
+#[test]
+fn test_rotate_tool_arrow_key_rotates_whole_layer() {
+    use crossterm::event::KeyCode;
+    use figby::tui::canvas::{CanvasCell, CanvasWidget};
+    use figby::tui::layers::LayerStack;
+    use figby::tui::{AppMode, Tool, TuiApp};
+
+    let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
+    // Arrow keys drive the canvas cursor (and, here, the Rotate tool) only
+    // in ImageEditor mode; in FontEditor mode they navigate the glyph grid.
+    app.mode = AppMode::ImageEditor;
+    // Select the Rotate tool directly rather than via its 'r' shortcut key:
+    // in ImageEditor mode 'r' is already claimed by ImageEditor's own
+    // reset-adjustments binding, which runs first (pre-existing conflict,
+    // exercised separately by toolbox::test_rotate_tool_shortcut_selects_rotate).
+    app.editor.toolbox.selected = Tool::Rotate;
+    // Use a known square canvas so the rotation's destination cell is
+    // predictable (rotating a non-square buffer moves things differently).
+    app.editor.canvas = CanvasWidget::new(3, 3);
+    app.editor.layer_stack = LayerStack::new(3, 3);
+
+    app.editor.layer_stack.active_layer_mut().buffer_mut().set(
+        1,
+        0,
+        CanvasCell {
+            ch: 'X',
+            fg: None,
+            bg: None,
+            height: None,
+        },
+    );
+    app.editor.recomposite_canvas();
+
+    app.handle_key_event(KeyCode::Right);
+
+    assert_eq!(
+        app.editor.canvas.buffer.get(2, 1).unwrap().ch,
+        'X',
+        "Right arrow with the Rotate tool should rotate the whole layer 90° clockwise"
+    );
+}
+
+#[test]
+fn test_welcome_screen_shortcuts_work_with_or_without_shift() {
+    use crossterm::event::KeyCode;
+    use figby::tui::file_ops::FileOpsMode;
+    use figby::tui::TuiApp;
+
+    // 'A' (Animated GIF Import) previously only matched the shifted,
+    // uppercase char — plain 'a' (no shift) silently did nothing.
+    let mut app = TuiApp::new();
+    assert!(app.welcome_screen.show);
+    app.handle_key_event(KeyCode::Char('a'));
+    assert_eq!(
+        app.dialogs.file_ops.mode,
+        FileOpsMode::ImportGif,
+        "lowercase 'a' should trigger the same action as shifted 'A'"
+    );
+
+    // Shifted form must still work too.
+    let mut app2 = TuiApp::new();
+    app2.handle_key_event(KeyCode::Char('A'));
+    assert_eq!(app2.dialogs.file_ops.mode, FileOpsMode::ImportGif);
+}
+
+#[test]
+fn test_welcome_screen_font_and_image_import_keys_do_not_collide() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use figby::tui::welcome::WelcomeAction;
+    use figby::tui::TuiApp;
+
+    // 'I'/'i' previously matched two different actions (FontNewFromFile and
+    // ImageOpen) in the same match statement; the first arm always won and
+    // the Image panel's "Import/Open Image" binding was dead code. The
+    // Image action now uses 'L' (Load Image) instead.
+    let app = TuiApp::new();
+    assert_eq!(
+        app.welcome_screen
+            .handle_key(KeyCode::Char('i'), KeyModifiers::NONE, 0),
+        Some(WelcomeAction::FontNewFromFile)
+    );
+    assert_eq!(
+        app.welcome_screen
+            .handle_key(KeyCode::Char('l'), KeyModifiers::NONE, 0),
+        Some(WelcomeAction::ImageOpen)
+    );
+}
+
+#[test]
+fn test_enter_starts_playback_even_with_layers_panel_open() {
+    use crossterm::event::KeyCode;
+    use figby::tui::side_panel::TabId;
+    use figby::tui::timeline::TimelineFrame;
+    use figby::tui::TuiApp;
+
+    // The side panel now opens by default on wide terminals, defaulting to
+    // the Layers tab — whose own Enter binding (toggle visibility)
+    // previously shadowed the "Enter starts timeline playback" binding
+    // entirely, since the Layers-panel key dispatch was checked earlier in
+    // handle_key_event. Enter must start playback, not silently toggle the
+    // active layer's visibility, whenever the side panel happens to be
+    // open on the Layers tab.
+    let mut app = TuiApp::new();
+    app.welcome_screen.show = false;
+    app.side_panel.open = true;
+    app.side_panel.active_tab = TabId::Layers;
+    app.animation.timeline_state.add_frame(TimelineFrame {
+        thumbnail: vec![],
+        has_keyframe: true,
+        label: "F0".to_string(),
+        layer_state: None,
+        layer_keyframes: vec![],
+    });
+    app.animation.timeline_state.add_frame(TimelineFrame {
+        thumbnail: vec![],
+        has_keyframe: true,
+        label: "F1".to_string(),
+        layer_state: None,
+        layer_keyframes: vec![],
+    });
+    assert!(app.editor.layer_stack.layers[0].visible);
+
+    app.handle_key_event(KeyCode::Enter);
+
+    assert!(
+        app.animation.inline_player.is_some(),
+        "Enter should start in-canvas playback even when the Layers panel is focused"
+    );
+    assert!(
+        app.editor.layer_stack.layers[0].visible,
+        "Enter must not fall through to the Layers panel's toggle-visibility binding"
+    );
 }

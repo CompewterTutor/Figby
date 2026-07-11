@@ -349,6 +349,21 @@ struct CliArgs {
         help = "TUI render mode: fast (always redraw) or dirty (only on change) [default: dirty]"
     )]
     tui_render_mode: Option<String>,
+    #[arg(
+        long = "play",
+        help = "Play an animated GIF fullscreen in the terminal, then exit"
+    )]
+    play_path: Option<String>,
+    #[arg(
+        long = "play-width",
+        help = "Scale playback to N terminal columns, preserving aspect ratio [default: fit to terminal]"
+    )]
+    play_width: Option<usize>,
+    #[arg(
+        long = "loop",
+        help = "With --play: repeat the animation until any key is pressed, instead of playing once"
+    )]
+    play_loop: bool,
     #[arg(help = "Text to render (reads from stdin if omitted)")]
     message: Vec<String>,
 }
@@ -1095,6 +1110,44 @@ fn main() {
 fn main() {
     let args = CliArgs::parse();
     let infocode = args.infocode;
+
+    if let Some(ref path) = args.play_path {
+        let scale = match args.play_width {
+            Some(w) => figby::gif_import::GifScaleTarget::FitWidth(w),
+            None => {
+                // Fit within the current terminal, reserving 1 row for the
+                // playback progress bar. Falls back to a common default if
+                // the terminal size can't be queried (e.g. not a real tty).
+                let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
+                figby::gif_import::GifScaleTarget::FitBox(
+                    cols as usize,
+                    (rows as usize).saturating_sub(1).max(1),
+                )
+            }
+        };
+        let gif_result =
+            match figby::gif_import::import_gif_scaled(std::path::Path::new(path), scale) {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Error importing GIF '{path}': {e}");
+                    process::exit(1);
+                }
+            };
+        // play_raw is a single-fps engine (no per-frame delay support), so
+        // approximate an overall fps from the GIF's first real frame delay —
+        // the same convention used when a GIF import seeds the TUI
+        // timeline's fps (see tui/mod.rs's perform_import_gif).
+        let first_delay_cs = gif_result.frame_delays.first().copied().unwrap_or(10);
+        let fps = 100u16
+            .checked_div(first_delay_cs.max(1))
+            .map(|f| f.clamp(1, 60) as u8)
+            .unwrap_or(10);
+        if let Err(e) = figby::tui::player::play_raw(gif_result.frames, fps, args.play_loop) {
+            eprintln!("Playback error: {e}");
+            process::exit(1);
+        }
+        return;
+    }
 
     if args.flag_tui {
         let mut app = figby::tui::TuiApp::new();

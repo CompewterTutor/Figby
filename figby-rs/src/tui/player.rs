@@ -3,8 +3,7 @@ use std::io::{self, Write};
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode};
-use crossterm::execute;
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -94,6 +93,13 @@ impl AnimationPlayer {
         self.loop_.set(!self.loop_.get());
     }
 
+    /// Consuming builder to set the initial loop state without touching
+    /// `new()`'s signature (used by ~25 call sites, most of them tests).
+    pub fn with_loop(self, enabled: bool) -> Self {
+        self.loop_.set(enabled);
+        self
+    }
+
     /// Advance animation by `delta` duration.
     /// Returns number of frames advanced (for testing).
     pub fn advance(&self, delta: Duration) -> usize {
@@ -148,6 +154,20 @@ impl AnimationPlayer {
 
     pub fn total_frames(&self) -> usize {
         self.frames.len()
+    }
+
+    /// (width, height) of a single frame in cells, plus one row reserved
+    /// for the progress bar. Used to size/center the render area the same
+    /// way the normal canvas centers its buffer within its panel.
+    pub fn content_dimensions(&self) -> (u16, u16) {
+        let h = self.frames.first().map(|f| f.len()).unwrap_or(0);
+        let w = self
+            .frames
+            .first()
+            .and_then(|f| f.first())
+            .map(|row| row.len())
+            .unwrap_or(0);
+        (w as u16, h.saturating_add(1) as u16)
     }
 
     pub fn current_frame(&self) -> usize {
@@ -206,6 +226,15 @@ impl AnimationPlayer {
             KeyCode::Esc => {
                 self.pause();
                 self.seek(0);
+                true
+            }
+            KeyCode::Char('q') | KeyCode::Char('Q') => {
+                // `play_fullscreen`'s (and `play_raw`'s) loops both check the
+                // raw keycode for Esc/'q' to decide whether to exit, but only
+                // act on it when `handle_key` reports the key as consumed —
+                // without this arm, 'q' fell through to `_ => false` and the
+                // exit check could never fire, so 'q' silently did nothing.
+                self.pause();
                 true
             }
             KeyCode::Enter => {
@@ -277,11 +306,12 @@ impl AnimationPlayer {
         };
         let total_digits = total.to_string().len();
         let counter_str = format!("{:0width$}/{}", cur + 1, total, width = total_digits);
+        let loop_str = if self.loop_.get() { " \u{1F501}" } else { "" };
         let speed_str = format!(" {:.2}x", self.speed.get());
 
         let prefix = format!("{} {}", play_ch, counter_str);
         let prefix_len = prefix.chars().count();
-        let suffix = speed_str;
+        let suffix = format!("{speed_str}{loop_str}");
         let suffix_len = suffix.chars().count();
 
         let bar_available = (area_width as usize).saturating_sub(prefix_len + suffix_len + 3);
@@ -368,13 +398,24 @@ pub fn capture_terminal_content() -> io::Result<AnimationFrame> {
     }
 }
 
-/// Try to read terminal cell content via DECRQCRA (xterm-compatible).
-/// Currently returns unsupported; future implementation may parse responses
-/// from terminals that support the DECRQCRA escape sequence.
+/// Always returns `Unsupported` — there is no portable way to read back
+/// arbitrary previously-rendered terminal cell content.
+///
+/// An earlier version of this doc comment suggested DECRQCRA (Request
+/// Checksum of Rectangular Area) as a future implementation path. That was
+/// mistaken: DECRQCRA's response (DECCKSR) is a terminal-defined *checksum*
+/// of a region, used by conformance test suites (e.g. vttest) to verify a
+/// terminal renders *already-known* content correctly — it cannot be
+/// inverted to recover unknown character/color data, so it can't implement
+/// "capture the screen as an animation frame." No standard escape sequence
+/// does that; a few terminals (kitty, iTerm2) expose proprietary,
+/// non-portable extensions for it, which crossterm does not wrap. Returning
+/// `Unsupported` (and falling back to a blank frame) is the correct
+/// behavior here, not a stub awaiting completion.
 fn try_query_terminal_cells(_w: usize, _h: usize) -> io::Result<AnimationFrame> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
-        "DECRQCRA terminal content query not available on this terminal",
+        "reading back terminal cell content is not portably supported",
     ))
 }
 
@@ -383,13 +424,16 @@ fn blank_frame(w: usize, h: usize) -> AnimationFrame {
     vec![vec![CanvasCell::default(); w]; h]
 }
 
-/// Terminal session managing capture → playback → restore lifecycle.
+/// Terminal session managing capture → playback lifecycle.
 ///
-/// Call `capture()` to snapshot current terminal content, then
-/// `enter_player_mode()` / `exit_player_mode()` to toggle alt screen.
-/// The captured frame can be prepended to an animation as frame 0.
+/// Call `capture()` to get a session whose `captured_frame` can be
+/// prepended to an animation as frame 0. Note `capture()` cannot actually
+/// read existing on-screen content (see `try_query_terminal_cells`), so
+/// `captured_frame` is always blank today, just sized to the real terminal
+/// dimensions. Does not manage the alternate screen — callers own that.
 pub struct TerminalSession {
-    /// Captured terminal content as first frame.
+    /// Captured terminal content as first frame — always blank; see the
+    /// struct-level doc comment.
     pub captured_frame: AnimationFrame,
     /// Terminal dimensions at capture time (cols, rows).
     pub terminal_size: (u16, u16),
@@ -413,37 +457,42 @@ impl TerminalSession {
             was_raw_mode: false,
         })
     }
-
-    /// Switch to alternate screen for playback.
-    pub fn enter_player_mode(&mut self) -> io::Result<()> {
-        execute!(io::stdout(), EnterAlternateScreen)?;
-        Ok(())
-    }
-
-    /// Restore original terminal content by leaving alternate screen.
-    pub fn exit_player_mode(&self) -> io::Result<()> {
-        execute!(io::stdout(), LeaveAlternateScreen)?;
-        Ok(())
-    }
 }
 
-/// Play animation fullscreen: capture terminal, enter alt screen, play, restore.
+/// Play animation fullscreen: capture terminal, render at given FPS.
 ///
-/// Captures current terminal content as frame 0, enters alternate screen,
-/// renders all frames (including captured) at the given FPS, handles keyboard
-/// input, and restores original terminal content on finish or Esc.
+/// Prepends a captured frame 0 — always blank, since there is no portable
+/// way to read back existing terminal content (see
+/// `try_query_terminal_cells`) — then renders all frames at the given FPS
+/// and handles keyboard input. Does NOT manage alternate screen — caller is
+/// responsible for that.
 pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
-    let mut session = TerminalSession::capture()?;
+    let session = TerminalSession::capture()?;
 
     let mut all_frames = vec![session.captured_frame.clone()];
     all_frames.extend(frames);
+
+    // Cap frame dimensions to terminal size to avoid rendering issues
+    let (term_w, term_h) = terminal::size()?;
+    for frame in &mut all_frames {
+        let h = frame.len().min(term_h as usize);
+        let w = if h > 0 {
+            frame[0].len().min(term_w as usize)
+        } else {
+            0
+        };
+        frame.truncate(h);
+        for row in frame.iter_mut() {
+            row.truncate(w);
+        }
+    }
+
     let player = AnimationPlayer::new(all_frames, fps);
     player.play();
 
-    session.enter_player_mode()?;
-
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
     terminal.hide_cursor()?;
 
     let tick = Duration::from_millis(1000 / fps.max(1) as u64);
@@ -458,7 +507,7 @@ pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
         if event::poll(tick)? {
             if let Event::Key(key) = event::read()? {
                 let consumed = player.handle_key(key.code);
-                if consumed && key.code == KeyCode::Esc {
+                if consumed && (key.code == KeyCode::Esc || key.code == KeyCode::Char('q')) {
                     finished = true;
                 }
             }
@@ -478,8 +527,7 @@ pub fn play_fullscreen(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
         }
     }
 
-    terminal.show_cursor()?;
-    session.exit_player_mode()?;
+    drop(terminal);
     Ok(())
 }
 
@@ -561,9 +609,18 @@ pub fn render_frame_raw(frame: &AnimationFrame) -> String {
 ///
 /// Enters raw mode (no echo, no line buffering), renders frames by writing
 /// pre-computed ANSI escape codes directly to stdout (bypassing ratatui's
-/// Terminal::draw diffing). Frame timing via `sleep`. Keyboard controls:
-/// Space=pause, Esc=exit, Left/Right=seek, +/-=speed.
-pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
+/// Terminal::draw diffing). Frame timing via `sleep`.
+///
+/// When `loop_playback` is `false` (the normal case): keyboard controls are
+/// Space=pause, Esc=exit, Left/Right=seek, +/-=speed, l/L=toggle loop; and
+/// playback auto-exits once a non-looping animation naturally reaches its
+/// last frame.
+///
+/// When `loop_playback` is `true`: the animation repeats indefinitely (no
+/// natural end to wait for), and the normal interactive controls are
+/// bypassed — any keypress exits immediately. This is the "banner" mode:
+/// loop until dismissed, rather than play-once-and-return.
+pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8, loop_playback: bool) -> io::Result<()> {
     if frames.is_empty() {
         return Ok(());
     }
@@ -572,6 +629,9 @@ pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
     let precomputed: Vec<String> = frames.iter().map(render_frame_raw).collect();
     let player = AnimationPlayer::new(frames, fps);
     player.play();
+    if loop_playback {
+        player.toggle_loop();
+    }
 
     terminal::enable_raw_mode()?;
     write!(io::stdout(), "\x1b[?25l\x1b[2J")?;
@@ -591,23 +651,36 @@ pub fn play_raw(frames: Vec<AnimationFrame>, fps: u8) -> io::Result<()> {
 
         if event::poll(Duration::ZERO)? {
             if let Event::Key(key) = event::read()? {
-                let consumed = player.handle_key(key.code);
-                if consumed && key.code == KeyCode::Esc {
+                if loop_playback {
+                    // No natural end while looping — any keypress dismisses.
                     finished = true;
+                } else {
+                    let consumed = player.handle_key(key.code);
+                    if consumed && (key.code == KeyCode::Esc || key.code == KeyCode::Char('q')) {
+                        finished = true;
+                    }
                 }
             }
         }
+
+        // `cur` (just rendered + slept on above) was already the final frame
+        // of a non-looping, still-playing animation — it's had its full
+        // interval on screen, so this is a natural end-of-playback, not a
+        // user pausing partway through. Exit automatically instead of
+        // waiting for player.is_playing() to become false, which nothing
+        // ever sets on its own — that made an unattended `figby --play`
+        // hang forever on the last frame.
+        let (_, total_frames) = player.progress();
+        let finished_naturally = total_frames > 0
+            && cur >= total_frames.saturating_sub(1)
+            && !player.is_looping()
+            && player.is_playing();
 
         if player.is_playing() {
             player.advance(frame_interval);
         }
 
-        let (cur_frame, total_frames) = player.progress();
-        if total_frames > 0
-            && cur_frame >= total_frames.saturating_sub(1)
-            && !player.is_looping()
-            && !player.is_playing()
-        {
+        if finished_naturally && !finished {
             finished = true;
         }
     }
@@ -736,6 +809,32 @@ mod tests {
         // 10fps. 2s = 20 frames. Without loop, should clamp at last frame (9).
         player.advance(Duration::from_secs(2));
         assert_eq!(player.current_frame(), 9);
+    }
+
+    #[test]
+    fn test_player_with_loop_sets_initial_state() {
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10).with_loop(true);
+        assert!(player.is_looping());
+
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10).with_loop(false);
+        assert!(!player.is_looping());
+    }
+
+    #[test]
+    fn test_content_dimensions() {
+        // make_test_frames(count, w, h) — width 3, height 2, + 1 reserved
+        // progress-bar row.
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10);
+        assert_eq!(player.content_dimensions(), (3, 3));
+    }
+
+    #[test]
+    fn test_content_dimensions_empty_frames() {
+        let player = AnimationPlayer::new(vec![], 10);
+        assert_eq!(player.content_dimensions(), (0, 1));
     }
 
     #[test]
@@ -917,6 +1016,30 @@ mod tests {
         player.handle_key(KeyCode::Esc);
         assert!(!player.is_playing());
         assert_eq!(player.current_frame(), 0);
+    }
+
+    #[test]
+    fn test_player_handle_key_q_is_consumed_and_pauses() {
+        // Regression test: 'q' previously fell through to `_ => false`, so
+        // callers' `consumed && key.code == Char('q')` exit checks (in both
+        // play_fullscreen and play_raw) could never fire — pressing 'q'
+        // silently did nothing instead of quitting the player.
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10);
+        player.play();
+        assert!(player.is_playing());
+
+        let consumed = player.handle_key(KeyCode::Char('q'));
+        assert!(
+            consumed,
+            "'q' must be reported as consumed to exit playback"
+        );
+        assert!(!player.is_playing());
+
+        player.play();
+        let consumed = player.handle_key(KeyCode::Char('Q'));
+        assert!(consumed, "'Q' must also be reported as consumed");
+        assert!(!player.is_playing());
     }
 
     #[test]
@@ -1118,7 +1241,13 @@ mod tests {
 
     #[test]
     fn test_play_raw_empty_frames() {
-        let result = play_raw(vec![], 30);
+        let result = play_raw(vec![], 30, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_play_raw_empty_frames_looping() {
+        let result = play_raw(vec![], 30, true);
         assert!(result.is_ok());
     }
 

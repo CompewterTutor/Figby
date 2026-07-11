@@ -120,6 +120,13 @@ impl LayerGroup {
     }
 }
 
+/// A set of layers whose visibility and lock state stay in sync with each
+/// other — toggling either on one member propagates to the rest.
+#[derive(Debug, Clone)]
+pub struct LayerLink {
+    pub layer_indices: Vec<usize>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Layer {
     pub buffer: CanvasBuffer,
@@ -130,6 +137,7 @@ pub struct Layer {
     pub blend_mode: BlendMode,
     pub mask: Option<LayerMask>,
     pub group: Option<usize>,
+    pub link: Option<usize>,
     pub accepts_lighting: bool,
     pub casts_shadow: bool,
 }
@@ -145,6 +153,7 @@ impl Layer {
             blend_mode: BlendMode::Normal,
             mask: None,
             group: None,
+            link: None,
             accepts_lighting: true,
             casts_shadow: true,
         }
@@ -164,6 +173,7 @@ pub struct LayerStack {
     pub layers: Vec<Layer>,
     pub active: usize,
     pub groups: Vec<LayerGroup>,
+    pub links: Vec<LayerLink>,
 }
 
 impl LayerStack {
@@ -172,6 +182,7 @@ impl LayerStack {
             layers: vec![Layer::new(width, height, "Background".to_string())],
             active: 0,
             groups: Vec::new(),
+            links: Vec::new(),
         }
     }
 
@@ -189,6 +200,7 @@ impl LayerStack {
             layers,
             active: 0,
             groups: Vec::new(),
+            links: Vec::new(),
         }
     }
 
@@ -384,6 +396,18 @@ impl LayerStack {
         }
     }
 
+    pub fn rename(&mut self, index: usize, name: String) -> bool {
+        if name.trim().is_empty() {
+            return false;
+        }
+        if let Some(layer) = self.layers.get_mut(index) {
+            layer.name = name;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn group_of_layer(&self, layer_idx: usize) -> Option<usize> {
         self.layers.get(layer_idx).and_then(|l| l.group)
     }
@@ -393,6 +417,66 @@ impl LayerStack {
             .iter()
             .enumerate()
             .filter(|(_, l)| l.group == Some(group_idx))
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    /// Link the given layers so their visibility and lock state stay in
+    /// sync (mirrors `create_group`). If any of the layers is already
+    /// linked, it's moved into the new link set rather than double-linked.
+    pub fn link_layers(&mut self, indices: &[usize]) -> Option<usize> {
+        if indices.len() < 2 {
+            return None;
+        }
+        for &idx in indices {
+            if idx >= self.layers.len() {
+                return None;
+            }
+        }
+        for &idx in indices {
+            if let Some(old_link) = self.layers[idx].link {
+                self.unlink_layers(old_link);
+            }
+        }
+        let link_idx = self.links.len();
+        self.links.push(LayerLink {
+            layer_indices: indices.to_vec(),
+        });
+        for &idx in indices {
+            self.layers[idx].link = Some(link_idx);
+        }
+        Some(link_idx)
+    }
+
+    pub fn unlink_layers(&mut self, link_idx: usize) -> bool {
+        if link_idx >= self.links.len() {
+            return false;
+        }
+        for layer in &mut self.layers {
+            if layer.link == Some(link_idx) {
+                layer.link = None;
+            }
+        }
+        self.links.remove(link_idx);
+        for layer in &mut self.layers {
+            if let Some(l) = layer.link {
+                if l > link_idx {
+                    layer.link = Some(l - 1);
+                }
+            }
+        }
+        true
+    }
+
+    pub fn link_of_layer(&self, layer_idx: usize) -> Option<usize> {
+        self.layers.get(layer_idx).and_then(|l| l.link)
+    }
+
+    pub fn layers_in_link(&self, link_idx: usize) -> Vec<usize> {
+        self.layers
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.link == Some(link_idx))
             .map(|(i, _)| i)
             .collect()
     }
@@ -525,14 +609,36 @@ impl LayerStack {
     }
 
     pub fn toggle_visibility(&mut self, index: usize) {
-        if let Some(layer) = self.layers.get_mut(index) {
-            layer.visible = !layer.visible;
+        let Some(layer) = self.layers.get_mut(index) else {
+            return;
+        };
+        layer.visible = !layer.visible;
+        let new_state = layer.visible;
+        if let Some(link_idx) = self.link_of_layer(index) {
+            for i in self.layers_in_link(link_idx) {
+                if i != index {
+                    if let Some(l) = self.layers.get_mut(i) {
+                        l.visible = new_state;
+                    }
+                }
+            }
         }
     }
 
     pub fn toggle_lock(&mut self, index: usize) {
-        if let Some(layer) = self.layers.get_mut(index) {
-            layer.locked = !layer.locked;
+        let Some(layer) = self.layers.get_mut(index) else {
+            return;
+        };
+        layer.locked = !layer.locked;
+        let new_state = layer.locked;
+        if let Some(link_idx) = self.link_of_layer(index) {
+            for i in self.layers_in_link(link_idx) {
+                if i != index {
+                    if let Some(l) = self.layers.get_mut(i) {
+                        l.locked = new_state;
+                    }
+                }
+            }
         }
     }
 
@@ -643,10 +749,32 @@ pub(crate) fn blend_mode_color(
     }
 }
 
+/// Toolbar button actions rendered on the layers panel's header row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayerButton {
+    New,
+    Duplicate,
+    Delete,
+    Group,
+    Link,
+}
+
 pub struct LayerPanel {
     pub scroll: u16,
     pub theme: Theme,
     pub icons: std::collections::BTreeMap<String, String>,
+    drag_state: Option<(usize, usize)>,
+    drag_hover_row: Option<usize>,
+    pub renaming: Option<usize>,
+    pub rename_buffer: String,
+    /// Toolbar button hit-rects, recomputed each render and consulted by
+    /// `handle_mouse` — same store/hit-test convention as `menu.rs`'s
+    /// `MenuBarState.item_rects`.
+    button_rects: Vec<(LayerButton, Rect)>,
+    /// First layer picked for a link, armed by pressing `k`/`K` or clicking
+    /// the Link button once; a second press/click on a different layer
+    /// completes the pair (mirrors the one-at-a-time group-building flow).
+    pub link_pending: Option<usize>,
 }
 
 impl LayerPanel {
@@ -655,6 +783,29 @@ impl LayerPanel {
             scroll: 0,
             theme: Theme::default(),
             icons: std::collections::BTreeMap::new(),
+            drag_state: None,
+            drag_hover_row: None,
+            renaming: None,
+            rename_buffer: String::new(),
+            button_rects: Vec::new(),
+            link_pending: None,
+        }
+    }
+
+    /// Arm or complete a layer link, shared by the `k`/`K` keybind and the
+    /// Link toolbar button.
+    fn toggle_link_pending(&mut self, stack: &mut LayerStack) {
+        match self.link_pending {
+            None => {
+                self.link_pending = Some(stack.active);
+            }
+            Some(from) if from == stack.active => {
+                self.link_pending = None;
+            }
+            Some(from) => {
+                stack.link_layers(&[from, stack.active]);
+                self.link_pending = None;
+            }
         }
     }
 
@@ -662,7 +813,46 @@ impl LayerPanel {
         let code = key.code;
         let modifiers = key.modifiers;
 
+        if let Some(idx) = self.renaming {
+            match code {
+                KeyCode::Enter => {
+                    stack.rename(idx, self.rename_buffer.trim().to_string());
+                    self.renaming = None;
+                    self.rename_buffer.clear();
+                }
+                KeyCode::Esc => {
+                    self.renaming = None;
+                    self.rename_buffer.clear();
+                }
+                KeyCode::Backspace => {
+                    self.rename_buffer.pop();
+                }
+                KeyCode::Char(c) => {
+                    self.rename_buffer.push(c);
+                }
+                _ => {}
+            }
+            return true;
+        }
+
         match code {
+            KeyCode::F(2) => {
+                self.renaming = Some(stack.active);
+                self.rename_buffer = stack
+                    .layers
+                    .get(stack.active)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_default();
+                true
+            }
+            KeyCode::Up if modifiers == KeyModifiers::SHIFT => {
+                stack.move_up(stack.active);
+                true
+            }
+            KeyCode::Down if modifiers == KeyModifiers::SHIFT => {
+                stack.move_down(stack.active);
+                true
+            }
             KeyCode::Up => {
                 if stack.active > 0 {
                     stack.active -= 1;
@@ -727,21 +917,27 @@ impl LayerPanel {
                 }
                 true
             }
+            KeyCode::Char('k') | KeyCode::Char('K') => {
+                self.toggle_link_pending(stack);
+                true
+            }
             KeyCode::Right => {
                 if let Some(g) = stack.group_of_layer(stack.active) {
                     if let Some(grp) = stack.groups.get_mut(g) {
                         grp.collapsed = false;
+                        return true;
                     }
                 }
-                true
+                false
             }
             KeyCode::Left => {
                 if let Some(g) = stack.group_of_layer(stack.active) {
                     if let Some(grp) = stack.groups.get_mut(g) {
                         grp.collapsed = true;
+                        return true;
                     }
                 }
-                true
+                false
             }
             KeyCode::Char('M') => {
                 stack.toggle_mask(stack.active);
@@ -826,14 +1022,14 @@ impl Default for LayerPanel {
 }
 
 impl LayerPanel {
-    pub fn render_with_stack(&self, frame: &mut Frame, area: Rect, stack: &LayerStack) {
+    pub fn render_with_stack(&mut self, frame: &mut Frame, area: Rect, stack: &LayerStack) {
         let block = Block::default()
             .title(" Layers ")
             .borders(Borders::ALL)
             .style(
                 Style::default()
-                    .bg(self.theme.menu.dropdown_bg)
-                    .fg(self.theme.menu.fg),
+                    .bg(self.theme.layers.bg)
+                    .fg(self.theme.layers.fg),
             );
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -841,71 +1037,183 @@ impl LayerPanel {
         let inner_y = inner.y;
         let inner_x = inner.x;
         let inner_h = inner.height as usize;
-        let help_lines = [
-            "↑↓ sel ↵vis llock Llight Sshad",
-            "Nnew Ddup Xdel ±opa Bbld Mmask",
-            ",↑ .↓ reorder ←→col",
-        ];
 
-        for (y, help) in help_lines.iter().enumerate() {
-            if y >= inner_h {
-                return;
+        self.button_rects.clear();
+        if inner_h > 0 {
+            let buttons: [(LayerButton, &str, &str); 5] = [
+                (
+                    LayerButton::New,
+                    self.icons
+                        .get("layer_new")
+                        .map(|s| s.as_str())
+                        .unwrap_or("+"),
+                    "New",
+                ),
+                (
+                    LayerButton::Duplicate,
+                    self.icons
+                        .get("layer_duplicate")
+                        .map(|s| s.as_str())
+                        .unwrap_or("D"),
+                    "Dup",
+                ),
+                (
+                    LayerButton::Delete,
+                    self.icons
+                        .get("layer_delete")
+                        .map(|s| s.as_str())
+                        .unwrap_or("x"),
+                    "Del",
+                ),
+                (
+                    LayerButton::Group,
+                    self.icons
+                        .get("layer_group")
+                        .map(|s| s.as_str())
+                        .unwrap_or("G"),
+                    "Grp",
+                ),
+                (
+                    LayerButton::Link,
+                    self.icons
+                        .get("layer_link")
+                        .map(|s| s.as_str())
+                        .unwrap_or("\u{1f517}"),
+                    "Link",
+                ),
+            ];
+            let btn_w = (inner.width / buttons.len() as u16).max(1);
+            let mut bx = inner_x;
+            let mut spans: Vec<Span> = Vec::new();
+            for (action, icon, label) in buttons {
+                let text = format!(" {icon} {label}");
+                let rect = Rect {
+                    x: bx,
+                    y: inner_y,
+                    width: btn_w.min(inner_x + inner.width - bx),
+                    height: 1,
+                };
+                self.button_rects.push((action, rect));
+                spans.push(Span::styled(
+                    truncate_str(&text, btn_w as usize),
+                    Style::default().fg(self.theme.general.secondary),
+                ));
+                bx += btn_w;
             }
-            let para = ratatui::widgets::Paragraph::new(Line::from(Span::styled(
-                *help,
-                Style::default()
-                    .fg(self.theme.general.secondary)
-                    .add_modifier(Modifier::DIM),
-            )));
             frame.render_widget(
-                para,
+                ratatui::widgets::Paragraph::new(Line::from(spans)),
                 Rect {
                     x: inner_x,
-                    y: inner_y + y as u16,
+                    y: inner_y,
                     width: inner.width,
                     height: 1,
                 },
             );
         }
 
-        let offset = help_lines.len() + 1;
-        let vis_icon = "v";
-        let mut display_idx: usize = 0;
+        let offset = 1;
+        let visible_rows = inner_h.saturating_sub(offset);
+        if visible_rows == 0 {
+            return;
+        }
+
+        // First pass: count display rows (2 per layer, 1 per group header).
+        let mut total_display_rows: usize = 0;
+        let mut active_display_row: usize = 0;
+        {
+            let mut emitted = vec![false; stack.groups.len()];
+            for rev_idx in 0..stack.layers.len() {
+                let real_idx = stack.layers.len() - 1 - rev_idx;
+                let layer = &stack.layers[real_idx];
+                if let Some(g) = layer.group {
+                    if g < emitted.len() && !emitted[g] {
+                        emitted[g] = true;
+                        total_display_rows += 1;
+                        if let Some(group) = stack.groups.get(g) {
+                            if group.collapsed {
+                                continue;
+                            }
+                        }
+                    }
+                }
+                if real_idx == stack.active {
+                    active_display_row = total_display_rows;
+                }
+                total_display_rows += 2;
+            }
+        }
+
+        // Clamp scroll so active layer name row is visible.
+        if active_display_row < self.scroll as usize {
+            self.scroll = active_display_row as u16;
+        } else if active_display_row >= self.scroll as usize + visible_rows {
+            self.scroll =
+                (active_display_row.saturating_sub(visible_rows.saturating_sub(2))) as u16;
+        }
+        let scroll = self.scroll as usize;
+        let has_more_below = total_display_rows > scroll + visible_rows;
+
+        // Scroll indicators.
+        if scroll > 0 {
+            if let Some(cell) = frame.buffer_mut().cell_mut((
+                inner_x + inner.width.saturating_sub(1),
+                inner_y + offset as u16,
+            )) {
+                cell.set_char('▲');
+                cell.set_style(Style::default().fg(self.theme.general.secondary));
+            }
+        }
+        if has_more_below {
+            if let Some(cell) = frame.buffer_mut().cell_mut((
+                inner_x + inner.width.saturating_sub(1),
+                inner_y + inner_h as u16 - 1,
+            )) {
+                cell.set_char('▼');
+                cell.set_style(Style::default().fg(self.theme.general.secondary));
+            }
+        }
+
+        // Second pass: render visible items.
+        let mut display_row: usize = 0;
         let mut emitted_group_header = vec![false; stack.groups.len()];
 
         for rev_idx in 0..stack.layers.len() {
             let real_idx = stack.layers.len() - 1 - rev_idx;
             let layer = &stack.layers[real_idx];
 
+            // Group header row.
             if let Some(g) = layer.group {
                 if g < emitted_group_header.len() && !emitted_group_header[g] {
                     emitted_group_header[g] = true;
-                    let y_pos = offset + display_idx;
-                    if y_pos < inner_h {
-                        if let Some(group) = stack.groups.get(g) {
-                            let disclosure = if group.collapsed { "▶" } else { "▼" };
-                            let count = stack.layers.iter().filter(|l| l.group == Some(g)).count();
-                            let group_label = format!(" {} {} ({})", disclosure, group.name, count);
-                            let row_style = Style::default()
-                                .bg(self.theme.menu.dropdown_bg)
-                                .fg(self.theme.general.secondary)
-                                .add_modifier(Modifier::BOLD);
-                            let para = ratatui::widgets::Paragraph::new(Line::from(Span::styled(
-                                group_label,
-                                row_style,
-                            )));
-                            frame.render_widget(
-                                para,
-                                Rect {
-                                    x: inner_x,
-                                    y: inner_y + y_pos as u16,
-                                    width: inner.width,
-                                    height: 1,
-                                },
-                            );
+                    if display_row >= scroll {
+                        let row = display_row - scroll;
+                        if row < visible_rows {
+                            if let Some(group) = stack.groups.get(g) {
+                                let disclosure = if group.collapsed { "▶" } else { "▼" };
+                                let count =
+                                    stack.layers.iter().filter(|l| l.group == Some(g)).count();
+                                let group_label =
+                                    format!(" {} {} ({})", disclosure, group.name, count);
+                                let row_style = Style::default()
+                                    .bg(self.theme.layers.bg)
+                                    .fg(self.theme.general.secondary)
+                                    .add_modifier(Modifier::BOLD);
+                                let para = ratatui::widgets::Paragraph::new(Line::from(
+                                    Span::styled(group_label, row_style),
+                                ));
+                                frame.render_widget(
+                                    para,
+                                    Rect {
+                                        x: inner_x,
+                                        y: inner_y + offset as u16 + row as u16,
+                                        width: inner.width,
+                                        height: 1,
+                                    },
+                                );
+                            }
                         }
                     }
-                    display_idx += 1;
+                    display_row += 1;
 
                     if let Some(group) = stack.groups.get(g) {
                         if group.collapsed {
@@ -915,79 +1223,265 @@ impl LayerPanel {
                 }
             }
 
-            let y_pos = offset + display_idx;
-            if y_pos >= inner_h {
-                break;
-            }
-
             let is_active = real_idx == stack.active;
             let row_bg = if is_active {
-                self.theme.menu.highlight
+                self.theme.layers.active_bg
             } else {
-                self.theme.menu.dropdown_bg
+                self.theme.layers.bg
             };
-
             let indent = if layer.group.is_some() { "  " } else { "" };
-            let vis_ch = if layer.visible { vis_icon } else { " " };
-            let lock_ch = if layer.locked { "L" } else { " " };
-            let light_ch = if layer.accepts_lighting { "A" } else { " " };
-            let shadow_ch = if layer.casts_shadow { "S" } else { " " };
-            let blend_icon = self
-                .icons
-                .get(layer.blend_mode.icon_key())
-                .map(|s| s.as_str())
-                .unwrap_or("");
+            let drag_handle = "⠿";
+            let name_max = (inner.width as usize)
+                .saturating_sub(indent.len() + 5)
+                .max(4);
 
-            let name_max = (inner.width as usize).saturating_sub(18).max(4);
+            // Row 1: drag handle + layer name.
+            if display_row >= scroll {
+                let row = display_row - scroll;
+                if row < visible_rows {
+                    let is_drag_target = self
+                        .drag_state
+                        .map(|(from, to)| from != to && real_idx == to)
+                        .unwrap_or(false);
+                    let active_marker = if is_active { "›" } else { " " };
+                    let is_renaming = self.renaming == Some(real_idx);
+                    let display_name = if is_renaming {
+                        format!("{}\u{2588}", self.rename_buffer)
+                    } else {
+                        layer.name.clone()
+                    };
+                    let name_label = format!(
+                        "{}{} {} {}",
+                        indent,
+                        drag_handle,
+                        active_marker,
+                        truncate_str(&display_name, name_max),
+                    );
+                    let fg = if is_renaming || is_drag_target {
+                        self.theme.general.primary
+                    } else {
+                        self.theme.layers.fg
+                    };
+                    frame.render_widget(
+                        ratatui::widgets::Paragraph::new(Line::from(Span::styled(
+                            name_label,
+                            Style::default().bg(row_bg).fg(fg),
+                        ))),
+                        Rect {
+                            x: inner_x,
+                            y: inner_y + offset as u16 + row as u16,
+                            width: inner.width,
+                            height: 1,
+                        },
+                    );
+                }
+            }
+            display_row += 1;
 
-            let label = format!(
-                "{}{} {} {} {} {} {} {:3}% {}{}",
-                indent,
-                vis_ch,
-                lock_ch,
-                light_ch,
-                shadow_ch,
-                if is_active { ">" } else { " " },
-                blend_icon,
-                (layer.opacity as f32 / 255.0 * 100.0).round() as u8,
-                truncate_str(&layer.name, name_max),
-                self.render_mask_thumbnail(layer),
-            );
-            let row_style = Style::default().bg(row_bg).fg(self.theme.menu.fg);
+            // Row 2: compact icon-based attributes.
+            if display_row >= scroll {
+                let row = display_row - scroll;
+                if row >= visible_rows {
+                    // No room for row 2 - still need to increment display_row
+                    display_row += 1;
+                    continue;
+                }
 
-            let row_para =
-                ratatui::widgets::Paragraph::new(Line::from(Span::styled(label, row_style)));
-            frame.render_widget(
-                row_para,
-                Rect {
-                    x: inner_x,
-                    y: inner_y + y_pos as u16,
-                    width: inner.width,
-                    height: 1,
-                },
-            );
-            display_idx += 1;
+                let vis_key = if layer.visible {
+                    "layer_visibility_on"
+                } else {
+                    "layer_visibility_off"
+                };
+                let vis_icon = self
+                    .icons
+                    .get(vis_key)
+                    .map(|s| s.as_str())
+                    .unwrap_or(if layer.visible { "V" } else { "_" });
+
+                let lock_key = if layer.locked {
+                    "layer_lock"
+                } else {
+                    "layer_unlock"
+                };
+                let lock_icon = self
+                    .icons
+                    .get(lock_key)
+                    .map(|s| s.as_str())
+                    .unwrap_or(if layer.locked { "L" } else { "U" });
+
+                let opa_pct = (layer.opacity as f32 / 255.0 * 100.0).round() as u8;
+                let link_suffix = if layer.link.is_some() {
+                    " \u{1f517}"
+                } else {
+                    ""
+                };
+
+                let attr_style = Style::default()
+                    .bg(row_bg)
+                    .fg(self.theme.general.secondary)
+                    .add_modifier(Modifier::DIM);
+
+                let attr_label = if inner.width >= 8 {
+                    format!(
+                        "{}{}  {}  {}%  {}{}",
+                        indent,
+                        vis_icon,
+                        lock_icon,
+                        opa_pct,
+                        self.icons
+                            .get(layer.blend_mode.icon_key())
+                            .map(|s| s.as_str())
+                            .unwrap_or(layer.blend_mode.display_name()),
+                        link_suffix,
+                    )
+                } else {
+                    format!(
+                        "{}{}{} {}%{}",
+                        indent,
+                        if layer.visible { "V" } else { "_" },
+                        if layer.locked { "L" } else { "_" },
+                        opa_pct,
+                        link_suffix,
+                    )
+                };
+
+                frame.render_widget(
+                    ratatui::widgets::Paragraph::new(Line::from(Span::styled(
+                        attr_label, attr_style,
+                    ))),
+                    Rect {
+                        x: inner_x,
+                        y: inner_y + offset as u16 + row as u16,
+                        width: inner.width,
+                        height: 1,
+                    },
+                );
+            }
+            display_row += 1;
         }
     }
 
-    fn render_mask_thumbnail(&self, layer: &Layer) -> String {
-        if let Some(ref mask) = layer.mask {
-            let mut s = String::with_capacity(4);
-            s.push(' ');
-            for i in 0..3 {
-                if let Some(cell) = mask.buffer.get(i, 0) {
-                    if cell.ch == ' ' {
-                        s.push('░');
-                    } else {
-                        s.push('▓');
+    /// Map screen (col, row) within the content area to a layer index.
+    fn layer_at_pos(&self, col: u16, row: u16, area: Rect, stack: &LayerStack) -> Option<usize> {
+        let inner = Block::default().borders(Borders::ALL).inner(area);
+        let offset = 1usize;
+        if row < inner.y + offset as u16 || col < inner.x {
+            return None;
+        }
+        let vis_row = (row - inner.y) as usize;
+        if vis_row < offset {
+            return None;
+        }
+        let effective = vis_row.saturating_sub(offset) + self.scroll as usize;
+
+        let mut display_row: usize = 0;
+        let mut emitted = vec![false; stack.groups.len()];
+
+        for rev_idx in 0..stack.layers.len() {
+            let real_idx = stack.layers.len() - 1 - rev_idx;
+            let layer = &stack.layers[real_idx];
+
+            if let Some(g) = layer.group {
+                if g < emitted.len() && !emitted[g] {
+                    emitted[g] = true;
+                    if effective == display_row {
+                        return None;
                     }
-                } else {
-                    s.push(' ');
+                    display_row += 1;
+                    if let Some(group) = stack.groups.get(g) {
+                        if group.collapsed {
+                            continue;
+                        }
+                    }
                 }
             }
-            s
-        } else {
-            String::new()
+
+            if effective >= display_row && effective < display_row + 2 {
+                return Some(real_idx);
+            }
+            display_row += 2;
+        }
+        None
+    }
+
+    pub fn handle_mouse(
+        &mut self,
+        col: u16,
+        row: u16,
+        kind: crossterm::event::MouseEventKind,
+        area: Rect,
+        stack: &mut LayerStack,
+    ) -> bool {
+        use crossterm::event::{MouseButton, MouseEventKind};
+        let inner = Block::default().borders(Borders::ALL).inner(area);
+        match kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(&(action, _)) = self
+                    .button_rects
+                    .iter()
+                    .find(|(_, r)| col >= r.x && col < r.x + r.width && row == r.y)
+                {
+                    match action {
+                        LayerButton::New => {
+                            let w = stack.layers[0].buffer.width();
+                            let h = stack.layers[0].buffer.height();
+                            stack.add(w, h);
+                        }
+                        LayerButton::Duplicate => {
+                            stack.duplicate(stack.active);
+                        }
+                        LayerButton::Delete => {
+                            stack.delete(stack.active);
+                        }
+                        LayerButton::Group => {
+                            let indices = [stack.active];
+                            let group_name = format!("Group {}", stack.groups.len() + 1);
+                            stack.create_group(&indices, group_name);
+                        }
+                        LayerButton::Link => {
+                            self.toggle_link_pending(stack);
+                        }
+                    }
+                    return true;
+                }
+                if let Some(idx) = self.layer_at_pos(col, row, area, stack) {
+                    if col <= inner.x + 1 {
+                        self.drag_state = Some((idx, idx));
+                        self.drag_hover_row = None;
+                        return true;
+                    }
+                    if stack.active != idx {
+                        stack.set_active(idx);
+                        return true;
+                    }
+                }
+                false
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if let Some((from, _to)) = self.drag_state {
+                    if let Some(idx) = self.layer_at_pos(col, row, area, stack) {
+                        self.drag_hover_row = Some(idx);
+                        if idx != from {
+                            self.drag_state = Some((from, idx));
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                if let Some((from, to)) = self.drag_state.take() {
+                    self.drag_hover_row = None;
+                    if from != to && to < stack.layers.len() {
+                        stack.reorder(from, to);
+                        return true;
+                    }
+                    return false;
+                }
+                false
+            }
+            _ => false,
         }
     }
 }
@@ -1477,6 +1971,217 @@ mod tests {
         assert!(!stack.groups[g].collapsed);
     }
 
+    // --- Layer link tests ---
+
+    #[test]
+    fn test_link_layers() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        let link_idx = stack.link_layers(&[0, 1]);
+        assert!(link_idx.is_some());
+        let l = link_idx.unwrap();
+        assert_eq!(stack.links.len(), 1);
+        assert_eq!(stack.layers[0].link, Some(l));
+        assert_eq!(stack.layers[1].link, Some(l));
+        assert!(stack.layers[2].link.is_none());
+    }
+
+    #[test]
+    fn test_link_layers_requires_at_least_two() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.link_layers(&[0]).is_none());
+        assert!(stack.link_layers(&[]).is_none());
+        assert!(stack.links.is_empty());
+    }
+
+    #[test]
+    fn test_link_layers_invalid_index() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.link_layers(&[0, 5]).is_none());
+        assert!(stack.links.is_empty());
+    }
+
+    #[test]
+    fn test_unlink_layers() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        let l = stack.link_layers(&[0, 1]).unwrap();
+        assert!(stack.unlink_layers(l));
+        assert!(stack.layers[0].link.is_none());
+        assert!(stack.layers[1].link.is_none());
+        assert!(stack.links.is_empty());
+    }
+
+    #[test]
+    fn test_link_index_shifted_after_unlink() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        let l0 = stack.link_layers(&[0, 1]).unwrap();
+        let l1 = stack.link_layers(&[2, 3]).unwrap();
+        assert_eq!(l0, 0);
+        assert_eq!(l1, 1);
+        assert!(stack.unlink_layers(l0));
+        assert_eq!(stack.layers[2].link, Some(0));
+        assert_eq!(stack.layers[3].link, Some(0));
+    }
+
+    #[test]
+    fn test_relinking_moves_layer_out_of_old_link() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.add(10, 10);
+        stack.link_layers(&[0, 1]).unwrap();
+        let new_link = stack.link_layers(&[0, 2]).unwrap();
+        assert_eq!(stack.layers[1].link, None, "layer 1 should be unlinked");
+        assert_eq!(stack.layers[0].link, Some(new_link));
+        assert_eq!(stack.layers[2].link, Some(new_link));
+        assert_eq!(stack.links.len(), 1, "old (now-empty) link should be gone");
+    }
+
+    #[test]
+    fn test_toggle_visibility_propagates_to_linked_layers() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.link_layers(&[0, 1]);
+        assert!(stack.layers[0].visible);
+        assert!(stack.layers[1].visible);
+        stack.toggle_visibility(0);
+        assert!(!stack.layers[0].visible);
+        assert!(
+            !stack.layers[1].visible,
+            "linked layer's visibility should follow"
+        );
+        stack.toggle_visibility(1);
+        assert!(stack.layers[0].visible);
+        assert!(stack.layers[1].visible);
+    }
+
+    #[test]
+    fn test_toggle_lock_propagates_to_linked_layers() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.link_layers(&[0, 1]);
+        assert!(!stack.layers[0].locked);
+        stack.toggle_lock(0);
+        assert!(stack.layers[0].locked);
+        assert!(stack.layers[1].locked, "linked layer's lock should follow");
+    }
+
+    #[test]
+    fn test_toggle_visibility_unlinked_layer_does_not_propagate() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        stack.toggle_visibility(0);
+        assert!(!stack.layers[0].visible);
+        assert!(stack.layers[1].visible);
+    }
+
+    #[test]
+    fn test_layer_panel_link_pending_via_keyboard() {
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10);
+        let mut panel = LayerPanel::new();
+
+        stack.active = 0;
+        let k = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE);
+        assert!(panel.handle_key(k, &mut stack));
+        assert_eq!(panel.link_pending, Some(0));
+
+        stack.active = 1;
+        assert!(panel.handle_key(k, &mut stack));
+        assert_eq!(panel.link_pending, None);
+        assert_eq!(stack.layers[0].link, stack.layers[1].link);
+        assert!(stack.layers[0].link.is_some());
+    }
+
+    #[test]
+    fn test_rename_layer() {
+        let mut stack = make_stack(10, 10);
+        assert!(stack.rename(0, "Sketch".to_string()));
+        assert_eq!(stack.layers[0].name, "Sketch");
+    }
+
+    #[test]
+    fn test_rename_layer_nonexistent() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.rename(5, "X".to_string()));
+    }
+
+    #[test]
+    fn test_rename_layer_empty_name_noop() {
+        let mut stack = make_stack(10, 10);
+        assert!(!stack.rename(0, "   ".to_string()));
+        assert_eq!(stack.layers[0].name, "Background");
+    }
+
+    #[test]
+    fn test_layer_panel_rename_via_f2() {
+        let mut stack = make_stack(10, 10);
+        let mut panel = LayerPanel::new();
+
+        let f2 = KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE);
+        assert!(panel.handle_key(f2, &mut stack));
+        assert_eq!(panel.renaming, Some(0));
+        assert_eq!(panel.rename_buffer, "Background");
+
+        for c in "Sky".chars() {
+            let key = KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE);
+            assert!(panel.handle_key(key, &mut stack));
+        }
+        assert_eq!(panel.rename_buffer, "BackgroundSky");
+
+        let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        assert!(panel.handle_key(enter, &mut stack));
+        assert_eq!(stack.layers[0].name, "BackgroundSky");
+        assert_eq!(panel.renaming, None);
+    }
+
+    #[test]
+    fn test_handle_mouse_selects_correct_layer_with_content_area() {
+        use crossterm::event::{MouseButton, MouseEventKind};
+
+        let mut stack = make_stack(10, 10);
+        stack.add(10, 10); // index 0 "Background", index 1 "Layer 2"
+        stack.active = 0;
+        let mut panel = LayerPanel::new();
+
+        // Mirrors SidePanel::content_area: a rect already offset past the
+        // side panel's own border + tab bar, exactly as it's rendered. The
+        // panel then draws one more border of its own inside this rect.
+        let area = Rect::new(0, 5, 20, 10);
+        // inner.y = area.y + 1 = 6; row offset = 1 => first layer row = 7.
+        let row = 7;
+        let col = 5;
+        assert!(panel.handle_mouse(
+            col,
+            row,
+            MouseEventKind::Down(MouseButton::Left),
+            area,
+            &mut stack
+        ));
+        assert_eq!(
+            stack.active, 1,
+            "clicking the first visible row should select the topmost layer (index 1), not be off by the tab-bar offset"
+        );
+    }
+
+    #[test]
+    fn test_layer_panel_rename_esc_cancels() {
+        let mut stack = make_stack(10, 10);
+        let mut panel = LayerPanel::new();
+        panel.handle_key(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE), &mut stack);
+        panel.handle_key(
+            KeyEvent::new(KeyCode::Char('X'), KeyModifiers::NONE),
+            &mut stack,
+        );
+        panel.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &mut stack);
+        assert_eq!(panel.renaming, None);
+        assert_eq!(stack.layers[0].name, "Background");
+    }
+
     #[test]
     fn test_rename_group() {
         let mut stack = make_stack(10, 10);
@@ -1678,27 +2383,6 @@ mod tests {
         stack.layers[0].mask.as_mut().unwrap().enabled = false;
         let comp = stack.composite();
         assert_eq!(comp.get(0, 0).unwrap().ch, 'A');
-    }
-
-    #[test]
-    fn test_mask_thumbnail() {
-        let panel = LayerPanel::new();
-        let layer = Layer::new(5, 5, "Test".to_string());
-        let thumb = panel.render_mask_thumbnail(&layer);
-        assert_eq!(thumb, ""); // No mask => empty string
-    }
-
-    #[test]
-    fn test_mask_thumbnail_with_mask() {
-        let panel = LayerPanel::new();
-        let mut layer = Layer::new(5, 5, "Test".to_string());
-        let mut mask = LayerMask::new(5, 5);
-        // Paint first two pixels
-        mask.buffer.set(0, 0, make_cell('▓'));
-        mask.buffer.set(1, 0, make_cell('▓'));
-        layer.mask = Some(mask);
-        let thumb = panel.render_mask_thumbnail(&layer);
-        assert_eq!(thumb, " ▓▓░");
     }
 
     #[test]

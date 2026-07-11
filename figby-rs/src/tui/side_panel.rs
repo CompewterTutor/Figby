@@ -9,6 +9,8 @@ use ratatui::Frame;
 use super::brush::BrushState;
 use super::canvas::CanvasCell;
 use super::layers::{LayerPanel, LayerStack};
+use super::light_panel::LightPanel;
+use super::lighting::Scene;
 use super::particles::ParticleConfig;
 use super::theme::Theme;
 use super::toolbox::Tool;
@@ -134,12 +136,38 @@ impl SidePanel {
         None
     }
 
+    /// Compute the content rect below the tab header + separator, matching
+    /// the layout `render` actually draws into. Callers that need to
+    /// translate mouse coordinates into a tab's content area (e.g. the
+    /// layers panel's click handling) must use this instead of the raw
+    /// panel `area`, since `render` draws its own border plus a two-row
+    /// tab bar before handing off to the per-tab content.
+    pub fn content_area(&self, area: Rect) -> Rect {
+        let block = Block::default().borders(Borders::ALL);
+        let inner = block.inner(area);
+        let content_y = inner.y + 2;
+        if content_y >= area.y + area.height {
+            return Rect {
+                x: inner.x,
+                y: content_y,
+                width: inner.width,
+                height: 0,
+            };
+        }
+        Rect {
+            x: inner.x,
+            y: content_y,
+            width: inner.width,
+            height: (area.y + area.height).saturating_sub(content_y),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &self,
         frame: &mut Frame<'_>,
         area: Rect,
-        layer_panel: Option<&LayerPanel>,
+        layer_panel: Option<&mut LayerPanel>,
         layer_stack: Option<&LayerStack>,
         active_tool: Tool,
         brush: &BrushState,
@@ -151,6 +179,8 @@ impl SidePanel {
         canvas_height: u16,
         font_name: Option<&str>,
         zoom: u8,
+        lighting_scene: Option<&Scene>,
+        lighting_panel: Option<&LightPanel>,
     ) {
         let block = Block::default().borders(Borders::ALL).style(
             Style::default()
@@ -177,7 +207,9 @@ impl SidePanel {
                 .get(tab.icon_key())
                 .map(|s| s.as_str())
                 .unwrap_or("");
-            let label = if tab_w >= 4 {
+            let label = if tab_w >= 6 {
+                format!("{} {}", icon, tab.display_name())
+            } else if tab_w >= 2 {
                 icon.to_string()
             } else {
                 String::new()
@@ -211,7 +243,12 @@ impl SidePanel {
             height: 1,
         };
         if inner.width > 0 && inner.y + 1 < area.y + area.height {
-            let sep_label = "─".repeat(inner.width as usize);
+            let hint = " ←/→ tabs ";
+            let sep_label = if inner.width as usize >= hint.len() + 4 {
+                format!("{:─^width$}", hint, width = inner.width as usize)
+            } else {
+                "─".repeat(inner.width as usize)
+            };
             frame.render_widget(
                 Paragraph::new(sep_label).style(sep_style.add_modifier(Modifier::DIM)),
                 sep_rect,
@@ -219,16 +256,7 @@ impl SidePanel {
         }
 
         // Content area
-        let content_y = inner.y + 2;
-        if content_y >= area.y + area.height {
-            return;
-        }
-        let content_area = Rect {
-            x: inner.x,
-            y: content_y,
-            width: inner.width,
-            height: (area.y + area.height).saturating_sub(content_y),
-        };
+        let content_area = self.content_area(area);
         if content_area.height == 0 {
             return;
         }
@@ -254,6 +282,8 @@ impl SidePanel {
                     canvas_height,
                     font_name,
                     zoom,
+                    lighting_scene,
+                    lighting_panel,
                 );
             }
             TabId::Text => {
@@ -287,6 +317,8 @@ impl SidePanel {
         canvas_height: u16,
         font_name: Option<&str>,
         zoom: u8,
+        lighting_scene: Option<&Scene>,
+        lighting_panel: Option<&LightPanel>,
     ) {
         let mut lines: Vec<Line> = Vec::new();
 
@@ -307,6 +339,9 @@ impl SidePanel {
             }
             Tool::Emitter => {
                 Self::add_emitter_props(&mut lines, emitter_config);
+            }
+            Tool::Lighting => {
+                Self::add_lighting_props(&mut lines, lighting_scene, lighting_panel, theme);
             }
             _ => {
                 Self::add_tool_keybinds(&mut lines);
@@ -458,12 +493,43 @@ impl SidePanel {
         }
     }
 
+    fn add_lighting_props(
+        lines: &mut Vec<Line>,
+        scene: Option<&Scene>,
+        panel: Option<&LightPanel>,
+        theme: &Theme,
+    ) {
+        lines.push(Line::from(Span::styled(
+            " Lighting ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        match (scene, panel) {
+            (Some(scene), Some(panel)) => {
+                lines.extend(LightPanel::build_lines(
+                    scene,
+                    panel.selected_index(),
+                    theme,
+                ));
+            }
+            _ => {
+                lines.push(Line::from(Span::raw(" No scene yet")));
+            }
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::raw(" A/D/P  Add Amb/Dir/Point")));
+        lines.push(Line::from(Span::raw(" ↑/↓  Select light")));
+        lines.push(Line::from(Span::raw(" ←/→  Move (Point)")));
+        lines.push(Line::from(Span::raw(" -/+  Intensity")));
+        lines.push(Line::from(Span::raw(" Del  Remove light")));
+    }
+
     fn add_tool_keybinds(lines: &mut Vec<Line>) {
         lines.push(Line::from(Span::styled(
             " Tools ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
         lines.push(Line::from("  b  Brush"));
+        lines.push(Line::from("  u  Move"));
         lines.push(Line::from("  e  Eraser"));
         lines.push(Line::from("  l  Lasso"));
         lines.push(Line::from("  v  Select"));
@@ -548,5 +614,31 @@ impl SidePanel {
                 .add_modifier(Modifier::DIM),
         );
         frame.render_widget(para, area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_content_area_matches_render_layout() {
+        // area: 30x20 panel. Outer border (1) + tab row (1) + separator (1)
+        // = content starts 3 rows down from the panel's own y, 1 col in.
+        let panel = SidePanel::new(BTreeMap::new(), Theme::default());
+        let area = Rect::new(0, 0, 30, 20);
+        let content = panel.content_area(area);
+        assert_eq!(content.x, 1);
+        assert_eq!(content.y, 3);
+        assert_eq!(content.width, 28);
+        assert_eq!(content.height, 17);
+    }
+
+    #[test]
+    fn test_content_area_too_small_yields_zero_height() {
+        let panel = SidePanel::new(BTreeMap::new(), Theme::default());
+        let area = Rect::new(0, 0, 30, 3);
+        let content = panel.content_area(area);
+        assert_eq!(content.height, 0);
     }
 }

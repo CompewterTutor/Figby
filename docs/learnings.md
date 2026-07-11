@@ -1,5 +1,39 @@
 # Figby — Learnings
 
+## 6.9.4 — Move tool options to right sidebar
+
+- When removing a sub-panel from a vertical split in ratatui, eliminate the
+  intermediate `Layout::vertical` split and assign the remaining area directly.
+  `toolbox_list = left_vert[0]` replaces `tb_vert[0]`. Update `FrameLayout`
+  struct to remove the now-unused `toolbox_brush: Option<Rect>`.
+- `replaceAll` is dangerous for short patterns like `+ 0` — it can match
+  unintended locations. Prefer targeted `edit` with surrounding context.
+  (Lesson: the corrupted `mouse_fl` block was caused by `replaceAll` matching
+  `layout::TOOLBOX_BRUSH_HEIGHT` at three sites plus the brush removal edit
+  interacting badly.)
+
+## 6.9.2 — Layer panel: drag handle reorder
+
+- `Block::inner(area)` is sufficient for computing the content rect for hit testing,
+  even when the block has a title. You don't need the actual rendered block — just
+  `Block::default().borders(Borders::ALL).inner(area)` gives the same inner rect.
+- When implementing `layer_at_pos`, the walk order must exactly match `render_with_stack`:
+  reverse layer iteration (`len-1-rev_idx`), group headers consume 1 display row,
+  layers consume 2. The `emitted` set prevents duplicate group-header counting.
+- Mouse drag state in `LayerPanel` is `Option<(from_idx, current_to_idx)>` — the
+  `reorder()` call on `Up` completes the move. Visual feedback (highlighted target)
+  is rendered per-frame by checking `drag_state` during render.
+
+## 6.9.1 — Layer panel: icon-based 2-row layout
+
+- When a layer occupies 2 display rows and the panel height only fits the name row,
+  skip row 2 rather than rendering a partial entry. Scroll clamping must target the
+  name row (first of the pair) so the active layer's name is always visible.
+- Nerd Font icons from `icons.yaml` (loaded into `BTreeMap<String,String>`) are the
+  canonical source for visibility/lock/blend icons. Fallback to ASCII chars when
+  icon not found (empty map or fallback string). The `icons` field on `LayerPanel`
+  is populated by `TuiApp::new()` via `editor.layer_panel.icons = icons.clone()`.
+
 ## 5.8.4 — Palette LUT integration
 
 - `SwatchLightingData` in `lighting.rs` and `Swatch` in `palette_import.rs` share similar fields but serve different roles: `Swatch` is the serialisable/UI model with `Option` fields for partial overrides, while `SwatchLightingData` is the flattened LUT input with resolved defaults. Keep the separation — the conversion happens in `PaletteEditor::lighting_swatches()`.
@@ -1338,6 +1372,18 @@ Three bugs found in phase merge review:
   compiled. This means `gif_import.rs` can use `CanvasCell` directly without
   importing TUI-only modules.
 
+## 6.8.4 — Palette editor UI
+
+- Borrow checker requires `let name = self.name_buffer.clone();` before calling
+  `self.rename_selected(&name)` — cannot borrow `self` mutably and immutably
+  in the same expression even though the field access (`self.name_buffer`) is
+  disjoint from the method's target (`self.swatches`). Clone the string first.
+- When reusing `PanelMode::Naming` for two intents (duplicate vs rename), a
+  `naming_is_rename: bool` flag is simpler than adding yet another enum variant.
+- The palette editor already had full IO (save/load/import) but lacked
+  in-place manipulation — add/edit/delete operations on swatches are purely
+  in-memory Vec mutations, no file I/O needed.
+
 ## 5.7.2 — Phase merge: release/5.7 → main
 
 - Task description says `main` but actual default branch is `master`. All prior
@@ -1350,3 +1396,77 @@ Three bugs found in phase merge review:
 - Same `main` vs `master` branch-name discrepancy as 5.7.2 and prior phase
   merges. Task text says `main`, actual default branch is `master`. Consistent
   with the established convention.
+
+## Rotate tool — mouse drag/keyboard wiring (post-v6)
+
+- `TuiApp::handle_key_event` dispatches to `handle_font_editor_key` /
+  `handle_image_editor_key` (gated on `self.mode`) *before* the generic
+  toolbox tool-shortcut matching runs. In `AppMode::ImageEditor`,
+  `ImageEditor::handle_key` unconditionally claims a bunch of single-char
+  keys for its own adjustment-mode bindings (`r`/`R` reset, plus `b`, `k`,
+  `t`, `w`, `c`, `i`, `d`, `y`, `o`), so those letters never reach the
+  toolbox shortcut dispatch while in Image Editor mode — pressing `r` there
+  does NOT select the Rotate tool. This is pre-existing and independent of
+  the Rotate tool's own logic (verified with `Toolbox::handle_key` directly,
+  which works fine — the conflict is purely in `TuiApp`'s routing order).
+  Anyone adding a new single-letter tool shortcut should check whether
+  `ImageEditor::handle_key` (or `FontEditor`'s equivalent) already claims
+  that letter — the match arms shadow silently, with no compiler warning,
+  since Rust can't statically prove two `if`-guarded arms are unreachable
+  duplicates of each other.
+- Found the same class of bug in `welcome.rs::WelcomeScreen::handle_key`:
+  it had two `KeyCode::Char('I') if modifiers == KeyModifiers::NONE` arms
+  in the *same* match — one returned `WelcomeAction::FontNewFromFile`, the
+  other (dead, unreachable) returned `WelcomeAction::ImageOpen`. Since arms
+  are matched top-to-bottom and the guards were textually identical, the
+  first always won; the Image panel's "I - mport/Open Image" binding never
+  fired. `cargo clippy` does not flag this either, for the same reason as
+  above (duplicate literal + duplicate guard, but guards aren't proven
+  equivalent). Fixed by giving the Image action its own letter ('L' — Load
+  Image) instead of trying to disambiguate by context, since font and
+  image action panels render simultaneously (not tabs) — there's no "which
+  panel is active" to key off of.
+- The user's real complaint ("the a doesn't work either") turned out to be
+  a *second*, more fundamental bug, not just the 'I' duplicate: every
+  welcome-screen action shortcut matched only the exact-case literal
+  (`'A'`, `'N'`, `'S'`, etc.) with `modifiers == KeyModifiers::NONE`. On a
+  terminal that reports an unshifted keypress as lowercase with no SHIFT
+  flag (the common case), pressing the plain letter shown in the UI does
+  nothing — you have to hold Shift, inconsistent with every other
+  single-letter shortcut in the app (toolbox tool shortcuts are matched
+  case-insensitively via `c.to_ascii_lowercase()` in `mod.rs`, and
+  `ImageEditor::handle_key` matches both cases explicitly). Fixed by
+  changing every `KeyCode::Char('X')` arm in `welcome.rs::handle_key` to
+  `KeyCode::Char('x') | KeyCode::Char('X')`.
+  Fixing this had a surprising side effect: five existing tests
+  (`test_line_tool_keyboard_paint`, `test_spray_tool_keyboard_paint`,
+  `test_eyedropper_tool_keyboard_does_not_paint`,
+  `test_text_tool_enter_text_mode`, `test_text_tool_commit_text`) started
+  failing because they never set `app.welcome_screen.show = false` before
+  sending tool-shortcut keys — they were only passing because the welcome
+  screen ignored lowercase letters and let the keypress fall through to
+  the toolbox dispatch. Once the welcome screen legitimately started
+  handling lowercase too, it correctly intercepted those same letters
+  first. The fix is to add `app.welcome_screen.show = false;` to each of
+  those tests (matching the convention nearly every other test in
+  `tests/tui.rs` already follows), not to weaken the welcome-screen fix.
+  Lesson: a test that doesn't explicitly dismiss the welcome screen is
+  implicitly depending on whatever the welcome screen ignores — that's an
+  easy way for an unrelated bug fix to "break" tests that were never
+  actually exercising the feature they claimed to.
+
+## 6.10.1 — `capture_timeline_frames` ignoring per-frame `layer_state`
+
+- When `capture_timeline_frames` iterates `(0..timeline.frames.len())`, the
+  per-layer keyframe-interpolation path re-renders from the *live* layer stack
+  — which is unchanged across every `frame_idx`. So captured frames (GIF import
+  or 'A'-key manual captures that have their own `layer_state` raster snapshot)
+  all produce identical output. The fix: check `layer_state` on each frame
+  first and use it directly. The `current_frame` counter still advances (making
+  the progress bar look correct), so this bug is easy to miss during visual
+  inspection — the regression test is essential.
+- The `click_test_hookup` approach for manual verification in Windows Terminal:
+  run the TUI binary, import a multi-frame GIF or build multiple captured frames
+  via 'A'-key, then press Enter to play. If every frame shows the same content,
+  the bug is present. If frames vary, it's fixed. `tmux` can mask this because
+  tmux's own compositing can hide ratatui cache staleness.

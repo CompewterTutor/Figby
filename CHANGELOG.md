@@ -1,15 +1,397 @@
 # Changelog
 
-## [Unreleased]
+## [6.0.20] - 2026-07-11
+
+### Fixed
+- GIF-imported / 'A'-key captured animation frames showed same picture
+  throughout playback and export because `capture_timeline_frames` was
+  re-rendering from the live (unchanging) layer stack instead of each
+  frame's own `layer_state` raster snapshot. Now reads `layer_state`
+  directly when present. Regression test included.
+
+## [6.0.19] - 2026-07-11
+
+### Fixed
+- In-canvas animation playback's frame content could stay visually frozen
+  on some terminals (reported: Windows Terminal / WSL) even though the
+  frame counter and progress bar advanced correctly every tick — the
+  same class of ratatui diff-cache staleness already fixed for the
+  standalone fullscreen player in 6.0.13, just not previously applied to
+  inline playback. Now sets `force_full_redraw` (bypassing the stale
+  cell-diff) every time the player's current frame actually advances.
+
+## [6.0.18] - 2026-07-11
+
+### Fixed
+- Pressing Enter to start timeline playback silently did nothing (toggled
+  the active layer's visibility instead) whenever the side panel was open
+  on the Layers tab — a regression exposed by the side panel now
+  defaulting to open on wide terminals (6.0.17), since the Layers panel's
+  own Enter binding was checked earlier in the key-dispatch chain than
+  the "Enter starts playback" check. Moved the playback check ahead of
+  the Layers panel dispatch (but still behind every modal dialog/overlay)
+  so starting playback always wins.
+
+## [6.0.17] - 2026-07-11
+
+### Added
+- The side panel (drawer) now opens by default at startup when the
+  terminal is wide enough that opening it still leaves a reasonably
+  usable canvas (toolbox width + drawer width + a 60-column canvas
+  floor). Narrower terminals keep the previous closed-by-default
+  behavior; `?` still toggles it manually either way.
+
+## [6.0.16] - 2026-07-11
+
+### Fixed
+- In-canvas animation playback rendered the frame content flush against
+  the panel's top-left corner instead of centered like the normal
+  (non-playing) canvas, and stranded the progress bar at the bottom of
+  the whole panel, disconnected from the visible frame — looked broken
+  even though playback was actually advancing correctly. Now centers the
+  player's content the same way `EditorState::compute_canvas_rect`
+  centers the normal canvas buffer (`AnimationPlayer::content_dimensions`
+  + matching centering math in `render_canvas_area`).
+
+## [6.0.15] - 2026-07-11
+
+### Added
+- **Layer linking.** New `k`/`K` keybind and toolbar "Link" button pair up
+  two layers so toggling visibility or lock on one propagates to the
+  other, mirroring the existing layer-group model (`LayerStack::links`,
+  `link_layers`/`unlink_layers`/`link_of_layer`/`layers_in_link`).
+- **Layers panel toolbar.** Clickable New/Duplicate/Delete/Group/Link
+  buttons in the panel's previously-unused header row, backed by the same
+  `LayerStack` methods the existing keyboard shortcuts already call.
+- **Menu shortcuts.** Every menu item now shows its keyboard shortcut,
+  right-aligned in the dropdown; the ~6 that already have a global
+  keybinding are derived from `keymap::GLOBAL_DISPATCH` so they can't
+  drift out of sync.
+- **File > New Image** (`Ctrl+N`) and **File > New Font from
+  File/System**. "From system" required a real system-font picker dialog
+  (`dialogs::SystemFontPickerDialog`) — `font_gen::list_system_fonts()` /
+  `system_font_to_figfont()` existed but were previously only reachable
+  from the `--create-font` CLI flag, not the TUI.
+- **Timeline click-to-seek and mouse-wheel scroll.** The timeline grid
+  never had any mouse handling at all; clicking a frame now seeks to it,
+  and scrolling (Shift+scroll for the layer rows) moves the visible
+  window.
+- **Persistent transport bar.** The timeline's toolbar row is now a
+  clickable ▶/⏸/⏹/🔁 button strip (`timeline::render_transport_bar`),
+  visible whenever the timeline is shown rather than only during active
+  playback, replacing the old static hint-text `Paragraph`.
+- Inline playback now defaults its loop state from an imported GIF's own
+  `loop_count` instead of always starting unlooped
+  (`AnimationPlayer::with_loop`).
+
+### Fixed
+- Side panel tabs (Props/Text/Libraries/Effects) were completely
+  unreachable: a width-calc bug in the tab bar always rendered blank
+  labels, and the Layers panel's Left/Right key handling unconditionally
+  swallowed the arrow keys meant to cycle tabs. Also added a real
+  Lighting-tool entry to the Props tab (previously fell through to a
+  generic keybind list).
+- Layers panel's selected-row contrast (bright cyan bg + near-white text)
+  fixed by wiring up the theme's already-defined but unused dark-navy
+  `LayerTheme`, instead of reusing the menu dropdown's highlight colors.
+- Clicks during in-canvas animation playback no longer leak through to
+  canvas drawing tools underneath the player.
+- Welcome screen's "Create Image" action (`c`) never marked the frame
+  dirty and never dismissed the welcome screen, so the New Image dialog
+  it opened was invisible — occluded behind the still-showing welcome
+  screen with no redraw to reveal it.
+
+## [6.0.14] - 2026-07-08
+
+### Added
+- **In-canvas animation playback.** Pressing Enter on the timeline or
+  Animation > Play now plays the animation in place inside the canvas
+  area — the menu bar, toolbox, palette, timeline, and status bar all stay
+  visible and the app never leaves the normal editor Terminal instance.
+  Previously both triggered a fullscreen takeover (`play_fullscreen`);
+  `Animation > Play` was in fact a dead no-op (it toggled a
+  `TimelineState::playing` field nothing ever read).
+- New `AnimationState::inline_player: Option<player::AnimationPlayer>` +
+  `TuiApp::play_inline()` / `start_inline_playback_from_timeline()`.
+  `render_canvas_area()` renders the player into the canvas `Rect` in place
+  of normal content while active; `run()`'s loop advances and
+  redraw-throttles it using the same pattern already used for the throbber
+  spinner (redraw at most once per the animation's own frame interval, not
+  a busy loop). A non-looping playthrough auto-pauses on its last frame
+  instead of redrawing forever once nothing is changing.
+- Playback controls (space/seek/speed/loop-toggle/Esc/q to stop) are
+  intercepted directly in `handle_key_event` and reuse
+  `AnimationPlayer::handle_key()` — the exact same logic already exercised
+  by the fullscreen/CLI players. The canvas border title shows the control
+  legend while playing, and the progress bar now shows a 🔁 indicator when
+  looping is on (previously invisible even though the underlying toggle
+  already existed).
+- The old fullscreen player is preserved, unchanged, as a **standalone
+  preview** feature — still reachable from the Export dialog's Play
+  button (`launch_player_from_export` → renamed `play_standalone_preview`
+  for clarity), for previewing how a GIF/APNG export will look played back
+  outside the editor.
+- Verified end-to-end over a real pty: imported a GIF, played it via
+  Enter, confirmed the toolbox/palette/timeline/menu/status bar all stayed
+  visible around the playing canvas, toggled loop with `l` (🔁 appeared in
+  the progress bar), and dismissed with `q` — canvas correctly reverted to
+  normal editing with no freeze (this path never creates a second
+  `Terminal` instance, so the redraw-desync bug fixed in 6.0.13 doesn't
+  even apply to it).
+
+## [6.0.13] - 2026-07-08
+
+### Fixed
+- **In-TUI animation playback left the editor UI frozen/stale after
+  exiting.** `player::play_fullscreen()` renders through its own throwaway
+  `ratatui::Terminal` (a separate instance from the one `TuiApp::run()`
+  owns), so after playback ended, the main terminal's diff-based renderer
+  still had a stale internal buffer and only repainted cells that
+  genuinely differed from before playback — which was usually nothing,
+  since app state hadn't changed. Symptom: screen stuck showing the last
+  animation frame, except spots the user actively edited (which *did*
+  differ from the cache, so *those* redrew — "I can paint" but nothing
+  else updates). Added a `force_full_redraw` flag, set after
+  `play_fullscreen()` returns; `run()`'s loop now calls `terminal.clear()`
+  before its next `draw()` when set, forcing a full repaint instead of a
+  stale diff.
+- **`q` did nothing during playback (Esc was the only working exit key).**
+  `play_fullscreen`'s (and `play_raw`'s) loops both gate exiting on
+  `AnimationPlayer::handle_key()` reporting the key as "consumed", but
+  `handle_key` had no match arm for `'q'`/`'Q'` — it fell through to
+  `_ => false`, so the exit check could never fire no matter what the
+  loop's own keycode comparison said. Added the missing arm (pauses and
+  reports consumed, mirroring Esc's behavior minus the seek-to-0). Also
+  added `'q'` to `play_raw`'s exit check for consistency (it only
+  recognized Esc before). New regression test:
+  `test_player_handle_key_q_is_consumed_and_pauses`.
+- Both verified together end-to-end over a real pty: imported a GIF into
+  the TUI, played it, exited with `q`, and confirmed the full editor UI
+  (menu bar, toolbox, palette, timeline, status bar) redrew correctly
+  afterward instead of staying frozen.
+
+## [6.0.12] - 2026-07-08
+
+### Fixed
+- The TUI's own animated GIF import (File > Import GIF /
+  `WelcomeAction::ImageImportGif`) imported at the GIF's native pixel
+  resolution (1 pixel = 1 cell), same issue `--play` had before 6.0.10 —
+  a real-world GIF either created an unusably huge canvas or got rejected
+  outright by the animation import size cap. `perform_import_gif()` now
+  computes the actual canvas viewport size (reusing
+  `layout::FrameLayout::compute`, the same layout logic already used for
+  mouse hit-testing) and scales via `gif_import::import_gif_scaled()` with
+  `GifScaleTarget::FitBox`, so the imported canvas fits the visible editor
+  instead of overflowing it or being rejected. Verified end-to-end by
+  driving the real TUI over a pty: importing a 480x360, 90-frame GIF that
+  `import_gif` alone rejects as "too large" now produces a correctly-sized
+  (40x15 in a 120x40 terminal) canvas with all frames populated in the
+  timeline.
+
+## [6.0.11] - 2026-07-08
+
+### Added
+- `figby --play --loop`: repeats the animation indefinitely instead of
+  playing once and auto-exiting. Any keypress dismisses it immediately
+  (interactive pause/seek/speed controls are bypassed in this mode — there's
+  no natural end to wait for, so any key just exits). `player::play_raw()`
+  gained a `loop_playback: bool` parameter to support this. Verified
+  end-to-end over a real pty: playback wraps past the last frame back to
+  frame 1 repeatedly, and exits cleanly on an arbitrary keypress.
+
+## [6.0.10] - 2026-07-08
+
+### Added
+- `gif_import::GifScaleTarget` + `import_gif_scaled()`: bilinearly scale
+  every composited frame of an imported GIF to a requested size
+  (`Native`, `FitWidth(cols)`, or `FitBox(max_cols, max_rows)`, the last
+  preserving aspect ratio with the standard 2:1 terminal-cell compensation).
+  Compositing (disposal methods, partial-frame positioning) still happens
+  at native resolution for correctness; only the stored output is scaled.
+- `figby --play` now scales to fit the current terminal by default, or to
+  `--play-width <N>` columns explicitly. Because the cumulative memory
+  guard now checks the *scaled output* size rather than native size, GIFs
+  that previously failed with "too large" at native resolution (e.g. a
+  480x360, 90-frame GIF — previously rejected outright) now import and
+  play successfully once scaled down. Verified end-to-end over a real pty.
+- 7 new tests: `GifScaleTarget::resolve()` for all three variants, a
+  downscale-dimensions check, and an oversized-native-GIF-succeeds-when-
+  scaled regression test mirroring the real-world case above.
+
+## [6.0.9] - 2026-07-08
+
+### Docs (no functional change)
+- Investigated "move animation playback off the TUI event-loop thread"
+  (review item 5): closed as not-a-bug rather than implemented. The TUI and
+  the animation player both write directly to the same exclusive terminal
+  fd via crossterm/ratatui, so a background thread would only reproduce the
+  same blocking behavior via a channel, with real risk of the two writers
+  racing on stdout. Added a doc comment at the `play_animation()` call site
+  (`tui/mod.rs`) explaining this so it isn't "fixed" again without context.
+- This closes out all 8 items from `docs/sonnet5-review.md`'s punch list
+  (6.0.4–6.0.9). See that doc's closing update for a summary.
+
+## [6.0.8] - 2026-07-08
+
+### Docs (no functional change)
+- Corrected misleading doc comments around `try_query_terminal_cells()` /
+  `TerminalSession`: they suggested implementing DECRQCRA was a matter of
+  future work. It isn't — DECRQCRA's response is a terminal-defined
+  *checksum* of a region (used by conformance suites like vttest to verify
+  known content, not to recover unknown content), so it cannot implement
+  "read back the screen." There is no portable escape sequence that does;
+  a couple of terminals (kitty, iTerm2) have proprietary extensions
+  crossterm doesn't wrap. Returning `Unsupported` + a blank frame is the
+  correct, final behavior here, not a stub. Also fixed a stale reference to
+  `enter_player_mode()`/`exit_player_mode()`, which no longer exist (removed
+  by the pre-6.0 alt-screen-corruption fix) but were still named in a doc
+  comment.
+
+## [6.0.7] - 2026-07-08
+
+### Added
+- `figby --play <path.gif>` — plays an animated GIF fullscreen in the
+  terminal via the raw-mode player, then exits. Wires up `player::play_raw()`
+  (previously fully-implemented but never called from anywhere) to a real
+  entry point. FPS is approximated from the GIF's first real frame delay,
+  matching the existing convention used when a GIF import seeds the TUI
+  timeline's fps.
+
+### Fixed
+- `play_raw()` never auto-exited when a non-looping animation finished
+  playing — the exit condition required the player to already be paused,
+  but nothing ever paused it automatically, so an unattended `--play` would
+  hang forever redrawing the last frame. Now exits once the final frame has
+  had its full on-screen interval during natural (non-looping, still
+  "playing") playback. Verified end-to-end via a real pty (tmux): a 4-frame
+  and a 14-frame test GIF both play through and exit 0 on their own; an
+  oversized GIF is still rejected cleanly by the existing memory guard.
+
+## [6.0.6] - 2026-07-08
+
 ### Docs
-- Pre-release codebase audit complete (sessions 1+2, full read-through):
-  `docs/codebase-audit-2026-06-18.md`. Findings: B0 template RCE, B7 template
-  canvas-dim DoS, B1/B2/B4/B5/B6 parser DoS/panic family, B3 red test suite
-  (10 stale tests), broken ralph merge gate, A1 god-object, A2 stale docs.
-  Confirmed: 0 production unwrap/panic, parsers' underflow candidates guarded,
-  `palette_import.rs` as hardening model.
-- Added `docs/todo-v6.md` (Pre-Release Hardening & Polish) mapping every audit
-  finding to a ralph-format task with file:line refs; registered in `docs/todo.md`.
+- README: added `--tui` to the CLI flag table, added a Features bullet
+  documenting the TUI's animation timeline/keyframing/GIF import-export
+  (previously undocumented — only mentioned as a future "Roadmap" item
+  despite being fully implemented), updated Project Status to v6, and
+  rewrote Roadmap to list genuinely-outstanding post-v6 deferred work
+  instead of already-shipped features.
+- `docs/animation-audit.md`: added a superseded notice — several of its
+  listed gaps were closed within days of it being written; points readers
+  to `docs/sonnet5-review.md` for current status.
+
+## [6.0.5] - 2026-07-08
+
+### Added
+- `gif_import.rs` unit tests (previously zero): single-frame round-trip,
+  multi-frame per-frame delay preservation, `Background` disposal-method
+  region clearing, malformed-file error, nonexistent-path error, oversized
+  dimensions rejection, and error `Display` formatting. 7 new tests.
+
+## [6.0.4] - 2026-07-08
+
+### Fixed
+- GIF-imported per-frame delays were silently discarded the moment the Export
+  dialog was opened (`enter_export()` unconditionally called `clear_timeline()`),
+  and again if the export format was cycled to GIF (`set_timeline()` always
+  recomputed a uniform FPS-derived delay). Both paths now preserve real
+  per-frame timing from an imported GIF instead of flattening it.
+- `export_cells_to_ansi_multi()` accepted a per-frame delay parameter but
+  never used it — a multi-frame ANSI export, when `cat`'d, flashed through
+  every frame instantly with no timing. It now emits a self-playing POSIX
+  shell script (`printf` per frame + real `sleep <delay>`); run with
+  `sh export.ans`.
+
+## [6.0.1] - 2026-06-22
+
+### Added
+- Palette editor: add (A), delete (Del), edit hex (E), rename swatch (N), rename palette (R) operations; inline hex and name editing modes; View menu entry for Palette Editor; keymap documentation for Ctrl+Shift+P (6.8.4).
+
+## [6.0.3] - 2026-06-22
+
+### Added (2026-06-22 session)
+- Layer panel: redesigned to 2-row icon-based layout — row 1 shows layer name with active marker (›), row 2 shows compact attributes (visibility eye, lock icon, blend mode icon, opacity %) using Nerd Font icons. Removed verbose text labels and legacy 3-line help text (6.9.1).
+- Layer panel: drag handle (⠿) on each layer row for mouse-drag reorder; Shift+Up/Shift+Down keyboard reorder; mouse click to select layers (6.9.2).
+- Tool options (brush size/shape/opacity) moved from left toolbox column to right sidebar; left toolbox now shows tool list only. Brush info accessible via right sidebar Props tab (6.9.4).
+
+### Added (2026-06-22 session)
+- Quit-confirm dialog: pressing `q`/FileQuit when `editor.unsaved` is true now shows
+  "Unsaved Changes" overlay with [Y]es save / [N]o discard / [C]ancel; `trigger_quit()`
+  helper centralizes all three quit paths (6.7.2).
+- Built-in palettes: `palette_import::builtin_palettes()` returns Grayscale (5),
+  Primary (20), Warm (15), Cool (15) swatches; accessible via View → Palette: * menu
+  entries which load into the palette editor panel (6.8.5).
+- Keybinds popup now scrollable: ↑/↓/PgUp/PgDn/q all work; `keybindings_scroll` field
+  on `TuiApp`; title updated to show controls (6.8.7).
+- Added 20+ missing keybinds to KEYMAP: Layer Panel scope (n/d/x/l/m/M/+/-/Ctrl+G),
+  Text Tool scope (↑↓/Enter/Esc/[/]), Canvas extras (Ctrl+A/X/C/V/Delete, r, H/V) (6.8.7).
+- Layers menu (New/Duplicate/Delete/Merge Down/Move Up/Move Down/Toggle Visibility/
+  Toggle Lock) and Animation menu (Add Frame/Delete Frame/Play/Toggle Timeline) added
+  to menu bar with full action handlers (6.9.3).
+- `handle_font_editor_key()` and `handle_image_editor_key()` methods extracted from
+  `handle_key_event`; each mode now dispatched via a single-line call (6.6.1g, 6.6.1h).
+
+- New image dialog: Width/Height fields (Tab/arrow navigation, numeric entry),
+  palette dropdown (Left/Right to cycle), Enter confirms with canvas creation
+  at specified size + selected palette (6.8.2).
+
+### Fixed (2026-06-22 session)
+- Unicode chars (Ä Ö Ü ä ö ü ß) typed in Text tool no longer panic; verified covered
+  by 6.5.1 blank-glyph fallback; added `test_text_tool_unicode_no_panic` (6.7.3).
+
+## [6.0.0] - 2026-06-22
+### Security
+- Remove `$(cmd)` shell command substitution from template resolver (`template.rs:160`);
+  rendering a shared `.ftmp` can no longer execute arbitrary shell commands (B0/RCE).
+- Sandbox `{{img:PATH}}` template image paths to template directory; absolute paths
+  and `..` traversal are rejected (B0 adjacent).
+- Cap template canvas dimensions: `width*height > 1_000_000` cells rejected,
+  margin/padding clamped; prevents OOM from crafted frontmatter (B7/DoS).
+- Validate FIGfont header numerics: `height` must be 1..=255, negative baseline/
+  maxlength rejected; invalid header no longer accepted (B1).
+- Cap zip decompression: `read_to_end()` replaced with size-checked read; zip-bomb
+  fonts rejected before exhausting memory (B2).
+- Fix GIF memory-guard timing: dimension check now runs before the frame decode loop;
+  oversized GIF bails at first frame rather than after full decode (B4/DoS).
+- Range-check FLC control-file group indices: `gl`/`gr` validated as `b'0'..=b'3'`
+  before assignment; crafted `.flc` no longer panics (B5/panic).
+- Limit image decode dimensions: `image::io::Reader` now uses `Limits::default()`;
+  decompression-bomb images rejected (B6/DoS).
+
+### Fixed
+- Green test suite: 10 stale tests fixed — welcome-gate tests now dismiss welcome
+  screen before key events; layer-model tests read/write active layer buffer not
+  composite; palette shadow test updated to use `.round()` (B3).
+- Replace `.expect()` in `render.rs:lookup_char` with blank-glyph fallback; fonts
+  missing char 0 no longer panic (S1).
+- Text tool: printable keys (`b`/`e`/`f` etc.) no longer switch tools while
+  `entering_text=true`; `Char(c)` captured before toolbox-selector dispatch (6.7.1).
+
+### Added
+- `LightingState`, `AnimationState`, `InteractionState` sub-structs extracted from
+  `TuiApp`; shrinks borrow surface and god-object field count by 20 (6.6.1a–c).
+- `LightPanel::render()` method extracted from `TuiApp::render_light_panel()`;
+  `tui/overlays.rs` extracted from `TuiApp::render_overlays()`; lighting key
+  dispatch extracted to `LightingState::handle_key()` (6.6.1d–f).
+- Compile-time test validates embedded `ICONS_YAML`; malformed YAML now fails CI
+  instead of silently dropping all icons (A3/S2, 6.5.2).
+- Clamp `font_gen` point_size to 4.0..=200.0; unbounded value no longer causes
+  oversized canvas allocations (S5, 6.5.3).
+- GitHub Actions CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`
+  run on push/PR; legacy `.travis.yml` removed (6.2.2).
+- Hard `cargo test` gate in `scripts/ralph.sh` merge phase; LLM self-attestation
+  no longer the only merge check (6.2.1).
+- Brush size/shape indicator in toolbox panel; updates live on `[`/`]` (6.9.5).
+
+### Changed
+- `CLAUDE.md` and `AGENTS.md` updated to reflect current source layout and v6
+  milestone (A2, 6.4.1–6.4.2).
+- Shadow computation uses `.round()` instead of truncation; `default_shadow_hex`
+  now produces `#4D0000` for 30% shadow (6.1.3).
+
+### Docs
+- Pre-release codebase audit: `docs/codebase-audit-2026-06-18.md` (sessions 1+2,
+  complete read-through). Every finding mapped to a task in `docs/todo-v6.md`.
 
 ## [5.8.0] - 2026-06-18
 ### Added

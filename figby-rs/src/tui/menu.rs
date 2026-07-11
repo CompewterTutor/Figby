@@ -5,17 +5,21 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, StatefulWidget, Widget};
 
+use super::keymap::{self, GlobalAction};
 use super::theme::Theme;
 use super::toolbox::Tool;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MenuAction {
+    FileNew,
     FileOpen,
     FileSave,
     FileSaveAs,
     FileExport,
     FileImportGif,
     FileQuit,
+    FontNewFromFile,
+    FontNewFromSystem,
     EditUndo,
     EditRedo,
     EditCut,
@@ -27,6 +31,21 @@ pub enum MenuAction {
     ViewToggleUndoPanel,
     ViewToggleTimeline,
     ViewToggleSidePanel,
+    ViewLoadBuiltinPalette(&'static str),
+    ViewPaletteEditor,
+    LayerNew,
+    LayerDuplicate,
+    LayerDelete,
+    LayerMergeDown,
+    LayerMoveUp,
+    LayerMoveDown,
+    LayerToggleVisibility,
+    LayerToggleLock,
+    AnimFrameAdd,
+    AnimFrameDelete,
+    AnimPlay,
+    AnimToggleTimeline,
+    ImageResizeCanvas,
     ToolsSelect(Tool),
     HelpAbout,
     HelpKeybindings,
@@ -34,7 +53,7 @@ pub enum MenuAction {
 
 struct TopMenu {
     label: &'static str,
-    items: Vec<(&'static str, MenuAction)>,
+    items: Vec<(&'static str, Option<String>, MenuAction)>,
 }
 
 /// Persistent + per-frame state for `MenuBar` (held separately so `MenuBar`
@@ -179,7 +198,7 @@ impl MenuBar {
                     if let Some(menu_idx) = state.active_menu {
                         let menu = &self.menus[menu_idx];
                         if item_idx < menu.items.len() {
-                            let action = menu.items[item_idx].1.clone();
+                            let action = menu.items[item_idx].2.clone();
                             state.pending_action = Some(action);
                         }
                     }
@@ -218,7 +237,7 @@ impl MenuBar {
         };
         let menu = &self.menus[menu_idx];
         if state.focused_item < menu.items.len() {
-            let action = menu.items[state.focused_item].1.clone();
+            let action = menu.items[state.focused_item].2.clone();
             state.pending_action = Some(action);
         }
         state.reset();
@@ -249,10 +268,21 @@ impl MenuBar {
         let max_label_w: u16 = menu
             .items
             .iter()
-            .map(|(label, _)| label.len() as u16)
+            .map(|(label, _, _)| label.len() as u16)
             .max()
             .unwrap_or(10);
-        let dropdown_w = max_label_w + 4;
+        let max_shortcut_w: u16 = menu
+            .items
+            .iter()
+            .map(|(_, shortcut, _)| shortcut.as_deref().map(str::len).unwrap_or(0) as u16)
+            .max()
+            .unwrap_or(0);
+        let shortcut_col_w = if max_shortcut_w > 0 {
+            max_shortcut_w + 2
+        } else {
+            0
+        };
+        let dropdown_w = max_label_w + shortcut_col_w + 4;
         let dropdown_h = item_count + 2;
 
         let Some(&header_rect) = state.header_rects.get(menu_idx) else {
@@ -284,7 +314,7 @@ impl MenuBar {
 
         state.item_rects.clear();
 
-        for (i, (label, _)) in menu.items.iter().enumerate() {
+        for (i, (label, shortcut, _)) in menu.items.iter().enumerate() {
             if i as u16 >= inner_h {
                 break;
             }
@@ -302,11 +332,13 @@ impl MenuBar {
                     .fg(self.theme.menu.fg)
                     .bg(self.theme.menu.dropdown_bg)
             };
-            let padded = format!(
-                " {:<width$} ",
-                label,
-                width = (inner_w as usize).saturating_sub(2)
-            );
+            let content_w = (inner_w as usize).saturating_sub(2);
+            let padded = if let Some(shortcut) = shortcut {
+                let label_w = content_w.saturating_sub(shortcut.len() + 1);
+                format!(" {label:<label_w$} {shortcut} ")
+            } else {
+                format!(" {label:<content_w$} ")
+            };
             Widget::render(Paragraph::new(padded).style(style), item_rect, buf);
         }
     }
@@ -377,13 +409,29 @@ impl StatefulWidget for &MenuBar {
 
 fn alt_menu_index(c: char) -> Option<usize> {
     match c {
-        'f' | 'F' => Some(0),
-        'e' | 'E' => Some(1),
-        'v' | 'V' => Some(2),
-        't' | 'T' => Some(3),
-        'h' | 'H' => Some(4),
+        'f' | 'F' => Some(0), // File
+        'e' | 'E' => Some(1), // Edit
+        'v' | 'V' => Some(2), // View
+        'i' | 'I' => Some(3), // Image
+        't' | 'T' => Some(4), // Tools
+        'l' | 'L' => Some(5), // Layers
+        'a' | 'A' => Some(6), // Animation
+        'h' | 'H' => Some(7), // Help
         _ => None,
     }
+}
+
+/// Shortcut for a menu item that's derived from `GLOBAL_DISPATCH`, so it
+/// can't drift from the actual binding.
+fn g(action: GlobalAction) -> Option<String> {
+    keymap::global_shortcut_label(action)
+}
+
+/// Shortcut for a menu item with no `GlobalAction` equivalent — the
+/// binding lives in a scope-specific handler instead (verified against
+/// keymap.rs's documented keybinds and the relevant handler).
+fn s(shortcut: &str) -> Option<String> {
+    Some(shortcut.to_string())
 }
 
 fn build_menus() -> Vec<TopMenu> {
@@ -391,59 +439,151 @@ fn build_menus() -> Vec<TopMenu> {
         TopMenu {
             label: "File",
             items: vec![
-                ("Open", MenuAction::FileOpen),
-                ("Save", MenuAction::FileSave),
-                ("Save As", MenuAction::FileSaveAs),
-                ("Export", MenuAction::FileExport),
-                ("Import GIF", MenuAction::FileImportGif),
-                ("Quit", MenuAction::FileQuit),
+                ("New Image", g(GlobalAction::FileNew), MenuAction::FileNew),
+                ("Open", g(GlobalAction::FileOpen), MenuAction::FileOpen),
+                ("Save", g(GlobalAction::FileSave), MenuAction::FileSave),
+                (
+                    "Save As",
+                    g(GlobalAction::FileSaveAs),
+                    MenuAction::FileSaveAs,
+                ),
+                ("Export", g(GlobalAction::Export), MenuAction::FileExport),
+                ("Import GIF", None, MenuAction::FileImportGif),
+                ("New Font from File", None, MenuAction::FontNewFromFile),
+                ("New Font from System", None, MenuAction::FontNewFromSystem),
+                ("Quit", g(GlobalAction::Quit), MenuAction::FileQuit),
             ],
         },
         TopMenu {
             label: "Edit",
             items: vec![
-                ("Undo", MenuAction::EditUndo),
-                ("Redo", MenuAction::EditRedo),
-                ("Cut", MenuAction::EditCut),
-                ("Copy", MenuAction::EditCopy),
-                ("Paste", MenuAction::EditPaste),
+                ("Undo", g(GlobalAction::Undo), MenuAction::EditUndo),
+                ("Redo", g(GlobalAction::Redo), MenuAction::EditRedo),
+                ("Cut", s("Ctrl+X"), MenuAction::EditCut),
+                ("Copy", s("Ctrl+C"), MenuAction::EditCopy),
+                ("Paste", s("Ctrl+V"), MenuAction::EditPaste),
             ],
         },
         TopMenu {
             label: "View",
             items: vec![
-                ("Zoom In", MenuAction::ViewZoomIn),
-                ("Zoom Out", MenuAction::ViewZoomOut),
-                ("Toggle Grid", MenuAction::ViewToggleGrid),
-                ("Toggle Undo Panel", MenuAction::ViewToggleUndoPanel),
-                ("Toggle Timeline", MenuAction::ViewToggleTimeline),
-                ("Toggle Side Panel", MenuAction::ViewToggleSidePanel),
+                ("Zoom In", s("+"), MenuAction::ViewZoomIn),
+                ("Zoom Out", s("-"), MenuAction::ViewZoomOut),
+                ("Toggle Grid", None, MenuAction::ViewToggleGrid),
+                (
+                    "Toggle Undo Panel",
+                    g(GlobalAction::ToggleUndoPanel),
+                    MenuAction::ViewToggleUndoPanel,
+                ),
+                (
+                    "Toggle Timeline",
+                    g(GlobalAction::ToggleTimeline),
+                    MenuAction::ViewToggleTimeline,
+                ),
+                (
+                    "Toggle Side Panel",
+                    g(GlobalAction::CycleDrawer),
+                    MenuAction::ViewToggleSidePanel,
+                ),
+                (
+                    "Palette Editor",
+                    s("Ctrl+Shift+P"),
+                    MenuAction::ViewPaletteEditor,
+                ),
+                (
+                    "Palette: Grayscale",
+                    None,
+                    MenuAction::ViewLoadBuiltinPalette("Grayscale"),
+                ),
+                (
+                    "Palette: Primary",
+                    None,
+                    MenuAction::ViewLoadBuiltinPalette("Primary"),
+                ),
+                (
+                    "Palette: Warm",
+                    None,
+                    MenuAction::ViewLoadBuiltinPalette("Warm"),
+                ),
+                (
+                    "Palette: Cool",
+                    None,
+                    MenuAction::ViewLoadBuiltinPalette("Cool"),
+                ),
             ],
+        },
+        TopMenu {
+            label: "Image",
+            items: vec![("Resize Canvas", None, MenuAction::ImageResizeCanvas)],
         },
         TopMenu {
             label: "Tools",
             items: vec![
-                ("Brush", MenuAction::ToolsSelect(Tool::Brush)),
-                ("Eraser", MenuAction::ToolsSelect(Tool::Eraser)),
-                ("Line", MenuAction::ToolsSelect(Tool::Line)),
-                ("Fill", MenuAction::ToolsSelect(Tool::Fill)),
-                ("Marquee", MenuAction::ToolsSelect(Tool::Marquee)),
-                ("Lasso", MenuAction::ToolsSelect(Tool::Lasso)),
-                ("Circle Select", MenuAction::ToolsSelect(Tool::CircleSelect)),
+                ("Brush", s("B"), MenuAction::ToolsSelect(Tool::Brush)),
+                ("Eraser", s("E"), MenuAction::ToolsSelect(Tool::Eraser)),
+                ("Line", s("I"), MenuAction::ToolsSelect(Tool::Line)),
+                ("Fill", s("G"), MenuAction::ToolsSelect(Tool::Fill)),
+                ("Marquee", s("V"), MenuAction::ToolsSelect(Tool::Marquee)),
+                ("Lasso", s("L"), MenuAction::ToolsSelect(Tool::Lasso)),
+                (
+                    "Circle Select",
+                    s("C"),
+                    MenuAction::ToolsSelect(Tool::CircleSelect),
+                ),
                 (
                     "Polygon Select",
+                    s("P"),
                     MenuAction::ToolsSelect(Tool::PolygonSelect),
                 ),
-                ("Eyedropper", MenuAction::ToolsSelect(Tool::Eyedropper)),
-                ("Spray", MenuAction::ToolsSelect(Tool::Spray)),
-                ("Text", MenuAction::ToolsSelect(Tool::Text)),
+                (
+                    "Eyedropper",
+                    s("D"),
+                    MenuAction::ToolsSelect(Tool::Eyedropper),
+                ),
+                ("Spray", s("A"), MenuAction::ToolsSelect(Tool::Spray)),
+                ("Text", s("T"), MenuAction::ToolsSelect(Tool::Text)),
+                ("Lighting", None, MenuAction::ToolsSelect(Tool::Lighting)),
+            ],
+        },
+        TopMenu {
+            label: "Layers",
+            items: vec![
+                ("New Layer", s("N"), MenuAction::LayerNew),
+                ("Duplicate Layer", s("D"), MenuAction::LayerDuplicate),
+                ("Delete Layer", s("Delete"), MenuAction::LayerDelete),
+                ("Merge Down", s("M"), MenuAction::LayerMergeDown),
+                ("Move Up", s("Shift+Up"), MenuAction::LayerMoveUp),
+                ("Move Down", s("Shift+Down"), MenuAction::LayerMoveDown),
+                (
+                    "Toggle Visibility",
+                    s("Enter"),
+                    MenuAction::LayerToggleVisibility,
+                ),
+                ("Toggle Lock", s("L"), MenuAction::LayerToggleLock),
+            ],
+        },
+        TopMenu {
+            label: "Animation",
+            items: vec![
+                ("Add Frame", s("A"), MenuAction::AnimFrameAdd),
+                ("Delete Frame", s("Delete"), MenuAction::AnimFrameDelete),
+                ("Play / Pause", s("Enter"), MenuAction::AnimPlay),
+                (
+                    "Toggle Timeline",
+                    g(GlobalAction::ToggleTimeline),
+                    MenuAction::AnimToggleTimeline,
+                ),
             ],
         },
         TopMenu {
             label: "Help",
             items: vec![
-                ("About", MenuAction::HelpAbout),
-                ("Keybindings", MenuAction::HelpKeybindings),
+                ("About", None, MenuAction::HelpAbout),
+                (
+                    "Keybindings",
+                    g(GlobalAction::ToggleKeybindings),
+                    MenuAction::HelpKeybindings,
+                ),
             ],
         },
     ]

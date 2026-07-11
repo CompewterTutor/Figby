@@ -216,17 +216,76 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 
 ## Phase 6.6 — Architecture (🟠 A1 — LARGE, may slip past v6)
 
-- [ ] `6.6.1` Split `tui/mod.rs` god object (4076 LOC) — incremental
-  - **Goal:** `handle_key_event` (1054 LOC), `handle_mouse_event` (510),
-    `render` (332); `TuiApp` ~45 fields. Per audit, prefer the **Component
-    Architecture** path: extract one mode/component at a time, each with
-    `render` + `handle_event`; model dialogs as an input-layer stack (topmost
-    consumes keys first). Group `TuiApp` fields into sub-structs (Animation,
-    Lighting, Interaction) to shrink the borrow surface. Do NOT attempt in one PR.
-  - **Touches:** `figby-rs/src/tui/mod.rs` (+ new module files).
-  - **Success:** mod.rs shrinks meaningfully; each extracted component has its own
-    handler + tests; behavior unchanged (test suite still green).
-  - **Difficulty:** High — split into sub-tasks before starting.
+- [x] `6.6.1a` Group lighting fields into `LightingState` sub-struct
+  - **Goal:** Extract 5 lighting fields from `TuiApp` into `pub struct LightingState`:
+    `scene` (was `lighting_scene`), `lut` (was `lighting_lut`), `max_shadow_distance`,
+    `height_scale`, `panel` (was `light_panel`). Add `pub lighting: LightingState` to
+    `TuiApp`. Shrinks borrow surface; no behavior change.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only — 28 self-access rewrites + struct/new().
+    No test changes needed (tests don't access these fields directly).
+  - **Note:** Rust NLL handles field-split borrows (`self.lighting.scene` + `self.lighting.panel`
+    in same block). If compiler rejects, introduce `let idx = self.lighting.panel.selected_index;`
+    before the mutable scene borrow.
+  - **Success:** Compiles clean; `cargo test` green; `TuiApp` has 5 fewer top-level fields.
+  - **Difficulty:** Low
+
+- [x] `6.6.1b` Group animation/particle fields into `AnimationState` sub-struct
+  - **Goal:** Extract from `TuiApp` into `pub struct AnimationState`:
+    `particle_system`, `emitter_active`, `emitter_panel`, `show_live_particles`,
+    `baked_layer_indices`, `timeline_state`, `timeline_visible`, `marker_accum`.
+    Add `pub animation: AnimationState` to `TuiApp`.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only — ~95 self-access rewrites + struct/new().
+  - **Success:** Compiles clean; `cargo test` green; 8 fewer top-level fields.
+  - **Difficulty:** Low
+
+- [x] `6.6.1c` Group drag/interaction fields into `InteractionState` sub-struct
+  - **Goal:** Extract from `TuiApp` into `pub struct InteractionState`:
+    `selection_drag_origin`, `selection_polygon_points`, `selection_lasso_points`,
+    `prev_mouse_buf`, `mouse_batch_active`, `line_start`, `saved_buffer`.
+    Add `pub interaction: InteractionState` to `TuiApp`.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only.
+  - **Success:** Compiles clean; `cargo test` green; 7 fewer top-level fields.
+  - **Difficulty:** Low
+
+- [x] `6.6.1d` Extract `render_light_panel` → method on `LightPanel`
+  - **Goal:** Move `fn render_light_panel(&self, frame, area)` (~62 LOC, `:1256-1317`)
+    from `TuiApp` impl into `light_panel.rs` as `LightPanel::render(...)`. Call site
+    in `TuiApp::render` becomes `self.lighting.panel.render(frame, area, &self.lighting.scene, &self.theme)`.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/light_panel.rs`.
+  - **Success:** Compiles clean; render behavior identical; `mod.rs` -62 LOC.
+  - **Difficulty:** Low
+
+- [x] `6.6.1e` Extract `render_overlays` → `tui/overlays.rs`
+  - **Goal:** Move `fn render_overlays(&mut self, frame)` (~147 LOC, `:1318-1464`)
+    from `TuiApp` impl to a new file `figby-rs/src/tui/overlays.rs` as a free function
+    or `TuiApp` extension trait. Pure render logic, no state mutation beyond `dirty`.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, new `figby-rs/src/tui/overlays.rs`.
+  - **Success:** Compiles clean; `mod.rs` -147 LOC.
+  - **Difficulty:** Low
+
+- [x] `6.6.1f` Extract lighting-mode key dispatch → `LightingState::handle_key`
+  - **Goal:** The lighting-mode block in `handle_key_event` (`:2848-3025`, ~177 LOC)
+    reads/mutates almost exclusively `self.lighting.*`. Move it to
+    `LightingState::handle_key(&mut self, key, w, h) -> bool` (returns true if consumed).
+    Call site: `if self.lighting.handle_key(key, w, h) { return None; }`.
+  - **Touches:** `figby-rs/src/tui/mod.rs` only (method on `LightingState` defined in same file
+    or in `lighting.rs`).
+  - **Note:** Requires 6.6.1a complete first (needs `LightingState` struct).
+  - **Success:** Compiles clean; lighting behavior unchanged; `handle_key_event` -177 LOC.
+  - **Difficulty:** Medium
+
+- [x] `6.6.1g` Extract font-editor key dispatch → `FontEditor::handle_key`
+  - **Goal:** Identify the font-editor block in `handle_key_event` and move it to
+    `font_editor.rs` as a method. Large block — map it first, then extract.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/font_editor.rs`.
+  - **Success:** Compiles clean; font-editor behavior unchanged; `handle_key_event` shrinks.
+  - **Difficulty:** High
+
+- [x] `6.6.1h` Extract image-editor key dispatch → `ImageEditor::handle_key`
+  - **Goal:** Same pattern as 6.6.1g for the image-editor block.
+  - **Touches:** `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/image_editor.rs`.
+  - **Success:** Compiles clean; image-editor behavior unchanged; `handle_key_event` shrinks.
+  - **Difficulty:** High
 
 ---
 
@@ -235,7 +294,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > Source: manual testing notes (4.0-manual-testing-notes.md, 5.0-manual-testing-notes.md).
 > These are crashes and data-loss risks — gate release on all green.
 
-- [ ] `6.7.1` Fix text tool: keybinds eat input keys (manual-note #16)
+- [x] `6.7.1` Fix text tool: keybinds eat input keys (manual-note #16)
   - **Goal:** Typing in Text tool mode routes keystrokes through the global keybind
     handler before the text input buffer receives them. Most printable keys are
     consumed by shortcuts (e.g. `b`=brush, `e`=erase, `f`=fill), so users cannot
@@ -248,7 +307,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     swallowed. Test: simulate `t` → type `"abc"` → assert canvas contains `abc`.
   - **Difficulty:** Medium
 
-- [ ] `6.7.2` Prompt to save on exit if unsaved changes (manual-note #18)
+- [x] `6.7.2` Prompt to save on exit if unsaved changes (manual-note #18)
   - **Goal:** Pressing `q`/`Esc` quits immediately, silently discarding unsaved work.
     Show a confirmation dialog ("Unsaved changes — save before quitting? [Y]es / [N]o /
     [C]ancel") when `app.dirty` is true. Honour the three choices.
@@ -258,7 +317,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     without save. Cancel → stays in editor.
   - **Difficulty:** Medium
 
-- [ ] `6.7.3` Fix panic on direct Unicode input of Deutsch chars (e2e-test-checklist #8.1)
+- [x] `6.7.3` Fix panic on direct Unicode input of Deutsch chars (e2e-test-checklist #8.1)
   - **Goal:** Typing ÄÖÜäöüß directly (not via keyboard reroute `-D`) panics with
     "missing char code 0" — fixed for render path by 6.5.1 blank-glyph fallback,
     but the TUI may still panic on these code points. Verify 6.5.1 covers the TUI
@@ -275,7 +334,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > Features that are present in menus/welcome screen but either do nothing or are
 > entirely absent from the UI. All are referenced in manual testing notes.
 
-- [ ] `6.8.1` Open image: implement file dialog (manual-notes #8, #11)
+- [x] `6.8.1` Open image: implement file dialog (manual-notes #8, #11)
   - **Goal:** "Open Image" on the welcome screen and `o`/`O` in image editor mode
     currently do nothing (welcome) or activate a bare path-entry prompt with no
     directory browser. Implement a proper file dialog: show current directory listing,
@@ -288,7 +347,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     image editor. Path entry mode also replaced or augmented with directory browser.
   - **Difficulty:** Medium
 
-- [ ] `6.8.2` New image dialog: canvas size + palette selection (manual-note #10)
+- [x] `6.8.2` New image dialog: canvas size + palette selection (manual-note #10)
   - **Goal:** "New Image" creates a canvas with hard-coded defaults. Add a creation
     dialog with fields: Width, Height (default 80×24), and a palette dropdown
     (list of built-in palette names). Tab/arrow to navigate fields, Enter to confirm.
@@ -297,7 +356,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     that size. Palette selection populates the palette panel.
   - **Difficulty:** Medium
 
-- [ ] `6.8.3` Canvas size: add Edit Canvas Size action (manual-notes #7, #9) *(status bar display already implemented)*
+- [x] `6.8.3` Canvas size: add Edit Canvas Size action (manual-notes #7, #9) *(status bar display already implemented)*
   - **Goal:** No part of the UI shows current canvas dimensions. (1) Add `WxH` to the
     status bar. (2) Add "Edit Canvas Size" to the Image menu (or View menu) plus a
     keybind; opens a small dialog to resize (with crop/pad options). Resize should not
@@ -308,7 +367,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     is preserved (padded/cropped correctly).
   - **Difficulty:** Medium
 
-- [ ] `6.8.4` Add palette editor UI (manual-note #23; original spec items 5.6.3–5.6.4)
+- [x] `6.8.4` Add palette editor UI (manual-note #23; original spec items 5.6.3–5.6.4)
   - **Goal:** No palette editor exists: no keybind, no menu entry, no icon buttons in
     the palette toolbox. Implement palette editor panel: add/remove/edit colors, name
     the palette, import from file. Add icon buttons to palette toolbox (new color,
@@ -319,8 +378,9 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Can open palette editor, add a new color, rename it, close. Color
     appears in palette panel and can be used for drawing.
   - **Difficulty:** High
+  - **Done:** Added add/delete/edit-color operations to `palette_editor.rs` (A/Delete/E/N/R keys), palette rename (R key), hex inline editing for swatches, View menu entry (`MenuAction::ViewPaletteEditor`), and keymap documentation (`Ctrl+Shift+P`). 106 tests green, clippy/fmt clean.
 
-- [ ] `6.8.5` Default palettes: ship ~5-shade-per-hue built-in palettes (manual-note #17)
+- [x] `6.8.5` Default palettes: ship ~5-shade-per-hue built-in palettes (manual-note #17)
   - **Goal:** No built-in palettes exist. Add at minimum: a grayscale ramp, a primary
     color palette, and one warm + one cool themed palette. Each should have ~5 shades
     per hue. Palettes available in the new-image dialog (6.8.2) and via View menu.
@@ -329,7 +389,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Palettes appear in dropdown; selecting one populates the palette panel.
   - **Difficulty:** Low
 
-- [ ] `6.8.6` Lighting tool: surface or implement (manual-note #14)
+- [x] `6.8.6` Lighting tool: surface or implement (manual-note #14)
   - **Goal:** Lighting tool referenced in original spec and docs/lighting-design.md
     but absent from TUI tool palette, keybinds, and menus. Either: (a) implement the
     tool with basic directional-lighting preview if the logic exists in
@@ -341,7 +401,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     select it, observe canvas lighting effect.
   - **Difficulty:** High (full impl) / Low (placeholder)
 
-- [ ] `6.8.7` Keybinds popup: make scrollable + add missing keybinds (manual-note #15)
+- [x] `6.8.7` Keybinds popup: make scrollable + add missing keybinds (manual-note #15)
   - **Goal:** Keybinds help popup is not scrollable; many keybinds (layer operations,
     animation controls, palette editor, text tool sub-commands) are missing. Make
     the popup scrollable (arrow keys or PgUp/PgDn). Audit all keybinds in
@@ -350,7 +410,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Popup scrolls. All keybinds visible across all modes.
   - **Difficulty:** Low
 
-- [ ] `6.8.8` Timeline and layer panel: make scrollable (manual-note #19)
+- [x] `6.8.8` Timeline and layer panel: make scrollable (manual-note #19)
   - **Goal:** With many layers or animation frames, timeline and layer panel overflow
     and clip. Add scroll support (arrow keys + mouse wheel) to both panels. Show a
     scroll indicator when content overflows.
@@ -367,7 +427,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
 > Visual and interaction improvements from manual testing. None block release but
 > all significantly affect first-run experience.
 
-- [ ] `6.9.1` Layer panel: icon-based layout with 2-row entries (manual-note #12)
+- [x] `6.9.1` Layer panel: icon-based layout with 2-row entries (manual-note #12)
   - **Goal:** Layer panel is text-heavy and confusing. Each entry should be 2 rows:
     row 1 = layer name (editable on double-click), row 2 = compact attributes (icon
     for visibility, lock icon, opacity %, blend mode abbreviation). Replace verbose
@@ -378,7 +438,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     reorder layers by dragging the handle on left edge of each row.
   - **Difficulty:** Medium
 
-- [ ] `6.9.2` Layers: reorder by drag handle (manual-note #21)
+- [x] `6.9.2` Layers: reorder by drag handle (manual-note #21)
   - **Goal:** No way to reorder layers. Add a drag handle (left edge of each layer row
     in the panel); mouse-drag or `Shift+Up`/`Shift+Down` keybinds reorder layers.
     Layer stack recomposites immediately after reorder.
@@ -386,7 +446,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Drag or Shift+Arrow reorders layers. Canvas updates immediately.
   - **Difficulty:** Medium
 
-- [ ] `6.9.3` Add Layers menu and Timeline menu with actions (manual-note #20)
+- [x] `6.9.3` Add Layers menu and Timeline menu with actions (manual-note #20)
   - **Goal:** Layer actions (add, delete, duplicate, merge, move up/down, rename,
     toggle visibility/lock) exist only via keybinds — no menu. Add a Layers menu
     in the menu bar. Similarly add an Animation/Timeline menu with frame actions.
@@ -394,7 +454,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Success:** Alt+L opens Layers menu; all layer actions accessible from menu.
   - **Difficulty:** Low
 
-- [ ] `6.9.4` Move tool options to right sidebar (manual-note #13)
+- [x] `6.9.4` Move tool options to right sidebar (manual-note #13)
   - **Goal:** Tool options (brush size, shape, opacity etc.) currently displayed below
     the toolbox on the left. User expected them in the right sidebar. Move or
     duplicate tool options panel to right sidebar, or make the location configurable.
@@ -412,7 +472,7 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
     immediately.
   - **Difficulty:** Low
 
-- [ ] `6.9.6` Better visual divider between tool palette and brush info (manual-note #22)
+- [x] `6.9.6` Better visual divider between tool palette and brush info (manual-note #22)
   - **Goal:** Weak visual separation between the last tool button and the brush
     info section below it in the toolbox. Add a separator line or padding to make
     the boundary clear.
@@ -421,6 +481,18 @@ IDs B0/B1/.../A1/S1 below map 1:1 to that doc). Severity: 🔴 blocker, 🟠 arc
   - **Difficulty:** Low
 
 ---
+
+## Phase 6.10 — Export Animation Bug (ad-hoc fix)
+
+- [x] `6.10.1` Fix `capture_timeline_frames` ignoring per-frame `layer_state`
+  - **Goal:** GIF-imported / 'A'-key captured frames showed same content
+    throughout playback/export because `capture_timeline_frames()` rebuilt
+    every frame from the live (unchanging) layer stack instead of each
+    frame's own `layer_state` snapshot. Now reads `layer_state` directly
+    when present. Regression test confirms each frame gets its own buffer.
+  - **Touches:** `figby-rs/src/tui/export.rs` (fix + test).
+  - **Success:** Playback content changes per frame; export output correct.
+  - **Difficulty:** Low
 
 ## Deferred to post-v6 (tracked, not blocking)
 

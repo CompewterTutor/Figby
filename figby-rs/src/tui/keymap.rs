@@ -3,6 +3,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 /// Machine-dispatchable global actions — one-to-one with entries in [`GLOBAL_DISPATCH`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GlobalAction {
+    FileNew,
     FileOpen,
     FileSave,
     FileSaveAs,
@@ -28,6 +29,11 @@ pub struct KeyDispatch {
 
 pub static GLOBAL_DISPATCH: &[KeyDispatch] = &[
     // File operations
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('n'),
+        action: GlobalAction::FileNew,
+    },
     KeyDispatch {
         modifiers: KeyModifiers::CONTROL,
         key_code: KeyCode::Char('o'),
@@ -150,10 +156,46 @@ pub fn lookup_global(code: KeyCode, modifiers: KeyModifiers) -> Option<GlobalAct
         .map(|d| d.action)
 }
 
+/// Format a (modifiers, key_code) pair as a display string, e.g. "Ctrl+Shift+S".
+pub fn format_shortcut(modifiers: KeyModifiers, code: KeyCode) -> String {
+    let mut parts = Vec::new();
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        parts.push("Ctrl".to_string());
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        parts.push("Alt".to_string());
+    }
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        parts.push("Shift".to_string());
+    }
+    let key_str = match code {
+        KeyCode::Char(c) => c.to_ascii_uppercase().to_string(),
+        KeyCode::F(n) => format!("F{n}"),
+        KeyCode::Tab => "Tab".to_string(),
+        KeyCode::Enter => "Enter".to_string(),
+        KeyCode::Esc => "Esc".to_string(),
+        KeyCode::Delete => "Delete".to_string(),
+        other => format!("{other:?}"),
+    };
+    parts.push(key_str);
+    parts.join("+")
+}
+
+/// Find the display shortcut string for a global action, derived directly
+/// from [`GLOBAL_DISPATCH`] so it can't drift from the actual binding.
+pub fn global_shortcut_label(action: GlobalAction) -> Option<String> {
+    GLOBAL_DISPATCH
+        .iter()
+        .find(|d| d.action == action)
+        .map(|d| format_shortcut(d.modifiers, d.key_code))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
     Global,
     Canvas,
+    LayerPanel,
+    TextTool,
     FontOverview,
     FontCharEditor,
     Dialog,
@@ -165,6 +207,8 @@ impl Scope {
         match self {
             Scope::Global => "Global",
             Scope::Canvas => "Canvas",
+            Scope::LayerPanel => "Layer Panel",
+            Scope::TextTool => "Text Tool",
             Scope::FontOverview => "Font Overview",
             Scope::FontCharEditor => "Font Char Editor",
             Scope::Dialog => "Dialog",
@@ -181,6 +225,11 @@ pub struct KeyBinding {
 
 pub const KEYMAP: &[KeyBinding] = &[
     // Global
+    KeyBinding {
+        keys: "Ctrl+N",
+        scope: Scope::Global,
+        description: "New image",
+    },
     KeyBinding {
         keys: "Ctrl+O",
         scope: Scope::Global,
@@ -247,6 +296,11 @@ pub const KEYMAP: &[KeyBinding] = &[
         description: "Toggle undo history panel",
     },
     KeyBinding {
+        keys: "Ctrl+Shift+P",
+        scope: Scope::Global,
+        description: "Open palette editor",
+    },
+    KeyBinding {
         keys: "Alt+F",
         scope: Scope::Global,
         description: "Open File menu",
@@ -298,9 +352,14 @@ pub const KEYMAP: &[KeyBinding] = &[
         description: "Brush/Eraser/Lasso/Select/Circle/Polygon",
     },
     KeyBinding {
-        keys: "g/i/d/a/t",
+        keys: "g/i/d/a/t/u/r",
         scope: Scope::Canvas,
-        description: "Fill/Line/Eyedropper/Spray/Text",
+        description: "Fill/Line/Eyedropper/Spray/Text/Move/Rotate",
+    },
+    KeyBinding {
+        keys: "arrows (Move tool)",
+        scope: Scope::Canvas,
+        description: "Nudge selection contents, or whole layer if none",
     },
     KeyBinding {
         keys: "[ / ]",
@@ -321,6 +380,41 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "M",
         scope: Scope::Canvas,
         description: "Toggle marker sub-mode (brush tool)",
+    },
+    KeyBinding {
+        keys: "drag (Rotate tool)",
+        scope: Scope::Canvas,
+        description: "Rotate selection, or whole layer if none, 90° per drag step",
+    },
+    KeyBinding {
+        keys: "left/right (Rotate tool)",
+        scope: Scope::Canvas,
+        description: "Rotate selection, or whole layer if none, one 90° step",
+    },
+    KeyBinding {
+        keys: "Ctrl+A",
+        scope: Scope::Canvas,
+        description: "Select all",
+    },
+    KeyBinding {
+        keys: "Ctrl+X",
+        scope: Scope::Canvas,
+        description: "Cut selection",
+    },
+    KeyBinding {
+        keys: "Ctrl+C",
+        scope: Scope::Canvas,
+        description: "Copy selection",
+    },
+    KeyBinding {
+        keys: "Ctrl+V",
+        scope: Scope::Canvas,
+        description: "Paste",
+    },
+    KeyBinding {
+        keys: "Delete",
+        scope: Scope::Canvas,
+        description: "Delete selection",
     },
     // Font Overview
     KeyBinding {
@@ -398,6 +492,93 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "G",
         scope: Scope::FontCharEditor,
         description: "Generate from system font",
+    },
+    // Layer Panel
+    KeyBinding {
+        keys: "↑ / ↓",
+        scope: Scope::LayerPanel,
+        description: "Select layer",
+    },
+    KeyBinding {
+        keys: "Enter / Space",
+        scope: Scope::LayerPanel,
+        description: "Toggle layer visibility",
+    },
+    KeyBinding {
+        keys: "n / N",
+        scope: Scope::LayerPanel,
+        description: "New layer",
+    },
+    KeyBinding {
+        keys: "d / D",
+        scope: Scope::LayerPanel,
+        description: "Duplicate layer",
+    },
+    KeyBinding {
+        keys: "x / Delete",
+        scope: Scope::LayerPanel,
+        description: "Delete layer",
+    },
+    KeyBinding {
+        keys: "l",
+        scope: Scope::LayerPanel,
+        description: "Toggle layer lock",
+    },
+    KeyBinding {
+        keys: "m",
+        scope: Scope::LayerPanel,
+        description: "Merge down (or toggle mask enabled)",
+    },
+    KeyBinding {
+        keys: "M",
+        scope: Scope::LayerPanel,
+        description: "Toggle mask",
+    },
+    KeyBinding {
+        keys: "+ / -",
+        scope: Scope::LayerPanel,
+        description: "Opacity up / down",
+    },
+    KeyBinding {
+        keys: "Ctrl+G",
+        scope: Scope::LayerPanel,
+        description: "Group selected layer",
+    },
+    KeyBinding {
+        keys: "k / K",
+        scope: Scope::LayerPanel,
+        description: "Link layer (press again on another layer to pair)",
+    },
+    KeyBinding {
+        keys: "F2",
+        scope: Scope::LayerPanel,
+        description: "Rename layer",
+    },
+    // Text Tool
+    KeyBinding {
+        keys: "t",
+        scope: Scope::TextTool,
+        description: "Activate text tool",
+    },
+    KeyBinding {
+        keys: "↑ / ↓",
+        scope: Scope::TextTool,
+        description: "Previous / next font",
+    },
+    KeyBinding {
+        keys: "Enter",
+        scope: Scope::TextTool,
+        description: "Commit text block to canvas",
+    },
+    KeyBinding {
+        keys: "Esc",
+        scope: Scope::TextTool,
+        description: "Cancel / clear text buffer",
+    },
+    KeyBinding {
+        keys: "[ / ]",
+        scope: Scope::TextTool,
+        description: "Scale text down / up",
     },
     // Timeline
     KeyBinding {

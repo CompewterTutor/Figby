@@ -1,5 +1,11 @@
 # Figby — Memory Index
 
+## ⚠️ Hard Rules
+
+1. **Never delete files** without explicit user instruction. If removal seems
+   necessary, ask first. If approved, `mv` to `/tmp/` (recycle) instead of
+   `rm` — permanent deletion is never acceptable.
+
 Master memory index. Detailed entries live in versioned files below.
 
 ## Versioned Memory Files
@@ -11,6 +17,7 @@ Master memory index. Detailed entries live in versioned files below.
 | v3 — TUI Refinement & Animation | [memory-v3.md](memory-v3.md) | Active (v3.0.0-rc.1 RC cut) |
 | v4 — (in progress) | (in memory.md) | Active (Phase 4.9 merged) |
 | v5 — UI Overhaul & Feature Completion | [memory-v5.md](memory-v5.md) | Active (Phase 5.8 complete) |
+| v6 — Pre-Release Hardening | (in memory.md) | Active (6.9.4 complete) |
 
 ## Architectural Decisions
 
@@ -2527,9 +2534,71 @@ Created `figby-rs/src/tui/lighting.rs` with full core lighting engine:
 
 22 unit tests covering all components in isolation. No `.unwrap()` in production. fmt and clippy pass clean.
 
+### 6.8.2 — New image dialog: canvas size + palette selection
+
+Added `NewImageDialog` in `figby-rs/src/tui/dialogs/new_image.rs` — a dialog with
+three navigable fields: Width (numeric entry, default 80), Height (numeric entry,
+default 24), and Palette (cycle through built-in names with Left/Right). Tab/Up/Down
+navigate fields, Enter confirms, Esc cancels. On confirm, creates `CanvasWidget` at
+specified dimensions and loads selected palette into `PaletteEditor`.
+
+Wired into `TuiApp` via `DialogState.new_image` field. `WelcomeAction::ImageNewBlank`
+opens the dialog instead of hardcoding 80×24. Palettes sourced from
+`palette_import::builtin_palettes()` (Grayscale, Primary, Warm, Cool).
+
+### 6.9.1 — Layer panel: icon-based 2-row layout
+
+Replaced text-heavy single-row layer entries with a 2-row icon-based design:
+- **Row 1:** layer name with active marker (`›`), indented for grouped layers
+- **Row 2:** compact attribute row — visibility icon (`layer_visibility_on`/`off`),
+  lock icon (`layer_lock`/`unlock`), opacity %, blend mode icon
+- Removed 3-line verbose help text; scrollbar indicators (▲/▼) retained
+- Removed legacy `render_mask_thumbnail()` method (mask still functional via `m` key)
+
+Key implementation detail: display tracking uses `display_row += 2` per layer
+(group headers = 1 row). Scroll clamping targets the name row (first of the pair).
+If only the name row fits, row 2 is skipped rather than clipped mid-entry.
+
+### 6.9.2 — Layers: reorder by drag handle
+
+Added drag-and-drop reorder for the layer panel:
+- **Drag handle** ("⠿") rendered on the left edge of each layer name row (row 1)
+- **Mouse drag:** click drag handle → drag to target position → release to reorder via `LayerStack::reorder()`. Visual highlight on target position during drag
+- **Keyboard reorder:** Shift+Up / Shift+Down keybinds call `move_up()` / `move_down()`
+- **Click to select:** clicking any layer row (outside drag handle) sets it active
+
+Implementation: `LayerPanel` gained `drag_state: Option<(from, to)>` and `drag_hover_row` fields. New `layer_at_pos()` helper maps screen coords → layer index in the 2-row-per-layer display model. New `handle_mouse()` method dispatches Down/Drag/Up events. Wired into `TuiApp::handle_mouse_event()` after tab-label click handling.
+
+### 6.9.4 — Move tool options to right sidebar
+
+Removed the brush/text/lighting info panel from the bottom of the left toolbox
+column. Tool options were already displayed in the right sidebar's Props tab
+(via `SidePanel::render_tool_props`), so the left sidebar now shows only the
+tool list and palette.
+
+Changes:
+- Removed `TOOLBOX_BRUSH_HEIGHT` constant and `toolbox_brush_borders()` from `layout.rs`
+- Removed `toolbox_brush` field from `FrameLayout` struct and its split logic
+- Removed brush/text/lighting rendering block from `TuiApp::render()`
+- `toolbox_h` simplified to `Tool::all().len() as u16 + 2` (no brush height addend)
+- Updated `test_brush_render_contains_shape_name` to open side panel Props tab
+
 ### 5.8.5 — Phase merge: release/5.8 → master (2026-06-18)
 
 Merged release/5.8 branch into master at `480352d`. Brings 5.8.1 (core lighting
 engine), 5.8.2 (canvas/layer integration), 5.8.3 (light management UI), and 5.8.4
-(palette LUT integration) into the mainline. 34 files / 2262 lines merged. Phase
+(palette LUT integration) into the mainline. 34 files / 2520 lines merged. Phase
 5.8 complete. Next phase: TBD.
+
+### 6.10.1 — Fix `capture_timeline_frames` ignoring per-frame `layer_state`
+
+`capture_timeline_frames()` in `export.rs` was rebuilding every animation frame
+from the live (unchanging) layer stack instead of each frame's own `layer_state`
+raster snapshot (populated by GIF import / 'A'-key manual capture). The
+current_frame counter advanced (progress bar looked right) but the picture never
+changed — affecting both inline playback and GIF/APNG export.
+
+Fix: check for `timeline.frames[frame_idx].layer_state` first; if present,
+return it directly instead of re-rendering through the live layer stack.
+Added regression test `test_capture_uses_per_frame_layer_state_when_present`
+that would generate identical frames without the fix and distinct frames with it.

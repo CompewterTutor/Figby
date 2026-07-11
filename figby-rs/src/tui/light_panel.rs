@@ -1,4 +1,11 @@
 use super::lighting::{Light, Scene};
+use ratatui::{
+    layout::Rect,
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Paragraph},
+    Frame,
+};
 
 #[derive(Clone)]
 pub struct LightPanel {
@@ -49,6 +56,78 @@ impl LightPanel {
             | Light::Directional { intensity, .. }
             | Light::Point { intensity, .. } => *intensity,
         })
+    }
+
+    /// Build the light-list `Line`s shared by the toolbox-area `LightPanel`
+    /// render and the side-panel Props tab's Lighting entry.
+    pub fn build_lines(
+        scene: &Scene,
+        selected_index: usize,
+        theme: &super::theme::Theme,
+    ) -> Vec<Line<'static>> {
+        let mut lines: Vec<Line> = Vec::new();
+        for (i, light) in scene.lights.iter().enumerate() {
+            let prefix = if i == selected_index {
+                " \u{25b6} "
+            } else {
+                "   "
+            };
+            let label = match light {
+                Light::Ambient { intensity, .. } => format!("Amb  {:.2}", intensity),
+                Light::Directional { intensity, .. } => format!("Dir  {:.2}", intensity),
+                Light::Point {
+                    intensity,
+                    position,
+                    ..
+                } => format!(
+                    "Pnt  {:.2} ({},{})",
+                    intensity, position.0 as u16, position.1 as u16
+                ),
+            };
+            let style = if i == selected_index {
+                Style::default()
+                    .fg(theme.general.primary)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.general.secondary)
+            };
+            lines.push(Line::from(Span::styled(
+                format!("{}{}", prefix, label),
+                style,
+            )));
+        }
+
+        if lines.is_empty() {
+            lines.push(Line::from(Span::styled(
+                " (no lights) ",
+                Style::default().fg(theme.general.secondary),
+            )));
+        }
+
+        lines
+    }
+
+    pub fn render(
+        &self,
+        frame: &mut Frame<'_>,
+        area: Rect,
+        scene: &Option<Scene>,
+        theme: &super::theme::Theme,
+    ) {
+        let block = Block::default()
+            .title(" Lights ")
+            .borders(super::layout::toolbox_list_borders())
+            .style(Style::default().fg(theme.general.secondary));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let scene = match scene {
+            Some(s) => s,
+            None => return,
+        };
+
+        let lines = Self::build_lines(scene, self.selected_index, theme);
+        frame.render_widget(Paragraph::new(lines), inner);
     }
 }
 

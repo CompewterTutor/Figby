@@ -119,7 +119,12 @@ impl ExportDialog {
         self.path_buffer = format!("export{}", mode.extension());
         self.error_message.clear();
         self.selected_entry = 0;
-        self.clear_timeline();
+        // Deliberately does NOT clear_timeline() here: a GIF import may have
+        // already populated real per-frame delays (see gif_import.rs) before
+        // the dialog was ever opened. Clearing unconditionally on every open
+        // silently threw that timing away in favor of a uniform FPS-derived
+        // one. Stale state from a *previous* export session is reset by
+        // close(), so there is nothing left over to clear here anyway.
         self.refresh_directory();
     }
 
@@ -666,6 +671,25 @@ pub fn capture_timeline_frames(
     }
     (0..timeline.frames.len())
         .map(|frame_idx| {
+            // A captured raster snapshot (GIF import, or an 'A'-key manual
+            // frame capture) is already a finished composite for this
+            // frame — use it directly. Falling through to the per-layer
+            // keyframe-interpolation path below would instead re-render
+            // the *live* layer stack (unchanged across every frame_idx)
+            // and only vary position/opacity/blend-mode, so every
+            // captured frame would come out identical — current_frame
+            // still advances (so the progress bar/counter looks right),
+            // but playback/export visibly never changes.
+            if let Some(buf) = &timeline.frames[frame_idx].layer_state {
+                return (0..height)
+                    .map(|y| {
+                        (0..width)
+                            .map(|x| buf.get(x, y).copied().unwrap_or_default())
+                            .collect()
+                    })
+                    .collect();
+            }
+
             let mut result_buf = CanvasBuffer::new(width, height);
             for (layer_idx, layer) in layer_stack.layers.iter().enumerate() {
                 if !layer.visible {
@@ -924,6 +948,21 @@ mod tests {
     }
 
     #[test]
+    fn test_enter_export_preserves_imported_frame_delays() {
+        // Simulates a GIF import: real per-frame delays are set directly on
+        // the dialog (mimicking tui/mod.rs's `export_dialog.frame_delays =
+        // gif_data.frame_delays`) *before* the export dialog is ever opened.
+        let mut dialog = ExportDialog::new();
+        dialog.set_per_frame_delays(vec![5, 20, 5, 50]);
+        dialog.timeline_available = true;
+
+        // Opening the export dialog must not discard that real timing.
+        dialog.enter_export(ExportMode::Gif);
+        assert!(dialog.timeline_available);
+        assert_eq!(dialog.frame_delays, vec![5, 20, 5, 50]);
+    }
+
+    #[test]
     fn test_export_gif_keys_only_in_gif_mode() {
         let mut dialog = ExportDialog::new();
         dialog.enter_export(ExportMode::Png);
@@ -1020,6 +1059,68 @@ mod tests {
         let stack = LayerStack::new(5, 5);
         let frames = capture_timeline_frames(&timeline, &stack, 5, 5);
         assert!(frames.is_empty());
+    }
+
+    #[test]
+    fn test_capture_uses_per_frame_layer_state_when_present() {
+        // GIF import / 'A'-key manual capture stamps each TimelineFrame
+        // with its own fully-composited `layer_state` snapshot. Without
+        // reading it, capture_timeline_frames would instead re-derive
+        // every frame from the *live*, unchanging layer stack — making
+        // every captured frame identical regardless of frame_idx, which
+        // is exactly the "counter advances, picture never changes" bug
+        // this test guards against.
+        let stack = LayerStack::new(2, 2); // live layer stays blank throughout
+
+        let mut buf0 = CanvasBuffer::new(2, 2);
+        buf0.set(
+            0,
+            0,
+            CanvasCell {
+                ch: '0',
+                fg: Some(Color::Red),
+                bg: None,
+                height: None,
+            },
+        );
+        let mut buf1 = CanvasBuffer::new(2, 2);
+        buf1.set(
+            0,
+            0,
+            CanvasCell {
+                ch: '1',
+                fg: Some(Color::Green),
+                bg: None,
+                height: None,
+            },
+        );
+
+        let mut timeline = TimelineState::default();
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F0".into(),
+            layer_state: Some(buf0),
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+        timeline.add_frame(TimelineFrame {
+            thumbnail: vec![],
+            has_keyframe: true,
+            label: "F1".into(),
+            layer_state: Some(buf1),
+            layer_keyframes: vec![Some(LayerKeyframe::default())],
+        });
+
+        let frames = capture_timeline_frames(&timeline, &stack, 2, 2);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0][0][0].ch, '0');
+        assert_eq!(frames[0][0][0].fg, Some(Color::Red));
+        assert_eq!(frames[1][0][0].ch, '1');
+        assert_eq!(frames[1][0][0].fg, Some(Color::Green));
+        assert_ne!(
+            frames[0], frames[1],
+            "each frame's own layer_state snapshot must be used, not the live (unchanging) layer stack"
+        );
     }
 
     #[test]

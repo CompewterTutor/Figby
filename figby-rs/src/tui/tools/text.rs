@@ -964,4 +964,25 @@ mod tests {
         assert_eq!(bwr, state.blocks[0].width * 3);
         assert_eq!(bhr, state.blocks[0].height * 3);
     }
+
+    #[test]
+    fn test_text_tool_unicode_no_panic() {
+        // 6.7.3: typing non-ASCII chars (Ä Ö Ü ä ö ü ß) must not panic.
+        // lookup_char falls back to char-0 / blank glyph (fixed in 6.5.1).
+        let mut state = TextToolState::new(test_font_dir());
+        if !state.available_fonts.contains(&"standard".to_string()) {
+            return;
+        }
+        state.font_index = state
+            .available_fonts
+            .iter()
+            .position(|n| n == "standard")
+            .unwrap_or(0);
+        state.load_selected_font();
+        state.text_buffer = "ÄÖÜäöüß".to_string();
+        state.cursor_position = (0, 0);
+        let mut buf = CanvasBuffer::new(80, 40);
+        // Must not panic.
+        state.render_text_to_buffer(&mut buf);
+    }
 }

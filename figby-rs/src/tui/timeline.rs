@@ -1,12 +1,14 @@
 use crossterm::event::KeyCode;
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, StatefulWidget, Widget};
 use ratatui::Frame;
 
 use super::canvas::CanvasBuffer;
-use super::layers::BlendMode;
+use super::layers::{BlendMode, LayerStack};
+use super::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayerKeyframe {
@@ -170,6 +172,8 @@ pub struct TimelineState {
     pub layer_names: Vec<String>,
     /// Vertical scroll offset for layers (row index of first visible layer).
     pub layer_row_offset: usize,
+    /// Updated each render pass — used by key handler to keep current frame in view.
+    pub cached_max_vis_frames: usize,
 }
 
 impl Default for TimelineState {
@@ -184,11 +188,21 @@ impl Default for TimelineState {
             tween: None,
             layer_names: Vec::new(),
             layer_row_offset: 0,
+            cached_max_vis_frames: 5,
         }
     }
 }
 
 impl TimelineState {
+    /// Refresh the display-only layer-name column from the current layer
+    /// stack. Must be called any time a frame is added (manual capture,
+    /// menu "Add Frame", GIF import) — the timeline widget sizes its
+    /// layer rows from `layer_names.len()`, so a stale/empty value here is
+    /// why the timeline can appear to only have one layer.
+    pub fn sync_layer_names(&mut self, stack: &LayerStack) {
+        self.layer_names = stack.layers.iter().map(|l| l.name.clone()).collect();
+    }
+
     /// Add a frame to the end of the timeline.
     pub fn add_frame(&mut self, frame: TimelineFrame) {
         self.frames.push(frame);
@@ -857,6 +871,101 @@ impl AnimationTimeline {
     fn frame_stride(&self) -> u16 {
         self.cell_width + 1 // content + separator
     }
+
+    /// Split the timeline panel's inner area into the frame-grid area and
+    /// the single-row toolbar area below it. Shared by the render call
+    /// site and mouse hit-testing so they can't drift apart.
+    pub fn split_area(area: Rect) -> (Rect, Rect) {
+        let split = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)])
+            .spacing(0)
+            .split(area);
+        (split[0], split[1])
+    }
+
+    /// Map a screen column within the frame-grid area back to a frame
+    /// index, accounting for horizontal scroll. Returns `None` when the
+    /// column falls in the label gutter, past the last visible frame, or
+    /// out of bounds.
+    pub fn frame_at_col(&self, col: u16, area: Rect, state: &TimelineState) -> Option<usize> {
+        let stride = self.frame_stride();
+        if stride == 0 || col < area.x + self.label_col_width {
+            return None;
+        }
+        let vis_i = (col - area.x - self.label_col_width) / stride;
+        let idx = state.scroll_offset + vis_i as usize;
+        (idx < state.frames.len()).then_some(idx)
+    }
+}
+
+/// Clickable transport-bar buttons rendered in the timeline's toolbar row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportButton {
+    /// Toggles play/pause — starts inline playback if none is active yet.
+    PlayPause,
+    Stop,
+    Loop,
+}
+
+/// Render a persistent, mouse-clickable transport bar (play/pause, stop,
+/// loop) plus the existing keyboard-shortcut hint text, into the timeline
+/// panel's toolbar row. Visible whenever the timeline is shown, independent
+/// of whether playback is currently active — replaces the old static,
+/// non-interactive hint-only `Paragraph`. Returns each button's hit-rect
+/// for `handle_mouse_event` to consult (same store/hit-test convention as
+/// `menu.rs`'s `MenuBarState.item_rects`).
+pub fn render_transport_bar(
+    frame: &mut Frame,
+    area: Rect,
+    playing: bool,
+    loop_enabled: bool,
+    theme: &Theme,
+) -> Vec<(TransportButton, Rect)> {
+    if area.width == 0 || area.height == 0 {
+        return Vec::new();
+    }
+
+    let play_glyph = if playing { '\u{23F8}' } else { '\u{25B6}' };
+    let labels: [(TransportButton, String); 3] = [
+        (TransportButton::PlayPause, format!(" {play_glyph} ")),
+        (TransportButton::Stop, " \u{23F9} ".to_string()),
+        (
+            TransportButton::Loop,
+            format!(" \u{1F501}{} ", if loop_enabled { "On" } else { "Off" }),
+        ),
+    ];
+
+    let mut rects = Vec::new();
+    let mut spans = Vec::new();
+    let mut x = area.x;
+    for (action, label) in &labels {
+        let w = (label.chars().count() as u16).min(area.x + area.width - x);
+        rects.push((
+            *action,
+            Rect {
+                x,
+                y: area.y,
+                width: w,
+                height: 1,
+            },
+        ));
+        let style = if *action == TransportButton::Loop && loop_enabled {
+            Style::default()
+                .fg(theme.general.primary)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.general.secondary)
+        };
+        spans.push(Span::styled(label.clone(), style));
+        x += w;
+    }
+
+    spans.push(Span::styled(
+        " [Space] pause  [\u{2190}/\u{2192}] seek  [+/-] speed  [Esc/q] stop  |  [A] Add Frame  [Del] Delete",
+        Style::default().fg(theme.general.secondary),
+    ));
+
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
+    rects
 }
 
 impl Widget for &AnimationTimeline {
@@ -905,6 +1014,7 @@ impl StatefulWidget for &AnimationTimeline {
 
         let frame_area_w = area.width - self.label_col_width;
         let max_vis_frames = (frame_area_w / stride) as usize;
+        state.cached_max_vis_frames = max_vis_frames.max(1);
         let f_start = state.scroll_offset.min(state.frames.len());
         let f_end = (f_start + max_vis_frames).min(state.frames.len());
 
@@ -1079,6 +1189,158 @@ mod tests {
             layer_state: None,
             layer_keyframes: Vec::new(),
         }
+    }
+
+    #[test]
+    fn test_sync_layer_names_populates_from_stack() {
+        let mut stack = LayerStack::new(5, 5);
+        stack.add(5, 5);
+        stack.add(5, 5);
+        stack.layers[1].name = "Midground".to_string();
+        stack.layers[2].name = "Foreground".to_string();
+
+        let mut state = TimelineState::default();
+        assert!(state.layer_names.is_empty());
+        state.sync_layer_names(&stack);
+        assert_eq!(
+            state.layer_names,
+            vec!["Background", "Midground", "Foreground"]
+        );
+    }
+
+    #[test]
+    fn test_sync_layer_names_overwrites_stale_value() {
+        let stack = LayerStack::new(5, 5);
+        let mut state = TimelineState {
+            layer_names: vec!["Stale".to_string(), "Stale2".to_string()],
+            ..TimelineState::default()
+        };
+        state.sync_layer_names(&stack);
+        assert_eq!(state.layer_names, vec!["Background"]);
+    }
+
+    #[test]
+    fn test_split_area() {
+        let area = Rect::new(2, 3, 20, 10);
+        let (grid, toolbar) = AnimationTimeline::split_area(area);
+        assert_eq!(toolbar.height, 1);
+        assert_eq!(toolbar.y, area.y + area.height - 1);
+        assert_eq!(grid.height, 9);
+        assert_eq!(grid.y, area.y);
+        assert_eq!(grid.width, area.width);
+        assert_eq!(toolbar.width, area.width);
+    }
+
+    #[test]
+    fn test_frame_at_col_maps_grid_columns_to_frame_index() {
+        // label_col_width=11, cell_width=3, stride=4
+        let timeline = make_test_timeline();
+        let state = TimelineState {
+            frames: (0..5)
+                .map(|i| make_frame(vec![], false, &format!("{i}")))
+                .collect(),
+            ..TimelineState::default()
+        };
+        let area = Rect::new(0, 0, 30, 2);
+
+        assert_eq!(
+            timeline.frame_at_col(10, area, &state),
+            None,
+            "columns before the label gutter aren't a frame"
+        );
+        assert_eq!(timeline.frame_at_col(11, area, &state), Some(0));
+        assert_eq!(timeline.frame_at_col(14, area, &state), Some(0));
+        assert_eq!(timeline.frame_at_col(15, area, &state), Some(1));
+        assert_eq!(timeline.frame_at_col(19, area, &state), Some(2));
+    }
+
+    #[test]
+    fn test_frame_at_col_out_of_bounds_is_none() {
+        let timeline = make_test_timeline();
+        let state = TimelineState {
+            frames: (0..2)
+                .map(|i| make_frame(vec![], false, &format!("{i}")))
+                .collect(),
+            ..TimelineState::default()
+        };
+        let area = Rect::new(0, 0, 30, 2);
+        // col 19 -> vis_i=2 -> idx=2, but only frames 0..2 exist.
+        assert_eq!(timeline.frame_at_col(19, area, &state), None);
+    }
+
+    #[test]
+    fn test_frame_at_col_respects_scroll_offset() {
+        let timeline = make_test_timeline();
+        let state = TimelineState {
+            frames: (0..20)
+                .map(|i| make_frame(vec![], false, &format!("{i}")))
+                .collect(),
+            scroll_offset: 10,
+            ..TimelineState::default()
+        };
+        let area = Rect::new(0, 0, 30, 2);
+        assert_eq!(timeline.frame_at_col(11, area, &state), Some(10));
+        assert_eq!(timeline.frame_at_col(15, area, &state), Some(11));
+    }
+
+    fn render_transport(
+        playing: bool,
+        loop_enabled: bool,
+        w: u16,
+    ) -> (Vec<(TransportButton, Rect)>, Buffer) {
+        let backend = ratatui::backend::TestBackend::new(w, 1);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        let theme = Theme::default();
+        let mut rects = Vec::new();
+        terminal
+            .draw(|frame| {
+                rects = render_transport_bar(frame, frame.area(), playing, loop_enabled, &theme);
+            })
+            .unwrap();
+        (rects, terminal.backend().buffer().clone())
+    }
+
+    #[test]
+    fn test_render_transport_bar_returns_three_button_rects() {
+        let (rects, _buf) = render_transport(false, false, 60);
+        assert_eq!(rects.len(), 3);
+        assert_eq!(rects[0].0, TransportButton::PlayPause);
+        assert_eq!(rects[1].0, TransportButton::Stop);
+        assert_eq!(rects[2].0, TransportButton::Loop);
+    }
+
+    #[test]
+    fn test_render_transport_bar_play_glyph_reflects_playing_state() {
+        let (_rects, buf) = render_transport(false, false, 60);
+        assert_eq!(
+            buf.cell((1, 0)).unwrap().symbol(),
+            "\u{25B6}",
+            "paused shows play glyph"
+        );
+
+        let (_rects, buf) = render_transport(true, false, 60);
+        assert_eq!(
+            buf.cell((1, 0)).unwrap().symbol(),
+            "\u{23F8}",
+            "playing shows pause glyph"
+        );
+    }
+
+    #[test]
+    fn test_render_transport_bar_button_rects_dont_overlap() {
+        let (rects, _buf) = render_transport(false, false, 60);
+        for pair in rects.windows(2) {
+            assert!(
+                pair[0].1.x + pair[0].1.width <= pair[1].1.x,
+                "button rects must not overlap"
+            );
+        }
+    }
+
+    #[test]
+    fn test_render_transport_bar_too_narrow_still_returns_rects_without_panic() {
+        let (rects, _buf) = render_transport(false, false, 2);
+        assert!(!rects.is_empty());
     }
 
     // ─── Render tests ────────────────────────────────────────────────

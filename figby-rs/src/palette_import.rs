@@ -435,6 +435,93 @@ fn parse_windows_terminal(s: &str) -> Result<Vec<Swatch>, String> {
     Ok(swatches)
 }
 
+fn swatches(pairs: &[(&'static str, &'static str)]) -> Vec<Swatch> {
+    pairs
+        .iter()
+        .map(|(name, hex)| Swatch::new(name.to_string(), hex.to_string()))
+        .collect()
+}
+
+pub fn builtin_palettes() -> Vec<(&'static str, Vec<Swatch>)> {
+    vec![
+        (
+            "Grayscale",
+            swatches(&[
+                ("White", "#F0F0F0"),
+                ("Light Gray", "#C0C0C0"),
+                ("Mid Gray", "#808080"),
+                ("Dark Gray", "#404040"),
+                ("Near Black", "#141414"),
+            ]),
+        ),
+        (
+            "Primary",
+            swatches(&[
+                ("Red Light", "#FF9999"),
+                ("Red", "#FF3333"),
+                ("Red Dark", "#CC0000"),
+                ("Red Deep", "#880000"),
+                ("Red Darkest", "#440000"),
+                ("Blue Light", "#99CCFF"),
+                ("Blue", "#3399FF"),
+                ("Blue Dark", "#0066CC"),
+                ("Blue Deep", "#003388"),
+                ("Blue Darkest", "#001144"),
+                ("Green Light", "#99EE88"),
+                ("Green", "#33BB44"),
+                ("Green Dark", "#008822"),
+                ("Green Deep", "#005511"),
+                ("Green Darkest", "#002208"),
+                ("Yellow Light", "#FFEE88"),
+                ("Yellow", "#FFD700"),
+                ("Yellow Dark", "#CC9900"),
+                ("Yellow Deep", "#886600"),
+                ("Yellow Darkest", "#443300"),
+            ]),
+        ),
+        (
+            "Warm",
+            swatches(&[
+                ("Red Pale", "#FFCCCC"),
+                ("Red Soft", "#FF8888"),
+                ("Red", "#FF3333"),
+                ("Red Dark", "#CC0000"),
+                ("Red Deep", "#770000"),
+                ("Orange Pale", "#FFDDBB"),
+                ("Orange Soft", "#FFAA66"),
+                ("Orange", "#FF6600"),
+                ("Orange Dark", "#CC4400"),
+                ("Orange Deep", "#772200"),
+                ("Yellow Pale", "#FFEECC"),
+                ("Yellow Soft", "#FFD966"),
+                ("Yellow", "#FFC200"),
+                ("Yellow Dark", "#CC8800"),
+                ("Yellow Deep", "#664400"),
+            ]),
+        ),
+        (
+            "Cool",
+            swatches(&[
+                ("Blue Pale", "#CCE5FF"),
+                ("Blue Soft", "#88BBFF"),
+                ("Blue", "#3377EE"),
+                ("Blue Dark", "#0044AA"),
+                ("Blue Deep", "#001155"),
+                ("Teal Pale", "#CCEEEE"),
+                ("Teal Soft", "#66CCBB"),
+                ("Teal", "#009988"),
+                ("Teal Dark", "#006655"),
+                ("Teal Deep", "#002233"),
+                ("Purple Pale", "#DDCCFF"),
+                ("Purple Soft", "#AA88EE"),
+                ("Purple", "#7744CC"),
+                ("Purple Dark", "#440088"),
+                ("Purple Deep", "#220044"),
+            ]),
+        ),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -662,5 +749,22 @@ mod tests {
         let r = import_swatches(paletty, ImportFormat::PalettyJson).unwrap();
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].hex, "#FF0000");
+    }
+
+    #[test]
+    fn test_builtin_palettes_names_and_counts() {
+        let palettes = builtin_palettes();
+        assert_eq!(palettes.len(), 4);
+        let names: Vec<&str> = palettes.iter().map(|(n, _)| *n).collect();
+        assert!(names.contains(&"Grayscale"));
+        assert!(names.contains(&"Primary"));
+        assert!(names.contains(&"Warm"));
+        assert!(names.contains(&"Cool"));
+        for (name, swatches) in &palettes {
+            assert!(!swatches.is_empty(), "{name} palette should be non-empty");
+            for s in swatches {
+                assert!(s.hex.starts_with('#'), "{name}/{}: hex missing #", s.name);
+            }
+        }
     }
 }

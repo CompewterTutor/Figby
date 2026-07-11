@@ -24,10 +24,12 @@ Original C source lives in `c-figlet/` for reference; the Rust port lives in
 - Deutsch flag character re-routing (`-D`/`-E`)
 - Compressed font support (ZIP/deflate)
 - UTF-8 native — no `wchar_t` hacks
-- Full-screen TUI editor (`--tui`): drawing tools, layers, palette/font
-  editing, image import, and an **animation timeline** — keyframing,
-  tweening (linear/ease-in/ease-out/bounce), onion skinning, animated GIF
-  import with real per-frame timing, and GIF/APNG/ANSI export.
+- Full-screen TUI editor (`--tui`): drawing tools, layers (grouping,
+  linking, mouse toolbar), palette/font editing, image import, and an
+  **animation timeline** — keyframing, tweening (linear/ease-in/ease-out/
+  bounce), onion skinning, animated GIF import with real per-frame timing,
+  a clickable play/pause/stop/loop transport bar, and GIF/APNG/ANSI
+  export.
 - `--play <file.gif>`: play an animated GIF fullscreen in the terminal, then
   exit — no TUI required. Scales to fit the terminal by default (or to
   `--play-width <N>` columns), so GIFs larger than the terminal — or larger

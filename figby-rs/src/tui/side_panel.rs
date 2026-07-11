@@ -9,6 +9,8 @@ use ratatui::Frame;
 use super::brush::BrushState;
 use super::canvas::CanvasCell;
 use super::layers::{LayerPanel, LayerStack};
+use super::light_panel::LightPanel;
+use super::lighting::Scene;
 use super::particles::ParticleConfig;
 use super::theme::Theme;
 use super::toolbox::Tool;
@@ -177,6 +179,8 @@ impl SidePanel {
         canvas_height: u16,
         font_name: Option<&str>,
         zoom: u8,
+        lighting_scene: Option<&Scene>,
+        lighting_panel: Option<&LightPanel>,
     ) {
         let block = Block::default().borders(Borders::ALL).style(
             Style::default()
@@ -203,7 +207,9 @@ impl SidePanel {
                 .get(tab.icon_key())
                 .map(|s| s.as_str())
                 .unwrap_or("");
-            let label = if tab_w >= 4 {
+            let label = if tab_w >= 6 {
+                format!("{} {}", icon, tab.display_name())
+            } else if tab_w >= 2 {
                 icon.to_string()
             } else {
                 String::new()
@@ -237,7 +243,12 @@ impl SidePanel {
             height: 1,
         };
         if inner.width > 0 && inner.y + 1 < area.y + area.height {
-            let sep_label = "─".repeat(inner.width as usize);
+            let hint = " ←/→ tabs ";
+            let sep_label = if inner.width as usize >= hint.len() + 4 {
+                format!("{:─^width$}", hint, width = inner.width as usize)
+            } else {
+                "─".repeat(inner.width as usize)
+            };
             frame.render_widget(
                 Paragraph::new(sep_label).style(sep_style.add_modifier(Modifier::DIM)),
                 sep_rect,
@@ -271,6 +282,8 @@ impl SidePanel {
                     canvas_height,
                     font_name,
                     zoom,
+                    lighting_scene,
+                    lighting_panel,
                 );
             }
             TabId::Text => {
@@ -304,6 +317,8 @@ impl SidePanel {
         canvas_height: u16,
         font_name: Option<&str>,
         zoom: u8,
+        lighting_scene: Option<&Scene>,
+        lighting_panel: Option<&LightPanel>,
     ) {
         let mut lines: Vec<Line> = Vec::new();
 
@@ -324,6 +339,9 @@ impl SidePanel {
             }
             Tool::Emitter => {
                 Self::add_emitter_props(&mut lines, emitter_config);
+            }
+            Tool::Lighting => {
+                Self::add_lighting_props(&mut lines, lighting_scene, lighting_panel, theme);
             }
             _ => {
                 Self::add_tool_keybinds(&mut lines);
@@ -473,6 +491,36 @@ impl SidePanel {
         } else {
             lines.push(Line::from(Span::raw(" No config")));
         }
+    }
+
+    fn add_lighting_props(
+        lines: &mut Vec<Line>,
+        scene: Option<&Scene>,
+        panel: Option<&LightPanel>,
+        theme: &Theme,
+    ) {
+        lines.push(Line::from(Span::styled(
+            " Lighting ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        match (scene, panel) {
+            (Some(scene), Some(panel)) => {
+                lines.extend(LightPanel::build_lines(
+                    scene,
+                    panel.selected_index(),
+                    theme,
+                ));
+            }
+            _ => {
+                lines.push(Line::from(Span::raw(" No scene yet")));
+            }
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::raw(" A/D/P  Add Amb/Dir/Point")));
+        lines.push(Line::from(Span::raw(" ↑/↓  Select light")));
+        lines.push(Line::from(Span::raw(" ←/→  Move (Point)")));
+        lines.push(Line::from(Span::raw(" -/+  Intensity")));
+        lines.push(Line::from(Span::raw(" Del  Remove light")));
     }
 
     fn add_tool_keybinds(lines: &mut Vec<Line>) {

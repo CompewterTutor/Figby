@@ -93,6 +93,13 @@ impl AnimationPlayer {
         self.loop_.set(!self.loop_.get());
     }
 
+    /// Consuming builder to set the initial loop state without touching
+    /// `new()`'s signature (used by ~25 call sites, most of them tests).
+    pub fn with_loop(self, enabled: bool) -> Self {
+        self.loop_.set(enabled);
+        self
+    }
+
     /// Advance animation by `delta` duration.
     /// Returns number of frames advanced (for testing).
     pub fn advance(&self, delta: Duration) -> usize {
@@ -788,6 +795,17 @@ mod tests {
         // 10fps. 2s = 20 frames. Without loop, should clamp at last frame (9).
         player.advance(Duration::from_secs(2));
         assert_eq!(player.current_frame(), 9);
+    }
+
+    #[test]
+    fn test_player_with_loop_sets_initial_state() {
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10).with_loop(true);
+        assert!(player.is_looping());
+
+        let frames = make_test_frames(10, 3, 2);
+        let player = AnimationPlayer::new(frames, 10).with_loop(false);
+        assert!(!player.is_looping());
     }
 
     #[test]

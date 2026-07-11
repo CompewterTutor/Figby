@@ -8,7 +8,7 @@ use crossterm::execute;
 use rand::rngs::StdRng;
 use rand::Rng;
 use rand::SeedableRng;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Tabs};
 use ratatui::Frame;
@@ -456,12 +456,21 @@ pub struct AnimationState {
     pub baked_layer_indices: Vec<usize>,
     pub timeline_visible: bool,
     pub marker_accum: HashMap<(i16, i16), f64>,
+    /// Default loop state for inline playback, seeded from the imported
+    /// GIF's `loop_count` when one exists (`0` = infinite → `true`); can
+    /// also be toggled directly via the transport bar / `l` key. A binary
+    /// flag can't represent a finite repeat count, so any GIF with a
+    /// specific finite repeat count is conservatively treated as `false`.
+    pub loop_enabled: bool,
     /// Active in-canvas animation playback (Timeline Enter / Animation >
     /// Play), rendered in place of normal canvas content while set. Distinct
     /// from the standalone fullscreen preview player (`player::play_fullscreen`,
     /// used by the Export dialog's Play button), which still takes over the
     /// whole terminal on request.
     pub inline_player: Option<player::AnimationPlayer>,
+    /// Transport-bar button hit-rects, recomputed each render and consulted
+    /// by `handle_mouse_event`.
+    pub transport_rects: Vec<(timeline::TransportButton, Rect)>,
 }
 
 /// Lighting subsystem state — scene, LUT, shadow params, light-panel UI.
@@ -629,6 +638,7 @@ pub struct DialogState {
     pub settings: status::CanvasSettings,
     pub rascii_import: dialogs::RasciiImportDialog,
     pub new_image: dialogs::NewImageDialog,
+    pub system_font: dialogs::SystemFontPickerDialog,
 }
 
 pub struct TuiApp {
@@ -764,6 +774,8 @@ impl TuiApp {
         rascii_import.theme = theme.clone();
         let mut new_image = dialogs::NewImageDialog::new();
         new_image.theme = theme.clone();
+        let mut system_font = dialogs::SystemFontPickerDialog::new();
+        system_font.theme = theme.clone();
 
         Self {
             mode: AppMode::FontEditor,
@@ -837,6 +849,7 @@ impl TuiApp {
                 settings,
                 rascii_import,
                 new_image,
+                system_font,
             },
             animation: AnimationState {
                 timeline_state: timeline::TimelineState::default(),
@@ -849,7 +862,9 @@ impl TuiApp {
                 baked_layer_indices: Vec::new(),
                 timeline_visible: false,
                 marker_accum: HashMap::new(),
+                loop_enabled: false,
                 inline_player: None,
+                transport_rects: Vec::new(),
             },
             palette_editor: palette_editor::PaletteEditor::new(),
             lighting: LightingState {
@@ -1201,6 +1216,8 @@ impl TuiApp {
                 self.editor.canvas.buffer.height() as u16,
                 font_name.as_deref(),
                 self.editor.canvas.zoom_level(),
+                self.lighting.scene.as_ref(),
+                Some(&self.lighting.panel),
             );
         }
 
@@ -1212,20 +1229,32 @@ impl TuiApp {
                 .style(Style::default().fg(self.theme.general.secondary));
             let inner = block.inner(timeline_rect);
             if inner.height >= 5 {
-                let tl_split = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)])
-                    .spacing(0)
-                    .split(inner);
+                let (grid_area, toolbar_area) = timeline::AnimationTimeline::split_area(inner);
                 let anim_timeline = timeline::AnimationTimeline::panel_instance();
                 frame.render_widget(block, timeline_rect);
                 frame.render_stateful_widget(
                     &anim_timeline,
-                    tl_split[0],
+                    grid_area,
                     &mut self.animation.timeline_state,
                 );
-                let toolbar =
-                    Paragraph::new(" [A] Add Frame  [Del] Delete  [←/→] Switch  [Enter] Play")
-                        .style(Style::default().fg(self.theme.general.secondary));
-                frame.render_widget(toolbar, tl_split[1]);
+                let playing = self
+                    .animation
+                    .inline_player
+                    .as_ref()
+                    .is_some_and(|p| p.is_playing());
+                let loop_enabled = self
+                    .animation
+                    .inline_player
+                    .as_ref()
+                    .map(|p| p.is_looping())
+                    .unwrap_or(self.animation.loop_enabled);
+                self.animation.transport_rects = timeline::render_transport_bar(
+                    frame,
+                    toolbar_area,
+                    playing,
+                    loop_enabled,
+                    &self.theme,
+                );
             } else {
                 frame.render_widget(block, timeline_rect);
             }
@@ -1672,8 +1701,7 @@ impl TuiApp {
                 self.dirty = true;
             }
             WelcomeAction::FontNewFromFile => {
-                self.session_type = SessionType::Font;
-                self.dialogs.file_ops.enter_import_font();
+                self.start_font_import_from_file();
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
@@ -1693,15 +1721,25 @@ impl TuiApp {
                 self.welcome_fx = None;
                 self.dirty = true;
             }
-            WelcomeAction::FontNewFromSystem | WelcomeAction::FontDuplicate => {
+            WelcomeAction::FontNewFromSystem => {
                 self.session_type = SessionType::Font;
-                // TODO: system font picker / duplicate flow
+                self.dialogs.system_font.enter();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
+            }
+            WelcomeAction::FontDuplicate => {
+                self.session_type = SessionType::Font;
+                // TODO: duplicate-from-existing-font flow
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
             }
             WelcomeAction::ImageNewBlank => {
                 self.dialogs.new_image.enter_new_image();
+                self.welcome_screen.show = false;
+                self.welcome_fx = None;
+                self.dirty = true;
             }
             WelcomeAction::ImageNewFromTemplate => {
                 self.session_type = SessionType::Image;
@@ -1878,6 +1916,101 @@ impl TuiApp {
                 self.dirty = true;
                 return;
             }
+        }
+
+        // Timeline: click-to-seek and mouse-wheel scroll
+        if let Some(timeline_rect) = mouse_fl.timeline {
+            if self.animation.timeline_visible
+                && mouse.column >= timeline_rect.x
+                && mouse.column < timeline_rect.x + timeline_rect.width
+                && mouse.row >= timeline_rect.y
+                && mouse.row < timeline_rect.y + timeline_rect.height
+            {
+                let block_inner = ratatui::widgets::Block::default()
+                    .borders(mouse_fl.timeline_borders())
+                    .inner(timeline_rect);
+                if block_inner.height >= 5 {
+                    let (grid_area, _toolbar_area) =
+                        timeline::AnimationTimeline::split_area(block_inner);
+                    let anim_timeline = timeline::AnimationTimeline::panel_instance();
+                    match mouse.kind {
+                        MouseEventKind::Down(MouseButton::Left) => {
+                            if let Some(&(action, _)) =
+                                self.animation.transport_rects.iter().find(|(_, r)| {
+                                    mouse.column >= r.x
+                                        && mouse.column < r.x + r.width
+                                        && mouse.row == r.y
+                                })
+                            {
+                                self.handle_transport_button(action);
+                                return;
+                            }
+                            if let Some(idx) = anim_timeline.frame_at_col(
+                                mouse.column,
+                                grid_area,
+                                &self.animation.timeline_state,
+                            ) {
+                                self.animation.timeline_state.current_frame = idx;
+                                self.load_current_timeline_frame();
+                                self.editor.sync_canvas_to_font_char();
+                                self.dirty = true;
+                                return;
+                            }
+                        }
+                        MouseEventKind::ScrollUp => {
+                            if mouse.modifiers.contains(KeyModifiers::SHIFT) {
+                                self.animation.timeline_state.layer_row_offset = self
+                                    .animation
+                                    .timeline_state
+                                    .layer_row_offset
+                                    .saturating_sub(1);
+                            } else {
+                                self.animation.timeline_state.scroll_offset = self
+                                    .animation
+                                    .timeline_state
+                                    .scroll_offset
+                                    .saturating_sub(1);
+                            }
+                            self.dirty = true;
+                            return;
+                        }
+                        MouseEventKind::ScrollDown => {
+                            if mouse.modifiers.contains(KeyModifiers::SHIFT) {
+                                let max_row = self
+                                    .animation
+                                    .timeline_state
+                                    .layer_names
+                                    .len()
+                                    .saturating_sub(1);
+                                self.animation.timeline_state.layer_row_offset =
+                                    (self.animation.timeline_state.layer_row_offset + 1)
+                                        .min(max_row);
+                            } else {
+                                let max_scroll =
+                                    self.animation.timeline_state.frames.len().saturating_sub(
+                                        self.animation.timeline_state.cached_max_vis_frames.max(1),
+                                    );
+                                self.animation.timeline_state.scroll_offset =
+                                    (self.animation.timeline_state.scroll_offset + 1)
+                                        .min(max_scroll);
+                            }
+                            self.dirty = true;
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // While in-canvas animation playback is active, only the
+        // timeline/transport bar (handled above) responds to clicks — swallow
+        // everything else so it doesn't fall through to canvas draw-tool
+        // logic underneath the player (previously a latent bug: clicks
+        // during playback painted on the canvas buffer instead of being
+        // ignored).
+        if self.animation.inline_player.is_some() {
+            return;
         }
 
         if let Some(tb) = mouse_fl.toolbox_list {
@@ -2398,6 +2531,22 @@ impl TuiApp {
                             self.dialogs.file_ops.mode = file_ops::FileOpsMode::Open;
                         }
                     },
+                    AsyncResult::SystemFontComplete(r) => match r {
+                        Ok((font, family_name)) => {
+                            self.session_type = SessionType::Font;
+                            self.mode = AppMode::FontEditor;
+                            self.editor.unsaved = true;
+                            self.editor.undo.clear();
+                            self.editor.font_editor.load_font(font);
+                            self.editor.font_editor.current_path = None;
+                            self.editor.font_editor.font_storage_name = family_name;
+                            self.dialogs.system_font.error_message.clear();
+                        }
+                        Err(e) => {
+                            self.dialogs.system_font.error_message = e;
+                            self.dialogs.system_font.active = true;
+                        }
+                    },
                     AsyncResult::ExportComplete(r) => match r {
                         Ok(()) => {
                             self.dialogs.export_dialog.active = false;
@@ -2570,7 +2719,7 @@ impl TuiApp {
                 consumed && matches!(code, KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('Q'));
             self.dirty = true;
             if should_dismiss {
-                self.animation.inline_player = None;
+                self.stop_inline_playback();
             }
             return None;
         }
@@ -2600,6 +2749,15 @@ impl TuiApp {
                 self.welcome_screen.show = false;
                 self.welcome_fx = None;
                 self.dirty = true;
+            }
+            return None;
+        }
+
+        // System font picker dialog active
+        if self.dialogs.system_font.active {
+            self.dialogs.system_font.handle_key(code);
+            if !self.dialogs.system_font.active && self.dialogs.system_font.confirmed {
+                self.start_system_font_conversion();
             }
             return None;
         }
@@ -3586,6 +3744,10 @@ impl TuiApp {
     fn dispatch_global(&mut self, action: keymap::GlobalAction) -> Option<AppEvent> {
         use keymap::GlobalAction as GA;
         match action {
+            GA::FileNew => {
+                self.dialogs.new_image.enter_new_image();
+                None
+            }
             GA::FileOpen => {
                 self.start_open();
                 None
@@ -3879,6 +4041,34 @@ impl TuiApp {
         });
     }
 
+    /// Extract the working "New Font from File" flow so it can be reached
+    /// from both the welcome screen and the in-editor File menu.
+    fn start_font_import_from_file(&mut self) {
+        self.session_type = SessionType::Font;
+        self.dialogs.file_ops.enter_import_font();
+        self.dirty = true;
+    }
+
+    fn start_system_font_conversion(&mut self) {
+        if self.throbber.is_active() {
+            return;
+        }
+        let family = self.dialogs.system_font.result_family.clone();
+        let size = self.dialogs.system_font.result_size;
+        let (tx, rx) = mpsc::channel();
+        self.async_rx = Some(rx);
+        self.throbber.start("Generating font...");
+        self.dirty = true;
+        std::thread::spawn(move || {
+            let charset =
+                crate::font_gen::resolve_charset("smooth").unwrap_or(rascii_art::charsets::DEFAULT);
+            let result = crate::font_gen::system_font_to_figfont(&family, size, charset)
+                .map(|font| (font, family))
+                .map_err(|e| format!("Font generation failed: {e}"));
+            let _ = tx.send(AsyncResult::SystemFontComplete(result));
+        });
+    }
+
     fn perform_import_gif(&mut self, path: std::path::PathBuf) {
         // Scale to fit the actual canvas viewport instead of importing at
         // native pixel resolution (1 pixel = 1 cell). Without this, a
@@ -3982,6 +4172,7 @@ impl TuiApp {
                 self.dialogs.export_dialog.frame_delays = gif_data.frame_delays;
                 self.dialogs.export_dialog.loop_count = gif_data.loop_count;
                 self.dialogs.export_dialog.timeline_available = true;
+                self.animation.loop_enabled = gif_data.loop_count == 0;
 
                 let first_delay_cs = self
                     .dialogs
@@ -4350,16 +4541,64 @@ impl TuiApp {
         if frames.is_empty() {
             return;
         }
-        let player = player::AnimationPlayer::new(frames, fps.max(1));
+        let player =
+            player::AnimationPlayer::new(frames, fps.max(1)).with_loop(self.animation.loop_enabled);
         player.seek(start_frame);
         player.play();
         self.animation.inline_player = Some(player);
         self.dirty = true;
     }
 
+    /// Dismiss in-canvas animation playback. Shared by the Esc/q keyboard
+    /// path and the transport bar's Stop button.
+    fn stop_inline_playback(&mut self) {
+        self.animation.inline_player = None;
+        self.dirty = true;
+    }
+
+    /// Dispatch a transport-bar button click to the same playback methods
+    /// already reachable via keyboard (`AnimationPlayer::toggle_play` /
+    /// `toggle_loop`, `start_inline_playback_from_timeline`,
+    /// `stop_inline_playback`) — no new playback logic, just a mouse entry
+    /// point into what already exists.
+    fn handle_transport_button(&mut self, action: timeline::TransportButton) {
+        match action {
+            timeline::TransportButton::PlayPause => {
+                if let Some(player) = self.animation.inline_player.as_ref() {
+                    player.toggle_play();
+                } else {
+                    self.start_inline_playback_from_timeline();
+                }
+            }
+            timeline::TransportButton::Stop => {
+                self.stop_inline_playback();
+            }
+            timeline::TransportButton::Loop => {
+                if let Some(player) = self.animation.inline_player.as_ref() {
+                    player.toggle_loop();
+                } else {
+                    self.animation.loop_enabled = !self.animation.loop_enabled;
+                }
+            }
+        }
+        self.dirty = true;
+    }
+
     fn handle_menu_action(&mut self, action: menu::MenuAction) {
         self.dirty = true;
         match action {
+            menu::MenuAction::FileNew => {
+                self.dialogs.new_image.enter_new_image();
+                self.menu_bar_state.reset();
+            }
+            menu::MenuAction::FontNewFromFile => {
+                self.start_font_import_from_file();
+                self.menu_bar_state.reset();
+            }
+            menu::MenuAction::FontNewFromSystem => {
+                self.dialogs.system_font.enter();
+                self.menu_bar_state.reset();
+            }
             menu::MenuAction::FileOpen => {
                 self.start_open();
                 self.menu_bar_state.reset();
@@ -4658,6 +4897,7 @@ impl TuiApp {
 pub enum AsyncResult {
     SaveComplete(Result<std::path::PathBuf, String>),
     OpenComplete(Result<(crate::font::FIGfont, std::path::PathBuf), String>),
+    SystemFontComplete(Result<(crate::font::FIGfont, String), String>),
     ExportComplete(Result<(), String>),
     AutoSaveComplete,
 }

@@ -58,28 +58,16 @@ impl LightPanel {
         })
     }
 
-    pub fn render(
-        &self,
-        frame: &mut Frame<'_>,
-        area: Rect,
-        scene: &Option<Scene>,
+    /// Build the light-list `Line`s shared by the toolbox-area `LightPanel`
+    /// render and the side-panel Props tab's Lighting entry.
+    pub fn build_lines(
+        scene: &Scene,
+        selected_index: usize,
         theme: &super::theme::Theme,
-    ) {
-        let block = Block::default()
-            .title(" Lights ")
-            .borders(super::layout::toolbox_list_borders())
-            .style(Style::default().fg(theme.general.secondary));
-        let inner = block.inner(area);
-        frame.render_widget(block, area);
-
-        let scene = match scene {
-            Some(s) => s,
-            None => return,
-        };
-
+    ) -> Vec<Line<'static>> {
         let mut lines: Vec<Line> = Vec::new();
         for (i, light) in scene.lights.iter().enumerate() {
-            let prefix = if i == self.selected_index {
+            let prefix = if i == selected_index {
                 " \u{25b6} "
             } else {
                 "   "
@@ -96,7 +84,7 @@ impl LightPanel {
                     intensity, position.0 as u16, position.1 as u16
                 ),
             };
-            let style = if i == self.selected_index {
+            let style = if i == selected_index {
                 Style::default()
                     .fg(theme.general.primary)
                     .add_modifier(Modifier::BOLD)
@@ -116,6 +104,29 @@ impl LightPanel {
             )));
         }
 
+        lines
+    }
+
+    pub fn render(
+        &self,
+        frame: &mut Frame<'_>,
+        area: Rect,
+        scene: &Option<Scene>,
+        theme: &super::theme::Theme,
+    ) {
+        let block = Block::default()
+            .title(" Lights ")
+            .borders(super::layout::toolbox_list_borders())
+            .style(Style::default().fg(theme.general.secondary));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let scene = match scene {
+            Some(s) => s,
+            None => return,
+        };
+
+        let lines = Self::build_lines(scene, self.selected_index, theme);
         frame.render_widget(Paragraph::new(lines), inner);
     }
 }

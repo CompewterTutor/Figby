@@ -1,5 +1,53 @@
 # Changelog
 
+## [6.0.15] - 2026-07-11
+
+### Added
+- **Layer linking.** New `k`/`K` keybind and toolbar "Link" button pair up
+  two layers so toggling visibility or lock on one propagates to the
+  other, mirroring the existing layer-group model (`LayerStack::links`,
+  `link_layers`/`unlink_layers`/`link_of_layer`/`layers_in_link`).
+- **Layers panel toolbar.** Clickable New/Duplicate/Delete/Group/Link
+  buttons in the panel's previously-unused header row, backed by the same
+  `LayerStack` methods the existing keyboard shortcuts already call.
+- **Menu shortcuts.** Every menu item now shows its keyboard shortcut,
+  right-aligned in the dropdown; the ~6 that already have a global
+  keybinding are derived from `keymap::GLOBAL_DISPATCH` so they can't
+  drift out of sync.
+- **File > New Image** (`Ctrl+N`) and **File > New Font from
+  File/System**. "From system" required a real system-font picker dialog
+  (`dialogs::SystemFontPickerDialog`) — `font_gen::list_system_fonts()` /
+  `system_font_to_figfont()` existed but were previously only reachable
+  from the `--create-font` CLI flag, not the TUI.
+- **Timeline click-to-seek and mouse-wheel scroll.** The timeline grid
+  never had any mouse handling at all; clicking a frame now seeks to it,
+  and scrolling (Shift+scroll for the layer rows) moves the visible
+  window.
+- **Persistent transport bar.** The timeline's toolbar row is now a
+  clickable ▶/⏸/⏹/🔁 button strip (`timeline::render_transport_bar`),
+  visible whenever the timeline is shown rather than only during active
+  playback, replacing the old static hint-text `Paragraph`.
+- Inline playback now defaults its loop state from an imported GIF's own
+  `loop_count` instead of always starting unlooped
+  (`AnimationPlayer::with_loop`).
+
+### Fixed
+- Side panel tabs (Props/Text/Libraries/Effects) were completely
+  unreachable: a width-calc bug in the tab bar always rendered blank
+  labels, and the Layers panel's Left/Right key handling unconditionally
+  swallowed the arrow keys meant to cycle tabs. Also added a real
+  Lighting-tool entry to the Props tab (previously fell through to a
+  generic keybind list).
+- Layers panel's selected-row contrast (bright cyan bg + near-white text)
+  fixed by wiring up the theme's already-defined but unused dark-navy
+  `LayerTheme`, instead of reusing the menu dropdown's highlight colors.
+- Clicks during in-canvas animation playback no longer leak through to
+  canvas drawing tools underneath the player.
+- Welcome screen's "Create Image" action (`c`) never marked the frame
+  dirty and never dismissed the welcome screen, so the New Image dialog
+  it opened was invisible — occluded behind the still-showing welcome
+  screen with no redraw to reveal it.
+
 ## [6.0.14] - 2026-07-08
 
 ### Added

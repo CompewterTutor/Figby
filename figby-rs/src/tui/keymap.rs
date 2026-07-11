@@ -3,6 +3,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 /// Machine-dispatchable global actions — one-to-one with entries in [`GLOBAL_DISPATCH`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GlobalAction {
+    FileNew,
     FileOpen,
     FileSave,
     FileSaveAs,
@@ -28,6 +29,11 @@ pub struct KeyDispatch {
 
 pub static GLOBAL_DISPATCH: &[KeyDispatch] = &[
     // File operations
+    KeyDispatch {
+        modifiers: KeyModifiers::CONTROL,
+        key_code: KeyCode::Char('n'),
+        action: GlobalAction::FileNew,
+    },
     KeyDispatch {
         modifiers: KeyModifiers::CONTROL,
         key_code: KeyCode::Char('o'),
@@ -150,6 +156,40 @@ pub fn lookup_global(code: KeyCode, modifiers: KeyModifiers) -> Option<GlobalAct
         .map(|d| d.action)
 }
 
+/// Format a (modifiers, key_code) pair as a display string, e.g. "Ctrl+Shift+S".
+pub fn format_shortcut(modifiers: KeyModifiers, code: KeyCode) -> String {
+    let mut parts = Vec::new();
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        parts.push("Ctrl".to_string());
+    }
+    if modifiers.contains(KeyModifiers::ALT) {
+        parts.push("Alt".to_string());
+    }
+    if modifiers.contains(KeyModifiers::SHIFT) {
+        parts.push("Shift".to_string());
+    }
+    let key_str = match code {
+        KeyCode::Char(c) => c.to_ascii_uppercase().to_string(),
+        KeyCode::F(n) => format!("F{n}"),
+        KeyCode::Tab => "Tab".to_string(),
+        KeyCode::Enter => "Enter".to_string(),
+        KeyCode::Esc => "Esc".to_string(),
+        KeyCode::Delete => "Delete".to_string(),
+        other => format!("{other:?}"),
+    };
+    parts.push(key_str);
+    parts.join("+")
+}
+
+/// Find the display shortcut string for a global action, derived directly
+/// from [`GLOBAL_DISPATCH`] so it can't drift from the actual binding.
+pub fn global_shortcut_label(action: GlobalAction) -> Option<String> {
+    GLOBAL_DISPATCH
+        .iter()
+        .find(|d| d.action == action)
+        .map(|d| format_shortcut(d.modifiers, d.key_code))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
     Global,
@@ -185,6 +225,11 @@ pub struct KeyBinding {
 
 pub const KEYMAP: &[KeyBinding] = &[
     // Global
+    KeyBinding {
+        keys: "Ctrl+N",
+        scope: Scope::Global,
+        description: "New image",
+    },
     KeyBinding {
         keys: "Ctrl+O",
         scope: Scope::Global,
@@ -498,6 +543,11 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "Ctrl+G",
         scope: Scope::LayerPanel,
         description: "Group selected layer",
+    },
+    KeyBinding {
+        keys: "k / K",
+        scope: Scope::LayerPanel,
+        description: "Link layer (press again on another layer to pair)",
     },
     KeyBinding {
         keys: "F2",

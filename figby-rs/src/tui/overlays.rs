@@ -129,6 +129,17 @@ impl TuiApp {
             dialogs::new_image::render_new_image_dialog(&self.dialogs.new_image, frame, overlay);
         }
 
+        // System font picker dialog
+        if self.dialogs.system_font.active {
+            let overlay = super::centered_overlay(frame.area());
+            frame.render_widget(Clear, overlay);
+            dialogs::system_font::render_system_font_dialog(
+                &self.dialogs.system_font,
+                frame,
+                overlay,
+            );
+        }
+
         // Rascii import dialog
         if self.dialogs.rascii_import.active {
             let overlay = super::centered_overlay(frame.area());

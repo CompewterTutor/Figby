@@ -2999,6 +2999,18 @@ impl TuiApp {
             return None;
         }
 
+        // Timeline: Enter to play animation from current frame, in place in
+        // the canvas (the rest of the editor UI stays visible around it).
+        // Checked here — after every modal dialog/overlay above but before
+        // the Layers panel dispatch below — so starting playback always
+        // wins over the Layers panel's own Enter binding (toggle
+        // visibility) when the side panel happens to be open on the
+        // Layers tab, which is now the default on wide terminals.
+        if code == KeyCode::Enter && !self.animation.timeline_state.frames.is_empty() {
+            self.start_inline_playback_from_timeline();
+            return None;
+        }
+
         // Layer panel: dispatch keys when drawer shows layers
         if self.side_panel.open
             && self.side_panel.active_tab == TabId::Layers
@@ -3590,13 +3602,6 @@ impl TuiApp {
         if code == KeyCode::Char('T') && modifiers == KeyModifiers::SHIFT {
             self.animation.timeline_state.open_tween();
             self.dirty = true;
-            return None;
-        }
-
-        // Timeline: Enter to play animation from current frame, in place in
-        // the canvas (the rest of the editor UI stays visible around it).
-        if code == KeyCode::Enter && !self.animation.timeline_state.frames.is_empty() {
-            self.start_inline_playback_from_timeline();
             return None;
         }
 

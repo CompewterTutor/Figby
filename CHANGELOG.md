@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.0.18] - 2026-07-11
+
+### Fixed
+- Pressing Enter to start timeline playback silently did nothing (toggled
+  the active layer's visibility instead) whenever the side panel was open
+  on the Layers tab — a regression exposed by the side panel now
+  defaulting to open on wide terminals (6.0.17), since the Layers panel's
+  own Enter binding was checked earlier in the key-dispatch chain than
+  the "Enter starts playback" check. Moved the playback check ahead of
+  the Layers panel dispatch (but still behind every modal dialog/overlay)
+  so starting playback always wins.
+
 ## [6.0.17] - 2026-07-11
 
 ### Added

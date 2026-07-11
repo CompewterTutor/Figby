@@ -65,6 +65,17 @@ FIGlet flag semantics preserved exactly.
 - In `deluxe_charset()`, `█` is now explicitly pushed at the end after all other
   sets, ensuring darkest pixels always fill solid regardless of set ordering.
 
+### 7.1.1 — Fix quit-confirm dialog sizing + mouse input
+
+- **Width fix**: Replaced hardcoded `52` with dynamic width computed from hint line length
+  (55 chars) + 4 for borders/padding = 59. Full hint now visible at 80 and 60 col terminals.
+- **Button rect storage**: `TuiApp.quit_confirm_buttons: [Rect; 3]` stores Y/N/C button geometry
+  computed during `overlays.rs` render based on character positions within the `inner` rect.
+- **Mouse input**: Early `if self.quit_confirm_dialog` branch in `handle_mouse_event` hit-tests
+  the three stored rects and dispatches Save/Discard/Cancel, mirroring keyboard handler logic.
+- **Files touched**: `figby-rs/src/tui/mod.rs` (struct field, constructor, mouse handler),
+  `figby-rs/src/tui/overlays.rs` (render width computation + button rect storage).
+
 ### Generated font print_direction
 - `print_direction` in `render_font_glyphs()` changed from `-1` to `0` (explicit LTR).
 - `generate_figfont_header()` now uses `font.print_direction` field value instead

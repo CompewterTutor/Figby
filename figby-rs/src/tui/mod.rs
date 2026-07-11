@@ -646,6 +646,7 @@ pub struct TuiApp {
     pub session_type: SessionType,
     pub should_quit: bool,
     pub quit_confirm_dialog: bool,
+    pub quit_confirm_buttons: [Rect; 3],
     quit_after_save: bool,
     pub icons: BTreeMap<String, String>,
     pub menu_bar: MenuBar,
@@ -782,6 +783,7 @@ impl TuiApp {
             session_type: SessionType::Any,
             should_quit: false,
             quit_confirm_dialog: false,
+            quit_confirm_buttons: [Rect::default(); 3],
             quit_after_save: false,
             icons: icons.clone(),
             menu_bar: MenuBar::new(),
@@ -1811,6 +1813,26 @@ impl TuiApp {
     }
 
     fn handle_mouse_event(&mut self, mouse: MouseEvent) {
+        // Quit-confirm dialog: intercept all mouse events
+        if self.quit_confirm_dialog {
+            if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+                let btns = self.quit_confirm_buttons;
+                if btns[0].contains((mouse.column, mouse.row).into()) {
+                    self.quit_confirm_dialog = false;
+                    self.quit_after_save = true;
+                    self.dirty = true;
+                    self.start_save();
+                } else if btns[1].contains((mouse.column, mouse.row).into()) {
+                    self.quit_confirm_dialog = false;
+                    self.should_quit = true;
+                } else if btns[2].contains((mouse.column, mouse.row).into()) {
+                    self.quit_confirm_dialog = false;
+                    self.dirty = true;
+                }
+            }
+            return;
+        }
+
         // Menu bar mouse event
         if self.menu_bar.handle_mouse_event(
             mouse.column,

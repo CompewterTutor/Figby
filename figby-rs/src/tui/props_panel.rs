@@ -37,6 +37,7 @@ pub enum PropAction {
     LineWidthDown,
     LineArrowCycle,
     LineCurveToggle,
+    RasterizeBlock,
 }
 
 #[derive(Debug, Clone)]

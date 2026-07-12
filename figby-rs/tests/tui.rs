@@ -1804,15 +1804,15 @@ fn test_text_tool_commit_block_requires_font() {
     // Use absolute path to fonts directory from manifest dir
     let font_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
     let mut state = TextToolState::new(font_dir);
-    assert!(!state.entering_text);
+    assert!(!state.editing);
     assert!(
         !state.available_fonts.is_empty(),
         "fonts directory should be readable"
     );
 
-    // Enter text mode
-    state.entering_text = true;
-    state.cursor_position = (0, 0);
+    // Activate editing and set text
+    state.editing = true;
+    state.preview_pos = (0, 0);
     state.text_buffer.push('A');
 
     // Load a font and commit
@@ -1821,10 +1821,6 @@ fn test_text_tool_commit_block_requires_font() {
 
     // Test commit_block properly
     state.commit_block();
-    assert!(
-        !state.entering_text,
-        "commit_block should set entering_text false"
-    );
     assert_eq!(state.blocks.len(), 1, "one block should exist after commit");
 }
 
@@ -2572,32 +2568,25 @@ fn test_selection_perimeter_delete() {
 }
 
 #[test]
-fn test_text_tool_enter_text_mode() {
-    use crossterm::event::KeyCode;
+fn test_text_tool_edit_text_buffer() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
     app.welcome.screen.show = false;
 
     // Select Text tool
-    app.handle_key_event(KeyCode::Char('t'));
-    assert_eq!(
-        app.editor.toolbox.selected,
-        figby::tui::Tool::Text,
-        "should select Text tool"
-    );
+    app.editor.toolbox.selected = figby::tui::Tool::Text;
 
-    // Press Space to start entering text
-    app.handle_key_event(KeyCode::Char(' '));
-    assert!(
-        app.editor.text_tool.entering_text,
-        "Space with Text tool should activate text entry"
-    );
+    // Activate editing and type directly into buffer
+    app.editor.text_tool.editing = true;
+    app.editor.text_tool.text_buffer.push('H');
+    app.editor.text_tool.text_buffer.push('i');
+    assert_eq!(app.editor.text_tool.text_buffer, "Hi");
+    assert!(app.editor.text_tool.editing, "should remain in editing");
 }
 
 #[test]
 fn test_text_tool_commit_text() {
-    use crossterm::event::KeyCode;
     use figby::font::load_font;
     use figby::tui::TuiApp;
 
@@ -2611,29 +2600,18 @@ fn test_text_tool_commit_text() {
         app.editor.text_tool.font = Some(font);
     }
 
-    // Select Text tool and enter text mode
-    app.handle_key_event(KeyCode::Char('t'));
-    app.handle_key_event(KeyCode::Char(' '));
-    assert!(app.editor.text_tool.entering_text);
+    // Select Text tool and activate editing
+    app.editor.toolbox.selected = figby::tui::Tool::Text;
+    app.editor.text_tool.editing = true;
 
-    // Type "ab" (lowercase tool shortcuts that font editor overview lets through)
-    app.handle_key_event(KeyCode::Char('a'));
-    app.handle_key_event(KeyCode::Char('b'));
+    // Type "ab"
+    app.editor.text_tool.text_buffer.push('a');
+    app.editor.text_tool.text_buffer.push('b');
     assert_eq!(app.editor.text_tool.text_buffer, "ab");
 
-    // Commit and exit text entry (Enter consumed by font editor in FontEditor mode,
-    // so call commit directly)
+    // Commit block directly
     app.editor.text_tool.commit_block();
-    app.editor.text_tool.entering_text = false;
 
-    assert!(
-        !app.editor.text_tool.entering_text,
-        "commit should exit text entry"
-    );
-    assert!(
-        app.editor.text_tool.text_buffer.is_empty(),
-        "buffer should be empty after commit"
-    );
     assert_eq!(
         app.editor.text_tool.blocks.len(),
         1,
@@ -2643,6 +2621,8 @@ fn test_text_tool_commit_text() {
         app.editor.text_tool.blocks[0].text, "ab",
         "block text should be 'ab'"
     );
+    // Buffer should still contain text after commit (reusable)
+    assert_eq!(app.editor.text_tool.text_buffer, "ab");
 }
 
 #[test]
@@ -2653,23 +2633,22 @@ fn test_text_tool_cancel_text() {
     let mut app = TuiApp::new();
     app.welcome.screen.show = false;
 
-    // Select Text tool and enter text mode
-    app.handle_key_event(KeyCode::Char('t'));
-    app.handle_key_event(KeyCode::Char(' '));
-    assert!(app.editor.text_tool.entering_text);
+    // Select Text tool and activate editing
+    app.editor.toolbox.selected = figby::tui::Tool::Text;
+    app.editor.text_tool.editing = true;
 
-    // Type "ab" (lowercase tool shortcuts that font editor overview lets through)
-    app.handle_key_event(KeyCode::Char('a'));
-    app.handle_key_event(KeyCode::Char('b'));
+    // Type "ab"
+    app.editor.text_tool.text_buffer.push('a');
+    app.editor.text_tool.text_buffer.push('b');
     assert_eq!(app.editor.text_tool.text_buffer, "ab");
 
-    // Press Esc to cancel
+    // Press Esc to cancel editing
     app.handle_key_event(KeyCode::Esc);
 
-    // Should be cancelled: not entering text, buffer empty, no blocks
+    // Should be cancelled: not editing, buffer empty, no blocks
     assert!(
-        !app.editor.text_tool.entering_text,
-        "Esc should cancel text entry"
+        !app.editor.text_tool.editing,
+        "Esc should cancel text editing"
     );
     assert!(
         app.editor.text_tool.text_buffer.is_empty(),

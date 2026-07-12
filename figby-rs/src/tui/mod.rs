@@ -502,7 +502,7 @@ impl TuiApp {
 
             // Text overlays
             if self.editor.toolbox.selected == Tool::Text {
-                self.editor.canvas.text_overlays = self
+                let mut overlays: Vec<_> = self
                     .editor
                     .text_tool
                     .blocks
@@ -510,6 +510,47 @@ impl TuiApp {
                     .enumerate()
                     .filter_map(|(i, _)| self.editor.text_tool.render_block_to_overlay(i))
                     .collect();
+                // Live preview overlay when hovering with text buffer
+                if self.editor.text_tool.show_preview
+                    && !self.editor.text_tool.text_buffer.is_empty()
+                {
+                    let text = self.editor.text_tool.text_buffer.clone();
+                    let font_idx = self.editor.text_tool.font_index;
+                    let just = self.editor.text_tool.justification;
+                    let color = self.editor.text_tool.text_color;
+                    let scale = self.editor.text_tool.scale;
+                    let px = self.editor.text_tool.preview_pos.0;
+                    let py = self.editor.text_tool.preview_pos.1;
+                    // Build a temporary TextToolState for rendering preview rows
+                    let mut preview_state = self.editor.text_tool.clone();
+                    preview_state.text_buffer = text;
+                    preview_state.font_index = font_idx;
+                    preview_state.justification = just;
+                    preview_state.text_color = color;
+                    preview_state.scale = scale;
+                    preview_state.preview_pos = (px, py);
+                    if preview_state.font.is_none() {
+                        preview_state.load_selected_font();
+                    }
+                    let (rows, width) = preview_state.render_rows_from_buffer().unwrap_or_default();
+                    if !rows.is_empty() && width > 0 {
+                        let bb_w = width * scale.max(1) as usize;
+                        let left_x = match just {
+                            crate::render::Justification::Left => px,
+                            crate::render::Justification::Center => px - (bb_w as i16 / 2),
+                            crate::render::Justification::Right => px - bb_w as i16,
+                        };
+                        overlays.push(canvas::TextOverlay {
+                            x: left_x,
+                            y: py,
+                            rows,
+                            color,
+                            scale,
+                            rotation: 0,
+                        });
+                    }
+                }
+                self.editor.canvas.text_overlays = overlays;
                 self.editor.canvas.text_block_perimeter =
                     self.editor.text_tool.selected_block.and_then(|idx| {
                         if idx < self.editor.text_tool.blocks.len() {

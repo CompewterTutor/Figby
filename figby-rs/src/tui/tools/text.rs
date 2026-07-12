@@ -27,7 +27,7 @@ pub struct TextBlock {
 
 #[derive(Debug, Clone)]
 pub struct TextToolState {
-    pub entering_text: bool,
+    pub editing: bool,
     pub text_buffer: String,
     pub font_index: usize,
     pub available_fonts: Vec<String>,
@@ -35,7 +35,8 @@ pub struct TextToolState {
     pub justification: Justification,
     pub text_color: Option<Color>,
     pub scale: u8,
-    pub cursor_position: (i16, i16),
+    pub preview_pos: (i16, i16),
+    pub show_preview: bool,
     pub blocks: Vec<TextBlock>,
     pub selected_block: Option<usize>,
     font_dir: String,
@@ -46,7 +47,7 @@ impl TextToolState {
     pub fn new(font_dir: &str) -> Self {
         let available = list_available_fonts(font_dir);
         Self {
-            entering_text: false,
+            editing: false,
             text_buffer: String::new(),
             font_index: 0,
             available_fonts: available,
@@ -54,7 +55,8 @@ impl TextToolState {
             justification: Justification::Left,
             text_color: None,
             scale: 1,
-            cursor_position: (0, 0),
+            preview_pos: (0, 0),
+            show_preview: false,
             blocks: Vec::new(),
             selected_block: None,
             font_dir: font_dir.to_string(),
@@ -78,7 +80,7 @@ impl TextToolState {
         }
     }
 
-    fn render_rows_from_buffer(&mut self) -> Option<(Vec<String>, usize)> {
+    pub(crate) fn render_rows_from_buffer(&mut self) -> Option<(Vec<String>, usize)> {
         if self.text_buffer.is_empty() {
             return None;
         }
@@ -139,8 +141,8 @@ impl TextToolState {
             id,
             text: self.text_buffer.clone(),
             font_index: self.font_index,
-            x: self.cursor_position.0,
-            y: self.cursor_position.1,
+            x: self.preview_pos.0,
+            y: self.preview_pos.1,
             scale: self.scale,
             justification: self.justification,
             text_color: self.text_color,
@@ -151,8 +153,7 @@ impl TextToolState {
         };
         self.blocks.push(block);
         self.selected_block = Some(self.blocks.len() - 1);
-        self.text_buffer.clear();
-        self.entering_text = false;
+        self.show_preview = false;
     }
 
     pub fn re_edit_block(&mut self, idx: usize) {
@@ -165,9 +166,71 @@ impl TextToolState {
         self.justification = block.justification;
         self.text_color = block.text_color;
         self.scale = block.scale;
-        self.cursor_position = (block.x, block.y);
+        self.preview_pos = (block.x, block.y);
         self.selected_block = None;
-        self.entering_text = true;
+        self.editing = true;
+        self.load_selected_font();
+    }
+
+    /// Render selected block into canvas buffer and remove the block.
+    pub fn rasterize_selected_block(&mut self, buffer: &mut CanvasBuffer) {
+        let idx = match self.selected_block {
+            Some(i) if i < self.blocks.len() => i,
+            _ => return,
+        };
+        let block = &self.blocks[idx];
+        let scale = block.scale.max(1) as usize;
+        let (bx, by, _bw, _bh) = self.compute_bounding_box(idx);
+        for (oy, row) in block.cached_rows.iter().enumerate() {
+            for (ox, ch) in row.chars().enumerate() {
+                if ch == ' ' {
+                    continue;
+                }
+                for dy in 0..scale {
+                    for dx in 0..scale {
+                        let cell_x = bx as usize + ox * scale + dx;
+                        let cell_y = by as usize + oy * scale + dy;
+                        if cell_x < buffer.width() && cell_y < buffer.height() {
+                            let cell = CanvasCell {
+                                ch,
+                                fg: block.text_color,
+                                bg: None,
+                                height: Some(255),
+                            };
+                            buffer.set(cell_x, cell_y, cell);
+                        }
+                    }
+                }
+            }
+        }
+        self.blocks.remove(idx);
+        self.selected_block = None;
+    }
+
+    /// Place text at a specific canvas position (used by click-to-place).
+    pub fn place_at(&mut self, x: i16, y: i16) {
+        if self.text_buffer.is_empty() {
+            return;
+        }
+        self.preview_pos = (x, y);
+        self.commit_block();
+    }
+
+    /// Cycle to next available font.
+    pub fn next_font(&mut self) {
+        if self.available_fonts.is_empty() {
+            return;
+        }
+        self.font_index = (self.font_index + 1).min(self.available_fonts.len() - 1);
+        self.load_selected_font();
+    }
+
+    /// Cycle to previous available font.
+    pub fn prev_font(&mut self) {
+        if self.available_fonts.is_empty() {
+            return;
+        }
+        self.font_index = self.font_index.saturating_sub(1);
         self.load_selected_font();
     }
 
@@ -274,7 +337,7 @@ impl TextToolState {
             None => return,
         };
 
-        let (cx, cy) = self.cursor_position;
+        let (cx, cy) = self.preview_pos;
         let left_x = match self.justification {
             Justification::Left => cx,
             Justification::Center => cx - (width as i16 / 2),
@@ -349,33 +412,24 @@ impl TextToolState {
             Span::raw(format!(" {}", self.scale)),
         ]));
 
-        let color_str = match self.text_color {
-            Some(c) => format!("{:?}", c),
-            None => "None".to_string(),
-        };
-        lines.push(Line::from(vec![
-            Span::styled("Color:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", color_str)),
-        ]));
-
         lines.push(Line::from(Span::raw("")));
 
-        if self.entering_text {
-            let preview = if self.text_buffer.is_empty() {
-                "(type text...)".to_string()
+        if self.editing {
+            let display = if self.text_buffer.is_empty() {
+                "(type in sidebar)".to_string()
             } else {
                 self.text_buffer.clone()
             };
             lines.push(Line::from(vec![Span::styled(
-                "Input:",
+                "Editing:",
                 Style::default().add_modifier(Modifier::BOLD),
             )]));
-            lines.push(Line::from(Span::raw(format!(" {}", preview))));
+            lines.push(Line::from(Span::raw(format!(" {}", display))));
         } else {
-            let hint = if self.available_fonts.is_empty() {
-                "No fonts found"
+            let hint = if self.text_buffer.is_empty() {
+                "Type text in sidebar, hover to preview"
             } else {
-                "Click canvas to type"
+                "Hover canvas to preview, click to place"
             };
             lines.push(Line::from(Span::raw(format!(" {}", hint))));
         }
@@ -393,18 +447,19 @@ impl TextToolState {
         &mut self,
         code: KeyCode,
         modifiers: KeyModifiers,
-        canvas_cursor: (u16, u16),
+        _canvas_cursor: (u16, u16),
     ) -> Option<&'static str> {
-        // Text entry mode
-        if self.entering_text {
+        // Text editing mode (sidebar text field active)
+        if self.editing {
             match code {
                 KeyCode::Enter => {
                     self.commit_block();
+                    self.editing = false;
                     return Some("Commit text");
                 }
                 KeyCode::Esc => {
                     self.text_buffer.clear();
-                    self.entering_text = false;
+                    self.editing = false;
                     return Some("");
                 }
                 KeyCode::Backspace => {
@@ -419,25 +474,8 @@ impl TextToolState {
             }
         }
 
-        // Font navigation (not entering text, no selected block)
-        if !self.entering_text && self.selected_block.is_none() {
-            match code {
-                KeyCode::Up if !self.available_fonts.is_empty() => {
-                    self.font_index = self.font_index.saturating_sub(1);
-                    self.load_selected_font();
-                    return Some("");
-                }
-                KeyCode::Down if !self.available_fonts.is_empty() => {
-                    self.font_index = (self.font_index + 1).min(self.available_fonts.len() - 1);
-                    self.load_selected_font();
-                    return Some("");
-                }
-                _ => {}
-            }
-        }
-
-        // Block operations (not entering text, selected block)
-        if !self.entering_text && self.selected_block.is_some() {
+        // Block operations (selected block, no editing)
+        if !self.editing && self.selected_block.is_some() {
             match code {
                 KeyCode::Up => {
                     self.move_selected_block(0, -1);
@@ -479,39 +517,6 @@ impl TextToolState {
                 }
                 KeyCode::Esc => {
                     self.selected_block = None;
-                    return Some("");
-                }
-                _ => {}
-            }
-        }
-
-        // Text tool settings (not entering text)
-        if !self.entering_text {
-            match code {
-                KeyCode::Char('j') | KeyCode::Char('J') => {
-                    self.justification = match self.justification {
-                        crate::render::Justification::Left => crate::render::Justification::Center,
-                        crate::render::Justification::Center => crate::render::Justification::Right,
-                        crate::render::Justification::Right => crate::render::Justification::Left,
-                    };
-                    return Some("");
-                }
-                KeyCode::Char('+') | KeyCode::Char('=') => {
-                    if self.scale < 4 {
-                        self.scale += 1;
-                    }
-                    return Some("");
-                }
-                KeyCode::Char('-') | KeyCode::Char('_') => {
-                    if self.scale > 1 {
-                        self.scale -= 1;
-                    }
-                    return Some("");
-                }
-                KeyCode::Char(' ') | KeyCode::Enter => {
-                    self.cursor_position = (canvas_cursor.0 as i16, canvas_cursor.1 as i16);
-                    self.entering_text = true;
-                    self.text_buffer.clear();
                     return Some("");
                 }
                 _ => {}
@@ -577,7 +582,7 @@ mod tests {
     #[test]
     fn test_text_tool_initial_state() {
         let state = TextToolState::new(test_font_dir());
-        assert!(!state.entering_text);
+        assert!(!state.editing);
         assert!(state.text_buffer.is_empty());
         assert_eq!(state.scale, 1);
         assert_eq!(state.justification, Justification::Left);
@@ -599,7 +604,7 @@ mod tests {
         assert!(state.font.is_some(), "standard font should load");
 
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
 
         let mut buf = CanvasBuffer::new(80, 40);
         state.render_text_to_buffer(&mut buf);
@@ -624,7 +629,7 @@ mod tests {
         assert!(state.font.is_some());
 
         state.text_buffer = "Hi".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
 
         let mut buf = CanvasBuffer::new(80, 40);
         state.render_text_to_buffer(&mut buf);
@@ -647,7 +652,7 @@ mod tests {
             .unwrap_or(0);
         state.load_selected_font();
         state.text_buffer = "A".to_string();
-        state.cursor_position = (10, 5);
+        state.preview_pos = (10, 5);
         state.justification = Justification::Left;
 
         let mut buf = CanvasBuffer::new(80, 40);
@@ -677,7 +682,7 @@ mod tests {
             .unwrap_or(0);
         state.load_selected_font();
         state.text_buffer = "A".to_string();
-        state.cursor_position = (20, 5);
+        state.preview_pos = (20, 5);
         state.justification = Justification::Right;
 
         let mut buf = CanvasBuffer::new(80, 40);
@@ -710,7 +715,7 @@ mod tests {
             .unwrap_or(0);
         state.load_selected_font();
         state.text_buffer = "A".to_string();
-        state.cursor_position = (30, 5);
+        state.preview_pos = (30, 5);
         state.justification = Justification::Center;
 
         let mut buf = CanvasBuffer::new(80, 40);
@@ -749,7 +754,7 @@ mod tests {
             .unwrap_or(0);
         state.load_selected_font();
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         state.text_color = Some(Color::Red);
 
         let mut buf = CanvasBuffer::new(80, 40);
@@ -777,7 +782,7 @@ mod tests {
         assert!(state.font.is_some(), "last font should load successfully");
 
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         state.render_text_to_buffer(&mut buf);
 
         let has_content = (0..buf.height())
@@ -798,7 +803,7 @@ mod tests {
             .unwrap_or(0);
         state.load_selected_font();
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         state.scale = 2;
 
         let mut buf = CanvasBuffer::new(80, 40);
@@ -824,7 +829,7 @@ mod tests {
             .unwrap_or(0);
         state.load_selected_font();
         state.text_buffer = "Hello World!".to_string();
-        state.cursor_position = (75, 35);
+        state.preview_pos = (75, 35);
         let mut buf = CanvasBuffer::new(80, 40);
         state.render_text_to_buffer(&mut buf);
     }
@@ -846,22 +851,22 @@ mod tests {
     fn test_text_tool_no_font_no_panic() {
         let mut state = TextToolState::new("/nonexistent/dir");
         state.text_buffer = "Hello".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         let mut buf = CanvasBuffer::new(10, 10);
         state.render_text_to_buffer(&mut buf);
     }
 
     #[test]
-    fn test_text_tool_entering_text_state() {
+    fn test_text_tool_editing_state() {
         let mut state = TextToolState::new(test_font_dir());
-        assert!(!state.entering_text);
-        state.entering_text = true;
-        assert!(state.entering_text);
+        assert!(!state.editing);
+        state.editing = true;
+        assert!(state.editing);
         state.text_buffer.push('H');
         state.text_buffer.push('i');
         assert_eq!(state.text_buffer, "Hi");
-        state.entering_text = false;
-        assert!(!state.entering_text);
+        state.editing = false;
+        assert!(!state.editing);
     }
 
     fn setup_state_with_standard_font() -> TextToolState {
@@ -885,7 +890,7 @@ mod tests {
             return;
         }
         state.text_buffer = "A".to_string();
-        state.cursor_position = (10, 5);
+        state.preview_pos = (10, 5);
         state.justification = Justification::Center;
         state.text_color = Some(Color::Red);
         state.scale = 2;
@@ -911,10 +916,10 @@ mod tests {
             return;
         }
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         state.commit_block();
         state.text_buffer = "B".to_string();
-        state.cursor_position = (20, 10);
+        state.preview_pos = (20, 10);
         state.commit_block();
         assert_eq!(state.blocks.len(), 2);
         assert_ne!(state.blocks[0].id, state.blocks[1].id);
@@ -929,7 +934,7 @@ mod tests {
             return;
         }
         state.text_buffer = "A".to_string();
-        state.cursor_position = (50, 50);
+        state.preview_pos = (50, 50);
         state.commit_block();
         let (bx, by, bw, bh) = state.compute_bounding_box(0);
         assert!(bw > 0);
@@ -948,7 +953,7 @@ mod tests {
             return;
         }
         state.text_buffer = "A".to_string();
-        state.cursor_position = (10, 10);
+        state.preview_pos = (10, 10);
         state.selected_block = Some(0);
         state.commit_block();
         assert!(
@@ -973,7 +978,7 @@ mod tests {
             return;
         }
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         state.scale = 1;
         state.commit_block();
         let idx = state.selected_block.unwrap_or(0);
@@ -996,7 +1001,7 @@ mod tests {
             return;
         }
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         state.commit_block();
         let idx = state.selected_block.unwrap_or(0);
         if idx >= state.blocks.len() {
@@ -1024,7 +1029,7 @@ mod tests {
             return;
         }
         state.text_buffer = "A".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         state.commit_block();
         assert_eq!(state.blocks.len(), 1);
         let idx = state.selected_block.unwrap_or(0);
@@ -1043,7 +1048,7 @@ mod tests {
             return;
         }
         state.text_buffer = "Hello".to_string();
-        state.cursor_position = (30, 15);
+        state.preview_pos = (30, 15);
         state.justification = Justification::Right;
         state.scale = 3;
         state.text_color = Some(Color::Blue);
@@ -1057,7 +1062,7 @@ mod tests {
         assert_eq!(state.justification, Justification::Right);
         assert_eq!(state.scale, 3);
         assert_eq!(state.text_color, Some(Color::Blue));
-        assert!(state.entering_text);
+        assert!(state.editing);
     }
 
     #[test]
@@ -1067,7 +1072,7 @@ mod tests {
             return;
         }
         state.text_buffer = "Hi".to_string();
-        state.cursor_position = (100, 200);
+        state.preview_pos = (100, 200);
         state.justification = Justification::Left;
         state.scale = 1;
         state.commit_block();
@@ -1116,7 +1121,7 @@ mod tests {
             .unwrap_or(0);
         state.load_selected_font();
         state.text_buffer = "ÄÖÜäöüß".to_string();
-        state.cursor_position = (0, 0);
+        state.preview_pos = (0, 0);
         let mut buf = CanvasBuffer::new(80, 40);
         // Must not panic.
         state.render_text_to_buffer(&mut buf);

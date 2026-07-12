@@ -1,5 +1,13 @@
 # Figby — Learnings
 
+## 6.0.26 — Text tool UX redesign
+
+- Live preview overlay on canvas: clone `TextToolState`, call `render_rows_from_buffer()`, push `TextOverlay` into `canvas.text_overlays` alongside committed blocks. The clone avoids mutating the real state during render.
+- Font prev/next with clickable `[<]` and `[>]` buttons: each button is a `PropsWidgetRect` with `PropAction::FontPrev` / `PropAction::FontNext`. FontPrev already existed in `PropAction` enum but was missing from `dispatch_props_action` — had to add the match arm.
+- Rasterize: compute bounding box, expand layer buffer if needed (check `need_w > cur_w || need_h > cur_h`), call `rasterize_selected_block(&mut buf)`. Access layer via `self.editor.layer_stack.layers[aidx]` to avoid double-borrow issues with `active_layer_mut()`.
+- Editing activation: set `editing = true` when side panel Text tab is active. Three trigger sites: tab click (mouse), tab cycle (Alt+arrows), and key dispatch (auto-activate if Text tab open). All three needed editing flag set.
+- Integration tests needed updating: `entering_text` → `editing`, `cursor_position` → `preview_pos`. Space no longer enters text mode; tests set `editing = true` directly and push to `text_buffer`.
+
 ## 7.6.1 — GIF import sizing dialog
 
 - When building a two-phase dialog modeled on `RasciiImportDialog`, the key pattern is: `active` + `confirmed` + `config` fields for the handshake with `dispatch.rs`. The dialog sets `active = false` and `confirmed = true` on confirm; dispatch.rs checks both, reads `config.take()`, and performs the import. On error, the dialog re-opens with `error_message` so the user can adjust settings.

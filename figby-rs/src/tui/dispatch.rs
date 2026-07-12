@@ -287,6 +287,39 @@ impl TuiApp {
             PropAction::LineCurveToggle => {
                 self.editor.line_state.curve.toggle();
             }
+            PropAction::RasterizeBlock => {
+                let block_idx = match self.editor.text_tool.selected_block {
+                    Some(i) if i < self.editor.text_tool.blocks.len() => i,
+                    _ => return,
+                };
+                let (bx, by, bw, bh) = self.editor.text_tool.compute_bounding_box(block_idx);
+                let aidx = self.editor.layer_stack.active;
+                let need_w = bx as usize + bw;
+                let need_h = by as usize + bh;
+                let cur_w = self.editor.layer_stack.layers[aidx].buffer.width();
+                let cur_h = self.editor.layer_stack.layers[aidx].buffer.height();
+                if need_w > cur_w || need_h > cur_h {
+                    let new_w = need_w.max(cur_w);
+                    let new_h = need_h.max(cur_h);
+                    let mut new_buf = crate::tui::canvas::CanvasBuffer::new(new_w, new_h);
+                    for y in 0..cur_h {
+                        for x in 0..cur_w {
+                            if let Some(cell) =
+                                self.editor.layer_stack.layers[aidx].buffer.get(x, y)
+                            {
+                                new_buf.set(x, y, *cell);
+                            }
+                        }
+                    }
+                    self.editor.layer_stack.layers[aidx].buffer = new_buf;
+                    self.editor.layer_stack.resize_all(new_w, new_h);
+                }
+                self.editor
+                    .text_tool
+                    .rasterize_selected_block(&mut self.editor.layer_stack.layers[aidx].buffer);
+                self.editor.recomposite_canvas();
+                self.editor.unsaved = true;
+            }
         }
         self.frame.dirty = true;
     }
@@ -430,6 +463,10 @@ impl TuiApp {
             if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
                 if let Some(tab) = self.side_panel.tab_at_pos(mouse.column, mouse.row, rp) {
                     self.side_panel.set_active_tab(tab);
+                    // Activate text editing when opening Text tab
+                    if tab == TabId::Text && self.editor.toolbox.selected == Tool::Text {
+                        self.editor.text_tool.editing = true;
+                    }
                     self.frame.dirty = true;
                     return;
                 }
@@ -626,34 +663,29 @@ impl TuiApp {
             }
         }
 
-        // Text tool: hit-test blocks or enter text mode
+        // Text tool: hover shows preview, click places text or selects block
         if self.editor.toolbox.selected == Tool::Text {
-            if let MouseEventKind::Down(_) = mouse.kind {
-                if let Some((bx, by)) =
-                    self.editor
-                        .screen_to_buffer(mouse.column, mouse.row, canvas_inner_rect)
-                {
-                    if !self.editor.text_tool.entering_text {
-                        if let Some(idx) = self.editor.text_tool.hit_test(bx, by) {
-                            self.editor.text_tool.selected_block = Some(idx);
-                            self.interaction.prev_mouse_buf = None;
-                            self.interaction.line_start = None;
-                            self.interaction.saved_buffer = None;
-                            return;
-                        }
-                        self.editor.text_tool.cursor_position = (bx, by);
-                        self.editor.text_tool.entering_text = true;
-                        self.editor.text_tool.text_buffer.clear();
-                        self.editor
-                            .canvas
-                            .set_cursor(bx.max(0) as u16, by.max(0) as u16);
-                    } else {
-                        self.editor.text_tool.cursor_position = (bx, by);
-                        self.editor
-                            .canvas
-                            .set_cursor(bx.max(0) as u16, by.max(0) as u16);
+            if let Some((bx, by)) =
+                self.editor
+                    .screen_to_buffer(mouse.column, mouse.row, canvas_inner_rect)
+            {
+                // Always update preview position on mouse move/hover
+                self.editor.text_tool.preview_pos = (bx, by);
+                self.editor.text_tool.show_preview = true;
+
+                if let MouseEventKind::Down(_) = mouse.kind {
+                    // Try to select existing block
+                    if let Some(idx) = self.editor.text_tool.hit_test(bx, by) {
+                        self.editor.text_tool.selected_block = Some(idx);
+                    } else if !self.editor.text_tool.text_buffer.is_empty() {
+                        // Place text at click position
+                        self.editor.text_tool.place_at(bx, by);
+                        self.editor.push_undo_snapshot("Place text");
+                        self.editor.unsaved = true;
                     }
                 }
+            } else {
+                self.editor.text_tool.show_preview = false;
             }
             self.interaction.prev_mouse_buf = None;
             self.interaction.line_start = None;
@@ -1437,6 +1469,13 @@ impl TuiApp {
 
         // Text tool dispatch
         if self.editor.toolbox.selected == Tool::Text {
+            // Auto-activate editing when side panel Text tab is open
+            if !self.editor.text_tool.editing
+                && self.side_panel.open
+                && self.side_panel.active_tab == TabId::Text
+            {
+                self.editor.text_tool.editing = true;
+            }
             let cursor = self.editor.canvas.cursor();
             if let Some(undo_label) = self.editor.text_tool.handle_key(code, modifiers, cursor) {
                 if !undo_label.is_empty() {
@@ -1461,11 +1500,21 @@ impl TuiApp {
             match code {
                 KeyCode::Left => {
                     self.side_panel.cycle_tab(false);
+                    if self.side_panel.active_tab == TabId::Text
+                        && self.editor.toolbox.selected == Tool::Text
+                    {
+                        self.editor.text_tool.editing = true;
+                    }
                     self.frame.dirty = true;
                     return None;
                 }
                 KeyCode::Right => {
                     self.side_panel.cycle_tab(true);
+                    if self.side_panel.active_tab == TabId::Text
+                        && self.editor.toolbox.selected == Tool::Text
+                    {
+                        self.editor.text_tool.editing = true;
+                    }
                     self.frame.dirty = true;
                     return None;
                 }

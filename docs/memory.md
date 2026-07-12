@@ -2813,6 +2813,14 @@ Key changes:
 - **11 new tests**: keyframe color at 25%/50%/75%, character step low-t/high-t, empty-track fallback, progress clamping, render-to-canvas integration, on-death burst spawns N, non-recursive burst, disabled when count=0, secondary inherits keyframes.
 - **Files touched**: `figby-rs/src/tui/particles.rs`, `docs/particles-design.md`, `docs/todo-v7.md`, `CHANGELOG.md`, `figby-rs/Cargo.toml`.
 
+### 6.0.26 — Text tool UX redesign
+
+- **Problem**: Text tool required click-canvas → type → Enter (modal entering_text). Font cycled on click with no visible list. No preview before placing.
+- **Solution**: Removed `entering_text`. Text buffer is always present. Sidebar Text tab shows buffer content; editing activates when Text tab is open. Font selector changed from click-to-cycle to prev/next buttons (`[<] name [>]`). Live FIGlet preview renders under cursor on mouse hover (`show_preview` + `preview_pos`). Click places text as `TextBlock` object. Click existing block to re-edit. `[Rasterize]` button paints block onto layer pixels and removes the text object.
+- **Key pattern for preview**: A clone of `TextToolState` is created during render, `render_rows_from_buffer()` called, result pushed as a `TextOverlay` alongside committed blocks. The preview overlay is rebuilt every frame so it tracks cursor movement.
+- **Editing activation**: `editing` flag set `true` when user clicks Text tab, Alt+arrows to Text tab, or Text tab is open on key dispatch. Cleared on Esc. Character keys route to `text_buffer` via `handle_key`.
+- **Files touched**: `figby-rs/src/tui/tools/text.rs`, `figby-rs/src/tui/side_panel.rs`, `figby-rs/src/tui/dispatch.rs`, `figby-rs/src/tui/mod.rs`, `figby-rs/src/tui/props_panel.rs`, `figby-rs/tests/tui.rs`.
+
 ### 7.6.1 — GIF import sizing dialog
 
 - **New dialog**: `tui/dialogs/gif_import.rs` with two-phase flow: file browser → sizing options. Shows original GIF resolution, editable image width/height, canvas width/height (separate from image size), and keep-proportions toggle. Image auto-centers on canvas.

@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.0.26] - 2026-07-12
+
+### Changed
+- Text tool UX redesign: sidebar text field replaces click-to-type-on-canvas.
+  Font selector uses prev/next buttons instead of cycling. Hover mouse over
+  canvas for live FIGlet preview; click to place editable text block.
+  [Rasterize] button converts text object to layer pixels.
+  Closes user-reported text-tool UX issues.
+
 ## [6.0.25] - 2026-07-12
 
 ### Added

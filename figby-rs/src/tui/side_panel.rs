@@ -551,30 +551,54 @@ impl SidePanel {
         )));
         *line_y += 1;
 
+        // Text buffer display
+        {
+            let display = if tt.text_buffer.is_empty() {
+                "(empty — type below)".to_string()
+            } else {
+                tt.text_buffer.clone()
+            };
+            lines.push(Line::from(vec![
+                Span::styled("Text:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", display)),
+            ]));
+            *line_y += 1;
+        }
+
         let font_name = if tt.font_index < tt.available_fonts.len() {
             &tt.available_fonts[tt.font_index]
         } else {
             "?"
         };
 
-        // Font: click to cycle (next font)
+        // Font: [<] name [>]
         {
             let y = area.y + *line_y;
             let x = area.x;
-            let val_start = x + 6; // after "Font: "
-            let val_w = font_name.len() as u16;
+            // prev button
             rects.push(PropsWidgetRect {
                 rect: Rect {
-                    x: val_start,
+                    x: x + 6,
                     y,
-                    width: val_w,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::FontPrev,
+            });
+            // next button
+            let name_start = x + 6 + 3 + 1 + font_name.len() as u16 + 1;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: name_start,
+                    y,
+                    width: 3,
                     height: 1,
                 },
                 action: PropAction::FontNext,
             });
             lines.push(Line::from(vec![
                 Span::styled("Font:", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(format!(" {}", font_name)),
+                Span::raw(format!(" [<] {} [>]", font_name)),
             ]));
             *line_y += 1;
         }
@@ -588,7 +612,7 @@ impl SidePanel {
             };
             let y = area.y + *line_y;
             let x = area.x;
-            let val_start = x + 6; // after "Just: "
+            let val_start = x + 6;
             let val_w = just_str.len() as u16;
             rects.push(PropsWidgetRect {
                 rect: Rect {
@@ -636,9 +660,30 @@ impl SidePanel {
             *line_y += 1;
         }
 
+        // Rasterize button if block selected
+        if tt.selected_block.is_some() {
+            let y = area.y + *line_y;
+            let x = area.x;
+            lines.push(Line::from(""));
+            *line_y += 1;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 11,
+                    height: 1,
+                },
+                action: PropAction::RasterizeBlock,
+            });
+            lines.push(Line::from(Span::raw(" [Rasterize] ")));
+            *line_y += 1;
+        }
+
         lines.push(Line::from(""));
         *line_y += 1;
-        lines.push(Line::from(Span::raw(" Click canvas to type")));
+        lines.push(Line::from(Span::raw(" Hover canvas to preview")));
+        *line_y += 1;
+        lines.push(Line::from(Span::raw(" Click to place text")));
     }
 
     fn add_eyedropper_props(
@@ -1259,24 +1304,52 @@ impl SidePanel {
         let mut lines: Vec<Line> = Vec::new();
         let mut line_y: u16 = 0;
 
-        // Font: click to cycle
+        // Text buffer
+        {
+            let display = if tt.text_buffer.is_empty() {
+                "(empty)".to_string()
+            } else {
+                tt.text_buffer.clone()
+            };
+            lines.push(Line::from(vec![
+                Span::styled("Text:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", display)),
+            ]));
+            line_y += 1;
+        }
+        lines.push(Line::from(Span::raw(if tt.editing {
+            " [type in sidebar...]"
+        } else {
+            " [click text tab to edit]"
+        })));
+        line_y += 1;
+
+        // Font: [<] name [>]
         {
             let y = area.y + line_y;
             let x = area.x;
-            let val_start = x + 6;
-            let val_w = font_name.len() as u16;
             rects.push(PropsWidgetRect {
                 rect: Rect {
-                    x: val_start,
+                    x: x + 6,
                     y,
-                    width: val_w,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::FontPrev,
+            });
+            let name_end = x + 6 + 3 + 1 + font_name.len() as u16 + 1;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: name_end,
+                    y,
+                    width: 3,
                     height: 1,
                 },
                 action: PropAction::FontNext,
             });
             lines.push(Line::from(vec![
                 Span::styled("Font:", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(format!(" {}", font_name)),
+                Span::raw(format!(" [<] {} [>]", font_name)),
             ]));
             line_y += 1;
         }
@@ -1330,7 +1403,32 @@ impl SidePanel {
                 Span::styled("Scale:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" {} [+] ", tt.scale)),
             ]));
+            line_y += 1;
         }
+
+        // Rasterize button if block selected
+        if tt.selected_block.is_some() {
+            lines.push(Line::from(""));
+            let y = area.y + line_y + 1;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 11,
+                    height: 1,
+                },
+                action: PropAction::RasterizeBlock,
+            });
+            lines.push(Line::from(Span::raw(" [Rasterize] ")));
+        }
+
+        // Instructions
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::raw(" Mouse: hover→preview")));
+        lines.push(Line::from(Span::raw(" Click→place text")));
+        lines.push(Line::from(Span::raw(" Enter→commit block")));
+        lines.push(Line::from(Span::raw(" Esc→exit editing")));
 
         frame.render_widget(Paragraph::new(lines), area);
     }
@@ -1412,8 +1510,9 @@ mod tests {
 
         SidePanel::add_text_props(&mut lines, &tt, &mut rects, area, &mut line_y);
 
-        // Should have rects for: font cycle, just cycle, scale -, scale +
-        assert_eq!(rects.len(), 4);
+        // Should have rects for: font prev, font next, just cycle, scale -, scale +
+        assert_eq!(rects.len(), 5);
+        assert!(rects.iter().any(|r| r.action == PropAction::FontPrev));
         assert!(rects.iter().any(|r| r.action == PropAction::FontNext));
         assert!(rects.iter().any(|r| r.action == PropAction::CycleJust));
         assert!(rects.iter().any(|r| r.action == PropAction::ScaleDown));

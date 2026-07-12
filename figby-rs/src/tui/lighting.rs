@@ -585,6 +585,36 @@ mod tests {
     }
 
     #[test]
+    fn compute_normal_map_non_empty_glyph() {
+        let heightfield = vec![
+            vec![0.0, 0.0, 0.0, 0.0, 0.0],
+            vec![0.0, 1.0, 1.0, 1.0, 0.0],
+            vec![0.0, 1.0, 1.0, 1.0, 0.0],
+            vec![0.0, 1.0, 1.0, 1.0, 0.0],
+            vec![0.0, 0.0, 0.0, 0.0, 0.0],
+        ];
+        let nmap = compute_normal_map_figfont(&heightfield, 0.5);
+        let center = nmap.get(2, 2).unwrap();
+        let (_nx, _ny, nz) = center.to_f32();
+        assert!(nz > 0.0, "center of raised area should point upward");
+        // Edge cells should have normals tilted away from the raised area
+        let left_edge = nmap.get(1, 2).unwrap();
+        let (lx, _, _) = left_edge.to_f32();
+        assert!(
+            lx < 0.0,
+            "left edge should tilt left (away from step) lx={}",
+            lx
+        );
+        let right_edge = nmap.get(3, 2).unwrap();
+        let (rx, _, _) = right_edge.to_f32();
+        assert!(
+            rx > 0.0,
+            "right edge should tilt right (away from step) rx={}",
+            rx
+        );
+    }
+
+    #[test]
     fn light_ambient_only() {
         let scene = Scene {
             lights: vec![Light::Ambient {

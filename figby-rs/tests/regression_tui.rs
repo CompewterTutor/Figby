@@ -167,7 +167,7 @@ fn regression_tui_full_app_render() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     let backend = TestBackend::new(120, 40);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();

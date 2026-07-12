@@ -2,6 +2,7 @@ use crate::font::{load_font, FIGfont};
 use crate::render::{add_char, Justification};
 use crate::smush::SmushMode;
 use crate::tui::canvas::{CanvasBuffer, CanvasCell, TextOverlay};
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -299,7 +300,7 @@ impl TextToolState {
                                 ch: cell_char,
                                 fg: self.text_color,
                                 bg: None,
-                                height: None,
+                                height: Some(255),
                             };
                             buffer.set(bx as usize, by as usize, cell);
                         }
@@ -383,6 +384,141 @@ impl TextToolState {
         let truncated: Vec<Line<'_>> = lines.into_iter().take(max_lines).collect();
         let paragraph = Paragraph::new(truncated);
         frame.render_widget(paragraph, inner);
+    }
+
+    /// Returns `Some(undo_label)` if handled with action that needs undo (label != "").
+    /// Returns `Some("")` if handled but no undo needed.
+    /// Returns `None` if not handled.
+    pub(crate) fn handle_key(
+        &mut self,
+        code: KeyCode,
+        modifiers: KeyModifiers,
+        canvas_cursor: (u16, u16),
+    ) -> Option<&'static str> {
+        // Text entry mode
+        if self.entering_text {
+            match code {
+                KeyCode::Enter => {
+                    self.commit_block();
+                    return Some("Commit text");
+                }
+                KeyCode::Esc => {
+                    self.text_buffer.clear();
+                    self.entering_text = false;
+                    return Some("");
+                }
+                KeyCode::Backspace => {
+                    self.text_buffer.pop();
+                    return Some("");
+                }
+                KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.text_buffer.push(c);
+                    return Some("");
+                }
+                _ => {}
+            }
+        }
+
+        // Font navigation (not entering text, no selected block)
+        if !self.entering_text && self.selected_block.is_none() {
+            match code {
+                KeyCode::Up if !self.available_fonts.is_empty() => {
+                    self.font_index = self.font_index.saturating_sub(1);
+                    self.load_selected_font();
+                    return Some("");
+                }
+                KeyCode::Down if !self.available_fonts.is_empty() => {
+                    self.font_index = (self.font_index + 1).min(self.available_fonts.len() - 1);
+                    self.load_selected_font();
+                    return Some("");
+                }
+                _ => {}
+            }
+        }
+
+        // Block operations (not entering text, selected block)
+        if !self.entering_text && self.selected_block.is_some() {
+            match code {
+                KeyCode::Up => {
+                    self.move_selected_block(0, -1);
+                    return Some("Move text block");
+                }
+                KeyCode::Down => {
+                    self.move_selected_block(0, 1);
+                    return Some("Move text block");
+                }
+                KeyCode::Left => {
+                    self.move_selected_block(-1, 0);
+                    return Some("Move text block");
+                }
+                KeyCode::Right => {
+                    self.move_selected_block(1, 0);
+                    return Some("Move text block");
+                }
+                KeyCode::Char('+') | KeyCode::Char('=') => {
+                    self.scale_selected_block(1);
+                    return Some("Scale text block");
+                }
+                KeyCode::Char('-') | KeyCode::Char('_') => {
+                    self.scale_selected_block(-1);
+                    return Some("Scale text block");
+                }
+                KeyCode::Char('r') | KeyCode::Char('R') => {
+                    self.rotate_selected_block();
+                    return Some("Rotate text block");
+                }
+                KeyCode::Delete | KeyCode::Backspace => {
+                    self.delete_selected_block();
+                    return Some("Delete text block");
+                }
+                KeyCode::Char(' ') | KeyCode::Enter => {
+                    if let Some(idx) = self.selected_block {
+                        self.re_edit_block(idx);
+                    }
+                    return Some("");
+                }
+                KeyCode::Esc => {
+                    self.selected_block = None;
+                    return Some("");
+                }
+                _ => {}
+            }
+        }
+
+        // Text tool settings (not entering text)
+        if !self.entering_text {
+            match code {
+                KeyCode::Char('j') | KeyCode::Char('J') => {
+                    self.justification = match self.justification {
+                        crate::render::Justification::Left => crate::render::Justification::Center,
+                        crate::render::Justification::Center => crate::render::Justification::Right,
+                        crate::render::Justification::Right => crate::render::Justification::Left,
+                    };
+                    return Some("");
+                }
+                KeyCode::Char('+') | KeyCode::Char('=') => {
+                    if self.scale < 4 {
+                        self.scale += 1;
+                    }
+                    return Some("");
+                }
+                KeyCode::Char('-') | KeyCode::Char('_') => {
+                    if self.scale > 1 {
+                        self.scale -= 1;
+                    }
+                    return Some("");
+                }
+                KeyCode::Char(' ') | KeyCode::Enter => {
+                    self.cursor_position = (canvas_cursor.0 as i16, canvas_cursor.1 as i16);
+                    self.entering_text = true;
+                    self.text_buffer.clear();
+                    return Some("");
+                }
+                _ => {}
+            }
+        }
+
+        None
     }
 }
 

@@ -255,7 +255,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 > `mod.rs` is under ~1500 LOC and state flows through grouped sub-structs
 > rather than a flat ~80-field `TuiApp`.
 
-- [ ] `7.3.1` Extract `handle_key_event` mode blocks into per-mode `handle_key` methods
+- [x] `7.3.1` Extract `handle_key_event` mode blocks into per-mode `handle_key` methods
   - **Goal:** `handle_key_event` is one giant dispatch with mode-specific
     blocks for text tool (`mod.rs:3096-3187`), rotate (`:3192-3208`),
     selection move (`:3219-3247`), move tool (`:3297-3323`), timeline frame
@@ -274,7 +274,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     `cargo test` green, every keybind still fires. No behaviour change.
   - **Difficulty:** Medium
 
-- [ ] `7.3.2` Extract `render_canvas_area` + `render_overlays` residual blocks
+- [x] `7.3.2` Extract `render_canvas_area` + `render_overlays` residual blocks
   - **Goal:** `render_canvas_area` at `mod.rs:1388-1418` mixes player-widget
     dispatch with normal canvas compositing; pull the player-dispatch arm
     into `AnimationState::render` (already used for the inline player path)
@@ -290,7 +290,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     C figlet for a known banner).
   - **Difficulty:** Medium
 
-- [ ] `7.3.3` Group remaining `TuiApp` fields into sub-structs
+- [x] `7.3.3` Group remaining `TuiApp` fields into sub-structs
   - **Goal:** Post-6.6.1a/b/c, `TuiApp` still carries many top-level fields
     for dialogs (`quit_confirm_dialog`, `dialogs.file_ops.*`,
     `export_dialog`, `rascii_import`), editor (`editor: EditorState` already
@@ -303,7 +303,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     `cargo test` green. No behaviour change.
   - **Difficulty:** Medium
 
-- [ ] `7.3.4` Split `mod.rs` into topical submodules
+- [x] `7.3.4` Split `mod.rs` into topical submodules
   - **Goal:** After 7.3.1 / 7.3.2 / 7.3.3, `mod.rs` should be small enough
     to keep only the top-level `TuiApp` definition, `new`, `run` (event
     loop), and the high-level dispatch. Move the rest into topical files:
@@ -323,7 +323,64 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 
 ---
 
-## Phase 7.4 — Particle System Extensions (🟡 — explicit ask in manual-note #9, big change)
+## Phase 7.4 — Lighting Comprehensibility (🟡 — manual-note #10)
+
+> Lighting "makes no sense." Investigation: the lighting engine is a real
+> Lambertian + specular + shadow system (`lighting.rs:1-170`,
+    `components/canvas.rs:8-120`), but **the heightmap source is empty by
+    default** — `compute_normal_map_figfont` at `lighting.rs:244` is never
+    wired to actual non-zero height data, the design doc's "Canvas Path"
+    height-paint tool (section 2.2) is unimplemented, and toggling lights /
+    direction / intensity produces almost no visible change. Compounding
+    this, the light panel (`light_panel.rs:110`) renders terse labels like
+    `"Amb 0.50"` / `"Dir 0.80"` / `"Pnt 0.90 (x,y)"` with no tooltips, no
+    help overlay, no keybind hints, and the lighting keybinds are absent
+    from `keymap.rs` entirely. Two-pronged fix.
+
+- [x] `7.4.1` Add lighting help overlay + register lighting keybinds
+  - **Goal:** Stop gap so users can at least read what lighting does and
+    how to drive it before the behaviour fix lands. In `light_panel.rs:110`
+    add a help block listing the bindings (`G` enter, `Up/Down` select,
+    `Left/Right` + `Shift+arrows` move point light, `+/-` intensity,
+    `A/D/P` add ambient/directional/point light, `Delete` remove, `Esc`
+    exit). Register all of these in `keymap.rs` (global action enum has no
+    Lighting entries today). Show a one-shot hint on enter-mode using the
+    existing hint machinery at `mod.rs:1092`.
+  - **Touches:** `figby-rs/src/tui/light_panel.rs:63` (`build_lines`) and
+    `:110` (`render`); `figby-rs/src/tui/keymap.rs` — new
+    `LightingAction` enum + KEYMAP entries; `figby-rs/src/tui/mod.rs` —
+    one-shot hint on `Lighting` mode enter.
+  - **Success:** Press `G` → enters Lighting mode and shows a hint listing
+    every binding. Open the keybinds popup (`?`) → a Lighting section is
+    present. The light panel now shows next to each light entry a tooltip
+    line explaining what it does.
+  - **Difficulty:** Low
+
+- [x] `7.4.2` Wire a real heightmap source (FIGfont density path OR height-paint tool)
+  - **Goal:** The behaviour blocker. `components/canvas.rs:48-58` builds the
+    heightfield from `cell.height.unwrap_or(0)` and nothing sets
+    `cell.height` to non-zero, so every normal is flat `(0,0,127)` and the
+    Lambertian term is constant → toggling lights is visually inert. Pick
+    ONE path and ship it: (a) FIGfont density path per `docs/lighting-design.md`
+    section 2.1 — derive height from glyph fill density for FIGfont-rendered
+    canvases, OR (b) the height-paint tool per section 2.2 — add a new
+    `tools/height.rs` brush that paints `cell.height` directly. Update the
+    design doc's status line (currently "Deferred to v4.x" at
+    `lighting-design.md:5`) once shipped.
+  - **Touches:** `figby-rs/src/tui/lighting.rs:244`
+    (`compute_normal_map_figfont` callers), `figby-rs/src/tui/components/canvas.rs:48-58`
+    (heightfield build), and either `figby-rs/src/font.rs` (density path)
+    or new `figby-rs/src/tui/tools/height.rs` (paint tool).
+  - **Success:** Enable Lighting mode on a canvas that has either
+    FIGfont-rendered text or a height-painted patch → moving a directional
+    light across the canvas visibly shadows / highlights different regions.
+    New test asserts `compute_normal_map_figfont` produces non-flat normals
+    for a non-empty glyph.
+  - **Difficulty:** High
+
+---
+
+## Phase 7.5 — Particle System Extensions (🟡 — explicit ask in manual-note #9, big change)
 
 > Manual note #9 asks for inertia, vector of travel, collision layers, and
 > per-particle timelines. Investigation found that **velocity + acceleration
@@ -333,7 +390,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 > the canvas. The real gaps are collision response, per-particle keyframe
 > tracks, and spawn/death event hooks. This is additive, not a rewrite.
 
-- [ ] `7.4.1` Add edge + layer-cell collision response to particles
+- [x] `7.5.1` Add edge + layer-cell collision response to particles
   - **Goal:** `ParticleSystem::update` at `particles.rs:285-315` advances
     position by `vx*dt`/`vy*dt` but never tests bounds; `render_to_canvas`
     at `:341-357` and `bake_to_buffer` at `:359-377` only `continue` when
@@ -352,7 +409,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     Existing particle tests still pass; new tests assert reflection vectors.
   - **Difficulty:** Medium
 
-- [ ] `7.4.2` Per-particle keyframe tracks + lifecycle hooks
+- [x] `7.5.2` Per-particle keyframe tracks + lifecycle hooks
   - **Goal:** Each particle today has only a scalar
     `remaining_lifetime: f64` (`particles.rs:179`) and a global
     `ParticleSystem::age` (`:269`). Per the manual note, particles should
@@ -374,63 +431,6 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
   - **Difficulty:** High
   - **Note:** This phase is large and may slip past v7. Track separately if
     the release needs to ship before 7.4.2 lands.
-
----
-
-## Phase 7.5 — Lighting Comprehensibility (🟡 — manual-note #10)
-
-> Lighting "makes no sense." Investigation: the lighting engine is a real
-> Lambertian + specular + shadow system (`lighting.rs:1-170`,
-    `components/canvas.rs:8-120`), but **the heightmap source is empty by
-    default** — `compute_normal_map_figfont` at `lighting.rs:244` is never
-    wired to actual non-zero height data, the design doc's "Canvas Path"
-    height-paint tool (section 2.2) is unimplemented, and toggling lights /
-    direction / intensity produces almost no visible change. Compounding
-    this, the light panel (`light_panel.rs:110`) renders terse labels like
-    `"Amb 0.50"` / `"Dir 0.80"` / `"Pnt 0.90 (x,y)"` with no tooltips, no
-    help overlay, no keybind hints, and the lighting keybinds are absent
-    from `keymap.rs` entirely. Two-pronged fix.
-
-- [ ] `7.5.1` Add lighting help overlay + register lighting keybinds
-  - **Goal:** Stop gap so users can at least read what lighting does and
-    how to drive it before the behaviour fix lands. In `light_panel.rs:110`
-    add a help block listing the bindings (`G` enter, `Up/Down` select,
-    `Left/Right` + `Shift+arrows` move point light, `+/-` intensity,
-    `A/D/P` add ambient/directional/point light, `Delete` remove, `Esc`
-    exit). Register all of these in `keymap.rs` (global action enum has no
-    Lighting entries today). Show a one-shot hint on enter-mode using the
-    existing hint machinery at `mod.rs:1092`.
-  - **Touches:** `figby-rs/src/tui/light_panel.rs:63` (`build_lines`) and
-    `:110` (`render`); `figby-rs/src/tui/keymap.rs` — new
-    `LightingAction` enum + KEYMAP entries; `figby-rs/src/tui/mod.rs` —
-    one-shot hint on `Lighting` mode enter.
-  - **Success:** Press `G` → enters Lighting mode and shows a hint listing
-    every binding. Open the keybinds popup (`?`) → a Lighting section is
-    present. The light panel now shows next to each light entry a tooltip
-    line explaining what it does.
-  - **Difficulty:** Low
-
-- [ ] `7.5.2` Wire a real heightmap source (FIGfont density path OR height-paint tool)
-  - **Goal:** The behaviour blocker. `components/canvas.rs:48-58` builds the
-    heightfield from `cell.height.unwrap_or(0)` and nothing sets
-    `cell.height` to non-zero, so every normal is flat `(0,0,127)` and the
-    Lambertian term is constant → toggling lights is visually inert. Pick
-    ONE path and ship it: (a) FIGfont density path per `docs/lighting-design.md`
-    section 2.1 — derive height from glyph fill density for FIGfont-rendered
-    canvases, OR (b) the height-paint tool per section 2.2 — add a new
-    `tools/height.rs` brush that paints `cell.height` directly. Update the
-    design doc's status line (currently "Deferred to v4.x" at
-    `lighting-design.md:5`) once shipped.
-  - **Touches:** `figby-rs/src/tui/lighting.rs:244`
-    (`compute_normal_map_figfont` callers), `figby-rs/src/tui/components/canvas.rs:48-58`
-    (heightfield build), and either `figby-rs/src/font.rs` (density path)
-    or new `figby-rs/src/tui/tools/height.rs` (paint tool).
-  - **Success:** Enable Lighting mode on a canvas that has either
-    FIGfont-rendered text or a height-painted patch → moving a directional
-    light across the canvas visibly shadows / highlights different regions.
-    New test asserts `compute_normal_map_figfont` produces non-flat normals
-    for a non-empty glyph.
-  - **Difficulty:** High
 
 ---
 

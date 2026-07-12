@@ -219,6 +219,7 @@ pub enum Scope {
     FontCharEditor,
     Dialog,
     Timeline,
+    Lighting,
 }
 
 impl Scope {
@@ -232,6 +233,7 @@ impl Scope {
             Scope::FontCharEditor => "Font Char Editor",
             Scope::Dialog => "Dialog",
             Scope::Timeline => "Timeline",
+            Scope::Lighting => "Lighting",
         }
     }
 }
@@ -656,28 +658,43 @@ pub const KEYMAP: &[KeyBinding] = &[
     // Lighting mode
     KeyBinding {
         keys: "G",
-        scope: Scope::Global,
+        scope: Scope::Lighting,
         description: "Enter lighting mode",
     },
     KeyBinding {
-        keys: "A / D / P",
-        scope: Scope::Global,
-        description: "Add ambient / directional / point light",
+        keys: "Esc",
+        scope: Scope::Lighting,
+        description: "Exit lighting mode",
+    },
+    KeyBinding {
+        keys: "↑ / ↓",
+        scope: Scope::Lighting,
+        description: "Select previous / next light",
+    },
+    KeyBinding {
+        keys: "← / →",
+        scope: Scope::Lighting,
+        description: "Move point light horizontally",
+    },
+    KeyBinding {
+        keys: "Shift+↑ / Shift+↓",
+        scope: Scope::Lighting,
+        description: "Move point light vertically",
     },
     KeyBinding {
         keys: "+ / -",
-        scope: Scope::Global,
-        description: "Adjust light intensity",
+        scope: Scope::Lighting,
+        description: "Adjust selected light intensity",
+    },
+    KeyBinding {
+        keys: "A / D / P",
+        scope: Scope::Lighting,
+        description: "Add ambient / directional / point light",
     },
     KeyBinding {
         keys: "Delete",
-        scope: Scope::Global,
+        scope: Scope::Lighting,
         description: "Remove selected light",
-    },
-    KeyBinding {
-        keys: "arrows",
-        scope: Scope::Global,
-        description: "Move point light (Shift for vertical)",
     },
     KeyBinding {
         keys: "A",

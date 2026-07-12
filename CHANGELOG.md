@@ -1,5 +1,71 @@
 # Changelog
 
+## [6.0.24] - 2026-07-11
+
+### Added
+- Per-particle keyframe tracks: new `ParticleKeyframe` type + `keyframes`
+  field on `Particle` / `ParticleConfig`. `Particle::render_values()`
+  interpolates colour/size/opacity linearly between adjacent keyframes
+  based on lifetime progress; character picks the nearer endpoint.
+  7 tests covering 25%/50%/75% interpolation, character step, empty-track
+  fallback, progress clamping, and render-to-canvas integration. Closes 7.5.2.
+- On-death secondary emitter: `on_death_count` + `on_death_config` on
+  `ParticleConfig`. Primary particles spawn N secondaries at their
+  position on death using the sub-config. Secondaries carry
+  `is_secondary = true` so bursts are non-recursive. 4 tests.
+- `docs/particles-design.md` design sketch covering data model,
+  interpolation rules, lifecycle hooks, and deferred work.
+
+### Changed
+- `Particle` gains `total_lifetime` (spawn-time snapshot used as the
+  interpolation denominator), `keyframes`, and `is_secondary` fields.
+  `Particle::Default` implemented. All test literal constructions updated.
+- `render_to_canvas` / `bake_to_buffer` now call `render_values()` per
+  particle instead of reading static fields directly.
+
+## [6.0.23] - 2026-07-11
+
+### Added
+- Particle edge collision response: configurable `EdgeMode` (Bounce/Wrap/Despawn)
+  on `ParticleConfig` + 5 tests. Particles now bounce off, wrap around, or
+  despawn at canvas edges instead of flying into dead space. Closes 7.5.1.
+- Particle layer-cell collision: when `collide_with_layer` is enabled, particles
+  reflect off non-blank canvas cells using a 4-neighbor normal + velocity
+  reflection. 2 tests.
+
+### Changed
+- `ParticleSystem::update()` signature extended with `bounds` and `layer_mask`
+  parameters. Emitter config panel gains Edge Mode + Collide w/ Layer fields.
+
+## [6.0.22] - 2026-07-11
+
+### Added
+- Lighting help overlay + `Scope::Lighting` keybind section in keymap. One-shot
+  keybinding hint shown on entering lighting mode (`light_panel.rs`).
+- FIGfont density heightmap: non-space text cells now set `height: Some(255)` so
+  the lighting engine receives non-flat normal maps. Lighting mode now produces
+  visible shading on text canvases. Closes task 7.4.
+- New test `compute_normal_map_non_empty_glyph` asserting Sobel normals tilt
+  correctly at raised-block edges.
+
+### Changed
+- **Priority swap:** lighting tasks promoted to 7.4 (was 7.5), particle system
+  demoted to 7.5 (was 7.4) in `docs/todo-v7.md`.
+- `lighting-design.md` status updated from "Deferred to v4.x" to "Partially
+  Implemented (FIGfont density path, v7.4)".
+
+## [6.0.21] - 2026-07-11
+
+### Changed
+- Split `tui/mod.rs` (5693 LOC) into three topical submodules:
+  `app_state.rs` (struct/enum defs + sub-struct impls + `TuiApp::new`),
+  `event_loop.rs` (`run`/`handle_event`/tick/async completion), and
+  `dispatch.rs` (key/mouse dispatch + all `perform_*`/`start_*` action
+  handlers + moved tests). `mod.rs` shrank to 774 LOC (re-exports + render
+  pipeline + shared helpers) — under the 1500-LOC target of task 7.3.4.
+  No behaviour change; cross-module callers gained `pub(crate)` visibility
+  where needed. Banner output byte-identical to system `figlet`.
+
 ## [6.0.20] - 2026-07-11
 
 ### Fixed

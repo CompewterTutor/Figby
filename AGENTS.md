@@ -142,7 +142,10 @@ figby-rs/         # Rust crate (library + TUI binary)
     ├── template.rs       # .ftmp template engine
     ├── web.rs            # WASM bindings
     └── tui/              # TUI application (ratatui)
-        ├── mod.rs        # TuiApp state, event loop, render (4076 LOC)
+        ├── mod.rs        # re-exports + render pipeline + shared helpers (~774 LOC)
+        ├── app_state.rs  # TuiApp + EditorState/AnimationState/LightingState + new
+        ├── event_loop.rs # run(), handle_event(), tick/async completion
+        ├── dispatch.rs   # handle_key_event/handle_mouse_event + perform_* actions
         ├── canvas.rs     # ASCII canvas buffer
         ├── layers.rs     # Layer stack + compositing
         ├── palette.rs    # Color palette widget

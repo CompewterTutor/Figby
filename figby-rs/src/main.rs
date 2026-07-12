@@ -1153,8 +1153,8 @@ fn main() {
         let mut app = figby::tui::TuiApp::new();
         if let Some(mode) = args.tui_render_mode.as_deref() {
             match mode {
-                "fast" | "Fast" => app.render_mode = figby::tui::RenderMode::Fast,
-                "dirty" | "Dirty" => app.render_mode = figby::tui::RenderMode::Dirty,
+                "fast" | "Fast" => app.ctx.render_mode = figby::tui::RenderMode::Fast,
+                "dirty" | "Dirty" => app.ctx.render_mode = figby::tui::RenderMode::Dirty,
                 other => eprintln!("Unknown render mode '{other}', using default"),
             }
         }

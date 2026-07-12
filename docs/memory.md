@@ -76,6 +76,24 @@ FIGlet flag semantics preserved exactly.
 - **Files touched**: `figby-rs/src/tui/mod.rs` (struct field, constructor, mouse handler),
   `figby-rs/src/tui/overlays.rs` (render width computation + button rect storage).
 
+### 7.3.3 — Group remaining TuiApp fields into sub-structs
+
+- **New sub-structs**: `WelcomeState` (welcome_screen/fx/fade_in), `FrameState`
+  (dirty/force_full_redraw/last_draw_time/fps/last_frame_time/delta_time/fx_last_tick),
+  `UiState` (mode/prev_mode/session_type/zen_mode/show_keybindings/keybindings_scroll/
+  menu_bar/menu_bar_state/should_quit), `AppContext` (icons/theme/render_mode/git_branch/
+  auto_save_interval/last_save_time/throbber/async_rx/palette_rgb_to_swatch).
+- **DialogState extended**: Added `quit_confirm_dialog`, `quit_confirm_buttons`,
+  `quit_after_save`.
+- **TuiApp**: 39 fields → 12 sub-struct fields (reduction of 27).
+- **Files touched**: `figby-rs/src/tui/mod.rs` (struct defs, constructor, ~150 access
+  sites), `figby-rs/src/tui/overlays.rs` (8 access sites), `tests/tui.rs` (12 access
+  sites), `tests/regression_tui.rs` (1 access site), `src/main.rs` (1 access site).
+- **Convenience**: `mark_dirty()` and `force_full_redraw()` methods considered but
+  not added — `self.frame.dirty = true` is already concise and the ~80 occurrences
+  are a straightforward grep.
+- **No behaviour change**: Pure refactoring.
+
 ### Generated font print_direction
 - `print_direction` in `render_font_glyphs()` changed from `-1` to `0` (explicit LTR).
 - `generate_figfont_header()` now uses `font.print_direction` field value instead

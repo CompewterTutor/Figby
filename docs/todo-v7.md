@@ -290,7 +290,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     C figlet for a known banner).
   - **Difficulty:** Medium
 
-- [ ] `7.3.3` Group remaining `TuiApp` fields into sub-structs
+- [x] `7.3.3` Group remaining `TuiApp` fields into sub-structs
   - **Goal:** Post-6.6.1a/b/c, `TuiApp` still carries many top-level fields
     for dialogs (`quit_confirm_dialog`, `dialogs.file_ops.*`,
     `export_dialog`, `rascii_import`), editor (`editor: EditorState` already

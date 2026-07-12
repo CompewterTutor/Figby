@@ -1,5 +1,14 @@
 # Figby — Learnings
 
+## 7.3.3 — Group remaining TuiApp fields into sub-structs
+
+- Python regex mass-replacements on 5 files worked well for mechanical field renames,
+  but multi-line `self\n.field` patterns are invisible to `\bself\.field\b` regex.
+  Always verify with `cargo check` after mass replace — 2 multi-line sites + 3 test
+  sites with different variable names were missed.
+- `FrameState::dirty` accessed ~80 times via `self.frame.dirty = true`. Decided not
+  to add a convenience method — the prefix is already clear and concise enough.
+
 ## 7.3.2 — Extract `render_canvas_area` player block to `AnimationState::render`
 
 - `AnimationPlayer` uses `Cell` for interior mutability, so `AnimationState::render`

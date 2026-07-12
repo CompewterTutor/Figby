@@ -2720,3 +2720,23 @@ Key changes:
   `figby-rs/src/tui/props_panel.rs`, `figby-rs/src/tui/tools/move_tool.rs`,
   `figby-rs/src/tui/tools/rotate_tool.rs`, `figby-rs/src/tui/tools/line.rs`,
   `figby-rs/src/tui/tools/selection.rs`.
+
+### 7.3.1 — Extract handle_key_event mode blocks into per-mode handle_key methods
+
+- **Extracted to EditorState**: Rotate tool (Left/Right 90° step), selection movement
+  (arrows + Delete), clipboard (Ctrl+C/X/V), Move tool layer nudging, polygon select
+  (Enter closes / Esc cancels), deselect on Esc, keyboard painting (Space/Enter for
+  brush/eraser/fill/spray/line).
+- **Extracted to AnimationState**: Timeline frame navigation (Left/Right/Add/Delete),
+  emitter bake/toggle (b/B/v keybindings).
+- **Dispatcher**: `handle_key_event` in `mod.rs` became a short ordered list of
+  `if self.<state>.handle_key(...) { return None; }` calls — welcome, font editor,
+  image editor, text tool, editor state, side panel Alt+arrows, animation state,
+  lighting.
+- **Text tool**: Already had its own `TextToolState::handle_key` — deleted the old
+  inline block from `handle_key_event`.
+- **`selection_polygon_points`**: Moved from `InteractionState` to `EditorState` so
+  `EditorState::handle_key` can access it without borrowing TuiApp.
+- **`push_undo_snapshot`**: Changed from `fn` to `pub(crate) fn` for cross-sub-struct
+  access.
+- **Files touched**: `figby-rs/src/tui/mod.rs` only.

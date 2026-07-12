@@ -172,6 +172,7 @@ pub struct EditorState {
     pub rotate_state: tools::rotate_tool::RotateState,
     pub selection_state: tools::selection::SelectionState,
     pub line_state: tools::line::LineState,
+    pub selection_polygon_points: Vec<(i16, i16)>,
 }
 
 impl EditorState {
@@ -189,7 +190,7 @@ impl EditorState {
         self.recomposite_canvas();
     }
 
-    fn push_undo_snapshot(&mut self, label: &str) {
+    pub(crate) fn push_undo_snapshot(&mut self, label: &str) {
         self.undo.push_snapshot(
             self.layer_stack.active_layer().buffer.clone(),
             label.to_string(),
@@ -327,7 +328,6 @@ impl EditorState {
         bx: i16,
         by: i16,
         selection_drag_origin: &mut Option<(i16, i16)>,
-        selection_polygon_points: &mut Vec<(i16, i16)>,
         selection_lasso_points: &mut Vec<(i16, i16)>,
     ) {
         match self.toolbox.selected {
@@ -344,20 +344,19 @@ impl EditorState {
                 *selection_lasso_points = vec![(bx, by)];
             }
             Tool::PolygonSelect => {
-                let points = selection_polygon_points;
-                if points.len() >= 3 {
-                    let (fx, fy) = points[0];
+                if self.selection_polygon_points.len() >= 3 {
+                    let (fx, fy) = self.selection_polygon_points[0];
                     let dist = ((bx - fx).abs() + (by - fy).abs()) as f64;
                     if dist < 3.0 {
+                        let vertices = std::mem::take(&mut self.selection_polygon_points);
                         self.selection = Some(tools::selection::Selection::polygon(
                             &self.canvas.buffer,
-                            points,
+                            &vertices,
                         ));
-                        points.clear();
                         return;
                     }
                 }
-                points.push((bx, by));
+                self.selection_polygon_points.push((bx, by));
             }
             _ => {}
         }
@@ -424,12 +423,242 @@ impl EditorState {
             _ => {}
         }
     }
+
+    pub(crate) fn handle_key(
+        &mut self,
+        code: KeyCode,
+        modifiers: KeyModifiers,
+        dirty: &mut bool,
+    ) -> bool {
+        // Rotate tool: Left/Right step 90°
+        if self.toolbox.selected == Tool::Rotate {
+            match code {
+                KeyCode::Left => {
+                    self.push_undo_snapshot("Rotate");
+                    self.rotate_selection_or_layer(false);
+                    self.unsaved = true;
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Right => {
+                    self.push_undo_snapshot("Rotate");
+                    self.rotate_selection_or_layer(true);
+                    self.unsaved = true;
+                    *dirty = true;
+                    return true;
+                }
+                _ => {}
+            }
+        }
+
+        // Selection operations
+        let selection_active = self.selection.as_ref().is_some_and(|s| s.is_active());
+        if selection_active {
+            match code {
+                KeyCode::Up => {
+                    self.push_undo_snapshot("Move selection");
+                    self.move_selection(0, -1);
+                    self.unsaved = true;
+                    return true;
+                }
+                KeyCode::Down => {
+                    self.push_undo_snapshot("Move selection");
+                    self.move_selection(0, 1);
+                    self.unsaved = true;
+                    return true;
+                }
+                KeyCode::Left => {
+                    self.push_undo_snapshot("Move selection");
+                    self.move_selection(-1, 0);
+                    self.unsaved = true;
+                    return true;
+                }
+                KeyCode::Right => {
+                    self.push_undo_snapshot("Move selection");
+                    self.move_selection(1, 0);
+                    self.unsaved = true;
+                    return true;
+                }
+                KeyCode::Delete | KeyCode::Backspace => {
+                    self.push_undo_snapshot("Delete selection");
+                    if let Some(sel) = self.selection.take() {
+                        let mut buf = self.layer_stack.active_layer().buffer.clone();
+                        sel.delete_from(&mut buf);
+                        *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                        self.recomposite_canvas();
+                        self.unsaved = true;
+                    }
+                    return true;
+                }
+                _ => {}
+            }
+
+            if modifiers.contains(KeyModifiers::CONTROL) {
+                match code {
+                    KeyCode::Char('c') => {
+                        if let Some(ref sel) = self.selection {
+                            self.clipboard = Some(sel.copy_from(&self.canvas.buffer));
+                        }
+                        return true;
+                    }
+                    KeyCode::Char('x') => {
+                        self.push_undo_snapshot("Cut selection");
+                        if let Some(sel) = self.selection.take() {
+                            let mut buf = self.layer_stack.active_layer().buffer.clone();
+                            self.clipboard = Some(sel.cut_from(&mut buf));
+                            *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                            self.recomposite_canvas();
+                            self.unsaved = true;
+                        }
+                        return true;
+                    }
+                    KeyCode::Char('v') => {
+                        self.push_undo_snapshot("Paste");
+                        if let Some(ref clip) = self.clipboard {
+                            let (cx, cy) = self.canvas.cursor();
+                            let mut buf = self.layer_stack.active_layer().buffer.clone();
+                            tools::selection::Selection::paste_into(
+                                &mut buf, clip, cx as i16, cy as i16,
+                            );
+                            *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                            self.recomposite_canvas();
+                            self.unsaved = true;
+                        }
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+        } else if self.toolbox.selected == Tool::Move {
+            // Move tool arrow keys nudge the whole layer
+            match code {
+                KeyCode::Up => {
+                    self.push_undo_snapshot("Move layer");
+                    self.move_layer(0, -1);
+                    self.unsaved = true;
+                    return true;
+                }
+                KeyCode::Down => {
+                    self.push_undo_snapshot("Move layer");
+                    self.move_layer(0, 1);
+                    self.unsaved = true;
+                    return true;
+                }
+                KeyCode::Left => {
+                    self.push_undo_snapshot("Move layer");
+                    self.move_layer(-1, 0);
+                    self.unsaved = true;
+                    return true;
+                }
+                KeyCode::Right => {
+                    self.push_undo_snapshot("Move layer");
+                    self.move_layer(1, 0);
+                    self.unsaved = true;
+                    return true;
+                }
+                _ => {}
+            }
+        }
+
+        // Polygon select: Enter closes polygon, Esc cancels
+        if self.toolbox.selected == Tool::PolygonSelect && !self.selection_polygon_points.is_empty()
+        {
+            match code {
+                KeyCode::Enter => {
+                    let points = std::mem::take(&mut self.selection_polygon_points);
+                    if points.len() >= 3 {
+                        self.selection = Some(tools::selection::Selection::polygon(
+                            &self.canvas.buffer,
+                            &points,
+                        ));
+                    }
+                    return true;
+                }
+                KeyCode::Esc => {
+                    self.selection_polygon_points.clear();
+                    return true;
+                }
+                _ => {}
+            }
+        }
+
+        // Deselect on Esc
+        if self.selection.is_some() && code == KeyCode::Esc {
+            self.selection = None;
+            return true;
+        }
+
+        // Keyboard painting: Space/Enter paints or erases at cursor
+        if matches!(
+            self.toolbox.selected,
+            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Spray
+        ) && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
+            && self.toolbox.selected != Tool::Emitter
+        {
+            let (cx, cy) = self.canvas.cursor();
+            self.push_undo_snapshot("Keyboard paint");
+            if self.toolbox.selected == Tool::Fill {
+                let mut cell = canvas::CanvasCell {
+                    ch: self.brush.ch,
+                    fg: None,
+                    bg: None,
+                    height: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                let mut buf = self.layer_stack.active_layer().buffer.clone();
+                tools::fill::flood_fill(&mut buf, cx as i16, cy as i16, cell);
+                *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.recomposite_canvas();
+            } else if self.toolbox.selected == Tool::Eraser {
+                let shape = self.brush.shape;
+                let size = self.brush.size;
+                let mut buf = self.layer_stack.active_layer().buffer.clone();
+                tools::eraser::erase_stamp(&mut buf, cx as i16, cy as i16, shape, size);
+                *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.recomposite_canvas();
+            } else if self.toolbox.selected == Tool::Spray {
+                let mut cell = canvas::CanvasCell {
+                    ch: self.brush.ch,
+                    fg: None,
+                    bg: None,
+                    height: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                let mut rng = StdRng::seed_from_u64(rand::thread_rng().gen());
+                let size = self.brush.size;
+                let density = self.brush.density;
+                let mut buf = self.layer_stack.active_layer().buffer.clone();
+                tools::spray::spray_stamp(
+                    &mut buf, cx as i16, cy as i16, size, density, cell, &mut rng,
+                );
+                *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.recomposite_canvas();
+            } else {
+                let mut cell = canvas::CanvasCell {
+                    ch: self.brush.ch,
+                    fg: None,
+                    bg: None,
+                    height: None,
+                };
+                self.palette.apply_to_cell(&mut cell);
+                let shape = self.brush.shape;
+                let size = self.brush.size;
+                let mut buf = self.layer_stack.active_layer().buffer.clone();
+                tools::brush::paint_stamp(&mut buf, cx as i16, cy as i16, shape, size, cell);
+                *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                self.recomposite_canvas();
+            }
+            self.unsaved = true;
+            return true;
+        }
+
+        false
+    }
 }
 
 /// Mouse/drag/interaction transient state.
 pub struct InteractionState {
     pub selection_drag_origin: Option<(i16, i16)>,
-    pub selection_polygon_points: Vec<(i16, i16)>,
     pub selection_lasso_points: Vec<(i16, i16)>,
     pub prev_mouse_buf: Option<(i16, i16)>,
     pub mouse_batch_active: bool,
@@ -635,6 +864,139 @@ impl LightingState {
     }
 }
 
+impl AnimationState {
+    fn commit_current_timeline_frame(&mut self, editor: &EditorState) {
+        let cf = self.timeline_state.current_frame;
+        if cf < self.timeline_state.frames.len() {
+            let buffer = editor.layer_stack.composite();
+            let thumbnail = capture_thumbnail(&buffer, 8, 3);
+            let frame = &mut self.timeline_state.frames[cf];
+            frame.layer_state = Some(buffer);
+            frame.thumbnail = thumbnail;
+            frame.has_keyframe = true;
+        }
+    }
+
+    fn load_current_timeline_frame(&mut self, editor: &mut EditorState) {
+        let cf = self.timeline_state.current_frame;
+        if let Some(buffer) = self
+            .timeline_state
+            .frames
+            .get(cf)
+            .and_then(|f| f.layer_state.clone())
+        {
+            editor.load_timeline_frame(&buffer);
+        }
+    }
+
+    pub(crate) fn handle_key(
+        &mut self,
+        code: KeyCode,
+        _modifiers: KeyModifiers,
+        editor: &mut EditorState,
+        dirty: &mut bool,
+    ) -> bool {
+        // Timeline frame navigation (visible only)
+        if self.timeline_visible {
+            match code {
+                KeyCode::Left if self.timeline_state.current_frame > 0 => {
+                    self.commit_current_timeline_frame(editor);
+                    self.timeline_state.current_frame -= 1;
+                    let cf = self.timeline_state.current_frame;
+                    if cf < self.timeline_state.scroll_offset {
+                        self.timeline_state.scroll_offset = cf;
+                    }
+                    self.load_current_timeline_frame(editor);
+                    editor.sync_canvas_to_font_char();
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Right
+                    if self.timeline_state.current_frame + 1 < self.timeline_state.frames.len() =>
+                {
+                    self.commit_current_timeline_frame(editor);
+                    self.timeline_state.current_frame += 1;
+                    let cf = self.timeline_state.current_frame;
+                    let max_vis = self.timeline_state.cached_max_vis_frames;
+                    if cf >= self.timeline_state.scroll_offset + max_vis {
+                        self.timeline_state.scroll_offset =
+                            cf.saturating_sub(max_vis.saturating_sub(1));
+                    }
+                    self.load_current_timeline_frame(editor);
+                    editor.sync_canvas_to_font_char();
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Char('A') => {
+                    let buffer = editor.layer_stack.composite();
+                    let thumbnail = capture_thumbnail(&buffer, 8, 3);
+                    let layer_keyframes = editor
+                        .layer_stack
+                        .layers
+                        .iter()
+                        .map(|_| Some(timeline::LayerKeyframe::default()))
+                        .collect();
+                    let frame = timeline::TimelineFrame {
+                        thumbnail,
+                        has_keyframe: true,
+                        label: format!("F{}", self.timeline_state.frames.len()),
+                        layer_state: Some(buffer),
+                        layer_keyframes,
+                    };
+                    self.timeline_state.sync_layer_names(&editor.layer_stack);
+                    self.timeline_state.add_frame(frame);
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Delete if self.timeline_state.frames.len() > 1 => {
+                    let _ = self
+                        .timeline_state
+                        .remove_frame(self.timeline_state.current_frame);
+                    self.load_current_timeline_frame(editor);
+                    *dirty = true;
+                    return true;
+                }
+                _ => {}
+            }
+        }
+
+        // Emitter bake / toggle keybindings
+        if self.emitter_active {
+            match code {
+                KeyCode::Char('b') => {
+                    let w = editor.canvas.buffer.width();
+                    let h = editor.canvas.buffer.height();
+                    let buf = self.particle_system.bake_to_buffer(w, h);
+                    let indices = editor.layer_stack.add_frozen_frames(vec![buf], "bake");
+                    self.baked_layer_indices.extend(indices);
+                    editor.recomposite_canvas();
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Char('B') => {
+                    let w = editor.canvas.buffer.width();
+                    let h = editor.canvas.buffer.height();
+                    let frames = self.particle_system.bake_frames(10, w, h, 0.1);
+                    let indices = editor.layer_stack.add_frozen_frames(frames, "bake");
+                    self.baked_layer_indices.extend(indices);
+                    editor.recomposite_canvas();
+                    self.show_live_particles = false;
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Char('v') => {
+                    self.show_live_particles = !self.show_live_particles;
+                    *dirty = true;
+                    return true;
+                }
+                _ => {}
+            }
+        }
+
+        false
+    }
+}
+
 /// Dialog/overlay state — file ops, export, undo panel, settings panel, rascii import.
 pub struct DialogState {
     pub file_ops: file_ops::FileOpsDialog,
@@ -798,7 +1160,6 @@ impl TuiApp {
 
             interaction: InteractionState {
                 selection_drag_origin: None,
-                selection_polygon_points: Vec::new(),
                 selection_lasso_points: Vec::new(),
                 prev_mouse_buf: None,
                 mouse_batch_active: false,
@@ -850,6 +1211,7 @@ impl TuiApp {
                     rotate_state: tools::rotate_tool::RotateState::default(),
                     selection_state: tools::selection::SelectionState::default(),
                     line_state: tools::line::LineState::default(),
+                    selection_polygon_points: Vec::new(),
                 };
                 editor.recomposite_canvas();
                 editor
@@ -1002,7 +1364,7 @@ impl TuiApp {
             AppEvent::Toolbox(crate::tui::events::ToolboxEvent::ToolSelected)
                 if self.editor.toolbox.selected != Tool::PolygonSelect =>
             {
-                self.interaction.selection_polygon_points.clear();
+                self.editor.selection_polygon_points.clear();
             }
             AppEvent::Palette(crate::tui::events::PaletteEvent::ColorChanged(color, target)) => {
                 self.editor.palette.selected_color = Some(*color);
@@ -1486,7 +1848,7 @@ impl TuiApp {
             self.editor
                 .canvas
                 .polygon_vertices
-                .clone_from(&self.interaction.selection_polygon_points);
+                .clone_from(&self.editor.selection_polygon_points);
 
             // Text overlays
             if self.editor.toolbox.selected == Tool::Text {
@@ -2175,9 +2537,9 @@ impl TuiApp {
                                 grid_area,
                                 &self.animation.timeline_state,
                             ) {
-                                self.commit_current_timeline_frame();
+                                self.animation.commit_current_timeline_frame(&self.editor);
                                 self.animation.timeline_state.current_frame = idx;
-                                self.load_current_timeline_frame();
+                                self.animation.load_current_timeline_frame(&mut self.editor);
                                 self.editor.sync_canvas_to_font_char();
                                 self.dirty = true;
                                 return;
@@ -2252,7 +2614,7 @@ impl TuiApp {
                 let tools = Tool::all();
                 if idx < tools.len() {
                     self.editor.toolbox.selected = tools[idx];
-                    self.interaction.selection_polygon_points.clear();
+                    self.editor.selection_polygon_points.clear();
                 }
                 return;
             }
@@ -2378,7 +2740,6 @@ impl TuiApp {
                         bx.max(0),
                         by.max(0),
                         &mut self.interaction.selection_drag_origin,
-                        &mut self.interaction.selection_polygon_points,
                         &mut self.interaction.selection_lasso_points,
                     );
                     return;
@@ -3246,290 +3607,21 @@ impl TuiApp {
             }
         }
 
-        // Text tool: text entry mode (before canvas/toolbox, captures all keys).
-        // When entering_text=true, ALL printable chars go to buffer — tool shortcuts suppressed.
-        if self.editor.toolbox.selected == Tool::Text && self.editor.text_tool.entering_text {
-            match code {
-                KeyCode::Enter => {
-                    self.editor.push_undo_snapshot("Commit text");
-                    self.editor.text_tool.commit_block();
+        // Text tool dispatch
+        if self.editor.toolbox.selected == Tool::Text {
+            let cursor = self.editor.canvas.cursor();
+            if let Some(undo_label) = self.editor.text_tool.handle_key(code, modifiers, cursor) {
+                if !undo_label.is_empty() {
+                    self.editor.push_undo_snapshot(undo_label);
                     self.editor.unsaved = true;
-                    return Some(AppEvent::TextCommitted);
                 }
-                KeyCode::Esc => {
-                    self.editor.text_tool.text_buffer.clear();
-                    self.editor.text_tool.entering_text = false;
-                    return None;
-                }
-                KeyCode::Backspace => {
-                    self.editor.text_tool.text_buffer.pop();
-                    return None;
-                }
-                KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
-                    self.editor.text_tool.text_buffer.push(c);
-                    return None;
-                }
-                // Arrow/function keys fall through (canvas cursor movement while typing)
-                _ => {}
+                return None;
             }
         }
 
-        // Text tool: font navigation
-        if self.editor.toolbox.selected == Tool::Text
-            && !self.editor.text_tool.entering_text
-            && self.editor.text_tool.selected_block.is_none()
-        {
-            match code {
-                KeyCode::Up => {
-                    if !self.editor.text_tool.available_fonts.is_empty() {
-                        self.editor.text_tool.font_index =
-                            self.editor.text_tool.font_index.saturating_sub(1);
-                        self.editor.text_tool.load_selected_font();
-                    }
-                    return None;
-                }
-                KeyCode::Down => {
-                    if !self.editor.text_tool.available_fonts.is_empty() {
-                        self.editor.text_tool.font_index = (self.editor.text_tool.font_index + 1)
-                            .min(self.editor.text_tool.available_fonts.len() - 1);
-                        self.editor.text_tool.load_selected_font();
-                    }
-                    return None;
-                }
-                _ => {}
-            }
-        }
-
-        // Text tool: block operations
-        if self.editor.toolbox.selected == Tool::Text
-            && !self.editor.text_tool.entering_text
-            && self.editor.text_tool.selected_block.is_some()
-        {
-            match code {
-                KeyCode::Up => {
-                    self.editor.push_undo_snapshot("Move text block");
-                    self.editor.text_tool.move_selected_block(0, -1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Down => {
-                    self.editor.push_undo_snapshot("Move text block");
-                    self.editor.text_tool.move_selected_block(0, 1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Left => {
-                    self.editor.push_undo_snapshot("Move text block");
-                    self.editor.text_tool.move_selected_block(-1, 0);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Right => {
-                    self.editor.push_undo_snapshot("Move text block");
-                    self.editor.text_tool.move_selected_block(1, 0);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Char('+') | KeyCode::Char('=') => {
-                    self.editor.push_undo_snapshot("Scale text block");
-                    self.editor.text_tool.scale_selected_block(1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Char('-') | KeyCode::Char('_') => {
-                    self.editor.push_undo_snapshot("Scale text block");
-                    self.editor.text_tool.scale_selected_block(-1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Char('r') | KeyCode::Char('R') => {
-                    self.editor.push_undo_snapshot("Rotate text block");
-                    self.editor.text_tool.rotate_selected_block();
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Delete | KeyCode::Backspace => {
-                    self.editor.push_undo_snapshot("Delete text block");
-                    self.editor.text_tool.delete_selected_block();
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Char(' ') | KeyCode::Enter => {
-                    if let Some(idx) = self.editor.text_tool.selected_block {
-                        self.editor.text_tool.re_edit_block(idx);
-                    }
-                    return None;
-                }
-                KeyCode::Esc => {
-                    self.editor.text_tool.selected_block = None;
-                    return None;
-                }
-                _ => {}
-            }
-        }
-
-        // Rotate tool: Left/Right step the selection (or whole layer, if none
-        // is active) 90° at a time. Checked ahead of the generic selection-nudge
-        // block below so Rotate's arrows rotate instead of moving the selection.
-        if self.editor.toolbox.selected == Tool::Rotate {
-            match code {
-                KeyCode::Left => {
-                    self.editor.push_undo_snapshot("Rotate");
-                    self.editor.rotate_selection_or_layer(false);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Right => {
-                    self.editor.push_undo_snapshot("Rotate");
-                    self.editor.rotate_selection_or_layer(true);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                _ => {}
-            }
-        }
-
-        // Selection operations (before canvas cursor movement)
-        let selection_active = self
-            .editor
-            .selection
-            .as_ref()
-            .is_some_and(|s| s.is_active());
-
-        if selection_active {
-            match code {
-                KeyCode::Up => {
-                    self.editor.push_undo_snapshot("Move selection");
-                    self.editor.move_selection(0, -1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Down => {
-                    self.editor.push_undo_snapshot("Move selection");
-                    self.editor.move_selection(0, 1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Left => {
-                    self.editor.push_undo_snapshot("Move selection");
-                    self.editor.move_selection(-1, 0);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Right => {
-                    self.editor.push_undo_snapshot("Move selection");
-                    self.editor.move_selection(1, 0);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Delete | KeyCode::Backspace => {
-                    self.editor.push_undo_snapshot("Delete selection");
-                    if let Some(sel) = self.editor.selection.take() {
-                        let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
-                        sel.delete_from(&mut buf);
-                        *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
-                        self.editor.recomposite_canvas();
-                        self.editor.unsaved = true;
-                    }
-                    return None;
-                }
-                _ => {}
-            }
-
-            if modifiers.contains(KeyModifiers::CONTROL) {
-                match code {
-                    KeyCode::Char('c') => {
-                        if let Some(ref sel) = self.editor.selection {
-                            self.editor.clipboard = Some(sel.copy_from(&self.editor.canvas.buffer));
-                        }
-                        return None;
-                    }
-                    KeyCode::Char('x') => {
-                        self.editor.push_undo_snapshot("Cut selection");
-                        if let Some(sel) = self.editor.selection.take() {
-                            let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
-                            self.editor.clipboard = Some(sel.cut_from(&mut buf));
-                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
-                            self.editor.recomposite_canvas();
-                            self.editor.unsaved = true;
-                        }
-                        return None;
-                    }
-                    KeyCode::Char('v') => {
-                        self.editor.push_undo_snapshot("Paste");
-                        if let Some(ref clip) = self.editor.clipboard {
-                            let (cx, cy) = self.editor.canvas.cursor();
-                            let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
-                            tools::selection::Selection::paste_into(
-                                &mut buf, clip, cx as i16, cy as i16,
-                            );
-                            *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
-                            self.editor.recomposite_canvas();
-                            self.editor.unsaved = true;
-                        }
-                        return None;
-                    }
-                    _ => {}
-                }
-            }
-        } else if self.editor.toolbox.selected == Tool::Move {
-            // No selection: Move tool's arrow keys nudge the whole layer
-            // instead of just a selected region.
-            match code {
-                KeyCode::Up => {
-                    self.editor.push_undo_snapshot("Move layer");
-                    self.editor.move_layer(0, -1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Down => {
-                    self.editor.push_undo_snapshot("Move layer");
-                    self.editor.move_layer(0, 1);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Left => {
-                    self.editor.push_undo_snapshot("Move layer");
-                    self.editor.move_layer(-1, 0);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                KeyCode::Right => {
-                    self.editor.push_undo_snapshot("Move layer");
-                    self.editor.move_layer(1, 0);
-                    self.editor.unsaved = true;
-                    return None;
-                }
-                _ => {}
-            }
-        }
-
-        // Polygon select tool: Enter closes polygon, Esc cancels
-        if self.editor.toolbox.selected == Tool::PolygonSelect
-            && !self.interaction.selection_polygon_points.is_empty()
-        {
-            match code {
-                KeyCode::Enter => {
-                    let points = std::mem::take(&mut self.interaction.selection_polygon_points);
-                    if points.len() >= 3 {
-                        self.editor.selection = Some(tools::selection::Selection::polygon(
-                            &self.editor.canvas.buffer,
-                            &points,
-                        ));
-                    }
-                    return None;
-                }
-                KeyCode::Esc => {
-                    self.interaction.selection_polygon_points.clear();
-                    return None;
-                }
-                _ => {}
-            }
-        }
-
-        // Deselect on Esc
-        if self.editor.selection.is_some() && code == KeyCode::Esc {
-            self.editor.selection = None;
+        // Editor state dispatch (rotate, selection, move tool, polygon select,
+        // deselect, keyboard painting)
+        if self.editor.handle_key(code, modifiers, &mut self.dirty) {
             return None;
         }
 
@@ -3550,73 +3642,12 @@ impl TuiApp {
             }
         }
 
-        // Timeline: left/right navigate frames, A add, Delete remove
-        if self.animation.timeline_visible {
-            match code {
-                KeyCode::Left if self.animation.timeline_state.current_frame > 0 => {
-                    self.commit_current_timeline_frame();
-                    self.animation.timeline_state.current_frame -= 1;
-                    let cf = self.animation.timeline_state.current_frame;
-                    if cf < self.animation.timeline_state.scroll_offset {
-                        self.animation.timeline_state.scroll_offset = cf;
-                    }
-                    self.load_current_timeline_frame();
-                    self.editor.sync_canvas_to_font_char();
-                    self.dirty = true;
-                    return None;
-                }
-                KeyCode::Right
-                    if self.animation.timeline_state.current_frame + 1
-                        < self.animation.timeline_state.frames.len() =>
-                {
-                    self.commit_current_timeline_frame();
-                    self.animation.timeline_state.current_frame += 1;
-                    let cf = self.animation.timeline_state.current_frame;
-                    let max_vis = self.animation.timeline_state.cached_max_vis_frames;
-                    if cf >= self.animation.timeline_state.scroll_offset + max_vis {
-                        self.animation.timeline_state.scroll_offset =
-                            cf.saturating_sub(max_vis.saturating_sub(1));
-                    }
-                    self.load_current_timeline_frame();
-                    self.editor.sync_canvas_to_font_char();
-                    self.dirty = true;
-                    return None;
-                }
-                KeyCode::Char('A') => {
-                    let buffer = self.editor.layer_stack.composite();
-                    let thumbnail = capture_thumbnail(&buffer, 8, 3);
-                    let layer_keyframes = self
-                        .editor
-                        .layer_stack
-                        .layers
-                        .iter()
-                        .map(|_| Some(timeline::LayerKeyframe::default()))
-                        .collect();
-                    let frame = timeline::TimelineFrame {
-                        thumbnail,
-                        has_keyframe: true,
-                        label: format!("F{}", self.animation.timeline_state.frames.len()),
-                        layer_state: Some(buffer),
-                        layer_keyframes,
-                    };
-                    self.animation
-                        .timeline_state
-                        .sync_layer_names(&self.editor.layer_stack);
-                    self.animation.timeline_state.add_frame(frame);
-                    self.dirty = true;
-                    return None;
-                }
-                KeyCode::Delete if self.animation.timeline_state.frames.len() > 1 => {
-                    let _ = self
-                        .animation
-                        .timeline_state
-                        .remove_frame(self.animation.timeline_state.current_frame);
-                    self.load_current_timeline_frame();
-                    self.dirty = true;
-                    return None;
-                }
-                _ => {}
-            }
+        // Animation state dispatch (timeline nav, emitter bake/toggle)
+        if self
+            .animation
+            .handle_key(code, modifiers, &mut self.editor, &mut self.dirty)
+        {
+            return None;
         }
 
         // Lighting mode: key handling
@@ -3675,41 +3706,6 @@ impl TuiApp {
             }
         }
 
-        // Text tool settings (not entering text)
-        if self.editor.toolbox.selected == Tool::Text && !self.editor.text_tool.entering_text {
-            match code {
-                KeyCode::Char('j') | KeyCode::Char('J') => {
-                    self.editor.text_tool.justification = match self.editor.text_tool.justification
-                    {
-                        crate::render::Justification::Left => crate::render::Justification::Center,
-                        crate::render::Justification::Center => crate::render::Justification::Right,
-                        crate::render::Justification::Right => crate::render::Justification::Left,
-                    };
-                    return None;
-                }
-                KeyCode::Char('+') | KeyCode::Char('=') => {
-                    if self.editor.text_tool.scale < 4 {
-                        self.editor.text_tool.scale += 1;
-                    }
-                    return None;
-                }
-                KeyCode::Char('-') | KeyCode::Char('_') => {
-                    if self.editor.text_tool.scale > 1 {
-                        self.editor.text_tool.scale -= 1;
-                    }
-                    return None;
-                }
-                KeyCode::Char(' ') | KeyCode::Enter => {
-                    let (cx, cy) = self.editor.canvas.cursor();
-                    self.editor.text_tool.cursor_position = (cx as i16, cy as i16);
-                    self.editor.text_tool.entering_text = true;
-                    self.editor.text_tool.text_buffer.clear();
-                    return None;
-                }
-                _ => {}
-            }
-        }
-
         // Emitter config panel: dispatch when panel is open
         if self.animation.emitter_panel.open {
             let handled = self
@@ -3721,39 +3717,6 @@ impl TuiApp {
                 return None;
             }
         }
-        // Emitter bake / toggle keybindings (active even when panel closed)
-        if self.animation.emitter_active {
-            match code {
-                KeyCode::Char('b') => {
-                    let w = self.editor.canvas.buffer.width();
-                    let h = self.editor.canvas.buffer.height();
-                    let buf = self.animation.particle_system.bake_to_buffer(w, h);
-                    let indices = self.editor.layer_stack.add_frozen_frames(vec![buf], "bake");
-                    self.animation.baked_layer_indices.extend(indices);
-                    self.editor.recomposite_canvas();
-                    self.dirty = true;
-                    return None;
-                }
-                KeyCode::Char('B') => {
-                    let w = self.editor.canvas.buffer.width();
-                    let h = self.editor.canvas.buffer.height();
-                    let frames = self.animation.particle_system.bake_frames(10, w, h, 0.1);
-                    let indices = self.editor.layer_stack.add_frozen_frames(frames, "bake");
-                    self.animation.baked_layer_indices.extend(indices);
-                    self.editor.recomposite_canvas();
-                    self.animation.show_live_particles = false;
-                    self.dirty = true;
-                    return None;
-                }
-                KeyCode::Char('v') => {
-                    self.animation.show_live_particles = !self.animation.show_live_particles;
-                    self.dirty = true;
-                    return None;
-                }
-                _ => {}
-            }
-        }
-
         // Settings toggle
         if code == KeyCode::Char('S') && !modifiers.contains(KeyModifiers::CONTROL) {
             self.dialogs.settings.canvas_width = self.editor.canvas.buffer.width() as u16;
@@ -3855,7 +3818,7 @@ impl TuiApp {
             };
             if let Some(action) = handled {
                 if self.editor.toolbox.selected != Tool::PolygonSelect {
-                    self.interaction.selection_polygon_points.clear();
+                    self.editor.selection_polygon_points.clear();
                 }
                 return Some(action);
             }
@@ -4245,39 +4208,6 @@ impl TuiApp {
                     let _ = tx.send(AsyncResult::OpenComplete(result));
                 });
             }
-        }
-    }
-
-    /// Write the current live editor canvas into the currently-selected
-    /// timeline frame's `layer_state`, recapture thumbnail, and mark as
-    /// keyframe. Call BEFORE changing `current_frame` so edits don't get
-    /// lost on frame switch.
-    fn commit_current_timeline_frame(&mut self) {
-        let cf = self.animation.timeline_state.current_frame;
-        if cf < self.animation.timeline_state.frames.len() {
-            let buffer = self.editor.layer_stack.composite();
-            let thumbnail = capture_thumbnail(&buffer, 8, 3);
-            let frame = &mut self.animation.timeline_state.frames[cf];
-            frame.layer_state = Some(buffer);
-            frame.thumbnail = thumbnail;
-            frame.has_keyframe = true;
-        }
-    }
-
-    /// Load the currently-selected timeline frame's captured raster back
-    /// into the canvas, if it has one. Call after changing
-    /// `animation.timeline_state.current_frame` — moving the playhead alone
-    /// does not touch the canvas.
-    fn load_current_timeline_frame(&mut self) {
-        let cf = self.animation.timeline_state.current_frame;
-        if let Some(buffer) = self
-            .animation
-            .timeline_state
-            .frames
-            .get(cf)
-            .and_then(|f| f.layer_state.clone())
-        {
-            self.editor.load_timeline_frame(&buffer);
         }
     }
 
@@ -4817,7 +4747,7 @@ impl TuiApp {
     fn stop_inline_playback(&mut self) {
         if let Some(player) = self.animation.inline_player.as_ref() {
             self.animation.timeline_state.current_frame = player.current_frame();
-            self.load_current_timeline_frame();
+            self.animation.load_current_timeline_frame(&mut self.editor);
         }
         self.animation.inline_player = None;
         self.dirty = true;
@@ -4997,7 +4927,7 @@ impl TuiApp {
             menu::MenuAction::ToolsSelect(tool) => {
                 self.editor.toolbox.selected = tool;
                 if tool != toolbox::Tool::PolygonSelect {
-                    self.interaction.selection_polygon_points.clear();
+                    self.editor.selection_polygon_points.clear();
                 }
                 self.menu_bar_state.reset();
             }
@@ -5248,6 +5178,7 @@ mod editor_state_tests {
             rotate_state: tools::rotate_tool::RotateState::default(),
             selection_state: tools::selection::SelectionState::default(),
             line_state: tools::line::LineState::default(),
+            selection_polygon_points: Vec::new(),
         }
     }
 

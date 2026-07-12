@@ -255,7 +255,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 > `mod.rs` is under ~1500 LOC and state flows through grouped sub-structs
 > rather than a flat ~80-field `TuiApp`.
 
-- [ ] `7.3.1` Extract `handle_key_event` mode blocks into per-mode `handle_key` methods
+- [x] `7.3.1` Extract `handle_key_event` mode blocks into per-mode `handle_key` methods
   - **Goal:** `handle_key_event` is one giant dispatch with mode-specific
     blocks for text tool (`mod.rs:3096-3187`), rotate (`:3192-3208`),
     selection move (`:3219-3247`), move tool (`:3297-3323`), timeline frame

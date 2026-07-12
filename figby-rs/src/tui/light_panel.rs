@@ -10,11 +10,19 @@ use ratatui::{
 #[derive(Clone)]
 pub struct LightPanel {
     pub selected_index: usize,
+    pub show_help: bool,
 }
 
 impl LightPanel {
     pub fn new() -> Self {
-        Self { selected_index: 0 }
+        Self {
+            selected_index: 0,
+            show_help: false,
+        }
+    }
+
+    pub fn set_show_help(&mut self, v: bool) {
+        self.show_help = v;
     }
 
     pub fn selected_index(&self) -> usize {
@@ -108,7 +116,7 @@ impl LightPanel {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         frame: &mut Frame<'_>,
         area: Rect,
         scene: &Option<Scene>,
@@ -126,7 +134,26 @@ impl LightPanel {
             None => return,
         };
 
-        let lines = Self::build_lines(scene, self.selected_index, theme);
+        let mut lines = Self::build_lines(scene, self.selected_index, theme);
+
+        if self.show_help {
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::styled(
+                " Keys: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::raw(" Esc=exit")));
+            lines.push(Line::from(Span::raw(" ↑/↓=select")));
+            lines.push(Line::from(Span::raw(" ←/→=move")));
+            lines.push(Line::from(Span::raw(" Sh+↑↓=v-move")));
+            lines.push(Line::from(Span::raw(" +/-=intensity")));
+            lines.push(Line::from(Span::raw(" A=ambient")));
+            lines.push(Line::from(Span::raw(" D=directional")));
+            lines.push(Line::from(Span::raw(" P=point")));
+            lines.push(Line::from(Span::raw(" Del=remove")));
+            self.show_help = false;
+        }
+
         frame.render_widget(Paragraph::new(lines), inner);
     }
 }

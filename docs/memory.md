@@ -2782,3 +2782,17 @@ Key changes:
 - **Tests relocated** by what they access: editor/default-panel tests → `app_state.rs`; playback/sidebar tests → `dispatch.rs`; rotate-drag tests stay in `mod.rs`.
 - **LOC**: mod.rs 5693 → 774 (target ≤1500). Banner diff vs `figlet` byte-identical.
 - **Files touched**: `figby-rs/src/tui/{mod,app_state,event_loop,dispatch}.rs`, `AGENTS.md`, `docs/todo-v7.md`, `CHANGELOG.md`, `figby-rs/Cargo.toml`.
+
+### 7.4.1 — Lighting help overlay + keybinds
+
+- **keymap.rs**: Added `Scope::Lighting` variant. Migrated lighting KEYMAP entries from `Scope::Global` to `Scope::Lighting`. Added missing `Esc` (exit) and `Shift+↑/↓` (vertical move) entries.
+- **light_panel.rs**: Added `show_help: bool` field + one-shot keybinding help block in `render()`. Shows compact listing: Esc=exit, ↑/↓=select, ←/→=move, Sh+↑↓=v-move, +/-=intensity, A/D/P=add, Del=remove.
+- **dispatch.rs**: Sets `panel.show_help = true` on G-press entry into lighting mode.
+- **Files touched**: `figby-rs/src/tui/{keymap,light_panel,dispatch}.rs`.
+
+### 7.4.2 — Wire FIGfont density heightmap
+
+- **text.rs**: Changed `render_text_to_buffer()` to set `height: Some(255)` on non-space FIGfont cells instead of `height: None`. This gives the heightfield non-zero data where text is placed, making normal maps non-flat and lighting visually reactive.
+- **lighting.rs**: Added `compute_normal_map_non_empty_glyph` test asserting normals at edges of a raised block tilt away from the block.
+- **lighting-design.md**: Updated status from "Deferred to v4.x" to "Partially Implemented (FIGfont density path, v7.4)".
+- **Files touched**: `figby-rs/src/tui/tools/text.rs`, `figby-rs/src/tui/lighting.rs`, `docs/lighting-design.md`.

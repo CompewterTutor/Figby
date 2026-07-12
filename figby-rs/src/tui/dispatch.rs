@@ -1511,6 +1511,7 @@ impl TuiApp {
                 self.rebuild_lighting_from_palette();
             }
             self.lighting.panel.selected_index = 0;
+            self.lighting.panel.show_help = true;
             self.frame.dirty = true;
             return None;
         }

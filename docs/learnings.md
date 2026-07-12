@@ -1,5 +1,11 @@
 # Figby — Learnings
 
+## 7.4.2 — FIGfont density heightmap
+
+- The simplest heightmap source for FIGfont text is binary: non-space cells get `height=255` (max), spaces get `None` (0). The Sobel filter in `compute_normal_map_figfont` naturally produces smooth gradient normals at character-background boundaries from this binary input.
+- When debugging Sobel normal direction: gradient `gx > 0` (height increases rightward) produces `nx < 0` (normal tilts left). The normal points away from the gradient, which is physically correct for bump mapping.
+- The render pipeline's `heightfield build` at `components/canvas.rs:48-58` reads `CanvasCell.height` and scales to `[0.0, 1.0]`. Setting `height: Some(255)` on text cells gives `1.0` → maximum elevation.
+
 ## 7.3.3 — Group remaining TuiApp fields into sub-structs
 
 - Python regex mass-replacements on 5 files worked well for mechanical field renames,

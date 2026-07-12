@@ -1,5 +1,22 @@
 # Changelog
 
+## [6.0.22] - 2026-07-11
+
+### Added
+- Lighting help overlay + `Scope::Lighting` keybind section in keymap. One-shot
+  keybinding hint shown on entering lighting mode (`light_panel.rs`).
+- FIGfont density heightmap: non-space text cells now set `height: Some(255)` so
+  the lighting engine receives non-flat normal maps. Lighting mode now produces
+  visible shading on text canvases. Closes task 7.4.
+- New test `compute_normal_map_non_empty_glyph` asserting Sobel normals tilt
+  correctly at raised-block edges.
+
+### Changed
+- **Priority swap:** lighting tasks promoted to 7.4 (was 7.5), particle system
+  demoted to 7.5 (was 7.4) in `docs/todo-v7.md`.
+- `lighting-design.md` status updated from "Deferred to v4.x" to "Partially
+  Implemented (FIGfont density path, v7.4)".
+
 ## [6.0.21] - 2026-07-11
 
 ### Changed

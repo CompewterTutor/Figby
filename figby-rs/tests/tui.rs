@@ -449,7 +449,7 @@ fn test_brush_default_shape() {
 fn test_brush_default_size() {
     use figby::tui::BrushState;
     let brush = BrushState::new();
-    assert_eq!(brush.size, 3);
+    assert_eq!(brush.size, 1);
 }
 
 #[test]
@@ -474,13 +474,13 @@ fn test_brush_size_up_down_key() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert_eq!(app.editor.brush.size, 3);
+    assert_eq!(app.editor.brush.size, 1);
 
     app.handle_key_event(KeyCode::Char(']'));
-    assert_eq!(app.editor.brush.size, 4);
+    assert_eq!(app.editor.brush.size, 2);
 
     app.handle_key_event(KeyCode::Char('['));
-    assert_eq!(app.editor.brush.size, 3);
+    assert_eq!(app.editor.brush.size, 1);
 }
 
 #[test]
@@ -1737,6 +1737,11 @@ fn test_spray_tool_keyboard_paint() {
     app.handle_key_event(KeyCode::Char('a'));
     assert_eq!(app.editor.toolbox.selected, Tool::Spray);
 
+    // Use a brush size wide enough for the spray radius to cover more than
+    // a single cell (default brush size is now 1, which would make this
+    // test's radius 0 and flaky against the tool's stochastic density).
+    app.editor.brush.size = 5;
+
     // Move cursor to (5, 5)
     app.editor.canvas.set_cursor(5, 5);
 
@@ -2860,17 +2865,17 @@ fn test_welcome_screen_font_and_image_import_keys_do_not_collide() {
 }
 
 #[test]
-fn test_enter_starts_playback_even_with_layers_panel_open() {
+fn test_space_starts_playback_even_with_layers_panel_open() {
     use crossterm::event::KeyCode;
     use figby::tui::side_panel::TabId;
     use figby::tui::timeline::TimelineFrame;
     use figby::tui::TuiApp;
 
     // The side panel now opens by default on wide terminals, defaulting to
-    // the Layers tab — whose own Enter binding (toggle visibility)
-    // previously shadowed the "Enter starts timeline playback" binding
+    // the Layers tab — whose own Space/Enter binding (toggle visibility)
+    // previously shadowed the "Space starts timeline playback" binding
     // entirely, since the Layers-panel key dispatch was checked earlier in
-    // handle_key_event. Enter must start playback, not silently toggle the
+    // handle_key_event. Space must start playback, not silently toggle the
     // active layer's visibility, whenever the side panel happens to be
     // open on the Layers tab.
     let mut app = TuiApp::new();
@@ -2893,15 +2898,15 @@ fn test_enter_starts_playback_even_with_layers_panel_open() {
     });
     assert!(app.editor.layer_stack.layers[0].visible);
 
-    app.handle_key_event(KeyCode::Enter);
+    app.handle_key_event(KeyCode::Char(' '));
 
     assert!(
         app.animation.inline_player.is_some(),
-        "Enter should start in-canvas playback even when the Layers panel is focused"
+        "Space should start in-canvas playback even when the Layers panel is focused"
     );
     assert!(
         app.editor.layer_stack.layers[0].visible,
-        "Enter must not fall through to the Layers panel's toggle-visibility binding"
+        "Space must not fall through to the Layers panel's toggle-visibility binding"
     );
 }
 

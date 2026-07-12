@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.0.27] - 2026-07-12
+
+### Changed
+- Default brush size is now 1 (was 3) — matches user expectation for a
+  precision starting point. Part Twah 8.0.1.
+- Playback now starts on Space instead of Enter, matching every other
+  animation app; Enter remains the keyboard-paint key for Brush/Eraser/
+  Line/Fill/Spray. Space still wins over the Layers panel's own binding
+  and over painting whenever the timeline has frames, mirroring Enter's
+  old priority exactly. Part Twah 8.0.2.
+
 ## [6.0.26] - 2026-07-12
 
 ### Changed

@@ -18,14 +18,14 @@ checklist) — don't batch multiple tasks into one unverified pass.
 
 ## Phase 8.0 — Quick, independent fixes
 
-- [ ] `8.0.1` Default brush size → 1 (manual-note #4)
+- [x] `8.0.1` Default brush size → 1 (manual-note #4)
   - **Touches:** `figby-rs/src/tui/brush.rs` — `BrushState::new()` (`:89`)
     `size: 3` → `size: 1`; update `test_brush_default_size` (`:385-386`) to
     expect `1`. `MIN_SIZE = 1` already permits this; leave the config
     override path (`app_state.rs:1061-1073`) alone.
   - **Difficulty:** Low
 
-- [ ] `8.0.2` Space starts/stops playback instead of Enter (manual-note #2)
+- [x] `8.0.2` Space starts/stops playback instead of Enter (manual-note #2)
   - **Goal:** `tui/dispatch.rs:1424` triggers in-canvas playback on
     `KeyCode::Enter`; Space is already bound to "paint" for Brush/Eraser/
     Line/Fill/Spray at `dispatch.rs:~1747` and `app_state.rs:549`, so a naive

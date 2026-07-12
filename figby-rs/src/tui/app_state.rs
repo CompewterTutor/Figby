@@ -543,11 +543,8 @@ impl EditorState {
         }
 
         // Keyboard painting: Space/Enter paints or erases at cursor
-        if matches!(
-            self.toolbox.selected,
-            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Spray
-        ) && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
-            && self.toolbox.selected != Tool::Emitter
+        if Tool::is_paint_tool(self.toolbox.selected)
+            && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
         {
             let (cx, cy) = self.canvas.cursor();
             self.push_undo_snapshot("Keyboard paint");

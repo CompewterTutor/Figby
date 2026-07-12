@@ -239,10 +239,6 @@ impl AnimationPlayer {
                 self.pause();
                 true
             }
-            KeyCode::Enter => {
-                self.play();
-                true
-            }
             _ => false,
         }
     }
@@ -1049,13 +1045,14 @@ mod tests {
     }
 
     #[test]
-    fn test_player_handle_key_enter() {
+    fn test_player_handle_key_enter_not_consumed() {
         let frames = make_test_frames(10, 3, 2);
         let player = AnimationPlayer::new(frames, 10);
         assert!(!player.is_playing());
 
-        player.handle_key(KeyCode::Enter);
-        assert!(player.is_playing());
+        let consumed = player.handle_key(KeyCode::Enter);
+        assert!(!consumed, "Enter should no longer start playback");
+        assert!(!player.is_playing());
     }
 
     #[test]

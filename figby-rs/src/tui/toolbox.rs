@@ -107,6 +107,15 @@ impl Tool {
         }
     }
 
+    /// Tools that paint/erase directly on Space/Enter from the keyboard
+    /// (as opposed to navigation, selection, or modal tools).
+    pub fn is_paint_tool(tool: Tool) -> bool {
+        matches!(
+            tool,
+            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Spray
+        )
+    }
+
     pub fn all() -> &'static [Tool] {
         &[
             Tool::Brush,

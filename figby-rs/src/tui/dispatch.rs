@@ -1414,14 +1414,16 @@ impl TuiApp {
             return None;
         }
 
-        // Timeline: Enter to play animation from current frame, in place in
+        // Timeline: Space to play animation from current frame, in place in
         // the canvas (the rest of the editor UI stays visible around it).
         // Checked here — after every modal dialog/overlay above but before
-        // the Layers panel dispatch below — so starting playback always
-        // wins over the Layers panel's own Enter binding (toggle
-        // visibility) when the side panel happens to be open on the
-        // Layers tab, which is now the default on wide terminals.
-        if code == KeyCode::Enter && !self.animation.timeline_state.frames.is_empty() {
+        // the Layers panel dispatch and the keyboard-paint block below — so
+        // starting playback always wins over both the Layers panel's own
+        // Space/Enter binding (toggle visibility) and keyboard-painting
+        // tools, exactly mirroring Enter's old priority. Keyboard paint
+        // still works via Enter (see the paint block below), which is no
+        // longer claimed by playback.
+        if code == KeyCode::Char(' ') && !self.animation.timeline_state.frames.is_empty() {
             self.start_inline_playback_from_timeline();
             return None;
         }
@@ -1744,12 +1746,8 @@ impl TuiApp {
         }
 
         // Keyboard painting: Space/Enter paints or erases at cursor
-        if matches!(
-            self.editor.toolbox.selected,
-            Tool::Brush | Tool::Eraser | Tool::Line | Tool::Fill | Tool::Spray
-        ) && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
-            // Emitter tool excluded from keyboard paint
-            && self.editor.toolbox.selected != Tool::Emitter
+        if Tool::is_paint_tool(self.editor.toolbox.selected)
+            && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
         {
             let (cx, cy) = self.editor.canvas.cursor();
             self.editor.push_undo_snapshot("Keyboard paint");

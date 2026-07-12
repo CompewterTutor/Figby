@@ -86,7 +86,7 @@ impl BrushState {
     pub fn new() -> Self {
         Self {
             shape: BrushShape::Square,
-            size: 3,
+            size: 1,
             ch: '\u{2588}',
             density: 35,
             borders: Borders::ALL,
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn test_brush_default_size() {
         let brush = BrushState::new();
-        assert_eq!(brush.size, 3);
+        assert_eq!(brush.size, 1);
     }
 
     #[test]
@@ -412,11 +412,11 @@ mod tests {
     fn test_brush_size_up_down() {
         let mut brush = BrushState::new();
         brush.size_down();
+        assert_eq!(brush.size, 1, "size_down should clamp at MIN_SIZE");
+        brush.size_up();
         assert_eq!(brush.size, 2);
         brush.size_up();
         assert_eq!(brush.size, 3);
-        brush.size_up();
-        assert_eq!(brush.size, 4);
     }
 
     #[test]

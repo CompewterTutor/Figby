@@ -40,6 +40,7 @@ pub mod palette;
 pub mod palette_editor;
 pub mod particles;
 pub mod player;
+pub mod props_panel;
 pub mod render_mode;
 pub mod side_panel;
 pub mod status;
@@ -60,6 +61,7 @@ pub use light_panel::LightPanel;
 pub use menu::{MenuBar, MenuBarState};
 pub use palette::Palette;
 pub use player::AnimationPlayer;
+pub use props_panel::{PropAction, PropsPanel, PropsPanelMode};
 pub use render_mode::RenderMode;
 pub use side_panel::{SidePanel, TabId};
 pub use status::CanvasSettings;
@@ -688,6 +690,7 @@ pub struct TuiApp {
     pub dialogs: DialogState,
     pub animation: AnimationState,
     pub palette_editor: palette_editor::PaletteEditor,
+    pub props_panel: PropsPanel,
     pub lighting: LightingState,
     pub palette_rgb_to_swatch: HashMap<(u8, u8, u8), usize>,
     pub prev_mode: AppMode,
@@ -869,6 +872,7 @@ impl TuiApp {
                 transport_rects: Vec::new(),
             },
             palette_editor: palette_editor::PaletteEditor::new(),
+            props_panel: PropsPanel::new(),
             lighting: LightingState {
                 scene: None,
                 max_shadow_distance: 50,
@@ -1223,6 +1227,7 @@ impl TuiApp {
                 };
                 (!name.is_empty()).then_some(name)
             });
+            self.props_panel.clear_rects();
             self.side_panel.render(
                 frame,
                 rp,
@@ -1240,6 +1245,7 @@ impl TuiApp {
                 self.editor.canvas.zoom_level(),
                 self.lighting.scene.as_ref(),
                 Some(&self.lighting.panel),
+                &mut self.props_panel.rects,
             );
         }
 
@@ -1812,6 +1818,75 @@ impl TuiApp {
         }
     }
 
+    fn dispatch_props_action(&mut self, action: PropAction) {
+        match action {
+            PropAction::SizeUp => self.editor.brush.size_up(),
+            PropAction::SizeDown => self.editor.brush.size_down(),
+            PropAction::DensityUp => self.editor.brush.density_up(),
+            PropAction::DensityDown => self.editor.brush.density_down(),
+            PropAction::CycleShape => self.editor.brush.cycle_shape(),
+            PropAction::CycleSubMode => {
+                self.editor
+                    .brush
+                    .cycle_sub_mode(self.editor.palette.has_multi_select());
+                if self.editor.brush.sub_mode == brush::BrushSubMode::Normal {
+                    self.animation.marker_accum.clear();
+                }
+            }
+            PropAction::CycleJust => {
+                use crate::render::Justification;
+                self.editor.text_tool.justification = match self.editor.text_tool.justification {
+                    Justification::Left => Justification::Center,
+                    Justification::Center => Justification::Right,
+                    Justification::Right => Justification::Left,
+                };
+            }
+            PropAction::ScaleUp => {
+                if self.editor.text_tool.scale < 10 {
+                    self.editor.text_tool.scale += 1;
+                }
+            }
+            PropAction::ScaleDown => {
+                if self.editor.text_tool.scale > 1 {
+                    self.editor.text_tool.scale -= 1;
+                }
+            }
+            PropAction::FontNext => {
+                let count = self.editor.text_tool.available_fonts.len();
+                if count > 0 {
+                    self.editor.text_tool.font_index =
+                        (self.editor.text_tool.font_index + 1) % count;
+                    self.editor.text_tool.load_selected_font();
+                }
+            }
+            PropAction::FontPrev => {
+                let count = self.editor.text_tool.available_fonts.len();
+                if count > 0 {
+                    self.editor.text_tool.font_index =
+                        (self.editor.text_tool.font_index + count - 1) % count;
+                    self.editor.text_tool.load_selected_font();
+                }
+            }
+            PropAction::BeginEditChar => {
+                self.props_panel.start_char_edit();
+            }
+            PropAction::BeginEditField => {
+                self.props_panel.start_char_edit();
+            }
+            PropAction::CommitChar(ch) => {
+                self.editor.brush.ch = ch;
+            }
+            PropAction::CancelEdit => {}
+            PropAction::FillThresholdUp => {
+                self.editor.fill_threshold = self.editor.fill_threshold.saturating_add(5);
+            }
+            PropAction::FillThresholdDown => {
+                self.editor.fill_threshold = self.editor.fill_threshold.saturating_sub(5);
+            }
+        }
+        self.dirty = true;
+    }
+
     fn handle_mouse_event(&mut self, mouse: MouseEvent) {
         // Quit-confirm dialog: intercept all mouse events
         if self.quit_confirm_dialog {
@@ -1972,6 +2047,25 @@ impl TuiApp {
                 self.editor.unsaved = true;
                 self.dirty = true;
                 return;
+            }
+        }
+
+        // Props tab: click on widget rects
+        if self.side_panel.open && mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+            if self.side_panel.active_tab == TabId::Props {
+                if let Some(action) = self.props_panel.handle_click(mouse.column, mouse.row) {
+                    self.dispatch_props_action(action);
+                    self.dirty = true;
+                    return;
+                }
+            }
+            // Text tab: click on widget rects
+            if self.side_panel.active_tab == TabId::Text {
+                if let Some(action) = self.props_panel.handle_click(mouse.column, mouse.row) {
+                    self.dispatch_props_action(action);
+                    self.dirty = true;
+                    return;
+                }
             }
         }
 
@@ -3618,6 +3712,15 @@ impl TuiApp {
                 }
             }
             self.dirty = true;
+            return None;
+        }
+
+        // Props panel typed-entry mode intercept
+        if self.props_panel.mode != PropsPanelMode::Idle {
+            if let Some(action) = self.props_panel.handle_key(code) {
+                self.dispatch_props_action(action);
+                self.dirty = true;
+            }
             return None;
         }
 

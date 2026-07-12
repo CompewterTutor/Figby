@@ -1529,3 +1529,21 @@ Three bugs found in phase merge review:
   frame after stop. Fix: sync `current_frame` from player to timeline state on
   each tick and on stop/dismiss. The `playing` field on `TimelineState` was
   already dead code (nothing read it).
+
+### Splitting one giant `impl TuiApp` across files (7.3.4)
+
+- Rust lets one type have multiple `impl` blocks in different modules; each
+  submodule does `use super::TuiApp; impl TuiApp { ... }`. BUT a private
+  method defined in module A is NOT callable from module B's `impl` block —
+  inherent-method visibility is module-scoped. Bump every cross-module
+  method to `pub(crate)`. Libuild will flag them; iterate.
+- Slice boundaries matter: a doc-comment (`///`) belongs to the *next* item.
+  When extracting method N's lines as `[sigN, sigN+1-1]`, the line
+  `sigN+1-1` may be `///` doc of N+1 (orphan → `E0584`). Bound slices by
+  the line *before* the next item's doc start, not the line before its sig.
+- `use super::*` glob imports don't trigger `unused_imports` warnings, so
+  submodules can glob parent re-exports safely. Explicit `use` of external
+  crate names DOES warn — only import names each file actually uses.
+- A private `use` alias in a parent is visible to descendant modules but
+  `glob`-importing it still leaves the parent's own `use` flagged as
+  unused; move such imports into the child test mod that needs them.

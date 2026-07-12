@@ -1,5 +1,17 @@
 # Changelog
 
+## [6.0.21] - 2026-07-11
+
+### Changed
+- Split `tui/mod.rs` (5693 LOC) into three topical submodules:
+  `app_state.rs` (struct/enum defs + sub-struct impls + `TuiApp::new`),
+  `event_loop.rs` (`run`/`handle_event`/tick/async completion), and
+  `dispatch.rs` (key/mouse dispatch + all `perform_*`/`start_*` action
+  handlers + moved tests). `mod.rs` shrank to 774 LOC (re-exports + render
+  pipeline + shared helpers) — under the 1500-LOC target of task 7.3.4.
+  No behaviour change; cross-module callers gained `pub(crate)` visibility
+  where needed. Banner output byte-identical to system `figlet`.
+
 ## [6.0.20] - 2026-07-11
 
 ### Fixed

@@ -303,7 +303,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     `cargo test` green. No behaviour change.
   - **Difficulty:** Medium
 
-- [ ] `7.3.4` Split `mod.rs` into topical submodules
+- [x] `7.3.4` Split `mod.rs` into topical submodules
   - **Goal:** After 7.3.1 / 7.3.2 / 7.3.3, `mod.rs` should be small enough
     to keep only the top-level `TuiApp` definition, `new`, `run` (event
     loop), and the high-level dispatch. Move the rest into topical files:

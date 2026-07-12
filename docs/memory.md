@@ -2773,3 +2773,12 @@ Key changes:
   `render_overlays`.
 - **Net reduction**: ~37 LOC removed from `render_canvas_area`.
 - **Files touched**: `figby-rs/src/tui/mod.rs` only.
+
+### 7.3.4 — Split `mod.rs` into topical submodules
+
+- **New files**: `tui/app_state.rs` (struct/enum defs + EditorState/AnimationState/LightingState impls + `TuiApp::new`/`Default`/`AsyncResult` + editor/default-side-panel tests), `tui/event_loop.rs` (`run`/`handle_event`/`process_event`/`check_async_completion`/`trigger_quit`), `tui/dispatch.rs` (key/mouse dispatch + every `perform_*`/`start_*` action handler + playback/sidebar tests).
+- **`mod.rs` keeps**: `pub mod` decls + `pub use app_state::*` re-exports + `impl TuiApp { render / render_canvas_area / mode_name_string }` + 4 shared free helpers (`centered_overlay`, `rotate_drag_steps`, `capture_thumbnail`, `format_clock`) + rotate-drag tests.
+- **Visibility**: cross-module inherent methods bumped to `pub(crate)` (e.g. `check_async_completion`, `trigger_quit`, `process_event`, `handle_mouse_event`, `handle_paste_event`, `perform_save/open/export`, `handle_menu_action`, `default_side_panel_open`, `EditorState::{compute_canvas_rect,screen_to_buffer,sync_canvas_to_font_char,sync_font_char_to_canvas,sync_image_to_canvas,handle_selection_down/drag/up}`, `LightingState::handle_key`, `AnimationState::{commit_current_timeline_frame,load_current_timeline_frame}`).
+- **Tests relocated** by what they access: editor/default-panel tests → `app_state.rs`; playback/sidebar tests → `dispatch.rs`; rotate-drag tests stay in `mod.rs`.
+- **LOC**: mod.rs 5693 → 774 (target ≤1500). Banner diff vs `figlet` byte-identical.
+- **Files touched**: `figby-rs/src/tui/{mod,app_state,event_loop,dispatch}.rs`, `AGENTS.md`, `docs/todo-v7.md`, `CHANGELOG.md`, `figby-rs/Cargo.toml`.

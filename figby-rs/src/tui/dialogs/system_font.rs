@@ -10,10 +10,32 @@ use crate::font_gen::{self, FontFamilyInfo};
 
 const DEFAULT_SIZE: &str = "12";
 
+/// Charset presets offered by the TUI creation dialogs, matching the names
+/// `font_gen::resolve_charset` understands (the CLI's `--create-font-charset`
+/// accepts the same names, plus an arbitrary custom comma-separated list —
+/// that free-text fallback isn't exposed here, only the named presets).
+pub const CHARSET_NAMES: &[&str] = &[
+    "default",
+    "slight",
+    "smooth",
+    "block",
+    "blocks",
+    "box",
+    "braille",
+    "ogham",
+    "dithered",
+    "geometric",
+    "deluxe",
+    "full",
+];
+
+const DEFAULT_CHARSET_INDEX: usize = 2; // "smooth" — matches the prior hardcoded default
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
     List,
     Size,
+    Charset,
 }
 
 pub struct SystemFontPickerDialog {
@@ -22,11 +44,13 @@ pub struct SystemFontPickerDialog {
     pub filter: String,
     pub selected: usize,
     pub size_buffer: String,
+    pub charset_index: usize,
     pub selected_field: Field,
     pub error_message: String,
     pub confirmed: bool,
     pub result_family: String,
     pub result_size: f32,
+    pub result_charset: String,
     pub theme: Theme,
 }
 
@@ -38,11 +62,13 @@ impl SystemFontPickerDialog {
             filter: String::new(),
             selected: 0,
             size_buffer: DEFAULT_SIZE.to_string(),
+            charset_index: DEFAULT_CHARSET_INDEX,
             selected_field: Field::List,
             error_message: String::new(),
             confirmed: false,
             result_family: String::new(),
             result_size: 12.0,
+            result_charset: CHARSET_NAMES[DEFAULT_CHARSET_INDEX].to_string(),
             theme: Theme::default(),
         }
     }
@@ -52,6 +78,7 @@ impl SystemFontPickerDialog {
         self.filter.clear();
         self.selected = 0;
         self.size_buffer = DEFAULT_SIZE.to_string();
+        self.charset_index = DEFAULT_CHARSET_INDEX;
         self.selected_field = Field::List;
         self.error_message.clear();
         self.confirmed = false;
@@ -65,6 +92,15 @@ impl SystemFontPickerDialog {
                 self.error_message = format!("Could not list system fonts: {e}");
             }
         }
+    }
+
+    pub fn cycle_charset(&mut self, forward: bool) {
+        let len = CHARSET_NAMES.len();
+        self.charset_index = if forward {
+            (self.charset_index + 1) % len
+        } else {
+            (self.charset_index + len - 1) % len
+        };
     }
 
     pub fn close(&mut self) {
@@ -105,6 +141,7 @@ impl SystemFontPickerDialog {
         };
         self.result_family = self.families[family_idx].family.clone();
         self.result_size = size;
+        self.result_charset = CHARSET_NAMES[self.charset_index].to_string();
         self.confirmed = true;
         self.active = false;
     }
@@ -114,7 +151,8 @@ impl SystemFontPickerDialog {
             KeyCode::Tab => {
                 self.selected_field = match self.selected_field {
                     Field::List => Field::Size,
-                    Field::Size => Field::List,
+                    Field::Size => Field::Charset,
+                    Field::Charset => Field::List,
                 };
                 true
             }
@@ -127,6 +165,14 @@ impl SystemFontPickerDialog {
                 if self.selected + 1 < count {
                     self.selected += 1;
                 }
+                true
+            }
+            KeyCode::Left if self.selected_field == Field::Charset => {
+                self.cycle_charset(false);
+                true
+            }
+            KeyCode::Right if self.selected_field == Field::Charset => {
+                self.cycle_charset(true);
                 true
             }
             KeyCode::Char(c) if self.selected_field == Field::List && !c.is_ascii_digit() => {
@@ -157,6 +203,7 @@ impl SystemFontPickerDialog {
                     Field::Size => {
                         self.size_buffer.pop();
                     }
+                    Field::Charset => {}
                 }
                 self.error_message.clear();
                 true
@@ -249,6 +296,23 @@ pub fn render_system_font_dialog(dialog: &SystemFontPickerDialog, frame: &mut Fr
         ),
     ]));
 
+    let charset_style = if dialog.selected_field == Field::Charset {
+        Style::default().add_modifier(Modifier::REVERSED)
+    } else {
+        Style::default()
+    };
+    lines.push(Line::from(vec![
+        Span::styled(" Charset: ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(
+            format!("{}  ", CHARSET_NAMES[dialog.charset_index]),
+            charset_style,
+        ),
+        Span::styled(
+            "(\u{2190}/\u{2192} to change)",
+            Style::default().fg(dialog.theme.dialog.meta),
+        ),
+    ]));
+
     if !dialog.error_message.is_empty() {
         lines.push(Line::from(Span::styled(
             format!(" Error: {}", dialog.error_message),
@@ -257,10 +321,82 @@ pub fn render_system_font_dialog(dialog: &SystemFontPickerDialog, frame: &mut Fr
     }
 
     lines.push(Line::from(Span::styled(
-        " Enter: create  Esc: cancel  Tab: switch field  \u{2191}\u{2193}: select",
+        " Enter: create  Esc: cancel  Tab: switch field  \u{2191}\u{2193}/\u{2190}\u{2192}: select",
         Style::default().fg(dialog.theme.dialog.meta),
     )));
 
     let paragraph = Paragraph::new(lines);
     frame.render_widget(paragraph, inner);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_defaults_to_smooth_charset() {
+        let dialog = SystemFontPickerDialog::new();
+        assert_eq!(CHARSET_NAMES[dialog.charset_index], "smooth");
+        assert_eq!(dialog.result_charset, "smooth");
+    }
+
+    #[test]
+    fn test_tab_cycles_through_all_three_fields() {
+        let mut dialog = SystemFontPickerDialog::new();
+        assert_eq!(dialog.selected_field, Field::List);
+        dialog.handle_key(KeyCode::Tab);
+        assert_eq!(dialog.selected_field, Field::Size);
+        dialog.handle_key(KeyCode::Tab);
+        assert_eq!(dialog.selected_field, Field::Charset);
+        dialog.handle_key(KeyCode::Tab);
+        assert_eq!(dialog.selected_field, Field::List);
+    }
+
+    #[test]
+    fn test_left_right_cycle_charset_when_field_focused() {
+        let mut dialog = SystemFontPickerDialog::new();
+        dialog.selected_field = Field::Charset;
+        let start = dialog.charset_index;
+        dialog.handle_key(KeyCode::Right);
+        assert_eq!(dialog.charset_index, (start + 1) % CHARSET_NAMES.len());
+        dialog.handle_key(KeyCode::Left);
+        assert_eq!(dialog.charset_index, start);
+    }
+
+    #[test]
+    fn test_left_right_ignored_when_charset_not_focused() {
+        let mut dialog = SystemFontPickerDialog::new();
+        assert_eq!(dialog.selected_field, Field::List);
+        let start = dialog.charset_index;
+        let consumed = dialog.handle_key(KeyCode::Right);
+        assert!(!consumed, "Right should not be consumed by the List field");
+        assert_eq!(dialog.charset_index, start);
+    }
+
+    #[test]
+    fn test_confirm_carries_selected_charset_into_result() {
+        let mut dialog = SystemFontPickerDialog::new();
+        dialog.families = vec![FontFamilyInfo {
+            family: "TestFont".to_string(),
+            styles: vec![],
+        }];
+        dialog.cycle_charset(true);
+        let expected = CHARSET_NAMES[dialog.charset_index].to_string();
+        dialog.confirm();
+        assert!(dialog.confirmed);
+        assert_eq!(dialog.result_charset, expected);
+    }
+
+    #[test]
+    fn test_cycle_charset_wraps_both_directions() {
+        let mut dialog = SystemFontPickerDialog::new();
+        let start = dialog.charset_index;
+        dialog.cycle_charset(false);
+        assert_eq!(
+            dialog.charset_index,
+            (start + CHARSET_NAMES.len() - 1) % CHARSET_NAMES.len()
+        );
+        dialog.cycle_charset(true);
+        assert_eq!(dialog.charset_index, start);
+    }
 }

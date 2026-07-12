@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.0.30] - 2026-07-12
+
+### Added
+- "New Font from System" dialog now has a Charset field (Tab to focus,
+  Left/Right to cycle through the 12 presets `font_gen::resolve_charset`
+  understands — default/slight/smooth/block/blocks/box/braille/ogham/
+  dithered/geometric/deluxe/full), matching the CLI's
+  `--create-font-charset` flag. Previously this was hardcoded to
+  `"smooth"` with no way to change it from the TUI.
+- "New Font from File" (TTF/OTF import) now shows a size + charset
+  options dialog after picking a file, before conversion runs. Previously
+  this flow had no options step at all — size (12pt) and charset were
+  silently hardcoded.
+
+Part Twah 8.3 (manual-note #1).
+
 ## [6.0.29] - 2026-07-12
 
 ### Added

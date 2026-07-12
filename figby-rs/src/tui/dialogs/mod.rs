@@ -1,8 +1,10 @@
+pub mod font_import_options;
 pub mod gif_import;
 pub mod new_image;
 pub mod rascii_import;
 pub mod system_font;
 
+pub use font_import_options::FontImportOptionsDialog;
 pub use gif_import::{GifImportConfig, GifImportDialog};
 pub use new_image::NewImageDialog;
 pub use rascii_import::RasciiImportDialog;

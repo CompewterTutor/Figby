@@ -140,6 +140,17 @@ impl TuiApp {
             );
         }
 
+        // Font import (TTF/OTF) options dialog
+        if self.dialogs.font_import_options.active {
+            let overlay = super::centered_overlay(frame.area());
+            frame.render_widget(Clear, overlay);
+            dialogs::font_import_options::render_font_import_options_dialog(
+                &self.dialogs.font_import_options,
+                frame,
+                overlay,
+            );
+        }
+
         // Rascii import dialog
         if self.dialogs.rascii_import.active {
             let overlay = super::centered_overlay(frame.area());

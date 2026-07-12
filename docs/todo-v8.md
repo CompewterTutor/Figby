@@ -137,7 +137,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
 
 ## Phase 8.3 — Font creation dialog parity with CLI (manual-note #1)
 
-- [ ] `8.3.1` Charset field on "New Font from System"
+- [x] `8.3.1` Charset field on "New Font from System"
   - **Goal:** CLI already supports this (`main.rs:279-298`
     `--font-size`/`--create-font-charset`, resolved via
     `font_gen::resolve_charset()` at `font_gen.rs:346-365` — names:
@@ -152,7 +152,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
     the result instead of the literal.
   - **Difficulty:** Medium
 
-- [ ] `8.3.2` Options dialog for "New Font from File" (currently has none)
+- [x] `8.3.2` Options dialog for "New Font from File" (currently has none)
   - **Goal:** `perform_import_font` (`dispatch.rs:2095-2115`) hardcodes both
     size (`12.0`) and charset (`rascii_art::charsets::DEFAULT`) today — no
     dialog step exists at all.

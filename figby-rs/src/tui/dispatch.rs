@@ -1217,6 +1217,20 @@ impl TuiApp {
             return None;
         }
 
+        // Font import (TTF/OTF) options dialog active
+        if self.dialogs.font_import_options.active {
+            self.dialogs.font_import_options.handle_key(code);
+            if !self.dialogs.font_import_options.active
+                && self.dialogs.font_import_options.confirmed
+            {
+                let path = self.dialogs.font_import_options.path.clone();
+                let size = self.dialogs.font_import_options.result_size;
+                let charset = self.dialogs.font_import_options.result_charset.clone();
+                self.perform_import_font(path, size, charset);
+            }
+            return None;
+        }
+
         // GIF import dialog active
         if self.dialogs.gif_import.active {
             self.dialogs.gif_import.handle_key(code);
@@ -2012,8 +2026,12 @@ impl TuiApp {
                     self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportFont;
                     return None;
                 }
-                self.perform_import_font(path);
-                Some(AppEvent::OpenRequested)
+                // Open the size/charset options dialog instead of importing
+                // immediately — this flow previously had no options step at
+                // all (size/charset were hardcoded).
+                self.dialogs.font_import_options.enter(path);
+                self.frame.dirty = true;
+                None
             }
             file_ops::FileOpsMode::ImportGif => {
                 // Legacy path: open the new gif_import dialog instead
@@ -2120,7 +2138,7 @@ impl TuiApp {
         }
     }
 
-    fn perform_import_font(&mut self, path: std::path::PathBuf) {
+    fn perform_import_font(&mut self, path: std::path::PathBuf, size: f32, charset_name: String) {
         if self.ctx.throbber.is_active() {
             return;
         }
@@ -2130,12 +2148,10 @@ impl TuiApp {
         self.frame.dirty = true;
         std::thread::spawn(move || {
             let result = (|| -> Result<(crate::font::FIGfont, std::path::PathBuf), String> {
-                let font = crate::font_gen::font_file_to_figfont(
-                    &path,
-                    12.0,
-                    rascii_art::charsets::DEFAULT,
-                )
-                .map_err(|e| format!("Import failed: {e}"))?;
+                let charset = crate::font_gen::resolve_charset(&charset_name)
+                    .unwrap_or(rascii_art::charsets::DEFAULT);
+                let font = crate::font_gen::font_file_to_figfont(&path, size, charset)
+                    .map_err(|e| format!("Import failed: {e}"))?;
                 Ok((font, path))
             })();
             let _ = tx.send(AsyncResult::OpenComplete(result));
@@ -2156,13 +2172,14 @@ impl TuiApp {
         }
         let family = self.dialogs.system_font.result_family.clone();
         let size = self.dialogs.system_font.result_size;
+        let charset_name = self.dialogs.system_font.result_charset.clone();
         let (tx, rx) = mpsc::channel();
         self.ctx.async_rx = Some(rx);
         self.ctx.throbber.start("Generating font...");
         self.frame.dirty = true;
         std::thread::spawn(move || {
-            let charset =
-                crate::font_gen::resolve_charset("smooth").unwrap_or(rascii_art::charsets::DEFAULT);
+            let charset = crate::font_gen::resolve_charset(&charset_name)
+                .unwrap_or(rascii_art::charsets::DEFAULT);
             let result = crate::font_gen::system_font_to_figfont(&family, size, charset)
                 .map(|font| (font, family))
                 .map_err(|e| format!("Font generation failed: {e}"));

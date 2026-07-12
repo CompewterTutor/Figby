@@ -1035,6 +1035,7 @@ pub struct DialogState {
     pub gif_import: dialogs::GifImportDialog,
     pub new_image: dialogs::NewImageDialog,
     pub system_font: dialogs::SystemFontPickerDialog,
+    pub font_import_options: dialogs::FontImportOptionsDialog,
     pub quit_confirm_dialog: bool,
     pub quit_confirm_buttons: [Rect; 3],
     pub quit_after_save: bool,
@@ -1185,6 +1186,8 @@ impl TuiApp {
         new_image.theme = theme.clone();
         let mut system_font = dialogs::SystemFontPickerDialog::new();
         system_font.theme = theme.clone();
+        let mut font_import_options = dialogs::FontImportOptionsDialog::new();
+        font_import_options.theme = theme.clone();
 
         Self {
             editor: {
@@ -1223,6 +1226,7 @@ impl TuiApp {
                 gif_import,
                 new_image,
                 system_font,
+                font_import_options,
                 quit_confirm_dialog: false,
                 quit_confirm_buttons: [Rect::default(); 3],
                 quit_after_save: false,

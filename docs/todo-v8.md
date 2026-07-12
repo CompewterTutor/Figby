@@ -168,7 +168,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
 
 ## Phase 8.4 — Save dialog filename field (manual-note #5)
 
-- [ ] `8.4.1` Split the save dialog's path field into directory + filename
+- [x] `8.4.1` Split the save dialog's path field into directory + filename
   - **Goal:** `enter_save_as` (`file_ops.rs:208-217`) seeds one
     `path_buffer` with the whole path (dir+name together), so browsing and
     typing fight over the same field.
@@ -182,7 +182,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
     toggle idiom for what's focused).
   - **Difficulty:** Medium
 
-- [ ] `8.4.2` Default filename from the current font's name
+- [x] `8.4.2` Default filename from the current font's name
   - **Touches:** `figby-rs/src/tui/dispatch.rs` — default
     `filename_buffer` to `"{font_storage_name}.flf"`
     (`font_editor.rs:235`, already used for the tab/window title), falling

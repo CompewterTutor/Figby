@@ -131,9 +131,24 @@ impl Default for RecentFiles {
     }
 }
 
+/// Which field of the Save dialog Tab/click currently focuses. The
+/// directory listing (Up/Down/Tab/Right/Left) always navigates
+/// `path_buffer`'s directory regardless of focus; this only affects which
+/// field typed characters/Backspace go to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SaveFocus {
+    Directory,
+    Filename,
+}
+
 pub struct FileOpsDialog {
     pub mode: FileOpsMode,
     pub path_buffer: String,
+    /// Filename-only field for `SaveAs` (separate from `path_buffer`, which
+    /// is the directory being browsed for that mode). Unused by every
+    /// other mode.
+    pub filename_buffer: String,
+    pub save_focus: SaveFocus,
     pub directory_entries: Vec<String>,
     pub selected_entry: usize,
     pub error_message: String,
@@ -153,6 +168,8 @@ impl FileOpsDialog {
         Self {
             mode: FileOpsMode::Idle,
             path_buffer: String::new(),
+            filename_buffer: String::new(),
+            save_focus: SaveFocus::Filename,
             directory_entries: Vec::new(),
             selected_entry: 0,
             error_message: String::new(),
@@ -210,12 +227,29 @@ impl FileOpsDialog {
         self.refresh_directory();
     }
 
-    pub fn enter_save_as(&mut self, current: Option<&Path>) {
+    /// Enter the Save dialog. `default_name` (without extension) seeds the
+    /// filename field when `current` has no path of its own yet (e.g. a
+    /// newly created, never-saved font) — typically the font's in-memory
+    /// name, falling back to "untitled".
+    pub fn enter_save_as(&mut self, current: Option<&Path>, default_name: &str) {
         self.mode = FileOpsMode::SaveAs;
-        self.path_buffer = current
-            .and_then(|p| p.to_str())
-            .map(|s| s.to_string())
-            .unwrap_or_default();
+        match current {
+            Some(p) => {
+                self.path_buffer = p
+                    .parent()
+                    .map(|d| d.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                self.filename_buffer = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| format!("{default_name}.flf"));
+            }
+            None => {
+                self.path_buffer.clear();
+                self.filename_buffer = format!("{default_name}.flf");
+            }
+        }
+        self.save_focus = SaveFocus::Filename;
         self.selected_entry = 0;
         self.error_message.clear();
         self.refresh_directory();
@@ -224,6 +258,7 @@ impl FileOpsDialog {
     pub fn close(&mut self) {
         self.mode = FileOpsMode::Idle;
         self.path_buffer.clear();
+        self.filename_buffer.clear();
         self.directory_entries.clear();
         self.selected_entry = 0;
         self.error_message.clear();
@@ -396,6 +431,9 @@ impl FileOpsDialog {
     }
 
     pub fn selected_path(&self) -> PathBuf {
+        if self.mode == FileOpsMode::SaveAs {
+            return self.save_target_path();
+        }
         let trimmed = self.path_buffer.trim().to_string();
         if trimmed.is_empty() {
             return PathBuf::from("untitled.flf");
@@ -408,6 +446,30 @@ impl FileOpsDialog {
         } else {
             p
         }
+    }
+
+    /// Combine the Save dialog's directory (`path_buffer`) and filename
+    /// (`filename_buffer`) fields into the final save path, auto-appending
+    /// `.flf` when the typed filename has no extension. Unlike
+    /// `current_parent_dir()`, this trusts `path_buffer` directly as the
+    /// directory rather than checking it exists on disk — in `SaveAs` mode
+    /// `path_buffer` is only ever written by `enter_save_as`/`select_entry`/
+    /// `go_to_parent`, all of which already guarantee it's a directory
+    /// (possibly one that doesn't exist yet, which is fine for a save
+    /// target).
+    fn save_target_path(&self) -> PathBuf {
+        let dir = if self.path_buffer.is_empty() {
+            PathBuf::from(".")
+        } else {
+            PathBuf::from(&self.path_buffer)
+        };
+        let name = self.filename_buffer.trim();
+        let name = if name.is_empty() { "untitled" } else { name };
+        let mut p = dir.join(name);
+        if p.extension().is_none() {
+            p.set_extension("flf");
+        }
+        p
     }
 
     fn select_entry(&mut self) {
@@ -436,6 +498,15 @@ impl FileOpsDialog {
         }
 
         let parent = self.current_parent_dir();
+        if self.mode == FileOpsMode::SaveAs && !parent.join(&entry).is_dir() {
+            // Selecting an existing file in the Save dialog populates the
+            // filename field (so the user can overwrite it) rather than
+            // folding it into path_buffer, which must stay a pure
+            // directory for the split path/filename fields.
+            self.filename_buffer = entry;
+            self.error_message.clear();
+            return;
+        }
         let abs = parent.join(&entry);
         self.path_buffer = abs.to_string_lossy().to_string();
         self.selected_entry = 0;
@@ -633,13 +704,20 @@ impl FileOpsDialog {
 
     fn handle_key_save_as(&mut self, code: KeyCode) -> bool {
         match code {
-            KeyCode::Char(c) => {
-                self.path_buffer.push(c);
+            KeyCode::Tab => {
+                self.save_focus = match self.save_focus {
+                    SaveFocus::Directory => SaveFocus::Filename,
+                    SaveFocus::Filename => SaveFocus::Directory,
+                };
+                true
+            }
+            KeyCode::Char(c) if self.save_focus == SaveFocus::Filename => {
+                self.filename_buffer.push(c);
                 self.error_message.clear();
                 true
             }
-            KeyCode::Backspace => {
-                self.path_buffer.pop();
+            KeyCode::Backspace if self.save_focus == SaveFocus::Filename => {
+                self.filename_buffer.pop();
                 self.error_message.clear();
                 true
             }
@@ -657,7 +735,7 @@ impl FileOpsDialog {
                 }
                 true
             }
-            KeyCode::Tab | KeyCode::Right => {
+            KeyCode::Right => {
                 if !self.directory_entries.is_empty() {
                     self.select_entry();
                 }
@@ -668,7 +746,9 @@ impl FileOpsDialog {
                 true
             }
             KeyCode::Enter => {
-                // Finalize save — path is in path_buffer, will be handled by caller
+                // Finalize save — path/filename are in path_buffer/
+                // filename_buffer, combined by selected_path() for the
+                // caller.
                 self.mode = FileOpsMode::Idle;
                 true
             }
@@ -1096,20 +1176,34 @@ impl FileOpsDialog {
 
         let mut lines: Vec<Line> = Vec::new();
 
+        let dir_style = if self.save_focus == SaveFocus::Directory {
+            Style::default().add_modifier(Modifier::REVERSED)
+        } else {
+            Style::default().fg(self.theme.dialog.border_path)
+        };
         lines.push(Line::from(Span::styled(
-            " Path:",
+            " Folder:",
             Style::default().add_modifier(Modifier::BOLD),
         )));
-
-        let path_display = if self.path_buffer.is_empty() {
-            " (type path or use arrows to browse)".to_string()
+        let dir_display = if self.path_buffer.is_empty() {
+            ".".to_string()
         } else {
             self.path_buffer.clone()
         };
         lines.push(Line::from(Span::styled(
-            format!(" {}", path_display),
-            Style::default().fg(self.theme.dialog.border_path),
+            format!(" {}", dir_display),
+            dir_style,
         )));
+
+        let name_style = if self.save_focus == SaveFocus::Filename {
+            Style::default().add_modifier(Modifier::REVERSED)
+        } else {
+            Style::default().fg(self.theme.dialog.border_path)
+        };
+        lines.push(Line::from(vec![
+            Span::styled(" Filename: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(self.filename_buffer.clone(), name_style),
+        ]));
 
         if !self.error_message.is_empty() {
             lines.push(Line::from(Span::styled(
@@ -1131,13 +1225,13 @@ impl FileOpsDialog {
                 Style::default().add_modifier(Modifier::BOLD),
             )));
 
-            let max_visible = (inner.height as usize).saturating_sub(6).min(10);
+            let max_visible = (inner.height as usize).saturating_sub(7).min(10);
             self.push_entry_lines(&mut lines, inner, max_visible);
         }
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            " \u{2190}\u{2192}/Tab: navigate  Enter: save  Esc: cancel  \u{2191}\u{2193}: select",
+            " Tab: switch field  \u{2190}\u{2192}: browse  Enter: save  Esc: cancel  \u{2191}\u{2193}: select",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -1261,18 +1355,20 @@ mod tests {
     #[test]
     fn test_file_ops_enter_save_as() {
         let mut dialog = FileOpsDialog::new();
-        dialog.enter_save_as(None);
+        dialog.enter_save_as(None, "untitled");
         assert_eq!(dialog.mode, FileOpsMode::SaveAs);
         assert!(dialog.path_buffer.is_empty());
+        assert_eq!(dialog.filename_buffer, "untitled.flf");
 
-        dialog.enter_save_as(Some(Path::new("/tmp/test.flf")));
-        assert_eq!(dialog.path_buffer, "/tmp/test.flf");
+        dialog.enter_save_as(Some(Path::new("/tmp/test.flf")), "untitled");
+        assert_eq!(dialog.path_buffer, "/tmp");
+        assert_eq!(dialog.filename_buffer, "test.flf");
     }
 
     #[test]
     fn test_file_ops_close() {
         let mut dialog = FileOpsDialog::new();
-        dialog.enter_save_as(Some(Path::new("test.flf")));
+        dialog.enter_save_as(Some(Path::new("test.flf")), "untitled");
         dialog.close();
         assert_eq!(dialog.mode, FileOpsMode::Idle);
     }
@@ -1300,6 +1396,66 @@ mod tests {
         assert_eq!(
             path.file_name().map(|n| n.to_string_lossy().to_string()),
             Some("myfont.flf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_save_target_path_combines_directory_and_filename() {
+        let dialog = FileOpsDialog {
+            mode: FileOpsMode::SaveAs,
+            path_buffer: "/tmp/fonts".to_string(),
+            filename_buffer: "myfont".to_string(),
+            ..FileOpsDialog::new()
+        };
+        let path = dialog.selected_path();
+        assert_eq!(path, PathBuf::from("/tmp/fonts/myfont.flf"));
+    }
+
+    #[test]
+    fn test_save_target_path_keeps_existing_extension() {
+        let dialog = FileOpsDialog {
+            mode: FileOpsMode::SaveAs,
+            path_buffer: "/tmp/fonts".to_string(),
+            filename_buffer: "myfont.tlf".to_string(),
+            ..FileOpsDialog::new()
+        };
+        let path = dialog.selected_path();
+        assert_eq!(path, PathBuf::from("/tmp/fonts/myfont.tlf"));
+    }
+
+    #[test]
+    fn test_save_target_path_falls_back_to_untitled_when_filename_empty() {
+        let dialog = FileOpsDialog {
+            mode: FileOpsMode::SaveAs,
+            path_buffer: "/tmp/fonts".to_string(),
+            filename_buffer: String::new(),
+            ..FileOpsDialog::new()
+        };
+        let path = dialog.selected_path();
+        assert_eq!(path, PathBuf::from("/tmp/fonts/untitled.flf"));
+    }
+
+    #[test]
+    fn test_tab_switches_save_focus_between_directory_and_filename() {
+        let mut dialog = FileOpsDialog::new();
+        dialog.enter_save_as(None, "untitled");
+        assert_eq!(dialog.save_focus, SaveFocus::Filename);
+        dialog.handle_key(KeyCode::Tab);
+        assert_eq!(dialog.save_focus, SaveFocus::Directory);
+        dialog.handle_key(KeyCode::Tab);
+        assert_eq!(dialog.save_focus, SaveFocus::Filename);
+    }
+
+    #[test]
+    fn test_typing_only_affects_filename_when_directory_focused() {
+        let mut dialog = FileOpsDialog::new();
+        dialog.enter_save_as(None, "untitled");
+        dialog.save_focus = SaveFocus::Directory;
+        let before = dialog.filename_buffer.clone();
+        dialog.handle_key(KeyCode::Char('x'));
+        assert_eq!(
+            dialog.filename_buffer, before,
+            "typing while Directory is focused should not touch the filename field"
         );
     }
 

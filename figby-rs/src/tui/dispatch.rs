@@ -1966,9 +1966,15 @@ impl TuiApp {
         if self.ui.mode != AppMode::FontEditor {
             return;
         }
-        self.dialogs
-            .file_ops
-            .enter_save_as(self.editor.font_editor.current_path.as_deref());
+        let default_name = if self.editor.font_editor.font_storage_name.is_empty() {
+            "untitled".to_string()
+        } else {
+            self.editor.font_editor.font_storage_name.clone()
+        };
+        self.dialogs.file_ops.enter_save_as(
+            self.editor.font_editor.current_path.as_deref(),
+            &default_name,
+        );
         self.frame.dirty = true;
     }
 

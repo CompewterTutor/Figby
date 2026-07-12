@@ -1,5 +1,22 @@
 # Changelog
 
+## [6.0.31] - 2026-07-12
+
+### Added
+- Save dialog now has a dedicated filename field, separate from the
+  directory being browsed. Tab switches focus between Folder and
+  Filename; typing only ever edits the filename, so browsing into a
+  directory no longer clobbers whatever name you'd already typed.
+- Filename defaults to the font's current name (or "untitled") plus
+  `.flf` when saving a font that hasn't been saved to disk yet.
+
+### Changed
+- Clicking an existing font file in the Save dialog's listing now
+  populates the filename field with that name (so you can overwrite it)
+  instead of folding it into the directory path.
+
+Part Twah 8.4 (manual-note #5).
+
 ## [6.0.30] - 2026-07-12
 
 ### Added

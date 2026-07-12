@@ -144,7 +144,7 @@ fn regression_tui_dialog_roundtrip() {
     use ratatui::Terminal;
 
     let mut dialog = FileOpsDialog::new();
-    dialog.enter_save_as(None);
+    dialog.enter_save_as(None, "untitled");
     dialog.handle_key(KeyCode::Char('t'));
     dialog.handle_key(KeyCode::Char('e'));
     dialog.handle_key(KeyCode::Char('s'));

@@ -2108,17 +2108,25 @@ fn test_file_ops_dialog_save_as() {
     use figby::tui::file_ops::{FileOpsDialog, FileOpsMode};
 
     let mut dialog = FileOpsDialog::new();
-    dialog.enter_save_as(None);
+    dialog.enter_save_as(None, "untitled");
     assert_eq!(dialog.mode, FileOpsMode::SaveAs);
+    assert_eq!(
+        dialog.filename_buffer, "untitled.flf",
+        "filename field should default from the font's current name"
+    );
 
-    // Type a filename
+    // Clear the default and type a new filename (focus defaults to the
+    // filename field, per enter_save_as).
+    for _ in 0..dialog.filename_buffer.len() {
+        dialog.handle_key(KeyCode::Backspace);
+    }
     dialog.handle_key(KeyCode::Char('m'));
     dialog.handle_key(KeyCode::Char('y'));
     dialog.handle_key(KeyCode::Char('.'));
     dialog.handle_key(KeyCode::Char('f'));
     dialog.handle_key(KeyCode::Char('l'));
     dialog.handle_key(KeyCode::Char('f'));
-    assert_eq!(dialog.path_buffer, "my.flf");
+    assert_eq!(dialog.filename_buffer, "my.flf");
 
     // Esc cancels
     dialog.handle_key(KeyCode::Esc);

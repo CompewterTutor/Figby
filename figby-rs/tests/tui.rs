@@ -26,7 +26,7 @@ fn test_tui_smoke_all_panels_render() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     // toolbox_h = 12 tools + 1 + 10 brush = 23 rows; need ~30+ rows for palette to render
     let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -55,34 +55,34 @@ fn test_tui_mode_switching() {
     use figby::tui::{AppMode, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
-    assert_eq!(app.mode, AppMode::FontEditor);
+    app.welcome.screen.show = false;
+    assert_eq!(app.ui.mode, AppMode::FontEditor);
 
     app.handle_key_event(KeyCode::Tab);
-    assert_eq!(app.mode, AppMode::ImageEditor);
+    assert_eq!(app.ui.mode, AppMode::ImageEditor);
 
     app.handle_key_event(KeyCode::Tab);
-    assert_eq!(app.mode, AppMode::AsciiPreview);
+    assert_eq!(app.ui.mode, AppMode::AsciiPreview);
 
     app.handle_key_event(KeyCode::Tab);
-    assert_eq!(app.mode, AppMode::FontEditor);
+    assert_eq!(app.ui.mode, AppMode::FontEditor);
 
     app.handle_key_event(KeyCode::Char('q'));
-    assert!(app.should_quit);
+    assert!(app.ui.should_quit);
 
     let mut app2 = TuiApp::new();
-    app2.welcome_screen.show = false;
+    app2.welcome.screen.show = false;
     // Esc was removed from quit keybinding; 'q' is the quit key
     app2.handle_key_event(KeyCode::Char('q'));
-    assert!(app2.should_quit);
+    assert!(app2.ui.should_quit);
 }
 
 #[test]
 fn test_tui_app_default_mode() {
     use figby::tui::{AppMode, TuiApp};
     let app = TuiApp::new();
-    assert_eq!(app.mode, AppMode::FontEditor);
-    assert!(!app.should_quit);
+    assert_eq!(app.ui.mode, AppMode::FontEditor);
+    assert!(!app.ui.should_quit);
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn test_tool_selection_roundtrip() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     assert_eq!(app.editor.toolbox.selected, Tool::Brush);
 
     app.handle_key_event(KeyCode::Char('v'));
@@ -142,7 +142,7 @@ fn test_toolbox_renders_tool_names() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     let backend = TestBackend::new(80, 40);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -595,7 +595,7 @@ fn test_brush_render_contains_shape_name() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     app.side_panel.open = true;
     app.side_panel.active_tab = TabId::Props;
     let backend = TestBackend::new(80, 24);
@@ -614,7 +614,7 @@ fn test_palette_render_contains_labels() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     app.editor.palette.select_color(0);
     // toolbox_h = 23 rows; "Recent:" section is near bottom of palette — need tall terminal
     let backend = TestBackend::new(80, 80);
@@ -636,9 +636,9 @@ fn test_status_bar_shows_cursor_position() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     // Switch to ImageEditor so arrow keys move canvas cursor
-    app.mode = AppMode::ImageEditor;
+    app.ui.mode = AppMode::ImageEditor;
     app.handle_key_event(KeyCode::Right);
     app.handle_key_event(KeyCode::Down);
 
@@ -659,7 +659,7 @@ fn test_status_bar_shows_zoom_level() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     app.handle_key_event(KeyCode::Char('+'));
 
     let backend = TestBackend::new(80, 24);
@@ -678,7 +678,7 @@ fn test_status_bar_shows_tool_name() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     app.handle_key_event(KeyCode::Char('e'));
 
     let backend = TestBackend::new(80, 24);
@@ -696,7 +696,7 @@ fn test_status_bar_shows_mode_name() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| app.render(f)).unwrap();
@@ -715,7 +715,7 @@ fn test_status_bar_unsaved_indicator() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     app.editor.unsaved = true;
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
@@ -742,7 +742,7 @@ fn test_settings_toggle_visibility() {
     use ratatui::Terminal;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     app.handle_key_event(KeyCode::Tab); // switch to ImageEditor so S opens Settings, not Smushing
     app.handle_key_event(KeyCode::Char('S'));
     assert!(
@@ -1705,7 +1705,7 @@ fn test_line_tool_keyboard_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Select Line tool
     app.handle_key_event(KeyCode::Char('i'));
@@ -1731,7 +1731,7 @@ fn test_spray_tool_keyboard_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Select SprayPaint tool
     app.handle_key_event(KeyCode::Char('a'));
@@ -1770,7 +1770,7 @@ fn test_eyedropper_tool_keyboard_does_not_paint() {
     use figby::tui::{Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Place a cell
     app.editor.canvas.buffer.set(
@@ -2134,11 +2134,11 @@ fn test_image_editor_mode_switch_and_toggle() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Tab to Image Editor mode
     app.handle_key_event(KeyCode::Tab);
-    assert_eq!(app.mode, figby::tui::AppMode::ImageEditor);
+    assert_eq!(app.ui.mode, figby::tui::AppMode::ImageEditor);
 
     // Default mode is Grayscale
     assert_eq!(
@@ -2174,11 +2174,11 @@ fn test_menu_bar_alt_f_opens_file_menu() {
     // Alt+F should open File menu (index 0)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::ALT));
     assert!(
-        app.menu_bar_state.is_active(),
+        app.ui.menu_bar_state.is_active(),
         "Alt+F should activate menu bar"
     );
     assert_eq!(
-        app.menu_bar_state.active_menu,
+        app.ui.menu_bar_state.active_menu,
         Some(0),
         "Alt+F should open File menu (index 0)"
     );
@@ -2193,7 +2193,7 @@ fn test_menu_bar_navigate_and_select() {
 
     // Open File menu via Alt+F
     app.handle_key_event(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::ALT));
-    assert!(app.menu_bar_state.is_active());
+    assert!(app.ui.menu_bar_state.is_active());
 
     // Navigate down once: Open (index 0) -> Save (index 1)
     app.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
@@ -2201,7 +2201,7 @@ fn test_menu_bar_navigate_and_select() {
 
     // The event should be a Menu action
     assert!(event.is_some(), "Enter on Save should produce Menu event");
-    assert!(!app.menu_bar_state.is_active());
+    assert!(!app.ui.menu_bar_state.is_active());
 }
 
 #[test]
@@ -2221,8 +2221,8 @@ fn test_menu_edit_redo_via_keyboard_nav() {
     let handled = app.handle_key_event(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT));
     // handle_key_event returns None because Alt+key is consumed by menu (returns None after line 1533)
     assert_eq!(handled, None, "Alt+E should be consumed by menu handler");
-    assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(1));
+    assert!(app.ui.menu_bar_state.is_active());
+    assert_eq!(app.ui.menu_bar_state.active_menu, Some(1));
 
     // Navigate: focused_item starts at 0 (Undo). Down moves to 1 (Redo)
     app.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
@@ -2244,8 +2244,8 @@ fn test_menu_help_keybindings() {
 
     // Open Help menu via Alt+H (index 7, after File/Edit/View/Image/Tools/Layers/Animation)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::ALT));
-    assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(7));
+    assert!(app.ui.menu_bar_state.is_active());
+    assert_eq!(app.ui.menu_bar_state.active_menu, Some(7));
 
     // Navigate to Keybindings (index 1) and select
     app.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
@@ -2255,16 +2255,16 @@ fn test_menu_help_keybindings() {
     // But in tests, handle_key_event returns the event; process_event is not auto-called
     // The HelpKeybindings action toggles show_keybindings via handle_menu_action
     // Since we don't call process_event, set it manually
-    app.show_keybindings = true;
+    app.ui.show_keybindings = true;
     assert!(
-        app.show_keybindings,
+        app.ui.show_keybindings,
         "Help > Keybindings should toggle keybindings overlay"
     );
 
     // Esc closes keybindings
     app.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert!(
-        !app.show_keybindings,
+        !app.ui.show_keybindings,
         "Esc should close keybindings overlay"
     );
 }
@@ -2276,7 +2276,7 @@ fn test_layout_drawer_toggle() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Default drawer is closed, active tab = Layers
     assert!(!app.side_panel.open, "default drawer should be closed");
@@ -2310,15 +2310,15 @@ fn test_zen_mode_toggle_f11() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    assert!(!app.zen_mode, "zen mode should be off by default");
+    assert!(!app.ui.zen_mode, "zen mode should be off by default");
 
     // F11 toggles zen mode on
     app.handle_key_event(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
-    assert!(app.zen_mode, "F11 should toggle zen mode on");
+    assert!(app.ui.zen_mode, "F11 should toggle zen mode on");
 
     // F11 toggles zen mode off
     app.handle_key_event(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
-    assert!(!app.zen_mode, "second F11 should toggle zen mode off");
+    assert!(!app.ui.zen_mode, "second F11 should toggle zen mode off");
 }
 
 #[test]
@@ -2329,13 +2329,13 @@ fn test_keybindings_overlay_toggle() {
     let mut app = TuiApp::new();
 
     // Toggle via programmatic state
-    app.show_keybindings = true;
-    assert!(app.show_keybindings, "keybindings should be visible");
+    app.ui.show_keybindings = true;
+    assert!(app.ui.show_keybindings, "keybindings should be visible");
 
     // Esc closes keybindings
     app.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     assert!(
-        !app.show_keybindings,
+        !app.ui.show_keybindings,
         "Esc should close keybindings overlay"
     );
 }
@@ -2378,7 +2378,7 @@ fn test_selection_escape_deselects() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     app.editor.canvas.buffer.set(
         0,
@@ -2438,12 +2438,12 @@ fn test_canvas_grid_toggle_g_key() {
     use figby::tui::{AppMode, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
-    assert_eq!(app.mode, AppMode::FontEditor);
+    app.welcome.screen.show = false;
+    assert_eq!(app.ui.mode, AppMode::FontEditor);
 
     // G enters lighting mode
     app.handle_key_event(KeyCode::Char('G'));
-    assert_eq!(app.mode, AppMode::Lighting);
+    assert_eq!(app.ui.mode, AppMode::Lighting);
 }
 
 #[test]
@@ -2453,11 +2453,11 @@ fn test_palette_fg_keyboard_shortcut() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Switch to ImageEditor mode so font editor doesn't intercept palette keys
     app.handle_key_event(KeyCode::Tab);
-    assert_eq!(app.mode, figby::tui::AppMode::ImageEditor);
+    assert_eq!(app.ui.mode, figby::tui::AppMode::ImageEditor);
 
     assert_eq!(
         app.editor.palette.target,
@@ -2498,7 +2498,7 @@ fn test_selection_perimeter_delete() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Paint cells on the active layer (not composite canvas.buffer)
     let cell_a = CanvasCell {
@@ -2577,7 +2577,7 @@ fn test_text_tool_enter_text_mode() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Select Text tool
     app.handle_key_event(KeyCode::Char('t'));
@@ -2602,7 +2602,7 @@ fn test_text_tool_commit_text() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Load a font manually so commit_block can render
     let font_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fonts");
@@ -2651,7 +2651,7 @@ fn test_text_tool_cancel_text() {
     use figby::tui::TuiApp;
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
 
     // Select Text tool and enter text mode
     app.handle_key_event(KeyCode::Char('t'));
@@ -2693,8 +2693,8 @@ fn test_cli_dispatch_view_zoom_in_via_menu() {
 
     // Open View menu via Alt+V (index 2)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT));
-    assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(2));
+    assert!(app.ui.menu_bar_state.is_active());
+    assert_eq!(app.ui.menu_bar_state.active_menu, Some(2));
 
     // First item (index 0) is "Zoom In" — press Enter to select
     let event = app.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -2727,8 +2727,8 @@ fn test_cli_dispatch_tools_select_brush_via_menu() {
 
     // Open Tools menu via Alt+T (index 4, after Image menu was added at index 3)
     app.handle_key_event(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::ALT));
-    assert!(app.menu_bar_state.is_active());
-    assert_eq!(app.menu_bar_state.active_menu, Some(4));
+    assert!(app.ui.menu_bar_state.is_active());
+    assert_eq!(app.ui.menu_bar_state.active_menu, Some(4));
 
     // First item (index 0) is "Brush" — press Enter to select
     let event = app.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -2800,10 +2800,10 @@ fn test_rotate_tool_arrow_key_rotates_whole_layer() {
     use figby::tui::{AppMode, Tool, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     // Arrow keys drive the canvas cursor (and, here, the Rotate tool) only
     // in ImageEditor mode; in FontEditor mode they navigate the glyph grid.
-    app.mode = AppMode::ImageEditor;
+    app.ui.mode = AppMode::ImageEditor;
     // Select the Rotate tool directly rather than via its 'r' shortcut key:
     // in ImageEditor mode 'r' is already claimed by ImageEditor's own
     // reset-adjustments binding, which runs first (pre-existing conflict,
@@ -2844,7 +2844,7 @@ fn test_welcome_screen_shortcuts_work_with_or_without_shift() {
     // 'A' (Animated GIF Import) previously only matched the shifted,
     // uppercase char — plain 'a' (no shift) silently did nothing.
     let mut app = TuiApp::new();
-    assert!(app.welcome_screen.show);
+    assert!(app.welcome.screen.show);
     app.handle_key_event(KeyCode::Char('a'));
     assert_eq!(
         app.dialogs.file_ops.mode,
@@ -2870,12 +2870,14 @@ fn test_welcome_screen_font_and_image_import_keys_do_not_collide() {
     // Image action now uses 'L' (Load Image) instead.
     let app = TuiApp::new();
     assert_eq!(
-        app.welcome_screen
+        app.welcome
+            .screen
             .handle_key(KeyCode::Char('i'), KeyModifiers::NONE, 0),
         Some(WelcomeAction::FontNewFromFile)
     );
     assert_eq!(
-        app.welcome_screen
+        app.welcome
+            .screen
             .handle_key(KeyCode::Char('l'), KeyModifiers::NONE, 0),
         Some(WelcomeAction::ImageOpen)
     );
@@ -2896,7 +2898,7 @@ fn test_enter_starts_playback_even_with_layers_panel_open() {
     // active layer's visibility, whenever the side panel happens to be
     // open on the Layers tab.
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
+    app.welcome.screen.show = false;
     app.side_panel.open = true;
     app.side_panel.active_tab = TabId::Layers;
     app.animation.timeline_state.add_frame(TimelineFrame {
@@ -2936,8 +2938,8 @@ fn test_timeline_frame_edits_persist_on_switch() {
     use figby::tui::{AppMode, TuiApp};
 
     let mut app = TuiApp::new();
-    app.welcome_screen.show = false;
-    app.mode = AppMode::ImageEditor;
+    app.welcome.screen.show = false;
+    app.ui.mode = AppMode::ImageEditor;
     app.editor.canvas = CanvasWidget::new(3, 3);
     app.editor.layer_stack = LayerStack::new(3, 3);
 

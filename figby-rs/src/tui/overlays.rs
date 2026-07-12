@@ -27,7 +27,7 @@ impl TuiApp {
         }
 
         // Keybindings overlay (scrollable)
-        if self.show_keybindings {
+        if self.ui.show_keybindings {
             let area = frame.area();
             let overlay = Rect {
                 x: area.width / 8,
@@ -41,8 +41,8 @@ impl TuiApp {
                 .borders(Borders::ALL)
                 .style(
                     Style::default()
-                        .bg(self.theme.menu.dropdown_bg)
-                        .fg(self.theme.menu.fg),
+                        .bg(self.ctx.theme.menu.dropdown_bg)
+                        .fg(self.ctx.theme.menu.fg),
                 );
             let inner = block.inner(overlay);
             frame.render_widget(block, overlay);
@@ -68,7 +68,7 @@ impl TuiApp {
             let total = lines.len();
             let visible = inner.height as usize;
             let max_scroll = total.saturating_sub(visible);
-            let scroll = self.keybindings_scroll.min(max_scroll) as u16;
+            let scroll = self.ui.keybindings_scroll.min(max_scroll) as u16;
             frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), inner);
         }
 
@@ -172,15 +172,16 @@ impl TuiApp {
         if self.palette_editor.open {
             let was_lighting = self.palette_editor.lighting_pickers_visible;
             self.palette_editor.lighting_pickers_visible =
-                self.mode == AppMode::Lighting || self.lighting.scene.is_some();
+                self.ui.mode == AppMode::Lighting || self.lighting.scene.is_some();
             if was_lighting != self.palette_editor.lighting_pickers_visible {
-                self.dirty = true;
+                self.frame.dirty = true;
             }
-            self.palette_editor.render(frame, frame.area(), &self.theme);
+            self.palette_editor
+                .render(frame, frame.area(), &self.ctx.theme);
         }
 
         // Quit-confirm dialog
-        if self.quit_confirm_dialog {
+        if self.dialogs.quit_confirm_dialog {
             let area = frame.area();
             let hint = "  [Y] Save and quit   [N] Discard and quit   [C] Cancel";
             let hint_len = hint.len() as u16;
@@ -198,8 +199,8 @@ impl TuiApp {
                 .borders(Borders::ALL)
                 .style(
                     Style::default()
-                        .bg(self.theme.menu.dropdown_bg)
-                        .fg(self.theme.menu.fg),
+                        .bg(self.ctx.theme.menu.dropdown_bg)
+                        .fg(self.ctx.theme.menu.fg),
                 );
             let inner = block.inner(dialog);
             frame.render_widget(block, dialog);
@@ -214,7 +215,7 @@ impl TuiApp {
             ];
             frame.render_widget(Paragraph::new(lines), inner);
             // Store button rects for mouse hit-testing
-            self.quit_confirm_buttons = [
+            self.dialogs.quit_confirm_buttons = [
                 Rect {
                     x: inner.x + 2,
                     y: inner.y + 3,

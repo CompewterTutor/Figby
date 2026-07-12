@@ -120,7 +120,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 
 ## Phase 7.1 — Dialog & Keymap Polish (🔴 — fix before any release)
 
-- [ ] `7.1.1` Fix quit-confirm dialog sizing + add mouse input (manual-note #2)
+- [x] `7.1.1` Fix quit-confirm dialog sizing + add mouse input (manual-note #2)
   - **Goal:** The "Unsaved changes — save before quitting?" dialog has two
     bugs. (a) Text is cut off: outer width is hard-coded to 52 (`overlays.rs:185`)
     but the hint line at `overlays.rs:211`
@@ -143,7 +143,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     `[C]` → cancel and stay in editor. Keyboard path unchanged.
   - **Difficulty:** Medium
 
-- [ ] `7.1.2` Rebind sidebar/layer-panel chrome to Alt+arrows; free bare arrows for timeline + canvas (manual-note #4)
+- [x] `7.1.2` Rebind sidebar/layer-panel chrome to Alt+arrows; free bare arrows for timeline + canvas (manual-note #4)
   - **Goal:** Too many overlapping shortcuts. Bare Left/Right is consumed by
     the side-panel tab cycle at `mod.rs:3357/3362` whenever the sidebar is
     open, so timeline frame advance (`mod.rs:3374/3385`) silently does

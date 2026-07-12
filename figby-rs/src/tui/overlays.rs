@@ -182,7 +182,9 @@ impl TuiApp {
         // Quit-confirm dialog
         if self.quit_confirm_dialog {
             let area = frame.area();
-            let w: u16 = 52.min(area.width);
+            let hint = "  [Y] Save and quit   [N] Discard and quit   [C] Cancel";
+            let hint_len = hint.len() as u16;
+            let w = (hint_len + 4).min(area.width);
             let h: u16 = 7.min(area.height);
             let dialog = Rect {
                 x: area.x + area.width.saturating_sub(w) / 2,
@@ -208,9 +210,30 @@ impl TuiApp {
                     Style::default().add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
-                Line::from("  [Y] Save and quit   [N] Discard and quit   [C] Cancel"),
+                Line::from(hint),
             ];
             frame.render_widget(Paragraph::new(lines), inner);
+            // Store button rects for mouse hit-testing
+            self.quit_confirm_buttons = [
+                Rect {
+                    x: inner.x + 2,
+                    y: inner.y + 3,
+                    width: 3,
+                    height: 1,
+                },
+                Rect {
+                    x: inner.x + 22,
+                    y: inner.y + 3,
+                    width: 3,
+                    height: 1,
+                },
+                Rect {
+                    x: inner.x + 45,
+                    y: inner.y + 3,
+                    width: 3,
+                    height: 1,
+                },
+            ];
         }
     }
 }

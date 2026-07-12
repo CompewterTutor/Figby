@@ -1,5 +1,13 @@
 # Figby — Learnings
 
+## 7.1.1 — Fix quit-confirm dialog sizing + mouse input
+
+- `Rect::contains` in ratatui-core 0.1.1 takes `Position`, not `(u16, u16)`.
+  Use `.into()` to convert: `rect.contains((col, row).into())`.
+- Button rects for Paragraph hit-testing: character positions within `inner` rect
+  map directly to terminal pixel positions (1 char = 1 col). Compute x from char
+  index within the line, y from line index within the Paragraph.
+
 ## 6.9.4 — Move tool options to right sidebar
 
 - When removing a sub-panel from a vertical split in ratatui, eliminate the
@@ -1481,6 +1489,18 @@ Three bugs found in phase merge review:
   via 'A'-key, then press Enter to play. If every frame shows the same content,
   the bug is present. If frames vary, it's fixed. `tmux` can mask this because
   tmux's own compositing can hide ratatui cache staleness.
+
+## 7.1.2 — Rebind chrome keys to Alt+arrows
+
+- The inline `T` handler in `mod.rs` was NOT a dead duplicate of the
+  `GLOBAL_DISPATCH` entry despite both handling `(NONE, 'T')` → ToggleTimeline.
+  The inline handler ran BEFORE the tool-selector catch-all; removing it meant `T`
+  would be caught by the tool selector (which converts char to lowercase and
+  matches `Text` tool at `'t'`). Fix: exclude `c != 'T'` in the tool-selector guard.
+- `KeyModifiers::ALT | KeyModifiers::SHIFT` creates a combined bitmask; equality
+  check against this value matches only when both Alt and Shift are pressed exactly.
+- Palette widget (`palette.rs:308`) has no `has_focus()` method, so palette-nav
+  priority over canvas arrows required physical reordering of handler blocks.
 
 ## 7.0.3 — Reconcile playback cursor with timeline `current_frame`
 

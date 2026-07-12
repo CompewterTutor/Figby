@@ -147,6 +147,13 @@ impl TuiApp {
             self.dialogs.rascii_import.render(frame, overlay);
         }
 
+        // GIF import dialog
+        if self.dialogs.gif_import.active {
+            let overlay = super::centered_overlay(frame.area());
+            frame.render_widget(Clear, overlay);
+            self.dialogs.gif_import.render(frame, overlay);
+        }
+
         // Emitter config panel overlay
         if self.animation.emitter_panel.open {
             let area = frame.area();

@@ -434,6 +434,23 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 
 ---
 
+## Phase 7.6 — GIF Import Sizing Dialog
+
+- [x] `7.6.1` GIF import sizing dialog with configurable canvas/image dimensions
+  - **Goal:** GIF import auto-scales to terminal viewport with no user control.
+    Add a sizing dialog after file selection that shows original GIF resolution
+    and lets the user set image width/height, canvas width/height, and a
+    keep-proportions toggle. Scaled frames are centered on the canvas.
+  - **Touches:** `figby-rs/src/tui/dialogs/gif_import.rs` (new), `figby-rs/src/tui/dialogs/mod.rs`,
+    `figby-rs/src/tui/app_state.rs`, `figby-rs/src/tui/overlays.rs`,
+    `figby-rs/src/tui/dispatch.rs`, `figby-rs/src/gif_import.rs`,
+    `figby-rs/tests/tui.rs`.
+  - **Success:** Import GIF → sizing dialog appears with original res. Change
+    image width to 40 → height auto-updates (keep proportions). Set canvas to
+    80×24 → image centered on canvas. Disable proportions → width/height
+    independent. Enter imports. Esc returns to file browser.
+  - **Difficulty:** Medium
+
 ## Deferred to post-v7 (tracked, not blocking)
 
 - Frame-specific undo/redo (currently the `EditorState.undo` stack is shared

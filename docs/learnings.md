@@ -1,5 +1,12 @@
 # Figby — Learnings
 
+## 7.6.1 — GIF import sizing dialog
+
+- When building a two-phase dialog modeled on `RasciiImportDialog`, the key pattern is: `active` + `confirmed` + `config` fields for the handshake with `dispatch.rs`. The dialog sets `active = false` and `confirmed = true` on confirm; dispatch.rs checks both, reads `config.take()`, and performs the import. On error, the dialog re-opens with `error_message` so the user can adjust settings.
+- `GifScaleTarget::Exact(w, h)` is needed because `FitBox` applies 0.5× terminal-cell aspect compensation. When the user explicitly sets "exactly 40×20 cells", they do NOT want compensation re-applied — the output should be exactly 40×20 regardless of source proportions.
+- Centering frames on the canvas: compute `x_off = (canvas_w - frame_w) / 2` and `y_off = (canvas_h - frame_h) / 2`, then offset each cell write. This must be done both for the active layer (first frame) and every timeline frame buffer.
+- `resolve()` on `GifScaleTarget` must be `pub(crate)` — it's needed by the dialog to compute default dimensions from `FitBox/FitWidth` before any frames are decoded.
+
 ## 7.5.1 — Particle edge + layer collision
 
 - `ParticleSystem::update()` signature change (added `bounds` and `layer_mask`) required touching all 27 existing test calls. Using `sed` for mechanical replacement of `system.update(X)` → `system.update(X, None, None)` saved time over 27 individual edits.

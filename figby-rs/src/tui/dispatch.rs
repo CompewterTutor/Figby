@@ -5,6 +5,7 @@ use rand::SeedableRng;
 use ratatui::layout::Rect;
 use std::sync::mpsc;
 
+use super::dialogs;
 use super::*;
 use super::{capture_thumbnail, rotate_drag_steps};
 
@@ -142,7 +143,7 @@ impl TuiApp {
             }
             WelcomeAction::ImageImportGif => {
                 self.ui.session_type = SessionType::Image;
-                self.dialogs.file_ops.enter_import_gif();
+                self.dialogs.gif_import.enter();
                 self.welcome.screen.show = false;
                 self.welcome.fx = None;
                 self.frame.dirty = true;
@@ -1171,6 +1172,17 @@ impl TuiApp {
             return None;
         }
 
+        // GIF import dialog active
+        if self.dialogs.gif_import.active {
+            self.dialogs.gif_import.handle_key(code);
+            if !self.dialogs.gif_import.active && self.dialogs.gif_import.confirmed {
+                if let Some(cfg) = self.dialogs.gif_import.config.take() {
+                    self.perform_import_gif(cfg);
+                }
+            }
+            return None;
+        }
+
         // File ops dialog active: dispatch all keys to it
         if self.dialogs.file_ops.mode != file_ops::FileOpsMode::Idle {
             let prev_mode = self.dialogs.file_ops.mode;
@@ -1220,17 +1232,8 @@ impl TuiApp {
                         return Some(AppEvent::OpenRequested);
                     }
                     file_ops::FileOpsMode::ImportGif => {
-                        if self.dialogs.file_ops.path_buffer.trim().is_empty() {
-                            return None;
-                        }
-                        let path = self.dialogs.file_ops.selected_path();
-                        if !path.exists() {
-                            self.dialogs.file_ops.error_message =
-                                format!("File not found: {}", path.display());
-                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportGif;
-                            return None;
-                        }
-                        self.perform_import_gif(path);
+                        // Legacy path: open the new gif_import dialog instead
+                        self.dialogs.gif_import.enter();
                         return None;
                     }
                     file_ops::FileOpsMode::OpenImage => {
@@ -2090,66 +2093,46 @@ impl TuiApp {
         });
     }
 
-    fn perform_import_gif(&mut self, path: std::path::PathBuf) {
-        // Scale to fit the actual canvas viewport instead of importing at
-        // native pixel resolution (1 pixel = 1 cell). Without this, a
-        // real-world GIF either creates an unusably huge canvas or gets
-        // rejected outright by the animation import size cap — the same
-        // issue `--play` had before it gained scaling (see
-        // docs/sonnet5-review.md's 6.0.10 follow-up).
-        let scale = {
-            let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
-            let tw = self
-                .editor
-                .toolbox
-                .required_width(self.editor.brush.required_outer_width());
-            let toolbox_h = Tool::all().len() as u16 + 2;
-            // Assume the timeline panel will be visible post-import (it is
-            // set below on success), so the canvas is sized for the layout
-            // it'll actually appear in rather than one that immediately
-            // shrinks once the timeline panel opens.
-            let fl = layout::FrameLayout::compute(
-                Rect::new(0, 0, cols, rows),
-                self.ui.zen_mode,
-                self.side_panel.open,
-                tw,
-                toolbox_h,
-                true,
-            );
-            let canvas_rect = self.editor.compute_canvas_rect(
-                ratatui::widgets::Block::default()
-                    .borders(fl.canvas_borders())
-                    .inner(fl.canvas),
-            );
-            crate::gif_import::GifScaleTarget::FitBox(
-                canvas_rect.width.max(1) as usize,
-                canvas_rect.height.max(1) as usize,
-            )
-        };
-        match crate::gif_import::import_gif_scaled(&path, scale) {
+    fn perform_import_gif(&mut self, config: dialogs::GifImportConfig) {
+        let path = &config.path;
+        let cw = config.canvas_width as usize;
+        let ch = config.canvas_height as usize;
+        match crate::gif_import::import_gif_scaled(path, config.image_scale) {
             Ok(gif_data) => {
                 if gif_data.frames.is_empty() {
                     return;
                 }
-                let h = gif_data.frames[0].len();
-                let w = if h > 0 {
+                let fh = gif_data.frames[0].len();
+                let fw = if fh > 0 {
                     gif_data.frames[0][0].len()
                 } else {
                     0
                 };
-                if w == 0 || h == 0 {
+                if fw == 0 || fh == 0 {
                     return;
                 }
 
-                self.editor.canvas = canvas::CanvasWidget::new(w as u16, h as u16);
-                self.editor.layer_stack.resize_all(w, h);
+                self.editor.canvas = canvas::CanvasWidget::new(cw as u16, ch as u16);
+                self.editor.layer_stack.resize_all(cw, ch);
 
-                // Copy first frame into active layer
+                // Center the scaled image on the canvas
+                let x_off = (cw.saturating_sub(fw)) / 2;
+                let y_off = (ch.saturating_sub(fh)) / 2;
+
+                // Copy first frame into active layer (centered)
                 {
                     let mut buf = self.editor.layer_stack.active_layer().buffer.clone();
-                    for y in 0..h.min(gif_data.frames[0].len()) {
-                        for x in 0..w.min(gif_data.frames[0][y].len()) {
-                            buf.set(x, y, gif_data.frames[0][y][x]);
+                    for (y, row) in gif_data.frames[0]
+                        .iter()
+                        .enumerate()
+                        .take(fh.min(gif_data.frames[0].len()))
+                    {
+                        for (x, cell) in row.iter().enumerate().take(fw.min(row.len())) {
+                            let dx = x_off + x;
+                            let dy = y_off + y;
+                            if dx < cw && dy < ch {
+                                buf.set(dx, dy, *cell);
+                            }
                         }
                     }
                     *self.editor.layer_stack.active_layer_mut().buffer_mut() = buf;
@@ -2165,14 +2148,18 @@ impl TuiApp {
                     .sync_layer_names(&self.editor.layer_stack);
 
                 for (i, frame_cells) in gif_data.frames.iter().enumerate() {
-                    let mut frame_buf = canvas::CanvasBuffer::new(w, h);
+                    let mut frame_buf = canvas::CanvasBuffer::new(cw, ch);
                     for (y, row) in frame_cells
                         .iter()
                         .enumerate()
-                        .take(h.min(frame_cells.len()))
+                        .take(fh.min(frame_cells.len()))
                     {
-                        for (x, cell) in row.iter().enumerate().take(w.min(row.len())) {
-                            frame_buf.set(x, y, *cell);
+                        for (x, cell) in row.iter().enumerate().take(fw.min(row.len())) {
+                            let dx = x_off + x;
+                            let dy = y_off + y;
+                            if dx < cw && dy < ch {
+                                frame_buf.set(dx, dy, *cell);
+                            }
                         }
                     }
 
@@ -2212,11 +2199,11 @@ impl TuiApp {
                 self.editor.recomposite_canvas();
                 self.editor.unsaved = true;
                 self.frame.dirty = true;
-                self.dialogs.file_ops.mode = file_ops::FileOpsMode::Idle;
             }
             Err(e) => {
-                self.dialogs.file_ops.error_message = format!("GIF import failed: {e}");
-                self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportGif;
+                // Re-open the dialog with the error so user can adjust settings
+                self.dialogs.gif_import.active = true;
+                self.dialogs.gif_import.error_message = format!("Import failed: {e}");
             }
         }
     }
@@ -2654,7 +2641,7 @@ impl TuiApp {
                 self.ui.menu_bar_state.reset();
             }
             menu::MenuAction::FileImportGif => {
-                self.dialogs.file_ops.enter_import_gif();
+                self.dialogs.gif_import.enter();
                 self.ui.menu_bar_state.reset();
             }
             menu::MenuAction::FileQuit => {

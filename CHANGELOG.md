@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.0.25] - 2026-07-12
+
+### Added
+- GIF import sizing dialog: two-phase dialog (file browser → sizing options)
+  showing original GIF resolution, editable image width/height, canvas
+  width/height, and keep-proportions toggle. Image auto-centers on canvas.
+  Closes 7.6.1.
+- `GifScaleTarget::Exact(width, height)` variant for aspect-ratio-free
+  scaling.
+- `probe_gif_dimensions()` for cheap header-only GIF dimension reading.
+
+### Changed
+- GIF import now uses user-configurable sizing dialog instead of
+  auto-computing scale from terminal viewport. Imported GIF frames are
+  centered on the canvas.
+
 ## [6.0.24] - 2026-07-11
 
 ### Added

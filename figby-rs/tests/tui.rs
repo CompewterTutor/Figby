@@ -2838,24 +2838,21 @@ fn test_rotate_tool_arrow_key_rotates_whole_layer() {
 #[test]
 fn test_welcome_screen_shortcuts_work_with_or_without_shift() {
     use crossterm::event::KeyCode;
-    use figby::tui::file_ops::FileOpsMode;
     use figby::tui::TuiApp;
 
-    // 'A' (Animated GIF Import) previously only matched the shifted,
-    // uppercase char — plain 'a' (no shift) silently did nothing.
+    // 'A' (Animated GIF Import) opens the gif_import sizing dialog.
     let mut app = TuiApp::new();
     assert!(app.welcome.screen.show);
     app.handle_key_event(KeyCode::Char('a'));
-    assert_eq!(
-        app.dialogs.file_ops.mode,
-        FileOpsMode::ImportGif,
+    assert!(
+        app.dialogs.gif_import.active,
         "lowercase 'a' should trigger the same action as shifted 'A'"
     );
 
     // Shifted form must still work too.
     let mut app2 = TuiApp::new();
     app2.handle_key_event(KeyCode::Char('A'));
-    assert_eq!(app2.dialogs.file_ops.mode, FileOpsMode::ImportGif);
+    assert!(app2.dialogs.gif_import.active);
 }
 
 #[test]

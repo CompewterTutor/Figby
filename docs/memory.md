@@ -2812,3 +2812,11 @@ Key changes:
 - **docs/particles-design.md**: New design sketch covering data model, interpolation rules, lifecycle hooks, deferred work.
 - **11 new tests**: keyframe color at 25%/50%/75%, character step low-t/high-t, empty-track fallback, progress clamping, render-to-canvas integration, on-death burst spawns N, non-recursive burst, disabled when count=0, secondary inherits keyframes.
 - **Files touched**: `figby-rs/src/tui/particles.rs`, `docs/particles-design.md`, `docs/todo-v7.md`, `CHANGELOG.md`, `figby-rs/Cargo.toml`.
+
+### 7.6.1 — GIF import sizing dialog
+
+- **New dialog**: `tui/dialogs/gif_import.rs` with two-phase flow: file browser → sizing options. Shows original GIF resolution, editable image width/height, canvas width/height (separate from image size), and keep-proportions toggle. Image auto-centers on canvas.
+- **`GifScaleTarget::Exact(w, h)`**: New variant for aspect-ratio-free scaling — maps directly to cell dimensions without terminal-cell compensation.
+- **`probe_gif_dimensions()`**: Cheap header-only GIF dimension reader via `gif::Decoder`, used by dialog to show native resolution before full decode.
+- **`perform_import_gif`**: Changed signature from `PathBuf` to `GifImportConfig`. Uses dialog's `image_scale` for frame scaling and `canvas_width/height` for final canvas size. First frame + timeline frames centered on canvas via `x_off/y_off` offset.
+- **Files touched**: `figby-rs/src/gif_import.rs`, `figby-rs/src/tui/dialogs/gif_import.rs` (new), `figby-rs/src/tui/dialogs/mod.rs`, `figby-rs/src/tui/app_state.rs`, `figby-rs/src/tui/overlays.rs`, `figby-rs/src/tui/dispatch.rs`, `figby-rs/tests/tui.rs`.

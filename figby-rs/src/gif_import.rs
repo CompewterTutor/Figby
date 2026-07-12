@@ -80,10 +80,15 @@ pub enum GifScaleTarget {
     /// ratio (same terminal-cell compensation as `FitWidth`). Scales up or
     /// down as needed to fill the box on the more constrained axis.
     FitBox(usize, usize),
+    /// Scale to exact cell dimensions `(width, height)`. No aspect-ratio
+    /// preservation or terminal-cell compensation — the output will be
+    /// exactly `width` × `height` cells regardless of source proportions.
+    /// Useful when the caller wants to specify precise canvas cell counts.
+    Exact(usize, usize),
 }
 
 impl GifScaleTarget {
-    fn resolve(self, native_w: usize, native_h: usize) -> (usize, usize) {
+    pub(crate) fn resolve(self, native_w: usize, native_h: usize) -> (usize, usize) {
         match self {
             GifScaleTarget::Native => (native_w, native_h),
             GifScaleTarget::FitWidth(w) => {
@@ -101,6 +106,7 @@ impl GifScaleTarget {
                 let h = (native_h as f64 * scale * 0.5).round().max(1.0) as usize;
                 (w, h)
             }
+            GifScaleTarget::Exact(w, h) => (w.max(1), h.max(1)),
         }
     }
 }
@@ -136,6 +142,20 @@ fn scale_canvas(canvas: &[Vec<CanvasCell>], out_w: usize, out_h: usize) -> Vec<V
                 .collect()
         })
         .collect()
+}
+
+/// Quick-probe a GIF file to read its native pixel dimensions without
+/// decoding frames or compositing. Returns `(width, height)` in pixels.
+pub fn probe_gif_dimensions(path: &Path) -> Result<(usize, usize), GifImportError> {
+    let file = File::open(path)?;
+    let decoder = gif::Decoder::new(file)?;
+    let w = decoder.width() as usize;
+    let h = decoder.height() as usize;
+    if w == 0 || h == 0 {
+        Err(GifImportError::Decode("GIF has zero dimensions".into()))
+    } else {
+        Ok((w, h))
+    }
 }
 
 pub fn import_gif(path: &Path) -> Result<GifImportResult, GifImportError> {
@@ -478,6 +498,12 @@ mod tests {
             .expect("scaled import of an oversized-native GIF should succeed");
         assert_eq!(result.frames.len(), 3);
         assert_eq!(result.frames[0][0].len(), 80);
+    }
+
+    #[test]
+    fn test_scale_target_exact() {
+        assert_eq!(GifScaleTarget::Exact(40, 20).resolve(100, 50), (40, 20));
+        assert_eq!(GifScaleTarget::Exact(10, 5).resolve(999, 1), (10, 5));
     }
 
     #[test]

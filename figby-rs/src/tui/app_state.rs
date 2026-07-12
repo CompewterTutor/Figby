@@ -985,6 +985,7 @@ pub struct DialogState {
     pub undo_panel: undo_panel::UndoPanel,
     pub settings: status::CanvasSettings,
     pub rascii_import: dialogs::RasciiImportDialog,
+    pub gif_import: dialogs::GifImportDialog,
     pub new_image: dialogs::NewImageDialog,
     pub system_font: dialogs::SystemFontPickerDialog,
     pub quit_confirm_dialog: bool,
@@ -1131,6 +1132,8 @@ impl TuiApp {
 
         let mut rascii_import = dialogs::RasciiImportDialog::new();
         rascii_import.theme = theme.clone();
+        let mut gif_import = dialogs::GifImportDialog::new();
+        gif_import.theme = theme.clone();
         let mut new_image = dialogs::NewImageDialog::new();
         new_image.theme = theme.clone();
         let mut system_font = dialogs::SystemFontPickerDialog::new();
@@ -1170,6 +1173,7 @@ impl TuiApp {
                 undo_panel,
                 settings,
                 rascii_import,
+                gif_import,
                 new_image,
                 system_font,
                 quit_confirm_dialog: false,

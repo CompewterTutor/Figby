@@ -1,5 +1,28 @@
 # Changelog
 
+## [6.0.24] - 2026-07-11
+
+### Added
+- Per-particle keyframe tracks: new `ParticleKeyframe` type + `keyframes`
+  field on `Particle` / `ParticleConfig`. `Particle::render_values()`
+  interpolates colour/size/opacity linearly between adjacent keyframes
+  based on lifetime progress; character picks the nearer endpoint.
+  7 tests covering 25%/50%/75% interpolation, character step, empty-track
+  fallback, progress clamping, and render-to-canvas integration. Closes 7.5.2.
+- On-death secondary emitter: `on_death_count` + `on_death_config` on
+  `ParticleConfig`. Primary particles spawn N secondaries at their
+  position on death using the sub-config. Secondaries carry
+  `is_secondary = true` so bursts are non-recursive. 4 tests.
+- `docs/particles-design.md` design sketch covering data model,
+  interpolation rules, lifecycle hooks, and deferred work.
+
+### Changed
+- `Particle` gains `total_lifetime` (spawn-time snapshot used as the
+  interpolation denominator), `keyframes`, and `is_secondary` fields.
+  `Particle::Default` implemented. All test literal constructions updated.
+- `render_to_canvas` / `bake_to_buffer` now call `render_values()` per
+  particle instead of reading static fields directly.
+
 ## [6.0.23] - 2026-07-11
 
 ### Added

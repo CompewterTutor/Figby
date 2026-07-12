@@ -180,6 +180,20 @@ pub struct ParticleConfig {
     pub edge_mode: EdgeMode,
     #[serde(default)]
     pub collide_with_layer: bool,
+    /// Optional per-particle keyframe track copied to every spawned particle.
+    /// When non-empty, render-time appearance interpolates between adjacent
+    /// keyframes based on the particle's lifetime progress.
+    #[serde(default = "default_keyframes")]
+    pub keyframes: Vec<ParticleKeyframe>,
+    /// Number of secondary particles to emit when a primary particle dies.
+    /// Sub-config `on_death_config` is used; the spawned particles are marked
+    /// `is_secondary` so the burst does not trigger a recursive burst.
+    #[serde(default = "default_on_death_count")]
+    pub on_death_count: usize,
+    /// Sub-configuration for the death-event burst. Carried in a `Box` to keep
+    /// `ParticleConfig` a fixed size despite the recursive reference.
+    #[serde(default)]
+    pub on_death_config: Option<Box<ParticleConfig>>,
 }
 
 fn default_spawn_rate() -> f64 {
@@ -223,8 +237,47 @@ impl Default for ParticleConfig {
             emission_shape: default_emission_shape(),
             edge_mode: default_edge_mode(),
             collide_with_layer: false,
+            keyframes: Vec::new(),
+            on_death_count: 0,
+            on_death_config: None,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ParticleKeyframe {
+    /// Fraction of total lifetime in range [0.0, 1.0] at which this keyframe applies.
+    pub time: f64,
+    pub color: Option<(u8, u8, u8)>,
+    pub size: u8,
+    pub character: char,
+    pub opacity: u8,
+}
+
+impl ParticleKeyframe {
+    pub fn new(time: f64) -> Self {
+        Self {
+            time,
+            color: None,
+            size: 1,
+            character: '*',
+            opacity: 255,
+        }
+    }
+}
+
+impl Default for ParticleKeyframe {
+    fn default() -> Self {
+        Self::new(0.0)
+    }
+}
+
+fn default_keyframes() -> Vec<ParticleKeyframe> {
+    Vec::new()
+}
+
+fn default_on_death_count() -> usize {
+    0
 }
 
 #[derive(Debug, Clone)]
@@ -239,9 +292,106 @@ pub struct Particle {
     pub character: char,
     pub opacity: u8,
     pub blend_mode: BlendMode,
+    /// Original lifetime used as the denominator when computing per-particle
+    /// progress for keyframe interpolation. Set at spawn and never mutated.
+    pub total_lifetime: f64,
+    /// Optional per-particle keyframe track. Sorted ascending by `time` for
+    /// interpolation. When empty, the particle's own fields drive rendering.
+    pub keyframes: Vec<ParticleKeyframe>,
+    /// `true` when the particle was spawned by another particle's death event
+    /// so it does not itself trigger a recursively-spawned burst on death.
+    pub is_secondary: bool,
+}
+
+impl Default for Particle {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            vx: 0.0,
+            vy: 0.0,
+            remaining_lifetime: 0.0,
+            size: 1,
+            color: None,
+            character: '*',
+            opacity: 255,
+            blend_mode: BlendMode::Normal,
+            total_lifetime: 0.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
+        }
+    }
+}
+
+fn lerp_u8(a: u8, b: u8, t: f64) -> u8 {
+    let av = a as f64;
+    let bv = b as f64;
+    let v = av + (bv - av) * t;
+    v.round().clamp(0.0, 255.0) as u8
+}
+
+fn lerp_color(a: (u8, u8, u8), b: (u8, u8, u8), t: f64) -> (u8, u8, u8) {
+    (
+        lerp_u8(a.0, b.0, t),
+        lerp_u8(a.1, b.1, t),
+        lerp_u8(a.2, b.2, t),
+    )
 }
 
 impl Particle {
+    /// Render-time values for (color, size, character, opacity) after applying
+    /// the optional keyframe track. When the particle has no keyframes, returns
+    /// its own static fields, preserving backwards-compatible behavior.
+    pub fn render_values(&self) -> (Option<(u8, u8, u8)>, u8, char, u8) {
+        if self.keyframes.is_empty() || self.total_lifetime <= f64::EPSILON {
+            return (self.color, self.size, self.character, self.opacity);
+        }
+        let progress = (1.0 - self.remaining_lifetime / self.total_lifetime).clamp(0.0, 1.0);
+        let mut kfs = self.keyframes.clone();
+        kfs.sort_by(|a, b| {
+            a.time
+                .partial_cmp(&b.time)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        if kfs.is_empty() {
+            return (self.color, self.size, self.character, self.opacity);
+        }
+        if progress <= kfs[0].time {
+            let kf = &kfs[0];
+            return (kf.color, kf.size, kf.character, kf.opacity);
+        }
+        if progress >= kfs[kfs.len() - 1].time {
+            let kf = &kfs[kfs.len() - 1];
+            return (kf.color, kf.size, kf.character, kf.opacity);
+        }
+        let mut i = 0;
+        while i + 1 < kfs.len() && kfs[i + 1].time < progress {
+            i += 1;
+        }
+        let a = &kfs[i];
+        let b = &kfs[i + 1];
+        let span = (b.time - a.time).max(f64::EPSILON);
+        let t = ((progress - a.time) / span).clamp(0.0, 1.0);
+        let color = match (a.color, b.color) {
+            (Some(ac), Some(bc)) => Some(lerp_color(ac, bc, t)),
+            (Some(c), None) | (None, Some(c)) => Some(c),
+            (None, None) => None,
+        };
+        let size = lerp_u8(a.size, b.size, t);
+        let opacity = lerp_u8(a.opacity, b.opacity, t);
+        let character = if t < 0.5 { a.character } else { b.character };
+        (color, size, character, opacity)
+    }
+
+    /// Lifetime progress in `[0.0, 1.0]` (0 = just spawned, 1 = about to die).
+    pub fn progress(&self) -> f64 {
+        if self.total_lifetime <= f64::EPSILON {
+            1.0
+        } else {
+            (1.0 - self.remaining_lifetime / self.total_lifetime).clamp(0.0, 1.0)
+        }
+    }
+
     fn new(config: &ParticleConfig) -> Self {
         use rand::Rng;
         let mut rng = rand::thread_rng();
@@ -310,12 +460,26 @@ impl Particle {
             vx,
             vy,
             remaining_lifetime: lifetime,
+            total_lifetime: lifetime,
             size: config.size,
             color,
             character: config.character,
             opacity: config.opacity,
             blend_mode,
+            keyframes: config.keyframes.clone(),
+            is_secondary: false,
         }
+    }
+
+    /// Spawn a secondary particle at `(x, y)` using the given sub-config.
+    /// The new particle carries no keyframe track of its own and is marked
+    /// `is_secondary = true` so its own death cannot trigger a recursive burst.
+    fn spawn_secondary_at(config: &ParticleConfig, x: f64, y: f64) -> Self {
+        let mut p = Particle::new(config);
+        p.x = x;
+        p.y = y;
+        p.is_secondary = true;
+        p
     }
 }
 
@@ -460,8 +624,26 @@ impl ParticleSystem {
             }
         }
 
+        // Collect secondary emissions for dying primary particles before removal.
+        // `is_secondary` ensures the burst is not recursive.
+        let mut secondaries: Vec<Particle> = Vec::new();
+        if self.config.on_death_count > 0 {
+            if let Some(sub_cfg) = self.config.on_death_config.as_ref() {
+                for p in &self.active_particles {
+                    if !p.is_secondary && p.remaining_lifetime <= 0.0 {
+                        for _ in 0..self.config.on_death_count {
+                            secondaries.push(Particle::spawn_secondary_at(sub_cfg, p.x, p.y));
+                        }
+                    }
+                }
+            }
+        }
+
         // Remove expired particles
         self.active_particles.retain(|p| p.remaining_lifetime > 0.0);
+
+        // Append any on-death bursts
+        self.active_particles.extend(secondaries);
     }
 
     pub fn active_count(&self) -> usize {
@@ -498,8 +680,9 @@ impl ParticleSystem {
                 continue;
             }
             if let Some(cell) = buffer.get_mut(px as usize, py as usize) {
-                cell.ch = p.character;
-                if let Some((r, g, b)) = p.color {
+                let (color, _size, character, _opacity) = p.render_values();
+                cell.ch = character;
+                if let Some((r, g, b)) = color {
                     cell.fg = Some(ratatui::style::Color::Rgb(r, g, b));
                 }
             }
@@ -517,8 +700,9 @@ impl ParticleSystem {
                 continue;
             }
             if let Some(cell) = buffer.get_mut(px as usize, py as usize) {
-                cell.ch = p.character;
-                if let Some((r, g, b)) = p.color {
+                let (color, _size, character, _opacity) = p.render_values();
+                cell.ch = character;
+                if let Some((r, g, b)) = color {
                     cell.fg = Some(ratatui::style::Color::Rgb(r, g, b));
                 }
             }
@@ -1390,6 +1574,9 @@ mod tests {
             character: '*',
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            total_lifetime: 10.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
         });
         system.update(1.0, Some((10, 10)), None);
         let p = &system.active_particles[0];
@@ -1414,6 +1601,9 @@ mod tests {
             character: '*',
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            total_lifetime: 10.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
         });
         system.update(1.0, Some((10, 10)), None);
         let p = &system.active_particles[0];
@@ -1438,6 +1628,9 @@ mod tests {
             character: '*',
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            total_lifetime: 10.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
         });
         system.update(1.0, Some((10, 10)), None);
         let p = &system.active_particles[0];
@@ -1461,6 +1654,9 @@ mod tests {
             character: '*',
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            total_lifetime: 10.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
         });
         system.update(1.0, Some((10, 10)), None);
         assert!(
@@ -1486,6 +1682,9 @@ mod tests {
             character: '*',
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            total_lifetime: 10.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
         });
         // No bounds passed — particle should keep moving
         system.update(1.0, None, None);
@@ -1524,6 +1723,9 @@ mod tests {
             character: '*',
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            total_lifetime: 10.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
         });
         system.update(1.0, Some((10, 10)), Some(&mask));
         let p = &system.active_particles[0];
@@ -1561,9 +1763,280 @@ mod tests {
             character: '*',
             opacity: 255,
             blend_mode: BlendMode::Normal,
+            total_lifetime: 10.0,
+            keyframes: Vec::new(),
+            is_secondary: false,
         });
         system.update(1.0, Some((10, 10)), Some(&mask));
         let p = &system.active_particles[0];
         assert!(p.vx > 0.0, "vx should be unchanged when collide disabled");
+    }
+
+    // ── Per-particle keyframe interpolation tests ──────────────
+
+    fn kf_test_particle(lifetime: f64, progress: f64) -> Particle {
+        let keyframes = vec![
+            ParticleKeyframe {
+                time: 0.0,
+                color: Some((255, 0, 0)),
+                size: 1,
+                character: '*',
+                opacity: 255,
+            },
+            ParticleKeyframe {
+                time: 0.5,
+                color: Some((0, 0, 255)),
+                size: 1,
+                character: '+',
+                opacity: 255,
+            },
+            ParticleKeyframe {
+                time: 1.0,
+                color: Some((255, 255, 255)),
+                size: 1,
+                character: '#',
+                opacity: 255,
+            },
+        ];
+        let remaining = lifetime * (1.0 - progress);
+        Particle {
+            remaining_lifetime: remaining,
+            total_lifetime: lifetime,
+            keyframes,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_keyframe_color_at_25_percent() {
+        let p = kf_test_particle(4.0, 0.25);
+        let (color, _size, _ch, _op) = p.render_values();
+        let c = color.expect("keyframe provides color");
+        assert_eq!(c, (128, 0, 128), "red→blue midpoint at 25%");
+    }
+
+    #[test]
+    fn test_keyframe_color_at_50_percent() {
+        let p = kf_test_particle(4.0, 0.5);
+        let (color, _size, _ch, _op) = p.render_values();
+        let c = color.expect("keyframe provides color");
+        assert_eq!(c, (0, 0, 255), "exact blue at 50%");
+    }
+
+    #[test]
+    fn test_keyframe_color_at_75_percent() {
+        let p = kf_test_particle(4.0, 0.75);
+        let (color, _size, _ch, _op) = p.render_values();
+        let c = color.expect("keyframe provides color");
+        assert_eq!(c, (128, 128, 255), "blue→white midpoint at 75%");
+    }
+
+    #[test]
+    fn test_keyframe_character_picks_nearest() {
+        // At 10% (t=0.2 in 0..0.5 segment) → lower character '*'
+        let p = kf_test_particle(4.0, 0.1);
+        let (_, _, ch, _) = p.render_values();
+        assert_eq!(ch, '*', "low-t picks lower character");
+        // At 90% (t=0.8 in 0.5..1.0 segment) → upper character '#'
+        let p = kf_test_particle(4.0, 0.9);
+        let (_, _, ch, _) = p.render_values();
+        assert_eq!(ch, '#', "high-t picks upper character");
+    }
+
+    #[test]
+    fn test_keyframe_empty_falls_back_to_static_fields() {
+        let p = Particle {
+            color: Some((10, 20, 30)),
+            size: 7,
+            character: '@',
+            opacity: 100,
+            ..Default::default()
+        };
+        let (color, size, ch, opacity) = p.render_values();
+        assert_eq!(color, Some((10, 20, 30)));
+        assert_eq!(size, 7);
+        assert_eq!(ch, '@');
+        assert_eq!(opacity, 100);
+    }
+
+    #[test]
+    fn test_keyframe_progress_clamps_to_endpoints() {
+        let p1 = kf_test_particle(4.0, -0.5);
+        let (c, _, _, _) = p1.render_values();
+        assert_eq!(c, Some((255, 0, 0)), "negative progress clamps to start");
+        let p2 = kf_test_particle(4.0, 2.0);
+        let (c, _, _, _) = p2.render_values();
+        assert_eq!(
+            c,
+            Some((255, 255, 255)),
+            "progress >1 clamps to final keyframe"
+        );
+    }
+
+    #[test]
+    fn test_keyframe_render_to_canvas_uses_interpolated_color() {
+        let mut system = ParticleSystem::new(ParticleConfig {
+            spawn_rate: 1.0,
+            lifetime_min: 4.0,
+            lifetime_max: 4.0,
+            emitter_x: 5.0,
+            emitter_y: 5.0,
+            velocity_x_min: 0.0,
+            velocity_x_max: 0.0,
+            keyframes: vec![
+                ParticleKeyframe {
+                    time: 0.0,
+                    color: Some((255, 0, 0)),
+                    size: 1,
+                    character: '*',
+                    opacity: 255,
+                },
+                ParticleKeyframe {
+                    time: 1.0,
+                    color: Some((0, 0, 255)),
+                    size: 1,
+                    character: '*',
+                    opacity: 255,
+                },
+            ],
+            ..Default::default()
+        });
+        system.update(1.0, None, None);
+        assert_eq!(system.active_count(), 1);
+        // At t=1.0 with lifetime=4.0 → progress=0.25 → red→blue linear t=0.25
+        // r=255+(0-255)*0.25=191.25→191, b=0+(255-0)*0.25=63.75→64
+        let p = &system.active_particles[0];
+        let (color, _, _, _) = p.render_values();
+        let (r, g, b) = color.unwrap();
+        assert_eq!(r, 191);
+        assert_eq!(g, 0);
+        assert_eq!(b, 64);
+    }
+
+    // ── On-death secondary burst tests ─────────────────────────
+
+    #[test]
+    fn test_on_death_burst_spawns_secondaries() {
+        let sub_cfg = Box::new(ParticleConfig {
+            spawn_rate: 0.0,
+            lifetime_min: 1.0,
+            lifetime_max: 1.0,
+            character: '!',
+            ..Default::default()
+        });
+        let mut system = ParticleSystem::new(ParticleConfig {
+            spawn_rate: 0.0,
+            lifetime_min: 1.0,
+            lifetime_max: 1.0,
+            on_death_count: 3,
+            on_death_config: Some(sub_cfg),
+            ..Default::default()
+        });
+        // Place one primary particle about to expire
+        system.active_particles.push(Particle {
+            x: 5.0,
+            y: 5.0,
+            remaining_lifetime: 0.5,
+            total_lifetime: 1.0,
+            is_secondary: false,
+            ..Default::default()
+        });
+        system.update(1.0, None, None);
+        // Primary dies → 3 secondaries spawned
+        assert_eq!(system.active_count(), 3, "3 secondaries on primary death");
+        for p in &system.active_particles {
+            assert!(p.is_secondary, "secondary must be flagged");
+            assert_eq!(p.x, 5.0, "secondary inherits parent position x");
+            assert_eq!(p.y, 5.0, "secondary inherits parent position y");
+            assert_eq!(p.character, '!', "secondary uses sub-config char");
+        }
+    }
+
+    #[test]
+    fn test_on_death_burst_not_recursive() {
+        // Sub-config carries its own on_death_count but secondaries never trigger it.
+        let sub_cfg = Box::new(ParticleConfig {
+            spawn_rate: 0.0,
+            lifetime_min: 0.5,
+            lifetime_max: 0.5,
+            on_death_count: 99, // should be ignored for secondaries
+            on_death_config: None,
+            ..Default::default()
+        });
+        let mut system = ParticleSystem::new(ParticleConfig {
+            spawn_rate: 0.0,
+            on_death_count: 2,
+            on_death_config: Some(sub_cfg),
+            ..Default::default()
+        });
+        system.active_particles.push(Particle {
+            x: 1.0,
+            y: 1.0,
+            remaining_lifetime: 0.4,
+            total_lifetime: 1.0,
+            ..Default::default()
+        });
+        // Step 1: primary dies → 2 secondaries (life=0.5)
+        system.update(1.0, None, None);
+        assert_eq!(system.active_count(), 2);
+        // Step 2: step again — secondaries have 0.5 remaining and die at next step.
+        // No further bursts allowed because secondaries' is_secondary flag guards it.
+        system.update(0.55, None, None);
+        // At this point secondaries have remaining_lifetime <= 0 → they're removed.
+        // Without recursion they should NOT spawn new ones.
+        assert_eq!(system.active_count(), 0, "secondaries must not recurse");
+    }
+
+    #[test]
+    fn test_on_death_disabled_when_count_zero() {
+        let mut system = ParticleSystem::new(ParticleConfig {
+            spawn_rate: 0.0,
+            on_death_count: 0,
+            on_death_config: Some(Box::new(ParticleConfig::default())),
+            ..Default::default()
+        });
+        system.active_particles.push(Particle {
+            remaining_lifetime: 0.5,
+            total_lifetime: 1.0,
+            ..Default::default()
+        });
+        system.update(1.0, None, None);
+        assert_eq!(system.active_count(), 0, "no burst when on_death_count = 0");
+    }
+
+    #[test]
+    fn test_secondary_carries_keyframes() {
+        let sub_cfg = Box::new(ParticleConfig {
+            spawn_rate: 0.0,
+            lifetime_min: 2.0,
+            lifetime_max: 2.0,
+            keyframes: vec![ParticleKeyframe {
+                time: 0.5,
+                color: Some((0, 255, 0)),
+                size: 2,
+                character: 'X',
+                opacity: 200,
+            }],
+            ..Default::default()
+        });
+        let mut system = ParticleSystem::new(ParticleConfig {
+            spawn_rate: 0.0,
+            on_death_count: 1,
+            on_death_config: Some(sub_cfg),
+            ..Default::default()
+        });
+        system.active_particles.push(Particle {
+            x: 2.0,
+            y: 3.0,
+            remaining_lifetime: 0.4,
+            total_lifetime: 1.0,
+            ..Default::default()
+        });
+        system.update(1.0, None, None);
+        assert_eq!(system.active_count(), 1);
+        let s = &system.active_particles[0];
+        assert_eq!(s.total_lifetime, 2.0);
+        assert_eq!(s.keyframes.len(), 1);
+        assert!(s.is_secondary);
     }
 }

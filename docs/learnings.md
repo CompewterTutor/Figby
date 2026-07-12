@@ -1559,3 +1559,31 @@ Three bugs found in phase merge review:
 - A private `use` alias in a parent is visible to descendant modules but
   `glob`-importing it still leaves the parent's own `use` flagged as
   unused; move such imports into the child test mod that needs them.
+
+### Particle keyframe interpolation + on-death bursts (7.5.2)
+
+- Keyframe `time` is a fraction `[0,1]` of total lifetime, not absolute
+  seconds. Store `total_lifetime` as a spawn-time snapshot on the particle
+  — `remaining_lifetime` decreases but `total_lifetime` is the stable
+  denominator for `progress = 1.0 - remaining/total`.
+- Character interpolation: glyphs don't lerp. Pick the nearer endpoint:
+  `a.character` if `t < 0.5`, else `b.character`. A "morph" mode that
+  crossfades both glyphs with split opacity is a future extension.
+- On-death burst recursion: guard with `is_secondary: bool` on the
+  particle. Secondaries never trigger another burst. Depth-1 cap is a
+  design choice; N-level recursion would need a `depth: u8` counter.
+- `ParticleConfig` with `on_death_config: Option<Box<ParticleConfig>>`
+  — the `Box` keeps the struct a fixed size despite the recursive
+  reference. Without it, `Option<ParticleConfig>` is infinitely sized.
+- `render_values()` clones + sorts keyframes on every call. Acceptable
+  for now (particle counts are low); cache sorted `Vec` at spawn if
+  profiling shows it.
+- Test construction: manually pushing `Particle { ... }` literals in
+  tests breaks when new fields are added. `..Default::default()` on
+  `Particle` (impl `Default`) is the escape hatch — but only works if
+  you control the test data. For the field-by-field literal tests, bulk
+  `replaceAll` on the trailing `blend_mode: BlendMode::Normal,\n        });`
+  pattern was the fastest fix.
+- Clippy `unnecessary_unwrap`: `is_some()` + `.expect()` on the same
+  option triggers it. Restructure as `if let Some(x) = opt.as_ref() { ... }`
+  inside the outer guard.

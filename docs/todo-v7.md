@@ -409,7 +409,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     Existing particle tests still pass; new tests assert reflection vectors.
   - **Difficulty:** Medium
 
-- [ ] `7.5.2` Per-particle keyframe tracks + lifecycle hooks
+- [x] `7.5.2` Per-particle keyframe tracks + lifecycle hooks
   - **Goal:** Each particle today has only a scalar
     `remaining_lifetime: f64` (`particles.rs:179`) and a global
     `ParticleSystem::age` (`:269`). Per the manual note, particles should

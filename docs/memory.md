@@ -2804,3 +2804,11 @@ Key changes:
 - **EmitterConfigPanel**: Fields 17 (Edge Mode) and 18 (Collide w/ Layer) added to config panel UI.
 - **7 new tests**: edge bounce left/right, wrap, despawn, no-bounds passthrough, layer reflect, layer disabled.
 - **Files touched**: `figby-rs/src/tui/particles.rs`, `figby-rs/src/tui/event_loop.rs`, `docs/todo-v7.md`.
+
+### 7.5.2 — Per-particle keyframe tracks + lifecycle hooks
+
+- **particles.rs**: Added `ParticleKeyframe` type (time/color/size/character/opacity, serde). `Particle` gains `total_lifetime` (spawn snapshot for progress denominator), `keyframes: Vec<ParticleKeyframe>`, `is_secondary: bool`. `Particle::render_values()` interpolates between adjacent keyframes: linear lerp on color/size/opacity, nearest-endpoint pick on character. `Particle::progress()` helper. `ParticleConfig` gains `keyframes`, `on_death_count`, `on_death_config: Option<Box<ParticleConfig>>` for recursive sub-config (Box keeps fixed size). `ParticleSystem::update()` collects on-death secondaries before `retain()`; secondaries flagged `is_secondary = true` so bursts are non-recursive.
+- **render_to_canvas / bake_to_buffer**: Now call `render_values()` per particle instead of reading static fields. Interpolated color/char applied.
+- **docs/particles-design.md**: New design sketch covering data model, interpolation rules, lifecycle hooks, deferred work.
+- **11 new tests**: keyframe color at 25%/50%/75%, character step low-t/high-t, empty-track fallback, progress clamping, render-to-canvas integration, on-death burst spawns N, non-recursive burst, disabled when count=0, secondary inherits keyframes.
+- **Files touched**: `figby-rs/src/tui/particles.rs`, `docs/particles-design.md`, `docs/todo-v7.md`, `CHANGELOG.md`, `figby-rs/Cargo.toml`.

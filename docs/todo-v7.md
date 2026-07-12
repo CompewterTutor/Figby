@@ -274,7 +274,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     `cargo test` green, every keybind still fires. No behaviour change.
   - **Difficulty:** Medium
 
-- [ ] `7.3.2` Extract `render_canvas_area` + `render_overlays` residual blocks
+- [x] `7.3.2` Extract `render_canvas_area` + `render_overlays` residual blocks
   - **Goal:** `render_canvas_area` at `mod.rs:1388-1418` mixes player-widget
     dispatch with normal canvas compositing; pull the player-dispatch arm
     into `AnimationState::render` (already used for the inline player path)

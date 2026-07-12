@@ -1,5 +1,22 @@
 use crate::tui::canvas::CanvasBuffer;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MoveState {
+    pub stride: u8,
+    pub snap: bool,
+    pub wrap: bool,
+}
+
+impl Default for MoveState {
+    fn default() -> Self {
+        Self {
+            stride: 1,
+            snap: false,
+            wrap: false,
+        }
+    }
+}
+
 /// Shift every cell in `buffer` by `(dx, dy)`.
 ///
 /// Cells that would land outside the buffer are dropped; positions nothing

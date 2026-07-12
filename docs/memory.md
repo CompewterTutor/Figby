@@ -2694,9 +2694,29 @@ Key changes:
   `unwrap_or('\u{2588}')` fallback for empty buffer provides safe default.
 - **Not wired for 7.2.1**: Emitter and Lighting props panels accept rects/line_y params
   but don't push clickable rects yet (pass `_rects` / `_area`). `FillThresholdUp/Down`
-  actions exist but fill threshold is not yet mutated by brush pipelines (deferred to 7.2.2).
-  `BeginEditField` variant reserved for future generic typed-entry fields.
+  actions exist but brush pipelines do not currently read fill_threshold
+  (could be wired in a later task). `BeginEditField` variant reserved for future generic
+  typed-entry fields.
 - **Files touched**: `figby-rs/src/tui/props_panel.rs` (new), `figby-rs/src/tui/mod.rs`
   (module decl, field, action dispatch, mouse/key handler integration),
   `figby-rs/src/tui/side_panel.rs` (refactored add_*_props signatures, per-tool rect
   generation, `line_y` tracking).
+
+### 7.2.2 — Dedicated props builders for the seven hollow tools
+
+- **New state types**: `MoveState`, `RotateState`, `LineState`, `SelectionState` added to
+  their respective tool modules. Each holds the properties displayed in the panel (stride,
+  snap, wrap; step_angle, direction, pivot; width, arrowhead, curve; feather, additive,
+  subtractive, move_with_arrows).
+- **New props builders**: `add_move_props`, `add_rotate_props`, `add_select_props`,
+  `add_line_props` in `side_panel.rs` replace the old `add_tool_keybinds` fallback.
+  Move/Rotate/Marquee/Lasso/CircleSelect/PolygonSelect/Line all render interactive
+  props instead of the static tool-shortcut catalogue.
+- **Selector dispatch**: Match arm `_ => add_tool_keybinds(...)` replaced with explicit
+  arms for each of the 15 `Tool` variants — compiler-enforced exhaustive match.
+- **Fill threshold**: `add_fill_props` already had +/- rects; `FillThresholdUp/Down`
+  handlers dispatch correctly. Fill tool is now fully editable from the Props tab.
+- **Files touched**: `figby-rs/src/tui/side_panel.rs`, `figby-rs/src/tui/mod.rs`,
+  `figby-rs/src/tui/props_panel.rs`, `figby-rs/src/tui/tools/move_tool.rs`,
+  `figby-rs/src/tui/tools/rotate_tool.rs`, `figby-rs/src/tui/tools/line.rs`,
+  `figby-rs/src/tui/tools/selection.rs`.

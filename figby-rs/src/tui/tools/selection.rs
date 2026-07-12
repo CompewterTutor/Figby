@@ -1,5 +1,13 @@
 use crate::tui::canvas::{CanvasBuffer, CanvasCell};
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct SelectionState {
+    pub feather: u8,
+    pub additive: bool,
+    pub subtractive: bool,
+    pub move_with_arrows: bool,
+}
+
 #[derive(Clone)]
 pub struct Selection {
     mask: Vec<Vec<bool>>,

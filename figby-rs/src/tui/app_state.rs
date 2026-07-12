@@ -512,6 +512,56 @@ impl EditorState {
                 }
                 _ => {}
             }
+        } else if self.toolbox.selected == Tool::Braille {
+            // Braille tool: arrow keys move a 2x4 sub-cell dot cursor
+            // within the current canvas cell (mouse can only address whole
+            // cells, not individual dots), Space/Enter toggles the dot
+            // under it. Reuses the same bit convention as the whole-image
+            // braille converter in image_input.rs.
+            match code {
+                KeyCode::Up => {
+                    self.brush.move_braille_cursor(0, -1);
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Down => {
+                    self.brush.move_braille_cursor(0, 1);
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Left => {
+                    self.brush.move_braille_cursor(-1, 0);
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Right => {
+                    self.brush.move_braille_cursor(1, 0);
+                    *dirty = true;
+                    return true;
+                }
+                KeyCode::Char(' ') | KeyCode::Enter => {
+                    self.push_undo_snapshot("Braille dot");
+                    let (cx, cy) = self.canvas.cursor();
+                    let (cx, cy) = (cx as usize, cy as usize);
+                    let mut buf = self.layer_stack.active_layer().buffer.clone();
+                    if let Some(existing) = buf.get(cx, cy) {
+                        let mut cell = *existing;
+                        cell.ch = crate::image_input::toggle_braille_dot(
+                            cell.ch,
+                            self.brush.sub_x,
+                            self.brush.sub_y,
+                        );
+                        self.palette.apply_to_cell(&mut cell);
+                        buf.set(cx, cy, cell);
+                    }
+                    *self.layer_stack.active_layer_mut().buffer_mut() = buf;
+                    self.recomposite_canvas();
+                    self.unsaved = true;
+                    *dirty = true;
+                    return true;
+                }
+                _ => {}
+            }
         }
 
         // Polygon select: Enter closes polygon, Esc cancels

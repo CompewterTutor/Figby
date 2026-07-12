@@ -421,6 +421,38 @@ pub fn pixels_to_braille_char(
     char::from_u32(code).unwrap_or('\u{2800}')
 }
 
+/// Which single dot-bit corresponds to a sub-cell offset (`dx` in 0..=1,
+/// `dy` in 0..=3) within one braille character's 2x4 dot grid — the same
+/// bit convention documented on [`pixels_to_braille_char`].
+fn braille_bit(dx: u8, dy: u8) -> u8 {
+    match (dx, dy) {
+        (0, 0) => 0x01,
+        (0, 1) => 0x02,
+        (0, 2) => 0x04,
+        (1, 0) => 0x08,
+        (1, 1) => 0x10,
+        (1, 2) => 0x20,
+        (0, 3) => 0x40,
+        (1, 3) => 0x80,
+        _ => 0,
+    }
+}
+
+/// Toggle a single dot within a braille character at sub-cell offset
+/// `(dx, dy)` (`dx` in 0..=1, `dy` in 0..=3). If `ch` isn't already a
+/// braille character (U+2800..=U+28FF), starts from a blank braille cell
+/// (all dots off) rather than clobbering non-braille content. Used by the
+/// interactive braille brush tool to paint at sub-cell accuracy.
+pub fn toggle_braille_dot(ch: char, dx: u8, dy: u8) -> char {
+    let bits = if (BRAILLE_BASE..=BRAILLE_BASE + 0xFF).contains(&(ch as u32)) {
+        (ch as u32 - BRAILLE_BASE) as u8
+    } else {
+        0
+    };
+    let new_bits = bits ^ braille_bit(dx, dy);
+    char::from_u32(BRAILLE_BASE + new_bits as u32).unwrap_or('\u{2800}')
+}
+
 /// Floyd-Steinberg error diffusion dithering.
 ///
 /// Returns a binary matrix where values are either 0 (below threshold) or
@@ -1045,6 +1077,37 @@ mod tests {
             let ch = pixels_to_braille_char(&matrix, 0, 0, 128, 2, 4);
             assert_eq!(ch, expected, "failed for dot at (dx={dx}, dy={dy})");
         }
+    }
+
+    #[test]
+    fn test_toggle_braille_dot_from_blank() {
+        let ch = toggle_braille_dot('\u{2800}', 0, 0);
+        assert_eq!(ch, '\u{2801}');
+    }
+
+    #[test]
+    fn test_toggle_braille_dot_toggles_off() {
+        let on = toggle_braille_dot('\u{2800}', 1, 3);
+        assert_eq!(on, '\u{2880}');
+        let off = toggle_braille_dot(on, 1, 3);
+        assert_eq!(off, '\u{2800}');
+    }
+
+    #[test]
+    fn test_toggle_braille_dot_preserves_other_dots() {
+        let mut ch = '\u{2800}';
+        ch = toggle_braille_dot(ch, 0, 0);
+        ch = toggle_braille_dot(ch, 1, 2);
+        assert_eq!(ch, char::from_u32(BRAILLE_BASE + 0x01 + 0x20).unwrap());
+    }
+
+    #[test]
+    fn test_toggle_braille_dot_starts_fresh_from_non_braille_char() {
+        // A non-braille starting character shouldn't carry over any bits —
+        // toggling one dot should produce exactly that one dot, not clobber
+        // whatever arbitrary bit pattern the char's code point would imply.
+        let ch = toggle_braille_dot('A', 0, 0);
+        assert_eq!(ch, '\u{2801}');
     }
 
     #[test]

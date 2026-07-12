@@ -103,13 +103,13 @@ checklist) — don't batch multiple tasks into one unverified pass.
 
 ## Phase 8.2 — Braille sub-cell brush tool (manual-note #7)
 
-- [ ] `8.2.1` Add `Tool::Braille` as a standalone toolbox entry
+- [x] `8.2.1` Add `Tool::Braille` as a standalone toolbox entry
   - **Touches:** `figby-rs/src/tui/toolbox.rs` — `Tool::Braille` variant +
     `display_name()`/`key_shortcut()` (`k` is free)/`icon_key()` (use the
     literal glyph `⣿`, no icon asset needed)/`Tool::all()` (`:30-128`).
   - **Difficulty:** Low
 
-- [ ] `8.2.2` Braille dot-toggle logic + keyboard sub-cursor
+- [x] `8.2.2` Braille dot-toggle logic + keyboard sub-cursor
   - **Goal:** Terminal mice report whole-cell coordinates only, not sub-cell
     pixel position, so true sub-cell mouse painting isn't achievable without
     separate SGR-pixel terminal work. Scope v1 as a keyboard sub-cursor:
@@ -127,7 +127,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
     the new arm).
   - **Difficulty:** Medium
 
-- [ ] `8.2.3` Props panel for the braille tool
+- [x] `8.2.3` Props panel for the braille tool
   - **Touches:** `figby-rs/src/tui/props_panel.rs` — extend `PropAction`
     (`:5-39`) with radius up/down, following the existing per-tool props
     pattern, so this tool isn't another stub panel.

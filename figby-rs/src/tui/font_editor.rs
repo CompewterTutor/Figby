@@ -1447,7 +1447,7 @@ impl FontEditor {
                     // Font editor action keys (handled by explicit arms below)
                     && !matches!(c, 'H' | 'S' | 'T' | 'A' | 'D' | 'C')
                     // Global tool shortcuts (lowercase and uppercase)
-                    && !matches!(c.to_ascii_lowercase(), 'b' | 'v' | 'l' | 'c' | 'p' | 'g' | 'i' | 'e' | 'd' | 'a' | 't')
+                    && !matches!(c.to_ascii_lowercase(), 'b' | 'v' | 'l' | 'c' | 'p' | 'g' | 'i' | 'e' | 'd' | 'a' | 't' | 'k')
                     // Global app commands
                     && !matches!(c, 'q' | 'Q' | '?')
                     // Brush adjustment shortcuts

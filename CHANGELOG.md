@@ -1,5 +1,26 @@
 # Changelog
 
+## [6.0.29] - 2026-07-12
+
+### Added
+- New Braille tool (`k`), a standalone toolbox entry for painting Unicode
+  braille dots at sub-cell accuracy (2x4 dots per canvas cell). Arrow keys
+  move a dot cursor within the current cell, Space/Enter toggles the dot
+  under it — mouse can only address whole cells, so v1 is keyboard-driven
+  sub-cell precision rather than mouse-driven. Has its own Props panel
+  entry showing the current dot position. Reuses the existing braille
+  bit-packing convention from the image-to-braille converter
+  (`image_input::BRAILLE_BASE`), via a new `toggle_braille_dot()` helper
+  that flips one dot without disturbing the others already set in a cell.
+
+### Fixed
+- FontEditor's type-to-search-by-glyph feature was swallowing any tool
+  shortcut letter not on its hardcoded exclusion list before it could
+  reach tool selection — `k` (the new Braille shortcut) hit this; added
+  it to the exclusion list alongside the other tool letters.
+
+Part Twah 8.2 (manual-note #7).
+
 ## [6.0.28] - 2026-07-12
 
 ### Added

@@ -1664,6 +1664,88 @@ fn test_brush_tool_keyboard_paint() {
 }
 
 #[test]
+fn test_braille_tool_shortcut_key_selects_it_in_font_editor() {
+    use crossterm::event::KeyCode;
+    use figby::tui::{Tool, TuiApp};
+
+    // 'k' must reach the toolbox tool-selector rather than being swallowed
+    // by the FontEditor overview grid's type-to-search feature (which,
+    // before this fix, ate any letter not on its explicit exclusion list).
+    let mut app = TuiApp::new();
+    app.welcome.screen.show = false;
+    app.handle_key_event(KeyCode::Char('k'));
+    assert_eq!(app.editor.toolbox.selected, Tool::Braille);
+}
+
+#[test]
+fn test_braille_tool_keyboard_dot_toggle() {
+    use crossterm::event::KeyCode;
+    use figby::tui::{AppMode, Tool, TuiApp};
+
+    let mut app = TuiApp::new();
+    app.welcome.screen.show = false;
+    // Arrow keys drive the canvas cursor (and the Braille sub-cursor) only
+    // in ImageEditor mode; in FontEditor mode they navigate the glyph grid
+    // (same pre-existing collision exercised by the Rotate tool tests).
+    app.ui.mode = AppMode::ImageEditor;
+    app.editor.toolbox.selected = Tool::Braille;
+
+    app.editor.canvas.set_cursor(2, 2);
+
+    // Sub-cursor starts at (0, 0) — toggle should set just the top-left dot.
+    app.handle_key_event(KeyCode::Char(' '));
+    let cell = app.editor.canvas.buffer.get(2, 2).unwrap();
+    assert_eq!(
+        cell.ch, '\u{2801}',
+        "toggling at (0,0) sets only the top-left dot"
+    );
+
+    // Move sub-cursor to bottom-right (1, 3) and toggle a second dot.
+    app.handle_key_event(KeyCode::Right);
+    app.handle_key_event(KeyCode::Down);
+    app.handle_key_event(KeyCode::Down);
+    app.handle_key_event(KeyCode::Down);
+    assert_eq!(app.editor.brush.sub_x, 1);
+    assert_eq!(app.editor.brush.sub_y, 3);
+    app.handle_key_event(KeyCode::Char(' '));
+    let cell = app.editor.canvas.buffer.get(2, 2).unwrap();
+    assert_eq!(
+        cell.ch, '\u{2881}',
+        "second toggle adds the bottom-right dot without clearing the first"
+    );
+
+    // Toggling the same dot again clears it.
+    app.handle_key_event(KeyCode::Char(' '));
+    let cell = app.editor.canvas.buffer.get(2, 2).unwrap();
+    assert_eq!(cell.ch, '\u{2801}', "re-toggling clears just that dot");
+}
+
+#[test]
+fn test_braille_sub_cursor_clamps_within_cell() {
+    use crossterm::event::KeyCode;
+    use figby::tui::{AppMode, Tool, TuiApp};
+
+    let mut app = TuiApp::new();
+    app.welcome.screen.show = false;
+    app.ui.mode = AppMode::ImageEditor;
+    app.editor.toolbox.selected = Tool::Braille;
+
+    // Up/Left from the origin should clamp at 0, not underflow.
+    app.handle_key_event(KeyCode::Up);
+    app.handle_key_event(KeyCode::Left);
+    assert_eq!(app.editor.brush.sub_x, 0);
+    assert_eq!(app.editor.brush.sub_y, 0);
+
+    // Right/Down repeatedly should clamp at the grid edge (1, 3).
+    for _ in 0..5 {
+        app.handle_key_event(KeyCode::Right);
+        app.handle_key_event(KeyCode::Down);
+    }
+    assert_eq!(app.editor.brush.sub_x, 1);
+    assert_eq!(app.editor.brush.sub_y, 3);
+}
+
+#[test]
 fn test_eraser_tool_keyboard_erase() {
     use crossterm::event::KeyCode;
     use figby::tui::canvas::CanvasCell;

@@ -24,6 +24,7 @@ pub enum Tool {
     Text,
     Emitter,
     Lighting,
+    Braille,
 }
 
 impl Tool {
@@ -44,6 +45,7 @@ impl Tool {
             Tool::Text => "Te",
             Tool::Emitter => "Em",
             Tool::Lighting => "Lg",
+            Tool::Braille => "Bl",
         }
     }
 
@@ -64,6 +66,7 @@ impl Tool {
             Tool::Text => "Text",
             Tool::Emitter => "Emitter",
             Tool::Lighting => "Lighting",
+            Tool::Braille => "Braille",
         }
     }
 
@@ -84,6 +87,7 @@ impl Tool {
             Tool::Text => KeyCode::Char('t'),
             Tool::Emitter => KeyCode::Char('m'),
             Tool::Lighting => KeyCode::Char('n'),
+            Tool::Braille => KeyCode::Char('k'),
         }
     }
 
@@ -104,6 +108,7 @@ impl Tool {
             Tool::Text => "tool_text",
             Tool::Emitter => "tool_emitter",
             Tool::Lighting => "tool_lighting",
+            Tool::Braille => "tool_braille",
         }
     }
 
@@ -133,6 +138,7 @@ impl Tool {
             Tool::Text,
             Tool::Emitter,
             Tool::Lighting,
+            Tool::Braille,
         ]
     }
 }

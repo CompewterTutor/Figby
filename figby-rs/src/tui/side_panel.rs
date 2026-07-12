@@ -384,6 +384,9 @@ impl SidePanel {
             Tool::Line => {
                 Self::add_line_props(&mut lines, line_state, rects, area, &mut line_y);
             }
+            Tool::Braille => {
+                Self::add_braille_props(&mut lines, brush, rects, area, &mut line_y);
+            }
         }
 
         // Separator + image/font info at bottom
@@ -684,6 +687,31 @@ impl SidePanel {
         lines.push(Line::from(Span::raw(" Hover canvas to preview")));
         *line_y += 1;
         lines.push(Line::from(Span::raw(" Click to place text")));
+    }
+
+    fn add_braille_props(
+        lines: &mut Vec<Line>,
+        brush: &BrushState,
+        _rects: &mut Vec<PropsWidgetRect>,
+        _area: Rect,
+        line_y: &mut u16,
+    ) {
+        lines.push(Line::from(Span::styled(
+            " Braille ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        *line_y += 1;
+        lines.push(Line::from(vec![
+            Span::styled("Dot:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(format!(" ({}, {}) of 2x4", brush.sub_x, brush.sub_y)),
+        ]));
+        *line_y += 1;
+        lines.push(Line::from(""));
+        *line_y += 1;
+        lines.push(Line::from(Span::raw(" Arrows: move dot cursor")));
+        *line_y += 1;
+        lines.push(Line::from(Span::raw(" Space/Enter: toggle dot")));
+        *line_y += 1;
     }
 
     fn add_eyedropper_props(

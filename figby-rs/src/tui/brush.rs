@@ -76,6 +76,10 @@ pub struct BrushState {
     pub density: u8,
     pub borders: Borders,
     pub sub_mode: BrushSubMode,
+    /// Sub-cell dot cursor for the Braille tool (2x4 dots per canvas cell):
+    /// `sub_x` in 0..=1, `sub_y` in 0..=3. Unused by every other tool.
+    pub sub_x: u8,
+    pub sub_y: u8,
 }
 
 impl BrushState {
@@ -91,7 +95,16 @@ impl BrushState {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         }
+    }
+
+    /// Move the braille sub-cell dot cursor, clamped within one cell's 2x4
+    /// dot grid (does not cross into neighboring cells).
+    pub fn move_braille_cursor(&mut self, dx: i8, dy: i8) {
+        self.sub_x = (self.sub_x as i8 + dx).clamp(0, 1) as u8;
+        self.sub_y = (self.sub_y as i8 + dy).clamp(0, 3) as u8;
     }
 
     pub fn set_borders(&mut self, borders: Borders) {
@@ -456,6 +469,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -475,6 +490,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -496,6 +513,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let b = BrushState {
             shape: BrushShape::SprayPaint,
@@ -504,6 +523,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         assert_eq!(a.render_preview(10), b.render_preview(10));
     }
@@ -517,6 +538,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let preview = brush.render_preview(10);
         assert_eq!(preview.len(), 5);
@@ -543,6 +566,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let preview = brush.render_preview(5);
         assert!(!preview.is_empty());
@@ -558,6 +583,8 @@ mod tests {
                 density: 35,
                 borders: Borders::ALL,
                 sub_mode: BrushSubMode::Normal,
+                sub_x: 0,
+                sub_y: 0,
             };
             let preview = brush.render_preview(5);
             assert_eq!(preview.len(), 1);
@@ -574,6 +601,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let preview = brush.render_mini_preview();
         assert_eq!(preview.len(), 5);
@@ -594,6 +623,8 @@ mod tests {
                     density: 35,
                     borders: Borders::ALL,
                     sub_mode: BrushSubMode::Normal,
+                    sub_x: 0,
+                    sub_y: 0,
                 };
                 let preview = brush.render_mini_preview();
                 assert_eq!(preview.len(), 5, "size={size} shape={:?}", shape);
@@ -614,6 +645,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let mut outputs = HashSet::new();
         for _ in 0..4 {
@@ -633,6 +666,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let preview = brush.render_mini_preview();
         for row in &preview {
@@ -659,6 +694,8 @@ mod tests {
             density: 35,
             borders: Borders::ALL,
             sub_mode: BrushSubMode::Normal,
+            sub_x: 0,
+            sub_y: 0,
         };
         let preview = brush.render_mini_preview();
         assert_eq!(preview.len(), 5);

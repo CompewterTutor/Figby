@@ -21,6 +21,7 @@ tool_eyedropper:                                   # nf-fa-eyedropper  ALTS: 
 tool_spray:                                        # nf-fa-spray_can   nf-fa-spray_can_sparkles   alts: nf-weather-sprinkle
 tool_text:                                         # nf-fa-font ALTS:  nf-seti-font  󰛖 nf-md-format_font 󰧳  󰧴 
 tool_emitter:                                        # nf-fa-bolt
+tool_braille: ⣿                                       # literal braille glyph (U+28FF, all dots) - no Nerd Font glyph fits better
 tool_pencil:                                       # nf-fa-pencil  ALTS:  nf-fa-pencil_square  󰏫 nf-md-pencil 󰏬 nf-md-pencil_box 󰛿 nf-md-pencil_circle 󰏮 nf-md-pencil_lock 󰏭 nf-md-pencil_box_outline 󰝶 nf-md-pencil_circle_outline 󱅅 nf-md-pencil_box_multiple_outline   nf-oct-pencil 󰙈 nf-md-grease_pencil 󰙏 nf-md-lead_pencil 󱞇 nf-md-progress_pencil 
 
 # ── Cursor / Selection ─────────────────────────────

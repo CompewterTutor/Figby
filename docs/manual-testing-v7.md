@@ -29,4 +29,14 @@
 [ ] lighting makes no sense
 
 
+## Part Twah
+
+[x] create font should have a dialog box with options, same as cli, font size, character set, etc. — both "New Font from System" and "New Font from File" now have a Charset field (12 presets, matching CLI's --create-font-charset); file import also gained a size field (previously hardcoded).
+[x] return shouldn't be "play" it should be spacebar — playback now starts on Space; Enter remains the keyboard-paint key for Brush/Eraser/Line/Fill/Spray.
+[x] file dialogs SUCK: mouse doesn't work, you have to unintuitively hit tab to open a folder, delete stuff to go up a folder? there's no .. to go up? or right arrow should open as well, left should go up a directory, return should only be available if a file is openable/selectable. also the font import doesn't show zip files i thought we added zip support. — mouse click/scroll support added, .. now listed in every directory, Left/Right navigate, Enter only finalizes on selectable entries, and font import now shows/browses .zip bundles the same way Open does.
+[x] default brush size should really be 1
+[x] save dialog also sucks bad for a lot of the same reasons open file dialog sucks, needs an edit field for input of the file name, and the file picker just chooses destination folder, default for a font creation is the original font name + .flf — filename is now a separate field from the directory browser (Tab switches focus), defaulting to the font's current name + .flf.
+[ ] other file formats should probably be figmap for a graphic/animation. — scoped as its own architectural milestone (docs/todo-v8.md 8.6), not yet implemented.
+[x] there probably should a unique tool for a brush that uses the braille dots for subcell accuracy? — new standalone Braille tool ('k'), keyboard-driven sub-cell dot cursor (mouse can only address whole cells).
+[ ] instead of the little strip for "image editor"" and "font editor" under the menu bar that should be a document tab strip. you can have multiple files open, both files and images, so you can edit a font in one tab and be creating a banner in another. i'm sure this isn't a small change. — scoped as its own architectural milestone (docs/todo-v8.md 8.5), not yet implemented.
 

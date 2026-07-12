@@ -1602,3 +1602,46 @@ Three bugs found in phase merge review:
 - Clippy `unnecessary_unwrap`: `is_some()` + `.expect()` on the same
   option triggers it. Restructure as `if let Some(x) = opt.as_ref() { ... }`
   inside the outer guard.
+
+### Part Twah (8.0–8.4)
+
+- Before assuming a keyboard shortcut letter is "free," check every
+  mode-specific key handler that runs *before* the toolbox tool-select
+  dispatch in `dispatch.rs::handle_key_event` — not just
+  `Tool::key_shortcut()`'s own match arms. FontEditor's overview grid has
+  a "type to search by glyph" feature (`font_editor.rs:1450`) with a
+  hardcoded exclusion list of letters it must NOT swallow (the existing
+  tool shortcuts); adding a new tool shortcut without adding it to that
+  list means the letter silently does nothing in FontEditor mode. Found
+  by bisecting with a temporary `eprintln!` at the top of
+  `handle_key_event` and again right before the tool-select block — much
+  faster than reading the whole dispatch chain top-to-bottom.
+  `u`/`r`/`m`/`n` (Move/Rotate/Emitter/Lighting) have the same
+  pre-existing gap and were left alone (out of scope, tracked under the
+  keymap-overhaul item) — don't assume this list is exhaustive just
+  because it looks deliberate.
+- ImageEditor mode has its *own* `handle_key` with bare-letter bindings
+  (`b`=Brightness, `k`=Contrast, `t`=Threshold, checked before the
+  toolbox dispatch too) — a different, independent collision from
+  FontEditor's. Tests exercising arrow-key/letter-key tool behavior
+  should switch to `AppMode::ImageEditor` and select the tool directly
+  via `app.editor.toolbox.selected = Tool::X` rather than pressing its
+  shortcut letter, mirroring the existing
+  `test_rotate_tool_arrow_key_rotates_whole_layer` precedent — do not
+  try to "fix" these pre-existing collisions as a drive-by; they're a
+  separate, tracked keymap-overhaul item.
+- A dialog's "current directory" field means two different things
+  depending on mode, and conflating them is a footgun: for Open-style
+  browsing, `current_parent_dir()` correctly falls back through
+  `Path::parent()` when the string isn't an existing directory (because
+  it might be a full file path being typed). For Save-style dialogs
+  where the directory field is maintained as a *pure* directory string
+  by construction, reusing that same existence-checking helper at
+  finalize time silently walks up to the parent when the target
+  directory doesn't exist yet (e.g. saving into a folder created earlier
+  in the same session, or just not yet flushed in a test tmp dir) —
+  `save_target_path()` deliberately trusts `path_buffer` as-is instead.
+- Before deleting suspected dead code (e.g. a duplicate
+  `impl Widget for &T` alongside an inherent `.render()` method), grep
+  every call site first — `Widget::render(&x, ...)` vs `x.render(...)`
+  are easy to conflate by eye but resolve to completely different impls.

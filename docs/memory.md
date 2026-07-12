@@ -2828,3 +2828,78 @@ Key changes:
 - **`probe_gif_dimensions()`**: Cheap header-only GIF dimension reader via `gif::Decoder`, used by dialog to show native resolution before full decode.
 - **`perform_import_gif`**: Changed signature from `PathBuf` to `GifImportConfig`. Uses dialog's `image_scale` for frame scaling and `canvas_width/height` for final canvas size. First frame + timeline frames centered on canvas via `x_off/y_off` offset.
 - **Files touched**: `figby-rs/src/gif_import.rs`, `figby-rs/src/tui/dialogs/gif_import.rs` (new), `figby-rs/src/tui/dialogs/mod.rs`, `figby-rs/src/tui/app_state.rs`, `figby-rs/src/tui/overlays.rs`, `figby-rs/src/tui/dispatch.rs`, `figby-rs/tests/tui.rs`.
+
+### 6.0.27–6.0.31 — Part Twah 8.0–8.4 (docs/todo-v8.md)
+
+Milestone plan: `docs/todo-v8.md`, scoping the 9 open findings in
+`docs/manual-testing-v7.md`'s "Part Twah" section. Phases 8.0–8.4 shipped
+this session; 8.5 (multi-document tab strip) and 8.6 (figmap format) are
+deliberately deferred — both are XL architectural rewrites the plan itself
+flags as their own milestones, not incremental fixes like 8.0–8.4.
+
+- **8.0** (`0e8cf79`): `BrushState::new()` default size 3→1.
+  Playback trigger moved from `KeyCode::Enter` to `KeyCode::Char(' ')` at
+  `dispatch.rs`'s timeline-play check — same priority Enter used to have
+  (wins over Layers-panel toggle and over keyboard-paint tools whenever the
+  timeline has frames). Enter remains the keyboard-paint key. Extracted
+  `Tool::is_paint_tool()` to dedupe a match that was copy-pasted between
+  `dispatch.rs` and `app_state.rs`.
+- **8.1** (`2179ec9`): File dialog overhaul in `file_ops.rs`. Added `..`
+  to the normal (non-zip) directory listing. Left/Right now navigate
+  (`go_to_parent`/`select_entry`) alongside Tab. New `entry_is_selectable()`
+  gates Enter to actual selectable targets. New `handle_mouse()` +
+  `entry_rects: Vec<(usize, Rect)>` (populated in a new shared
+  `push_entry_lines()` render helper) give every file dialog mouse
+  click/scroll support — wired into `dispatch.rs::handle_mouse_event`,
+  which previously unconditionally dropped mouse events while any file
+  dialog was open. `ImportFont` mode's visibility filter now includes
+  `.zip`; when browsing one, completion routes through `perform_open()`
+  (Open/ZipEntry path) rather than `perform_import_font()`'s TTF
+  conversion, since FIGlet's zip convention holds `.flf`/`.tlf` not
+  `.ttf`/`.otf`. Collapsed 5 near-duplicate `handle_key_*` functions into
+  one `handle_key_browse()`. Deleted a ~390-line dead
+  `impl Widget for &FileOpsDialog` (confirmed via grep it was never called
+  — only the inherent `.render()` method was).
+- **8.2** (`2d31c42`): New `Tool::Braille` (key `k`), separate toolbox
+  entry (not a Brush submode, per explicit ask). Sub-cursor state
+  (`sub_x`/`sub_y`, 2x4 dot grid) lives directly on `BrushState` rather
+  than a new parallel struct — simpler than threading a new type through
+  `side_panel.rs`'s already-large `render_tool_props` call chain. New
+  `image_input::toggle_braille_dot(ch, dx, dy)` flips one dot in a braille
+  char without disturbing others already set, reusing the `BRAILLE_BASE`
+  convention. Arrow keys move the dot cursor within the current cell,
+  Space/Enter toggles — true sub-cell **mouse** precision isn't available
+  (terminal mice report whole-cell coordinates only), so this is
+  keyboard-only sub-cell accuracy, flagged explicitly as a scope
+  reduction from the note's literal phrasing.
+  **Real bug found and fixed along the way**: FontEditor's
+  type-to-search-by-glyph feature (`font_editor.rs:1450`) swallows any
+  character not on its hardcoded tool-shortcut exclusion list before
+  it reaches tool selection — `k` hit this immediately. `u`/`r`/`m`/`n`
+  have the same pre-existing gap for Move/Rotate/Emitter/Lighting; left
+  alone, out of scope, tracked under the separate keymap-overhaul item.
+- **8.3** (`d1c9920`): `SystemFontPickerDialog` gained `Field::Charset`
+  (Tab/Left/Right), backed by new `pub const CHARSET_NAMES` (12 presets
+  matching `font_gen::resolve_charset`). New
+  `dialogs/font_import_options.rs` (`FontImportOptionsDialog`) adds the
+  previously-nonexistent options step to the "New Font from File" flow —
+  shown after file selection via `complete_file_ops_dialog`'s `ImportFont`
+  branch, before `perform_import_font(path, size, charset)` (signature
+  changed from hardcoded `12.0`/`DEFAULT`).
+- **8.4** (`f939493`): `FileOpsDialog` gained `filename_buffer` (separate
+  from `path_buffer`, now directory-only for `SaveAs`) and `save_focus:
+  SaveFocus` (Tab-toggled). `enter_save_as(current, default_name)` seeds
+  the filename from the font's existing path, or
+  `"{font_storage_name or 'untitled'}.flf"` for a never-saved font.
+  `selected_path()` branches to a new `save_target_path()` for `SaveAs`
+  that combines the two fields (trusting `path_buffer` directly as the
+  directory — deliberately *not* reusing `current_parent_dir()`'s
+  filesystem-existence check, since a save destination may not exist yet).
+  Clicking an existing file in the listing now populates `filename_buffer`
+  instead of clobbering `path_buffer`.
+- **8.5/8.6 next-session pickup**: see `docs/todo-v8.md` phases 8.5–8.6
+  for the full design (hot-swap `Document`/`DocumentKind` model to avoid
+  a ~680-call-site rewrite; figmap JSON schema reusing `layers::Layer`/
+  `timeline::TimelineFrame` directly). Nothing in the working tree is
+  half-finished — every phase above landed with full
+  build/test/clippy/fmt verification and its own commit.

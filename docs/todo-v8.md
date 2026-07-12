@@ -45,7 +45,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
 
 ## Phase 8.1 — File dialog overhaul (manual-note #3)
 
-- [ ] `8.1.1` Filesystem `..` entry + Left/Right navigation
+- [x] `8.1.1` Filesystem `..` entry + Left/Right navigation
   - **Touches:** `figby-rs/src/tui/file_ops.rs` — `refresh_directory`'s
     normal filesystem branch (`:260-313`) never inserts `..` (only the
     zip-browsing branch does, `:250`); add it, skipping at filesystem root.
@@ -56,7 +56,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
     it).
   - **Difficulty:** Medium
 
-- [ ] `8.1.2` Enter only activates selectable entries
+- [x] `8.1.2` Enter only activates selectable entries
   - **Touches:** `figby-rs/src/tui/file_ops.rs` — add shared
     `fn entry_is_selectable(&self, entry: &str) -> bool` consolidating the
     extension-matching logic currently duplicated across
@@ -64,7 +64,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
     non-navigation branch of every `Enter` handler on it.
   - **Difficulty:** Low
 
-- [ ] `8.1.3` Mouse support in file dialogs
+- [x] `8.1.3` Mouse support in file dialogs
   - **Touches:** `figby-rs/src/tui/file_ops.rs` — add `entry_rects`
     (parallel to `directory_entries`, populated during render), following
     the existing hit-testing idiom (`DialogState.quit_confirm_buttons`,
@@ -75,7 +75,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
     open — wire the new handler in instead.
   - **Difficulty:** Medium
 
-- [ ] `8.1.4` Show zip bundles in the font-import dialog
+- [x] `8.1.4` Show zip bundles in the font-import dialog
   - **Goal:** "I thought we added zip support" — it exists (`Open` mode
     already allows `.zip`, `file_ops.rs:304`) but `ImportFont` mode's filter
     (`:300-301`) only allows dirs/`.ttf`/`.otf`, so FIGlet zip bundles
@@ -88,7 +88,7 @@ checklist) — don't batch multiple tasks into one unverified pass.
     flag if that turns out to be what's actually wanted.
   - **Difficulty:** Medium
 
-- [ ] `8.1.5` (opportunistic) Dedup the five near-identical `handle_key_*` dialog handlers
+- [x] `8.1.5` (opportunistic) Dedup the five near-identical `handle_key_*` dialog handlers
   - **Goal:** `handle_key_open`/`handle_key_import_font`/
     `handle_key_import_gif`/`handle_key_open_image`/`handle_key_save_as`
     (`file_ops.rs:417-819`) are ~90% duplicated. Since 8.1.1-8.1.4 already

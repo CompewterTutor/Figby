@@ -1,5 +1,33 @@
 # Changelog
 
+## [6.0.28] - 2026-07-12
+
+### Added
+- File dialogs (Open/Save/Import Font/Import GIF/Open Image) now support
+  mouse: click a row to select/activate it, wheel to scroll the selection.
+- Filesystem `..` entry is now offered in every directory listing, not just
+  while browsing inside a zip archive — no more deleting typed characters
+  to go up a directory.
+- Left arrow navigates up a directory (or out of a zip); Right arrow
+  descends into a directory/zip, alongside the existing Tab binding.
+- Font import (`ImportFont` mode) now shows `.zip` bundles and browses
+  into them exactly like the Open dialog, so FIGlet's own `.flf`/`.tlf`
+  zip bundle convention is reachable from the "New Font from File" flow,
+  not just the generic Open dialog.
+
+### Changed
+- Enter now only finalizes a file dialog on an actual selectable target
+  for that mode (directory/zip to navigate, or a matching file to open);
+  previously navigating with Enter onto a non-matching entry could behave
+  inconsistently since dialogs never listed non-matching files but relied
+  on ad-hoc per-mode checks.
+- Consolidated the file dialogs' five near-duplicate key handlers
+  (Open/ImportFont/ImportGif/OpenImage) into one shared implementation,
+  and deleted a ~390-line dead second render implementation
+  (`impl Widget for &FileOpsDialog`) that was never actually called.
+
+Part Twah 8.1 (manual-note #3).
+
 ## [6.0.27] - 2026-07-12
 
 ### Changed

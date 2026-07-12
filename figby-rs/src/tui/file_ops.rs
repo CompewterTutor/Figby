@@ -1,4 +1,4 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -142,6 +142,10 @@ pub struct FileOpsDialog {
     pub current_zip_path: PathBuf,
     pub theme: Theme,
     recent_files_for_display: Vec<String>,
+    /// Screen-space rect for each currently-rendered directory-entry row,
+    /// paired with its index into `directory_entries`. Repopulated on every
+    /// render call; used for mouse click/scroll hit-testing.
+    entry_rects: Vec<(usize, Rect)>,
 }
 
 impl FileOpsDialog {
@@ -157,6 +161,7 @@ impl FileOpsDialog {
             current_zip_path: PathBuf::new(),
             theme: Theme::default(),
             recent_files_for_display: Vec::new(),
+            entry_rects: Vec::new(),
         }
     }
 
@@ -257,18 +262,7 @@ impl FileOpsDialog {
             return;
         }
 
-        let parent = if self.path_buffer.is_empty() {
-            PathBuf::from(".")
-        } else {
-            let p = PathBuf::from(&self.path_buffer);
-            if p.is_dir() {
-                p.clone()
-            } else {
-                p.parent()
-                    .map(|pp| pp.to_path_buf())
-                    .unwrap_or_else(|| PathBuf::from("."))
-            }
-        };
+        let parent = self.current_parent_dir();
 
         let read_dir = match std::fs::read_dir(&parent) {
             Ok(rd) => rd,
@@ -287,30 +281,102 @@ impl FileOpsDialog {
             }
             let lower = name.to_lowercase();
             let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-            let visible = if self.mode == FileOpsMode::ImportGif {
-                is_dir || lower.ends_with(".gif")
-            } else if self.mode == FileOpsMode::OpenImage {
-                is_dir
-                    || lower.ends_with(".png")
-                    || lower.ends_with(".jpg")
-                    || lower.ends_with(".jpeg")
-                    || lower.ends_with(".bmp")
-                    || lower.ends_with(".webp")
-                    || lower.ends_with(".gif")
-            } else if self.mode == FileOpsMode::ImportFont {
-                is_dir || lower.ends_with(".ttf") || lower.ends_with(".otf")
-            } else {
-                let is_flf = lower.ends_with(".flf") || lower.ends_with(".tlf");
-                let is_zip = lower.ends_with(".zip");
-                is_dir || is_flf || is_zip
-            };
-            if visible {
+            if self.allowed(&lower, is_dir) {
                 entries.push(name);
             }
         }
 
         entries.sort();
+        // Offer ".." to go up a directory whenever we're not already at the
+        // filesystem root — previously this only existed while browsing a
+        // zip archive, forcing users to delete typed characters to navigate
+        // upward otherwise.
+        if parent.parent().is_some() {
+            entries.insert(0, "..".to_string());
+        }
         self.directory_entries = entries;
+    }
+
+    /// Directory currently being browsed, derived from `path_buffer`
+    /// (which may hold a bare directory or a file path within it).
+    fn current_parent_dir(&self) -> PathBuf {
+        if self.path_buffer.is_empty() {
+            PathBuf::from(".")
+        } else {
+            let p = PathBuf::from(&self.path_buffer);
+            if p.is_dir() {
+                p
+            } else {
+                p.parent()
+                    .map(|pp| pp.to_path_buf())
+                    .unwrap_or_else(|| PathBuf::from("."))
+            }
+        }
+    }
+
+    /// Whether a filesystem entry (lowercased name) should be listed at all
+    /// for the dialog's current mode — directories and zip archives are
+    /// always navigable containers; the exact-match file types vary by mode.
+    fn allowed(&self, lower: &str, is_dir: bool) -> bool {
+        if is_dir {
+            return true;
+        }
+        match self.mode {
+            FileOpsMode::ImportGif => lower.ends_with(".gif"),
+            FileOpsMode::OpenImage => Self::is_image_extension(lower),
+            FileOpsMode::ImportFont => {
+                lower.ends_with(".ttf") || lower.ends_with(".otf") || lower.ends_with(".zip")
+            }
+            FileOpsMode::Open | FileOpsMode::SaveAs => {
+                lower.ends_with(".flf") || lower.ends_with(".tlf") || lower.ends_with(".zip")
+            }
+            FileOpsMode::Idle => false,
+        }
+    }
+
+    /// Whether `lower` (a lowercased entry name) is a final, selectable file
+    /// target for the dialog's current mode — i.e. what Enter/click should
+    /// treat as "done", as opposed to a directory/zip to navigate into.
+    fn mode_matches_extension(&self, lower: &str) -> bool {
+        match self.mode {
+            FileOpsMode::Open | FileOpsMode::SaveAs => {
+                lower.ends_with(".flf") || lower.ends_with(".tlf")
+            }
+            FileOpsMode::ImportFont => lower.ends_with(".ttf") || lower.ends_with(".otf"),
+            FileOpsMode::ImportGif => lower.ends_with(".gif"),
+            FileOpsMode::OpenImage => Self::is_image_extension(lower),
+            FileOpsMode::Idle => false,
+        }
+    }
+
+    fn mode_extension_error(&self) -> &'static str {
+        match self.mode {
+            FileOpsMode::ImportFont => "Select a .ttf or .otf file",
+            FileOpsMode::ImportGif => "Select a .gif file",
+            FileOpsMode::OpenImage => "Select a .png/.jpg/.bmp/.webp/.gif file",
+            FileOpsMode::Open | FileOpsMode::SaveAs | FileOpsMode::Idle => "",
+        }
+    }
+
+    /// Whether a listed entry is a valid target for Enter/click to act on:
+    /// ".." and navigable containers (directories, zip archives, or any
+    /// entry while already browsing inside a zip) are always selectable;
+    /// a plain file is only selectable if it matches the mode's file type.
+    fn entry_is_selectable(&self, entry: &str) -> bool {
+        if entry == ".." {
+            return true;
+        }
+        if self.browsing_zip {
+            return true;
+        }
+        let lower = entry.to_lowercase();
+        if lower.ends_with(".zip") {
+            return true;
+        }
+        if self.current_parent_dir().join(entry).is_dir() {
+            return true;
+        }
+        self.mode_matches_extension(&lower)
     }
 
     pub fn is_browsing_zip(&self) -> bool {
@@ -345,38 +411,23 @@ impl FileOpsDialog {
     }
 
     fn select_entry(&mut self) {
-        let entry = &self.directory_entries[self.selected_entry].clone();
+        let entry = self.directory_entries[self.selected_entry].clone();
 
         if self.browsing_zip {
             if entry == ".." {
-                self.browsing_zip = false;
-                self.path_buffer = self
-                    .current_zip_path
-                    .parent()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_default();
-                self.current_zip_path.clear();
-                self.selected_entry = 0;
-                self.error_message.clear();
-                self.refresh_directory();
+                self.go_to_parent();
             }
             return;
         }
 
+        if entry == ".." {
+            self.go_to_parent();
+            return;
+        }
+
         if entry.to_lowercase().ends_with(".zip") {
-            let parent = if self.path_buffer.is_empty() {
-                PathBuf::from(".")
-            } else {
-                let p = PathBuf::from(&self.path_buffer);
-                if p.is_dir() {
-                    p
-                } else {
-                    p.parent()
-                        .map(|pp| pp.to_path_buf())
-                        .unwrap_or_else(|| PathBuf::from("."))
-                }
-            };
-            self.current_zip_path = parent.join(entry);
+            let parent = self.current_parent_dir();
+            self.current_zip_path = parent.join(&entry);
             self.browsing_zip = true;
             self.selected_entry = 0;
             self.error_message.clear();
@@ -384,49 +435,92 @@ impl FileOpsDialog {
             return;
         }
 
-        let parent = if self.path_buffer.is_empty() {
-            PathBuf::from(".")
-        } else {
-            let p = PathBuf::from(&self.path_buffer);
-            if p.is_dir() {
-                p
-            } else {
-                p.parent()
-                    .map(|pp| pp.to_path_buf())
-                    .unwrap_or_else(|| PathBuf::from("."))
-            }
-        };
-        let abs = parent.join(entry);
+        let parent = self.current_parent_dir();
+        let abs = parent.join(&entry);
         self.path_buffer = abs.to_string_lossy().to_string();
         self.selected_entry = 0;
         self.error_message.clear();
         self.refresh_directory();
     }
 
+    /// Navigate up one level: out of a zip archive back to its containing
+    /// directory, or up to the parent filesystem directory. Bound to the
+    /// Left arrow key and to selecting a ".." entry.
+    fn go_to_parent(&mut self) {
+        if self.browsing_zip {
+            self.browsing_zip = false;
+            self.path_buffer = self
+                .current_zip_path
+                .parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+            self.current_zip_path.clear();
+            self.selected_entry = 0;
+            self.error_message.clear();
+            self.refresh_directory();
+            return;
+        }
+        if let Some(parent) = self.current_parent_dir().parent() {
+            self.path_buffer = parent.to_string_lossy().to_string();
+            self.selected_entry = 0;
+            self.error_message.clear();
+            self.refresh_directory();
+        }
+    }
+
+    /// Activate a listed entry the way Enter/click do: navigate into
+    /// directories and zips, or finalize the dialog (close it) when the
+    /// entry is a final selectable file for this mode. No-ops on entries
+    /// that aren't selectable for the current mode (item 3.2).
+    fn select_and_maybe_finalize(&mut self, entry: &str) {
+        if !self.entry_is_selectable(entry) {
+            return;
+        }
+        if self.browsing_zip {
+            if entry == ".." {
+                self.go_to_parent();
+            } else {
+                self.mode = FileOpsMode::Idle;
+            }
+            return;
+        }
+        if entry == ".." {
+            self.go_to_parent();
+            return;
+        }
+        let lower = entry.to_lowercase();
+        let is_navigable =
+            lower.ends_with(".zip") || self.current_parent_dir().join(entry).is_dir();
+        self.select_entry();
+        if !is_navigable {
+            // entry_is_selectable() already confirmed this matches the
+            // mode's file type.
+            self.mode = FileOpsMode::Idle;
+        }
+    }
+
     pub fn handle_key(&mut self, code: KeyCode) -> bool {
         match self.mode {
             FileOpsMode::SaveAs => self.handle_key_save_as(code),
-            FileOpsMode::Open => self.handle_key_open(code),
-            FileOpsMode::ImportFont => self.handle_key_import_font(code),
-            FileOpsMode::ImportGif => self.handle_key_import_gif(code),
-            FileOpsMode::OpenImage => self.handle_key_open_image(code),
+            FileOpsMode::Open
+            | FileOpsMode::ImportFont
+            | FileOpsMode::ImportGif
+            | FileOpsMode::OpenImage => self.handle_key_browse(code),
             FileOpsMode::Idle => false,
         }
     }
 
-    fn handle_key_open(&mut self, code: KeyCode) -> bool {
+    /// Shared key handling for the four "browse for an existing file" modes
+    /// (Open/ImportFont/ImportGif/OpenImage) — these differed only in which
+    /// file extensions they accept, now centralized in `allowed()` /
+    /// `mode_matches_extension()` / `mode_extension_error()`.
+    fn handle_key_browse(&mut self, code: KeyCode) -> bool {
         match code {
-            KeyCode::Char(c) if !c.is_control() && !c.is_ascii_digit() => {
-                if self.browsing_zip {
-                    return true;
-                }
-                self.path_buffer.push(c);
-                self.error_message.clear();
-                self.selected_entry = 0;
-                self.refresh_directory();
-                true
-            }
-            KeyCode::Char(c) if c.is_ascii_digit() && c != '0' => {
+            // Recent-file shortcuts (1-9) are an Open-mode-only feature;
+            // other modes fall through and type the digit normally.
+            KeyCode::Char(c)
+                if self.mode == FileOpsMode::Open && c.is_ascii_digit() && c != '0' =>
+            {
                 if self.browsing_zip {
                     self.browsing_zip = false;
                     self.current_zip_path.clear();
@@ -440,18 +534,19 @@ impl FileOpsDialog {
                 }
                 true
             }
+            KeyCode::Char(c) if !c.is_control() => {
+                if self.browsing_zip {
+                    return true;
+                }
+                self.path_buffer.push(c);
+                self.error_message.clear();
+                self.selected_entry = 0;
+                self.refresh_directory();
+                true
+            }
             KeyCode::Backspace => {
                 if self.browsing_zip {
-                    self.browsing_zip = false;
-                    self.path_buffer = self
-                        .current_zip_path
-                        .parent()
-                        .map(|p| p.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    self.current_zip_path.clear();
-                    self.selected_entry = 0;
-                    self.error_message.clear();
-                    self.refresh_directory();
+                    self.go_to_parent();
                     return true;
                 }
                 self.path_buffer.pop();
@@ -474,216 +569,49 @@ impl FileOpsDialog {
                 }
                 true
             }
-            KeyCode::Tab => {
+            // Right descends into a directory/zip, same as Tab — distinct
+            // from Enter, which additionally finalizes on a selectable file.
+            KeyCode::Tab | KeyCode::Right => {
                 if !self.directory_entries.is_empty() {
                     self.select_entry();
                 }
                 true
             }
+            KeyCode::Left => {
+                self.go_to_parent();
+                true
+            }
             KeyCode::Enter => {
-                if self.browsing_zip {
-                    if !self.directory_entries.is_empty() {
-                        let entry = &self.directory_entries[self.selected_entry].clone();
-                        if entry == ".." {
-                            self.browsing_zip = false;
-                            self.path_buffer = self
-                                .current_zip_path
-                                .parent()
-                                .map(|p| p.to_string_lossy().to_string())
-                                .unwrap_or_default();
-                            self.current_zip_path.clear();
-                            self.selected_entry = 0;
-                            self.error_message.clear();
-                            self.refresh_directory();
-                        } else {
-                            self.mode = FileOpsMode::Idle;
-                        }
-                    }
-                    return true;
-                }
-
-                if !self.path_buffer.trim().is_empty() {
-                    let p = std::path::PathBuf::from(self.path_buffer.trim());
+                if !self.browsing_zip && !self.path_buffer.trim().is_empty() {
+                    let p = PathBuf::from(self.path_buffer.trim());
                     if p.is_file() {
-                        if p.extension().map(|e| e == "zip").unwrap_or(false) {
+                        let lower = self.path_buffer.to_lowercase();
+                        if lower.ends_with(".zip")
+                            && matches!(self.mode, FileOpsMode::Open | FileOpsMode::ImportFont)
+                        {
                             self.current_zip_path = p;
                             self.browsing_zip = true;
                             self.selected_entry = 0;
                             self.error_message.clear();
                             self.refresh_directory();
-                        } else {
+                        } else if self.mode == FileOpsMode::Open {
+                            // Open has always accepted any existing file path
+                            // outright — a bad FIGfont surfaces as an async
+                            // parse error from the actual load attempt.
                             self.mode = FileOpsMode::Idle;
+                        } else if self.mode_matches_extension(&lower) {
+                            self.mode = FileOpsMode::Idle;
+                        } else {
+                            self.error_message = self.mode_extension_error().to_string();
                         }
                         return true;
                     }
                 }
-                if !self.directory_entries.is_empty() {
-                    let entry = &self.directory_entries[self.selected_entry].clone();
-                    let lower = entry.to_lowercase();
-                    if lower.ends_with(".zip") {
-                        let parent = if self.path_buffer.is_empty() {
-                            PathBuf::from(".")
-                        } else {
-                            let p = PathBuf::from(&self.path_buffer);
-                            if p.is_dir() {
-                                p
-                            } else {
-                                p.parent()
-                                    .map(|pp| pp.to_path_buf())
-                                    .unwrap_or_else(|| PathBuf::from("."))
-                            }
-                        };
-                        self.current_zip_path = parent.join(entry);
-                        self.browsing_zip = true;
-                        self.selected_entry = 0;
-                        self.error_message.clear();
-                        self.refresh_directory();
-                    } else {
-                        let is_font = lower.ends_with(".flf") || lower.ends_with(".tlf");
-                        self.select_entry();
-                        if is_font {
-                            self.mode = FileOpsMode::Idle;
-                        }
-                    }
+                if self.directory_entries.is_empty() {
+                    return true;
                 }
-                true
-            }
-            KeyCode::Esc => {
-                self.close();
-                true
-            }
-            _ => false,
-        }
-    }
-
-    fn handle_key_import_font(&mut self, code: KeyCode) -> bool {
-        match code {
-            KeyCode::Char(c) if !c.is_control() => {
-                self.path_buffer.push(c);
-                self.error_message.clear();
-                self.selected_entry = 0;
-                self.refresh_directory();
-                true
-            }
-            KeyCode::Backspace => {
-                self.path_buffer.pop();
-                self.error_message.clear();
-                self.selected_entry = 0;
-                self.refresh_directory();
-                true
-            }
-            KeyCode::Up => {
-                if !self.directory_entries.is_empty() && self.selected_entry > 0 {
-                    self.selected_entry -= 1;
-                }
-                true
-            }
-            KeyCode::Down => {
-                if !self.directory_entries.is_empty()
-                    && self.selected_entry < self.directory_entries.len() - 1
-                {
-                    self.selected_entry += 1;
-                }
-                true
-            }
-            KeyCode::Tab => {
-                if !self.directory_entries.is_empty() {
-                    self.select_entry();
-                }
-                true
-            }
-            KeyCode::Enter => {
-                if !self.path_buffer.trim().is_empty() {
-                    let p = PathBuf::from(self.path_buffer.trim());
-                    if p.is_file() {
-                        let lower = self.path_buffer.to_lowercase();
-                        if lower.ends_with(".ttf") || lower.ends_with(".otf") {
-                            self.mode = FileOpsMode::Idle;
-                        } else {
-                            self.error_message = "Select a .ttf or .otf file".to_string();
-                        }
-                        return true;
-                    }
-                }
-                if !self.directory_entries.is_empty() {
-                    let entry = self.directory_entries[self.selected_entry].clone();
-                    let lower = entry.to_lowercase();
-                    if lower.ends_with(".ttf") || lower.ends_with(".otf") {
-                        self.select_entry();
-                        self.mode = FileOpsMode::Idle;
-                    } else {
-                        self.select_entry();
-                    }
-                }
-                true
-            }
-            KeyCode::Esc => {
-                self.close();
-                true
-            }
-            _ => false,
-        }
-    }
-
-    fn handle_key_import_gif(&mut self, code: KeyCode) -> bool {
-        match code {
-            KeyCode::Char(c) if !c.is_control() => {
-                self.path_buffer.push(c);
-                self.error_message.clear();
-                self.selected_entry = 0;
-                self.refresh_directory();
-                true
-            }
-            KeyCode::Backspace => {
-                self.path_buffer.pop();
-                self.error_message.clear();
-                self.selected_entry = 0;
-                self.refresh_directory();
-                true
-            }
-            KeyCode::Up => {
-                if !self.directory_entries.is_empty() && self.selected_entry > 0 {
-                    self.selected_entry -= 1;
-                }
-                true
-            }
-            KeyCode::Down => {
-                if !self.directory_entries.is_empty()
-                    && self.selected_entry < self.directory_entries.len() - 1
-                {
-                    self.selected_entry += 1;
-                }
-                true
-            }
-            KeyCode::Tab => {
-                if !self.directory_entries.is_empty() {
-                    self.select_entry();
-                }
-                true
-            }
-            KeyCode::Enter => {
-                if !self.path_buffer.trim().is_empty() {
-                    let p = PathBuf::from(self.path_buffer.trim());
-                    if p.is_file() {
-                        let lower = self.path_buffer.to_lowercase();
-                        if lower.ends_with(".gif") {
-                            self.mode = FileOpsMode::Idle;
-                        } else {
-                            self.error_message = "Select a .gif file".to_string();
-                        }
-                        return true;
-                    }
-                }
-                if !self.directory_entries.is_empty() {
-                    let entry = self.directory_entries[self.selected_entry].clone();
-                    let lower = entry.to_lowercase();
-                    if lower.ends_with(".gif") {
-                        self.select_entry();
-                        self.mode = FileOpsMode::Idle;
-                    } else {
-                        self.select_entry();
-                    }
-                }
+                let entry = self.directory_entries[self.selected_entry].clone();
+                self.select_and_maybe_finalize(&entry);
                 true
             }
             KeyCode::Esc => {
@@ -701,76 +629,6 @@ impl FileOpsDialog {
             || lower.ends_with(".bmp")
             || lower.ends_with(".webp")
             || lower.ends_with(".gif")
-    }
-
-    fn handle_key_open_image(&mut self, code: KeyCode) -> bool {
-        match code {
-            KeyCode::Char(c) if !c.is_control() => {
-                self.path_buffer.push(c);
-                self.error_message.clear();
-                self.selected_entry = 0;
-                self.refresh_directory();
-                true
-            }
-            KeyCode::Backspace => {
-                self.path_buffer.pop();
-                self.error_message.clear();
-                self.selected_entry = 0;
-                self.refresh_directory();
-                true
-            }
-            KeyCode::Up => {
-                if !self.directory_entries.is_empty() && self.selected_entry > 0 {
-                    self.selected_entry -= 1;
-                }
-                true
-            }
-            KeyCode::Down => {
-                if !self.directory_entries.is_empty()
-                    && self.selected_entry < self.directory_entries.len() - 1
-                {
-                    self.selected_entry += 1;
-                }
-                true
-            }
-            KeyCode::Tab => {
-                if !self.directory_entries.is_empty() {
-                    self.select_entry();
-                }
-                true
-            }
-            KeyCode::Enter => {
-                if !self.path_buffer.trim().is_empty() {
-                    let p = PathBuf::from(self.path_buffer.trim());
-                    if p.is_file() {
-                        let lower = self.path_buffer.to_lowercase();
-                        if Self::is_image_extension(&lower) {
-                            self.mode = FileOpsMode::Idle;
-                        } else {
-                            self.error_message =
-                                "Select a .png/.jpg/.bmp/.webp/.gif file".to_string();
-                        }
-                        return true;
-                    }
-                }
-                if !self.directory_entries.is_empty() {
-                    let entry = self.directory_entries[self.selected_entry].clone();
-                    let lower = entry.to_lowercase();
-                    if Self::is_image_extension(&lower) {
-                        self.select_entry();
-                        self.mode = FileOpsMode::Idle;
-                    } else {
-                        self.select_entry();
-                    }
-                }
-                true
-            }
-            KeyCode::Esc => {
-                self.close();
-                true
-            }
-            _ => false,
-        }
     }
 
     fn handle_key_save_as(&mut self, code: KeyCode) -> bool {
@@ -799,10 +657,14 @@ impl FileOpsDialog {
                 }
                 true
             }
-            KeyCode::Tab => {
+            KeyCode::Tab | KeyCode::Right => {
                 if !self.directory_entries.is_empty() {
                     self.select_entry();
                 }
+                true
+            }
+            KeyCode::Left => {
+                self.go_to_parent();
                 true
             }
             KeyCode::Enter => {
@@ -818,7 +680,55 @@ impl FileOpsDialog {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    /// Mouse handling shared by all dialog modes: click a row to
+    /// select/activate it (single click, matching what Enter does for
+    /// browse modes — Save mode only navigates, never auto-finalizes,
+    /// since there's no "correct" file to click to complete a save), wheel
+    /// scrolls the selection.
+    pub fn handle_mouse(&mut self, col: u16, row: u16, kind: MouseEventKind) -> bool {
+        if self.mode == FileOpsMode::Idle {
+            return false;
+        }
+        match kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let hit = self
+                    .entry_rects
+                    .iter()
+                    .find(|(_, r)| r.contains((col, row).into()))
+                    .map(|(i, _)| *i);
+                let Some(idx) = hit else {
+                    return false;
+                };
+                self.selected_entry = idx;
+                let entry = self.directory_entries[idx].clone();
+                if self.mode == FileOpsMode::SaveAs {
+                    if self.entry_is_selectable(&entry) {
+                        self.select_entry();
+                    }
+                } else {
+                    self.select_and_maybe_finalize(&entry);
+                }
+                true
+            }
+            MouseEventKind::ScrollUp => {
+                if self.selected_entry > 0 {
+                    self.selected_entry -= 1;
+                }
+                true
+            }
+            MouseEventKind::ScrollDown => {
+                if !self.directory_entries.is_empty()
+                    && self.selected_entry < self.directory_entries.len() - 1
+                {
+                    self.selected_entry += 1;
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         match self.mode {
             FileOpsMode::SaveAs => self.render_save_as(frame, area),
             FileOpsMode::Open => self.render_open(frame, area),
@@ -829,7 +739,56 @@ impl FileOpsDialog {
         }
     }
 
-    fn render_open(&self, frame: &mut Frame, area: Rect) {
+    /// Render the directory-entry list into `lines`, recording each row's
+    /// screen rect into `entry_rects` for mouse hit-testing. Shared by every
+    /// mode's render function — they previously duplicated this loop with
+    /// only cosmetic differences (flat zip entries vs dir-suffixed entries).
+    fn push_entry_lines(
+        &mut self,
+        lines: &mut Vec<Line<'static>>,
+        inner: Rect,
+        max_visible: usize,
+    ) {
+        self.entry_rects.clear();
+        if self.directory_entries.is_empty() {
+            return;
+        }
+        let start = self.selected_entry.saturating_sub(max_visible / 2);
+        let end = (start + max_visible).min(self.directory_entries.len());
+        let parent = self.current_parent_dir();
+        for i in start..end {
+            let entry = self.directory_entries[i].clone();
+            let is_selected = i == self.selected_entry;
+            let prefix = if is_selected { " >" } else { "  " };
+            let text = if self.browsing_zip {
+                format!("{prefix}{entry}")
+            } else {
+                let is_dir = entry == ".." || parent.join(&entry).is_dir();
+                let suffix = if is_dir { "/" } else { "" };
+                format!("{prefix}{entry}{suffix}")
+            };
+            let style = if is_selected {
+                Style::default().add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default()
+            };
+            let row_y = inner.y + lines.len() as u16;
+            if row_y < inner.y.saturating_add(inner.height) {
+                self.entry_rects.push((
+                    i,
+                    Rect {
+                        x: inner.x,
+                        y: row_y,
+                        width: inner.width,
+                        height: 1,
+                    },
+                ));
+            }
+            lines.push(Line::from(Span::styled(text, style)));
+        }
+    }
+
+    fn render_open(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Open Font ")
@@ -887,38 +846,7 @@ impl FileOpsDialog {
             )));
 
             let max_visible = (inner.height as usize).saturating_sub(6).min(8);
-            let start = self.selected_entry.saturating_sub(max_visible / 2);
-            let end = (start + max_visible).min(self.directory_entries.len());
-            for i in start..end {
-                let entry = &self.directory_entries[i];
-                let is_selected = i == self.selected_entry;
-                let prefix = if is_selected { " >" } else { "  " };
-                let text = if self.browsing_zip {
-                    format!("{prefix}{entry}")
-                } else {
-                    let parent = if self.path_buffer.is_empty() {
-                        PathBuf::from(".")
-                    } else {
-                        let p = PathBuf::from(&self.path_buffer);
-                        if p.is_dir() {
-                            p
-                        } else {
-                            p.parent()
-                                .map(|pp| pp.to_path_buf())
-                                .unwrap_or_else(|| PathBuf::from("."))
-                        }
-                    };
-                    let is_dir = parent.join(entry).is_dir();
-                    let suffix = if is_dir { "/" } else { "" };
-                    format!("{prefix}{entry}{suffix}")
-                };
-                let style = if is_selected {
-                    Style::default().add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default()
-                };
-                lines.push(Line::from(Span::styled(text, style)));
-            }
+            self.push_entry_lines(&mut lines, inner, max_visible);
         }
 
         if !self.recent_files_for_display.is_empty() {
@@ -946,7 +874,7 @@ impl FileOpsDialog {
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            " Tab: select  Enter: open  Esc: cancel  1-9: recent  \u{2191}\u{2193}: navigate",
+            " \u{2190}\u{2192}/Tab: navigate  Enter/click: open  Esc: cancel  1-9: recent  \u{2191}\u{2193}: select",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -954,7 +882,7 @@ impl FileOpsDialog {
         frame.render_widget(paragraph, inner);
     }
 
-    fn render_import_font(&self, frame: &mut Frame, area: Rect) {
+    fn render_import_font(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Import Font (.ttf/.otf) ")
@@ -974,7 +902,9 @@ impl FileOpsDialog {
             Style::default().add_modifier(Modifier::BOLD),
         )));
 
-        let path_display = if self.path_buffer.is_empty() {
+        let path_display = if self.browsing_zip {
+            format!("[ZIP] {}", self.current_zip_path.display())
+        } else if self.path_buffer.is_empty() {
             " (type path or browse with arrows)".to_string()
         } else {
             self.path_buffer.clone()
@@ -994,8 +924,13 @@ impl FileOpsDialog {
         lines.push(Line::from(""));
 
         if self.directory_entries.is_empty() {
+            let msg = if self.browsing_zip {
+                " (no .flf/.tlf files in this ZIP archive)"
+            } else {
+                " (no .ttf/.otf/.zip files in directory)"
+            };
             lines.push(Line::from(Span::styled(
-                " (no .ttf/.otf files in directory)",
+                msg,
                 Style::default().fg(self.theme.dialog.meta),
             )));
         } else {
@@ -1005,39 +940,12 @@ impl FileOpsDialog {
             )));
 
             let max_visible = (inner.height as usize).saturating_sub(6).min(8);
-            let start = self.selected_entry.saturating_sub(max_visible / 2);
-            let end = (start + max_visible).min(self.directory_entries.len());
-            for i in start..end {
-                let entry = &self.directory_entries[i];
-                let is_selected = i == self.selected_entry;
-                let prefix = if is_selected { " >" } else { "  " };
-                let parent = if self.path_buffer.is_empty() {
-                    PathBuf::from(".")
-                } else {
-                    let p = PathBuf::from(&self.path_buffer);
-                    if p.is_dir() {
-                        p
-                    } else {
-                        p.parent()
-                            .map(|pp| pp.to_path_buf())
-                            .unwrap_or_else(|| PathBuf::from("."))
-                    }
-                };
-                let is_dir = parent.join(entry).is_dir();
-                let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{prefix}{entry}{suffix}");
-                let style = if is_selected {
-                    Style::default().add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default()
-                };
-                lines.push(Line::from(Span::styled(text, style)));
-            }
+            self.push_entry_lines(&mut lines, inner, max_visible);
         }
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            " Tab: select  Enter: import  Esc: cancel  \u{2191}\u{2193}: navigate",
+            " \u{2190}\u{2192}/Tab: navigate  Enter/click: import  Esc: cancel  \u{2191}\u{2193}: select",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -1045,7 +953,7 @@ impl FileOpsDialog {
         frame.render_widget(paragraph, inner);
     }
 
-    fn render_import_gif(&self, frame: &mut Frame, area: Rect) {
+    fn render_import_gif(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Import GIF (.gif) ")
@@ -1096,39 +1004,12 @@ impl FileOpsDialog {
             )));
 
             let max_visible = (inner.height as usize).saturating_sub(6).min(8);
-            let start = self.selected_entry.saturating_sub(max_visible / 2);
-            let end = (start + max_visible).min(self.directory_entries.len());
-            for i in start..end {
-                let entry = &self.directory_entries[i];
-                let is_selected = i == self.selected_entry;
-                let prefix = if is_selected { " >" } else { "  " };
-                let parent = if self.path_buffer.is_empty() {
-                    PathBuf::from(".")
-                } else {
-                    let p = PathBuf::from(&self.path_buffer);
-                    if p.is_dir() {
-                        p
-                    } else {
-                        p.parent()
-                            .map(|pp| pp.to_path_buf())
-                            .unwrap_or_else(|| PathBuf::from("."))
-                    }
-                };
-                let is_dir = parent.join(entry).is_dir();
-                let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{prefix}{entry}{suffix}");
-                let style = if is_selected {
-                    Style::default().add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default()
-                };
-                lines.push(Line::from(Span::styled(text, style)));
-            }
+            self.push_entry_lines(&mut lines, inner, max_visible);
         }
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            " Tab: select  Enter: import  Esc: cancel  \u{2191}\u{2193}: navigate",
+            " \u{2190}\u{2192}/Tab: navigate  Enter/click: import  Esc: cancel  \u{2191}\u{2193}: select",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -1136,7 +1017,7 @@ impl FileOpsDialog {
         frame.render_widget(paragraph, inner);
     }
 
-    fn render_open_image(&self, frame: &mut Frame, area: Rect) {
+    fn render_open_image(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Open Image (.png/.jpg/.bmp/.webp/.gif) ")
@@ -1187,39 +1068,12 @@ impl FileOpsDialog {
             )));
 
             let max_visible = (inner.height as usize).saturating_sub(6).min(8);
-            let start = self.selected_entry.saturating_sub(max_visible / 2);
-            let end = (start + max_visible).min(self.directory_entries.len());
-            for i in start..end {
-                let entry = &self.directory_entries[i];
-                let is_selected = i == self.selected_entry;
-                let prefix = if is_selected { " >" } else { "  " };
-                let parent = if self.path_buffer.is_empty() {
-                    PathBuf::from(".")
-                } else {
-                    let p = PathBuf::from(&self.path_buffer);
-                    if p.is_dir() {
-                        p
-                    } else {
-                        p.parent()
-                            .map(|pp| pp.to_path_buf())
-                            .unwrap_or_else(|| PathBuf::from("."))
-                    }
-                };
-                let is_dir = parent.join(entry).is_dir();
-                let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{prefix}{entry}{suffix}");
-                let style = if is_selected {
-                    Style::default().add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default()
-                };
-                lines.push(Line::from(Span::styled(text, style)));
-            }
+            self.push_entry_lines(&mut lines, inner, max_visible);
         }
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            " Tab: select  Enter: open  Esc: cancel  \u{2191}\u{2193}: navigate",
+            " \u{2190}\u{2192}/Tab: navigate  Enter/click: open  Esc: cancel  \u{2191}\u{2193}: select",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -1227,7 +1081,7 @@ impl FileOpsDialog {
         frame.render_widget(paragraph, inner);
     }
 
-    fn render_save_as(&self, frame: &mut Frame, area: Rect) {
+    fn render_save_as(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_widget(Clear, area);
         let block = Block::default()
             .title(" Save Font As ")
@@ -1278,39 +1132,12 @@ impl FileOpsDialog {
             )));
 
             let max_visible = (inner.height as usize).saturating_sub(6).min(10);
-            let start = self.selected_entry.saturating_sub(max_visible / 2);
-            let end = (start + max_visible).min(self.directory_entries.len());
-            let parent = if self.path_buffer.is_empty() {
-                PathBuf::from(".")
-            } else {
-                let p = PathBuf::from(&self.path_buffer);
-                if p.is_dir() {
-                    p
-                } else {
-                    p.parent()
-                        .map(|pp| pp.to_path_buf())
-                        .unwrap_or_else(|| PathBuf::from("."))
-                }
-            };
-            for i in start..end {
-                let entry = &self.directory_entries[i];
-                let is_selected = i == self.selected_entry;
-                let is_dir = parent.join(entry).is_dir();
-                let prefix = if is_selected { " >" } else { "  " };
-                let suffix = if is_dir { "/" } else { "" };
-                let text = format!("{prefix}{entry}{suffix}");
-                let style = if is_selected {
-                    Style::default().add_modifier(Modifier::REVERSED)
-                } else {
-                    Style::default()
-                };
-                lines.push(Line::from(Span::styled(text, style)));
-            }
+            self.push_entry_lines(&mut lines, inner, max_visible);
         }
 
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            " Tab: select entry  Enter: save  Esc: cancel  \u{2191}\u{2193}: navigate",
+            " \u{2190}\u{2192}/Tab: navigate  Enter: save  Esc: cancel  \u{2191}\u{2193}: select",
             Style::default().fg(self.theme.dialog.meta),
         )));
 
@@ -1322,401 +1149,6 @@ impl FileOpsDialog {
 impl Default for FileOpsDialog {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-use ratatui::buffer::Buffer;
-use ratatui::widgets::Widget;
-
-impl Widget for &FileOpsDialog {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        match self.mode {
-            FileOpsMode::Open => {
-                Widget::render(Clear, area, buf);
-                let block = Block::default()
-                    .title(" Open Font ")
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(self.theme.dialog.border_path));
-                let inner = block.inner(area);
-                Widget::render(block, area, buf);
-
-                if inner.width < 24 || inner.height < 8 {
-                    return;
-                }
-
-                let mut lines: Vec<Line> = Vec::new();
-
-                lines.push(Line::from(Span::styled(
-                    " Path:",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )));
-
-                let path_display = if self.browsing_zip {
-                    format!("[ZIP] {}", self.current_zip_path.display())
-                } else if self.path_buffer.is_empty() {
-                    " (type path, browse with arrows, or paste)".to_string()
-                } else {
-                    self.path_buffer.clone()
-                };
-                lines.push(Line::from(Span::styled(
-                    format!(" {}", path_display),
-                    Style::default().fg(self.theme.dialog.border_path),
-                )));
-
-                if !self.error_message.is_empty() {
-                    lines.push(Line::from(Span::styled(
-                        format!(" Error: {}", self.error_message),
-                        Style::default().fg(self.theme.dialog.error),
-                    )));
-                }
-
-                lines.push(Line::from(""));
-
-                if self.directory_entries.is_empty() {
-                    let msg = if self.browsing_zip {
-                        " (no .flf/.tlf files in this ZIP archive)"
-                    } else {
-                        " (no .flf/.tlf files in directory)"
-                    };
-                    lines.push(Line::from(Span::styled(
-                        msg,
-                        Style::default().fg(self.theme.dialog.meta),
-                    )));
-                } else {
-                    lines.push(Line::from(Span::styled(
-                        " Directory:",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )));
-
-                    let max_visible = (inner.height as usize).saturating_sub(6).min(8);
-                    let start = self.selected_entry.saturating_sub(max_visible / 2);
-                    let end = (start + max_visible).min(self.directory_entries.len());
-                    for i in start..end {
-                        let entry = &self.directory_entries[i];
-                        let is_selected = i == self.selected_entry;
-                        let prefix = if is_selected { " >" } else { "  " };
-                        let text = if self.browsing_zip {
-                            format!("{prefix}{entry}")
-                        } else {
-                            let parent = if self.path_buffer.is_empty() {
-                                PathBuf::from(".")
-                            } else {
-                                let p = PathBuf::from(&self.path_buffer);
-                                if p.is_dir() {
-                                    p
-                                } else {
-                                    p.parent()
-                                        .map(|pp| pp.to_path_buf())
-                                        .unwrap_or_else(|| PathBuf::from("."))
-                                }
-                            };
-                            let is_dir = parent.join(entry).is_dir();
-                            let suffix = if is_dir { "/" } else { "" };
-                            format!("{prefix}{entry}{suffix}")
-                        };
-                        let style = if is_selected {
-                            Style::default().add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default()
-                        };
-                        lines.push(Line::from(Span::styled(text, style)));
-                    }
-                }
-
-                if !self.recent_files_for_display.is_empty() {
-                    lines.push(Line::from(""));
-                    lines.push(Line::from(Span::styled(
-                        " Recent files:",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )));
-                    let max_recent = 9.min(self.recent_files_for_display.len());
-                    let recent_start = if self.recent_files_for_display.len() > 9 {
-                        self.recent_files_for_display.len() - 9
-                    } else {
-                        0
-                    };
-                    for i in recent_start..recent_start + max_recent {
-                        let display = &self.recent_files_for_display[i];
-                        let num = i + 1;
-                        let text = format!("  {num}. {display}");
-                        lines.push(Line::from(Span::styled(
-                            text,
-                            Style::default().fg(self.theme.dialog.meta),
-                        )));
-                    }
-                }
-
-                lines.push(Line::from(""));
-                lines.push(Line::from(Span::styled(
-                    " Tab: select  Enter: open  Esc: cancel  1-9: recent  \u{2191}\u{2193}: navigate",
-                    Style::default().fg(self.theme.dialog.meta),
-                )));
-
-                let paragraph = Paragraph::new(lines);
-                Widget::render(paragraph, inner, buf);
-            }
-            FileOpsMode::SaveAs => {
-                Widget::render(Clear, area, buf);
-                let block = Block::default()
-                    .title(" Save Font As ")
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(self.theme.dialog.highlight));
-                let inner = block.inner(area);
-                Widget::render(block, area, buf);
-
-                if inner.width < 20 || inner.height < 6 {
-                    return;
-                }
-
-                let mut lines: Vec<Line> = Vec::new();
-
-                lines.push(Line::from(Span::styled(
-                    " Path:",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )));
-
-                let path_display = if self.path_buffer.is_empty() {
-                    " (type path or use arrows to browse)".to_string()
-                } else {
-                    self.path_buffer.clone()
-                };
-                lines.push(Line::from(Span::styled(
-                    format!(" {}", path_display),
-                    Style::default().fg(self.theme.dialog.border_path),
-                )));
-
-                if !self.error_message.is_empty() {
-                    lines.push(Line::from(Span::styled(
-                        format!(" Error: {}", self.error_message),
-                        Style::default().fg(self.theme.dialog.error),
-                    )));
-                }
-
-                lines.push(Line::from(""));
-
-                if self.directory_entries.is_empty() {
-                    lines.push(Line::from(Span::styled(
-                        " (no .flf/.tlf files in directory)",
-                        Style::default().fg(self.theme.dialog.meta),
-                    )));
-                } else {
-                    lines.push(Line::from(Span::styled(
-                        " Directory contents:",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )));
-
-                    let max_visible = (inner.height as usize).saturating_sub(6).min(10);
-                    let start = self.selected_entry.saturating_sub(max_visible / 2);
-                    let end = (start + max_visible).min(self.directory_entries.len());
-                    let parent = if self.path_buffer.is_empty() {
-                        PathBuf::from(".")
-                    } else {
-                        let p = PathBuf::from(&self.path_buffer);
-                        if p.is_dir() {
-                            p
-                        } else {
-                            p.parent()
-                                .map(|pp| pp.to_path_buf())
-                                .unwrap_or_else(|| PathBuf::from("."))
-                        }
-                    };
-                    for i in start..end {
-                        let entry = &self.directory_entries[i];
-                        let is_selected = i == self.selected_entry;
-                        let is_dir = parent.join(entry).is_dir();
-                        let prefix = if is_selected { " >" } else { "  " };
-                        let suffix = if is_dir { "/" } else { "" };
-                        let text = format!("{prefix}{entry}{suffix}");
-                        let style = if is_selected {
-                            Style::default().add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default()
-                        };
-                        lines.push(Line::from(Span::styled(text, style)));
-                    }
-                }
-
-                lines.push(Line::from(""));
-                lines.push(Line::from(Span::styled(
-                    " Tab: select entry  Enter: save  Esc: cancel  \u{2191}\u{2193}: navigate",
-                    Style::default().fg(self.theme.dialog.meta),
-                )));
-
-                let paragraph = Paragraph::new(lines);
-                Widget::render(paragraph, inner, buf);
-            }
-            FileOpsMode::ImportFont => {}
-            FileOpsMode::ImportGif => {
-                Widget::render(Clear, area, buf);
-                let block = Block::default()
-                    .title(" Import GIF (.gif) ")
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(self.theme.dialog.border_path));
-                let inner = block.inner(area);
-                Widget::render(block, area, buf);
-
-                if inner.width < 24 || inner.height < 8 {
-                    return;
-                }
-
-                let mut lines: Vec<Line> = Vec::new();
-
-                lines.push(Line::from(Span::styled(
-                    " Path:",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )));
-
-                let path_display = if self.path_buffer.is_empty() {
-                    " (type path or browse with arrows)".to_string()
-                } else {
-                    self.path_buffer.clone()
-                };
-                lines.push(Line::from(Span::styled(
-                    format!(" {}", path_display),
-                    Style::default().fg(self.theme.dialog.border_path),
-                )));
-
-                if !self.error_message.is_empty() {
-                    lines.push(Line::from(Span::styled(
-                        format!(" Error: {}", self.error_message),
-                        Style::default().fg(self.theme.dialog.error),
-                    )));
-                }
-
-                lines.push(Line::from(""));
-
-                if self.directory_entries.is_empty() {
-                    lines.push(Line::from(Span::styled(
-                        " (no .gif files in directory)",
-                        Style::default().fg(self.theme.dialog.meta),
-                    )));
-                } else {
-                    lines.push(Line::from(Span::styled(
-                        " Directory:",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )));
-
-                    let max_visible = (inner.height as usize).saturating_sub(6).min(8);
-                    let start = self.selected_entry.saturating_sub(max_visible / 2);
-                    let end = (start + max_visible).min(self.directory_entries.len());
-                    for i in start..end {
-                        let entry = &self.directory_entries[i];
-                        let is_selected = i == self.selected_entry;
-                        let prefix = if is_selected { " >" } else { "  " };
-                        let parent = if self.path_buffer.is_empty() {
-                            PathBuf::from(".")
-                        } else {
-                            let p = PathBuf::from(&self.path_buffer);
-                            if p.is_dir() {
-                                p
-                            } else {
-                                p.parent()
-                                    .map(|pp| pp.to_path_buf())
-                                    .unwrap_or_else(|| PathBuf::from("."))
-                            }
-                        };
-                        let is_dir = parent.join(entry).is_dir();
-                        let suffix = if is_dir { "/" } else { "" };
-                        let text = format!("{prefix}{entry}{suffix}");
-                        let style = if is_selected {
-                            Style::default().add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default()
-                        };
-                        lines.push(Line::from(Span::styled(text, style)));
-                    }
-                }
-
-                lines.push(Line::from(""));
-                lines.push(Line::from(Span::styled(
-                    " Tab: select  Enter: import  Esc: cancel  \u{2191}\u{2193}: navigate",
-                    Style::default().fg(self.theme.dialog.meta),
-                )));
-
-                let paragraph = Paragraph::new(lines);
-                Widget::render(paragraph, inner, buf);
-            }
-            FileOpsMode::OpenImage => {
-                Widget::render(Clear, area, buf);
-                let block = Block::default()
-                    .title(" Open Image (.png/.jpg/.bmp/.webp/.gif) ")
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(self.theme.dialog.border_path));
-                let inner = block.inner(area);
-                Widget::render(block, area, buf);
-                if inner.width < 24 || inner.height < 8 {
-                    return;
-                }
-                let mut lines: Vec<Line> = Vec::new();
-                lines.push(Line::from(Span::styled(
-                    " Path:",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )));
-                let path_display = if self.path_buffer.is_empty() {
-                    " (type path or browse with arrows)".to_string()
-                } else {
-                    self.path_buffer.clone()
-                };
-                lines.push(Line::from(Span::styled(
-                    format!(" {}", path_display),
-                    Style::default().fg(self.theme.dialog.border_path),
-                )));
-                if !self.error_message.is_empty() {
-                    lines.push(Line::from(Span::styled(
-                        format!(" Error: {}", self.error_message),
-                        Style::default().fg(self.theme.dialog.error),
-                    )));
-                }
-                lines.push(Line::from(""));
-                if self.directory_entries.is_empty() {
-                    lines.push(Line::from(Span::styled(
-                        " (no image files in directory)",
-                        Style::default().fg(self.theme.dialog.meta),
-                    )));
-                } else {
-                    lines.push(Line::from(Span::styled(
-                        " Directory:",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )));
-                    let max_visible = (inner.height as usize).saturating_sub(6).min(8);
-                    let start = self.selected_entry.saturating_sub(max_visible / 2);
-                    let end = (start + max_visible).min(self.directory_entries.len());
-                    for i in start..end {
-                        let entry = &self.directory_entries[i];
-                        let is_selected = i == self.selected_entry;
-                        let prefix = if is_selected { " >" } else { "  " };
-                        let parent = if self.path_buffer.is_empty() {
-                            PathBuf::from(".")
-                        } else {
-                            let p = PathBuf::from(&self.path_buffer);
-                            if p.is_dir() {
-                                p
-                            } else {
-                                p.parent()
-                                    .map(|pp| pp.to_path_buf())
-                                    .unwrap_or_else(|| PathBuf::from("."))
-                            }
-                        };
-                        let is_dir = parent.join(entry).is_dir();
-                        let suffix = if is_dir { "/" } else { "" };
-                        let text = format!("{prefix}{entry}{suffix}");
-                        let style = if is_selected {
-                            Style::default().add_modifier(Modifier::REVERSED)
-                        } else {
-                            Style::default()
-                        };
-                        lines.push(Line::from(Span::styled(text, style)));
-                    }
-                }
-                lines.push(Line::from(""));
-                lines.push(Line::from(Span::styled(
-                    " Tab: select  Enter: open  Esc: cancel  \u{2191}\u{2193}: navigate",
-                    Style::default().fg(self.theme.dialog.meta),
-                )));
-                Widget::render(Paragraph::new(lines), inner, buf);
-            }
-            FileOpsMode::Idle => {}
-        }
     }
 }
 
@@ -2097,5 +1529,136 @@ mod tests {
         // Press '9' - only 1 recent file, so should be no-op
         dialog.handle_key(KeyCode::Char('9'));
         assert!(dialog.path_buffer.is_empty());
+    }
+
+    // --- Part Twah 8.1: navigation / mouse / zip-in-ImportFont tests ---
+
+    fn make_test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("figby-fileops-test-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("child")).unwrap();
+        std::fs::write(dir.join("font.flf"), "test").unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_dotdot_entry_in_normal_directory_listing() {
+        let dir = make_test_dir("dotdot");
+        let mut dialog = FileOpsDialog::new();
+        dialog.mode = FileOpsMode::Open;
+        dialog.handle_paste(dir.to_str().unwrap());
+        assert_eq!(
+            dialog.directory_entries.first().map(String::as_str),
+            Some(".."),
+            ".. should be offered when not at the filesystem root"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_left_key_navigates_to_parent_directory() {
+        let dir = make_test_dir("left-nav");
+        let child = dir.join("child");
+        let mut dialog = FileOpsDialog::new();
+        dialog.mode = FileOpsMode::Open;
+        dialog.handle_paste(child.to_str().unwrap());
+        dialog.handle_key(KeyCode::Left);
+        assert_eq!(PathBuf::from(&dialog.path_buffer), dir);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_right_key_descends_into_directory() {
+        let dir = make_test_dir("right-nav");
+        let mut dialog = FileOpsDialog::new();
+        dialog.mode = FileOpsMode::Open;
+        dialog.handle_paste(dir.to_str().unwrap());
+        // Entries are sorted with ".." first, then "child", then "font.flf".
+        let child_idx = dialog
+            .directory_entries
+            .iter()
+            .position(|e| e == "child")
+            .expect("child dir should be listed");
+        dialog.selected_entry = child_idx;
+        dialog.handle_key(KeyCode::Right);
+        assert_eq!(PathBuf::from(&dialog.path_buffer), dir.join("child"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_import_font_mode_allows_zip_visibility() {
+        let dialog = FileOpsDialog {
+            mode: FileOpsMode::ImportFont,
+            ..FileOpsDialog::new()
+        };
+        assert!(dialog.allowed("bundle.zip", false));
+        assert!(dialog.allowed("myfont.ttf", false));
+        assert!(!dialog.allowed("readme.txt", false));
+    }
+
+    #[test]
+    fn test_entry_is_selectable_gates_on_mode_extension() {
+        let dialog = FileOpsDialog {
+            mode: FileOpsMode::ImportGif,
+            ..FileOpsDialog::new()
+        };
+        assert!(dialog.entry_is_selectable(".."));
+        assert!(dialog.entry_is_selectable("clip.gif"));
+        assert!(dialog.entry_is_selectable("bundle.zip"), "zip is navigable");
+        assert!(
+            !dialog.entry_is_selectable("picture.png"),
+            "wrong extension for ImportGif should not be selectable"
+        );
+    }
+
+    #[test]
+    fn test_mouse_click_on_directory_entry_navigates() {
+        let dir = make_test_dir("mouse-nav");
+        let mut dialog = FileOpsDialog {
+            mode: FileOpsMode::Open,
+            path_buffer: dir.to_str().unwrap().to_string(),
+            directory_entries: vec!["child".to_string()],
+            entry_rects: vec![(
+                0,
+                Rect {
+                    x: 0,
+                    y: 5,
+                    width: 20,
+                    height: 1,
+                },
+            )],
+            ..FileOpsDialog::new()
+        };
+        let consumed = dialog.handle_mouse(3, 5, MouseEventKind::Down(MouseButton::Left));
+        assert!(consumed);
+        assert_eq!(
+            dialog.mode,
+            FileOpsMode::Open,
+            "directory click shouldn't finalize"
+        );
+        assert_eq!(PathBuf::from(&dialog.path_buffer), dir.join("child"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_mouse_scroll_moves_selection() {
+        let mut dialog = FileOpsDialog {
+            mode: FileOpsMode::Open,
+            directory_entries: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            selected_entry: 0,
+            ..FileOpsDialog::new()
+        };
+        dialog.handle_mouse(0, 0, MouseEventKind::ScrollDown);
+        assert_eq!(dialog.selected_entry, 1);
+        dialog.handle_mouse(0, 0, MouseEventKind::ScrollUp);
+        assert_eq!(dialog.selected_entry, 0);
+    }
+
+    #[test]
+    fn test_mouse_ignored_when_dialog_idle() {
+        let mut dialog = FileOpsDialog::new();
+        assert_eq!(dialog.mode, FileOpsMode::Idle);
+        let consumed = dialog.handle_mouse(0, 0, MouseEventKind::Down(MouseButton::Left));
+        assert!(!consumed);
     }
 }

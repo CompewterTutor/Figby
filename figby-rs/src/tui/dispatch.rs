@@ -379,6 +379,19 @@ impl TuiApp {
         }
 
         if self.dialogs.file_ops.mode != file_ops::FileOpsMode::Idle {
+            let prev_mode = self.dialogs.file_ops.mode;
+            if self
+                .dialogs
+                .file_ops
+                .handle_mouse(mouse.column, mouse.row, mouse.kind)
+            {
+                self.frame.dirty = true;
+                if self.dialogs.file_ops.mode == file_ops::FileOpsMode::Idle {
+                    if let Some(event) = self.complete_file_ops_dialog(prev_mode) {
+                        self.process_event(&event);
+                    }
+                }
+            }
             return;
         }
 
@@ -1220,70 +1233,7 @@ impl TuiApp {
             let prev_mode = self.dialogs.file_ops.mode;
             self.dialogs.file_ops.handle_key(code);
             if self.dialogs.file_ops.mode == file_ops::FileOpsMode::Idle {
-                return match prev_mode {
-                    file_ops::FileOpsMode::SaveAs => {
-                        self.perform_save();
-                        return Some(AppEvent::SaveAsRequested);
-                    }
-                    file_ops::FileOpsMode::Open => {
-                        if self.dialogs.file_ops.is_browsing_zip() {
-                            self.perform_open();
-                            return Some(AppEvent::OpenRequested);
-                        }
-                        if self.dialogs.file_ops.path_buffer.trim().is_empty() {
-                            return None;
-                        }
-                        let path = self.dialogs.file_ops.selected_path();
-                        if !path.exists() {
-                            self.dialogs.file_ops.error_message =
-                                format!("File not found: {}", path.display());
-                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::Open;
-                            return None;
-                        }
-                        if path.is_dir() {
-                            self.dialogs.file_ops.error_message =
-                                "Select a .flf or .tlf file, not a directory".to_string();
-                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::Open;
-                            return None;
-                        }
-                        self.perform_open();
-                        return Some(AppEvent::OpenRequested);
-                    }
-                    file_ops::FileOpsMode::ImportFont => {
-                        if self.dialogs.file_ops.path_buffer.trim().is_empty() {
-                            return None;
-                        }
-                        let path = self.dialogs.file_ops.selected_path();
-                        if !path.exists() {
-                            self.dialogs.file_ops.error_message =
-                                format!("File not found: {}", path.display());
-                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportFont;
-                            return None;
-                        }
-                        self.perform_import_font(path);
-                        return Some(AppEvent::OpenRequested);
-                    }
-                    file_ops::FileOpsMode::ImportGif => {
-                        // Legacy path: open the new gif_import dialog instead
-                        self.dialogs.gif_import.enter();
-                        return None;
-                    }
-                    file_ops::FileOpsMode::OpenImage => {
-                        if self.dialogs.file_ops.path_buffer.trim().is_empty() {
-                            return None;
-                        }
-                        let path = self.dialogs.file_ops.selected_path();
-                        if !path.exists() {
-                            self.dialogs.file_ops.error_message =
-                                format!("File not found: {}", path.display());
-                            self.dialogs.file_ops.mode = file_ops::FileOpsMode::OpenImage;
-                            return None;
-                        }
-                        self.perform_open_image(path);
-                        return Some(AppEvent::ImageEditor);
-                    }
-                    file_ops::FileOpsMode::Idle => None,
-                };
+                return self.complete_file_ops_dialog(prev_mode);
             }
             return None;
         }
@@ -2006,6 +1956,86 @@ impl TuiApp {
             .file_ops
             .enter_save_as(self.editor.font_editor.current_path.as_deref());
         self.frame.dirty = true;
+    }
+
+    /// Shared completion logic for when the file-ops dialog transitions
+    /// back to Idle, regardless of whether that happened via keyboard
+    /// (Enter) or mouse (click). `prev_mode` is the mode the dialog was in
+    /// just before it closed.
+    fn complete_file_ops_dialog(&mut self, prev_mode: file_ops::FileOpsMode) -> Option<AppEvent> {
+        match prev_mode {
+            file_ops::FileOpsMode::SaveAs => {
+                self.perform_save();
+                Some(AppEvent::SaveAsRequested)
+            }
+            file_ops::FileOpsMode::Open => {
+                if self.dialogs.file_ops.is_browsing_zip() {
+                    self.perform_open();
+                    return Some(AppEvent::OpenRequested);
+                }
+                if self.dialogs.file_ops.path_buffer.trim().is_empty() {
+                    return None;
+                }
+                let path = self.dialogs.file_ops.selected_path();
+                if !path.exists() {
+                    self.dialogs.file_ops.error_message =
+                        format!("File not found: {}", path.display());
+                    self.dialogs.file_ops.mode = file_ops::FileOpsMode::Open;
+                    return None;
+                }
+                if path.is_dir() {
+                    self.dialogs.file_ops.error_message =
+                        "Select a .flf or .tlf file, not a directory".to_string();
+                    self.dialogs.file_ops.mode = file_ops::FileOpsMode::Open;
+                    return None;
+                }
+                self.perform_open();
+                Some(AppEvent::OpenRequested)
+            }
+            file_ops::FileOpsMode::ImportFont => {
+                if self.dialogs.file_ops.is_browsing_zip() {
+                    // Zip bundles reachable from the font-import flow contain
+                    // .flf/.tlf fonts (FIGlet's own zip convention, not
+                    // .ttf/.otf) — route through the same Open/ZipEntry
+                    // completion the Open dialog uses, not font_gen's TTF
+                    // conversion path.
+                    self.perform_open();
+                    return Some(AppEvent::OpenRequested);
+                }
+                if self.dialogs.file_ops.path_buffer.trim().is_empty() {
+                    return None;
+                }
+                let path = self.dialogs.file_ops.selected_path();
+                if !path.exists() {
+                    self.dialogs.file_ops.error_message =
+                        format!("File not found: {}", path.display());
+                    self.dialogs.file_ops.mode = file_ops::FileOpsMode::ImportFont;
+                    return None;
+                }
+                self.perform_import_font(path);
+                Some(AppEvent::OpenRequested)
+            }
+            file_ops::FileOpsMode::ImportGif => {
+                // Legacy path: open the new gif_import dialog instead
+                self.dialogs.gif_import.enter();
+                None
+            }
+            file_ops::FileOpsMode::OpenImage => {
+                if self.dialogs.file_ops.path_buffer.trim().is_empty() {
+                    return None;
+                }
+                let path = self.dialogs.file_ops.selected_path();
+                if !path.exists() {
+                    self.dialogs.file_ops.error_message =
+                        format!("File not found: {}", path.display());
+                    self.dialogs.file_ops.mode = file_ops::FileOpsMode::OpenImage;
+                    return None;
+                }
+                self.perform_open_image(path);
+                Some(AppEvent::ImageEditor)
+            }
+            file_ops::FileOpsMode::Idle => None,
+        }
     }
 
     pub(crate) fn perform_save(&mut self) {

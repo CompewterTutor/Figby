@@ -1,5 +1,69 @@
 use crate::tui::canvas::CanvasBuffer;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RotateDirection {
+    Clockwise,
+    CounterClockwise,
+}
+
+impl RotateDirection {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            RotateDirection::Clockwise => "CW",
+            RotateDirection::CounterClockwise => "CCW",
+        }
+    }
+
+    pub fn toggle(&mut self) {
+        *self = match self {
+            RotateDirection::Clockwise => RotateDirection::CounterClockwise,
+            RotateDirection::CounterClockwise => RotateDirection::Clockwise,
+        };
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PivotMode {
+    Center,
+    Cursor,
+    Custom,
+}
+
+impl PivotMode {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            PivotMode::Center => "Center",
+            PivotMode::Cursor => "Cursor",
+            PivotMode::Custom => "Custom",
+        }
+    }
+
+    pub fn cycle(&mut self) {
+        *self = match self {
+            PivotMode::Center => PivotMode::Cursor,
+            PivotMode::Cursor => PivotMode::Custom,
+            PivotMode::Custom => PivotMode::Center,
+        };
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RotateState {
+    pub step_angle: u16,
+    pub direction: RotateDirection,
+    pub pivot: PivotMode,
+}
+
+impl Default for RotateState {
+    fn default() -> Self {
+        Self {
+            step_angle: 90,
+            direction: RotateDirection::Clockwise,
+            pivot: PivotMode::Center,
+        }
+    }
+}
+
 /// Rotate the cells within `bounds` (`x_min, y_min, x_max, y_max`, inclusive)
 /// 90° around the bounds' own center.
 ///

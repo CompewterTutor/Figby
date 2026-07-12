@@ -12,8 +12,13 @@ use super::layers::{LayerPanel, LayerStack};
 use super::light_panel::LightPanel;
 use super::lighting::Scene;
 use super::particles::ParticleConfig;
+use super::props_panel::{PropAction, PropsWidgetRect};
 use super::theme::Theme;
 use super::toolbox::Tool;
+use super::tools::line::LineState;
+use super::tools::move_tool::MoveState;
+use super::tools::rotate_tool::RotateState;
+use super::tools::selection::SelectionState;
 use super::tools::text::TextToolState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -181,6 +186,11 @@ impl SidePanel {
         zoom: u8,
         lighting_scene: Option<&Scene>,
         lighting_panel: Option<&LightPanel>,
+        props_rects: &mut Vec<PropsWidgetRect>,
+        move_state: &MoveState,
+        rotate_state: &RotateState,
+        selection_state: &SelectionState,
+        line_state: &LineState,
     ) {
         let block = Block::default().borders(Borders::ALL).style(
             Style::default()
@@ -284,11 +294,16 @@ impl SidePanel {
                     zoom,
                     lighting_scene,
                     lighting_panel,
+                    props_rects,
+                    move_state,
+                    rotate_state,
+                    selection_state,
+                    line_state,
                 );
             }
             TabId::Text => {
                 if let Some(tt) = text_tool {
-                    Self::render_text_content(frame, content_area, tt, &self.theme);
+                    Self::render_text_content(frame, content_area, tt, &self.theme, props_rects);
                 }
             }
             TabId::Libraries => {
@@ -319,32 +334,55 @@ impl SidePanel {
         zoom: u8,
         lighting_scene: Option<&Scene>,
         lighting_panel: Option<&LightPanel>,
+        rects: &mut Vec<PropsWidgetRect>,
+        move_state: &MoveState,
+        rotate_state: &RotateState,
+        selection_state: &SelectionState,
+        line_state: &LineState,
     ) {
         let mut lines: Vec<Line> = Vec::new();
+        let mut line_y: u16 = 0;
 
         match active_tool {
             Tool::Brush | Tool::Spray | Tool::Eraser => {
-                Self::add_brush_props(&mut lines, brush);
+                Self::add_brush_props(&mut lines, brush, rects, area, &mut line_y);
             }
             Tool::Text => {
                 if let Some(tt) = text_tool {
-                    Self::add_text_props(&mut lines, tt);
+                    Self::add_text_props(&mut lines, tt, rects, area, &mut line_y);
                 }
             }
             Tool::Eyedropper => {
-                Self::add_eyedropper_props(&mut lines, eyedropper_sample);
+                Self::add_eyedropper_props(&mut lines, eyedropper_sample, rects, area, &mut line_y);
             }
             Tool::Fill => {
-                Self::add_fill_props(&mut lines, fill_threshold);
+                Self::add_fill_props(&mut lines, fill_threshold, rects, area, &mut line_y);
             }
             Tool::Emitter => {
-                Self::add_emitter_props(&mut lines, emitter_config);
+                Self::add_emitter_props(&mut lines, emitter_config, rects, area, &mut line_y);
             }
             Tool::Lighting => {
-                Self::add_lighting_props(&mut lines, lighting_scene, lighting_panel, theme);
+                Self::add_lighting_props(
+                    &mut lines,
+                    lighting_scene,
+                    lighting_panel,
+                    theme,
+                    rects,
+                    area,
+                    &mut line_y,
+                );
             }
-            _ => {
-                Self::add_tool_keybinds(&mut lines);
+            Tool::Move => {
+                Self::add_move_props(&mut lines, move_state, rects, area, &mut line_y);
+            }
+            Tool::Rotate => {
+                Self::add_rotate_props(&mut lines, rotate_state, rects, area, &mut line_y);
+            }
+            Tool::Marquee | Tool::Lasso | Tool::CircleSelect | Tool::PolygonSelect => {
+                Self::add_select_props(&mut lines, selection_state, rects, area, &mut line_y);
+            }
+            Tool::Line => {
+                Self::add_line_props(&mut lines, line_state, rects, area, &mut line_y);
             }
         }
 
@@ -356,140 +394,383 @@ impl SidePanel {
         frame.render_widget(para, area);
     }
 
-    fn add_brush_props(lines: &mut Vec<Line>, brush: &BrushState) {
+    fn add_brush_props(
+        lines: &mut Vec<Line>,
+        brush: &BrushState,
+        rects: &mut Vec<PropsWidgetRect>,
+        area: Rect,
+        line_y: &mut u16,
+    ) {
         lines.push(Line::from(Span::styled(
             " Brush ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
-        lines.push(Line::from(vec![
-            Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", brush.size)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", brush.shape.name())),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Mode:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", brush.sub_mode.name())),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Density:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}%", brush.density)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" '{}'", brush.ch)),
-        ]));
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::raw(" [  Size down")));
-        lines.push(Line::from(Span::raw(" ]  Size up")));
-        lines.push(Line::from(Span::raw(r" \  Cycle shape")));
-        if matches!(brush.shape, crate::tui::brush::BrushShape::SprayPaint) {
-            lines.push(Line::from(Span::raw(" ;  Density down")));
-            lines.push(Line::from(Span::raw(" '  Density up")));
+        *line_y += 1;
+
+        // Size: [-].Size: 3.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            // [-] button at col 2
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::SizeDown,
+            });
+            // [+] button at col 15
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 15,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::SizeUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {} [+] ", brush.size)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Shape: click on value to cycle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let val_start = x + 7; // after "Shape: "
+            let val_w = brush.shape.name().len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::CycleShape,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", brush.shape.name())),
+            ]));
+            *line_y += 1;
+        }
+
+        // Mode: click on value to cycle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let val_start = x + 6; // after "Mode: "
+            let val_w = brush.sub_mode.name().len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::CycleSubMode,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Mode:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", brush.sub_mode.name())),
+            ]));
+            *line_y += 1;
+        }
+
+        // Density: [-].Density: 35%.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::DensityDown,
+            });
+            let density_str = format!("{}%", brush.density);
+            let density_len = density_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2 + 3 + 9 + 1 + density_len + 1,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::DensityUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Density:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {} [+] ", density_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Char: click to enter edit mode
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let val_start = x + 6; // after "Char: "
+            let val_w = 3; // e.g. '█'
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::BeginEditChar,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" '{}'", brush.ch)),
+            ]));
+            *line_y += 1;
         }
     }
 
-    fn add_text_props(lines: &mut Vec<Line>, tt: &TextToolState) {
+    fn add_text_props(
+        lines: &mut Vec<Line>,
+        tt: &TextToolState,
+        rects: &mut Vec<PropsWidgetRect>,
+        area: Rect,
+        line_y: &mut u16,
+    ) {
         lines.push(Line::from(Span::styled(
             " Text Tool ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
+        *line_y += 1;
+
         let font_name = if tt.font_index < tt.available_fonts.len() {
             &tt.available_fonts[tt.font_index]
         } else {
             "?"
         };
-        lines.push(Line::from(vec![
-            Span::styled("Font:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", font_name)),
-        ]));
-        let just_str = match tt.justification {
-            crate::render::Justification::Left => "Left",
-            crate::render::Justification::Center => "Center",
-            crate::render::Justification::Right => "Right",
-        };
-        lines.push(Line::from(vec![
-            Span::styled("Just:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", just_str)),
-        ]));
-        lines.push(Line::from(vec![
-            Span::styled("Scale:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", tt.scale)),
-        ]));
+
+        // Font: click to cycle (next font)
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let val_start = x + 6; // after "Font: "
+            let val_w = font_name.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::FontNext,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Font:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", font_name)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Just: click to cycle
+        {
+            let just_str = match tt.justification {
+                crate::render::Justification::Left => "Left",
+                crate::render::Justification::Center => "Center",
+                crate::render::Justification::Right => "Right",
+            };
+            let y = area.y + *line_y;
+            let x = area.x;
+            let val_start = x + 6; // after "Just: "
+            let val_w = just_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::CycleJust,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Just:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", just_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Scale: [-].Scale: 3.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::ScaleDown,
+            });
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 15,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::ScaleUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Scale:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {} [+] ", tt.scale)),
+            ]));
+            *line_y += 1;
+        }
+
         lines.push(Line::from(""));
+        *line_y += 1;
         lines.push(Line::from(Span::raw(" Click canvas to type")));
     }
 
-    fn add_eyedropper_props(lines: &mut Vec<Line>, sample: Option<CanvasCell>) {
+    fn add_eyedropper_props(
+        lines: &mut Vec<Line>,
+        sample: Option<CanvasCell>,
+        _rects: &mut Vec<PropsWidgetRect>,
+        _area: Rect,
+        line_y: &mut u16,
+    ) {
         lines.push(Line::from(Span::styled(
             " Eyedropper ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
+        *line_y += 1;
         match sample {
             Some(cell) => {
                 lines.push(Line::from(vec![
                     Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
                     Span::raw(format!(" '{}'", cell.ch)),
                 ]));
+                *line_y += 1;
                 lines.push(Line::from(vec![
                     Span::styled("FG:", Style::default().add_modifier(Modifier::BOLD)),
                     Span::raw(format!(" {:?}", cell.fg)),
                 ]));
+                *line_y += 1;
                 lines.push(Line::from(vec![
                     Span::styled("BG:", Style::default().add_modifier(Modifier::BOLD)),
                     Span::raw(format!(" {:?}", cell.bg)),
                 ]));
+                *line_y += 1;
             }
             None => {
                 lines.push(Line::from(Span::raw(" No sample yet")));
+                *line_y += 1;
                 lines.push(Line::from(Span::raw(" Click canvas to sample")));
+                *line_y += 1;
             }
         }
     }
 
-    fn add_fill_props(lines: &mut Vec<Line>, threshold: u8) {
+    fn add_fill_props(
+        lines: &mut Vec<Line>,
+        threshold: u8,
+        rects: &mut Vec<PropsWidgetRect>,
+        area: Rect,
+        line_y: &mut u16,
+    ) {
         lines.push(Line::from(Span::styled(
             " Fill ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
-        lines.push(Line::from(vec![
-            Span::styled("Threshold:", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(format!(" {}", threshold)),
-        ]));
+        *line_y += 1;
+
+        // Threshold: [-].Threshold: 0.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::FillThresholdDown,
+            });
+            let thresh_str = format!("{}", threshold);
+            let thresh_len = thresh_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2 + 3 + 11 + 1 + thresh_len + 1,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::FillThresholdUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Threshold:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {} [+] ", threshold)),
+            ]));
+            *line_y += 1;
+        }
+
         lines.push(Line::from(""));
+        *line_y += 1;
         lines.push(Line::from(Span::raw(" Click canvas to flood fill")));
     }
 
-    fn add_emitter_props(lines: &mut Vec<Line>, config: Option<&ParticleConfig>) {
+    fn add_emitter_props(
+        lines: &mut Vec<Line>,
+        config: Option<&ParticleConfig>,
+        _rects: &mut Vec<PropsWidgetRect>,
+        _area: Rect,
+        line_y: &mut u16,
+    ) {
         lines.push(Line::from(Span::styled(
             " Emitter ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
+        *line_y += 1;
         if let Some(cfg) = config {
             lines.push(Line::from(vec![
                 Span::styled("Rate:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" {:.1}/s", cfg.spawn_rate)),
             ]));
+            *line_y += 1;
             lines.push(Line::from(vec![
                 Span::styled("Lifetime:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" {:.1}–{:.1}s", cfg.lifetime_min, cfg.lifetime_max)),
             ]));
+            *line_y += 1;
             lines.push(Line::from(vec![
                 Span::styled("Shape:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" {}", cfg.emission_shape.display_name())),
             ]));
+            *line_y += 1;
             lines.push(Line::from(vec![
                 Span::styled("Char:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" '{}'", cfg.character)),
             ]));
+            *line_y += 1;
             lines.push(Line::from(vec![
                 Span::styled("Size:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" {}", cfg.size)),
             ]));
+            *line_y += 1;
         } else {
             lines.push(Line::from(Span::raw(" No config")));
+            *line_y += 1;
         }
     }
 
@@ -498,57 +779,436 @@ impl SidePanel {
         scene: Option<&Scene>,
         panel: Option<&LightPanel>,
         theme: &Theme,
+        _rects: &mut Vec<PropsWidgetRect>,
+        _area: Rect,
+        line_y: &mut u16,
     ) {
         lines.push(Line::from(Span::styled(
             " Lighting ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
+        *line_y += 1;
         match (scene, panel) {
             (Some(scene), Some(panel)) => {
-                lines.extend(LightPanel::build_lines(
-                    scene,
-                    panel.selected_index(),
-                    theme,
-                ));
+                let bl = LightPanel::build_lines(scene, panel.selected_index(), theme);
+                let count = bl.len() as u16;
+                lines.extend(bl);
+                *line_y += count;
             }
             _ => {
                 lines.push(Line::from(Span::raw(" No scene yet")));
+                *line_y += 1;
             }
         }
         lines.push(Line::from(""));
+        *line_y += 1;
         lines.push(Line::from(Span::raw(" A/D/P  Add Amb/Dir/Point")));
+        *line_y += 1;
         lines.push(Line::from(Span::raw(" ↑/↓  Select light")));
+        *line_y += 1;
         lines.push(Line::from(Span::raw(" ←/→  Move (Point)")));
+        *line_y += 1;
         lines.push(Line::from(Span::raw(" -/+  Intensity")));
+        *line_y += 1;
         lines.push(Line::from(Span::raw(" Del  Remove light")));
+        *line_y += 1;
     }
 
-    fn add_tool_keybinds(lines: &mut Vec<Line>) {
+    fn add_move_props(
+        lines: &mut Vec<Line>,
+        state: &MoveState,
+        rects: &mut Vec<PropsWidgetRect>,
+        area: Rect,
+        line_y: &mut u16,
+    ) {
         lines.push(Line::from(Span::styled(
-            " Tools ",
+            " Move ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
-        lines.push(Line::from("  b  Brush"));
-        lines.push(Line::from("  u  Move"));
-        lines.push(Line::from("  e  Eraser"));
-        lines.push(Line::from("  l  Lasso"));
-        lines.push(Line::from("  v  Select"));
-        lines.push(Line::from("  c  Circle sel."));
-        lines.push(Line::from("  p  Polygon sel."));
-        lines.push(Line::from("  g  Fill"));
-        lines.push(Line::from("  i  Line"));
-        lines.push(Line::from("  d  Eyedropper"));
-        lines.push(Line::from("  a  Spray"));
-        lines.push(Line::from("  t  Text"));
-        lines.push(Line::from("  m  Emitter"));
-        lines.push(Line::from(""));
+        *line_y += 1;
+
+        // Stride: [-].Stride: 1.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::MoveStrideDown,
+            });
+            let stride_str = format!("{}", state.stride);
+            let stride_len = stride_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2 + 3 + 8 + 1 + stride_len + 1,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::MoveStrideUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Stride:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {} [+] ", stride_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Snap: click on value to toggle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let snap_str = if state.snap { "On" } else { "Off" };
+            let val_start = x + 6;
+            let val_w = snap_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::MoveSnapToggle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Snap:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", snap_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Wrap: click on value to toggle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let wrap_str = if state.wrap { "On" } else { "Off" };
+            let val_start = x + 6;
+            let val_w = wrap_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::MoveWrapToggle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Wrap:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", wrap_str)),
+            ]));
+            *line_y += 1;
+        }
+    }
+
+    fn add_rotate_props(
+        lines: &mut Vec<Line>,
+        state: &RotateState,
+        rects: &mut Vec<PropsWidgetRect>,
+        area: Rect,
+        line_y: &mut u16,
+    ) {
         lines.push(Line::from(Span::styled(
-            " View ",
+            " Rotate ",
             Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )));
-        lines.push(Line::from("  F11  Zen mode"));
-        lines.push(Line::from("  ?    Toggle panel"));
-        lines.push(Line::from("  ^K   All keybinds"));
+        *line_y += 1;
+
+        // Step angle: [-].Angle: 90.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::RotateStepDown,
+            });
+            let angle_str = format!("{}", state.step_angle);
+            let angle_len = angle_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2 + 3 + 7 + 1 + angle_len + 1,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::RotateStepUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Angle:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}° [+] ", angle_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Direction: click to toggle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let dir_str = state.direction.display_name();
+            let val_start = x + 11;
+            let val_w = dir_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::RotateDirToggle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Direction:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", dir_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Pivot: click to cycle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let pivot_str = state.pivot.display_name();
+            let val_start = x + 7;
+            let val_w = pivot_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::RotatePivotCycle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Pivot:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", pivot_str)),
+            ]));
+            *line_y += 1;
+        }
+    }
+
+    fn add_select_props(
+        lines: &mut Vec<Line>,
+        state: &SelectionState,
+        rects: &mut Vec<PropsWidgetRect>,
+        area: Rect,
+        line_y: &mut u16,
+    ) {
+        lines.push(Line::from(Span::styled(
+            " Selection ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        *line_y += 1;
+
+        // Feather: [-].Feather: 0.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::SelectFeatherDown,
+            });
+            let feather_str = format!("{}", state.feather);
+            let feather_len = feather_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2 + 3 + 9 + 1 + feather_len + 1,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::SelectFeatherUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Feather:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {} [+] ", feather_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Additive: click to toggle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let add_str = if state.additive { "On" } else { "Off" };
+            let val_start = x + 10;
+            let val_w = add_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::SelectAdditiveToggle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Additive:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", add_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Subtractive: click to toggle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let sub_str = if state.subtractive { "On" } else { "Off" };
+            let val_start = x + 12;
+            let val_w = sub_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::SelectSubtractiveToggle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled(
+                    "Subtractive:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(format!(" {}", sub_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Move with arrows: click to toggle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let mov_str = if state.move_with_arrows { "On" } else { "Off" };
+            let val_start = x + 17;
+            let val_w = mov_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::SelectMoveToggle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled(
+                    "Move w/ Arrows:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(format!(" {}", mov_str)),
+            ]));
+            *line_y += 1;
+        }
+    }
+
+    fn add_line_props(
+        lines: &mut Vec<Line>,
+        state: &LineState,
+        rects: &mut Vec<PropsWidgetRect>,
+        area: Rect,
+        line_y: &mut u16,
+    ) {
+        lines.push(Line::from(Span::styled(
+            " Line ",
+            Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        )));
+        *line_y += 1;
+
+        // Width: [-].Width: 1.[+]
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::LineWidthDown,
+            });
+            let width_str = format!("{}", state.width);
+            let width_len = width_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2 + 3 + 7 + 1 + width_len + 1,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::LineWidthUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
+                Span::styled("Width:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {} [+] ", width_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Arrowhead: click to cycle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let arrow_str = state.arrowhead.display_name();
+            let val_start = x + 11;
+            let val_w = arrow_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::LineArrowCycle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Arrowhead:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", arrow_str)),
+            ]));
+            *line_y += 1;
+        }
+
+        // Curve: click to toggle
+        {
+            let y = area.y + *line_y;
+            let x = area.x;
+            let curve_str = state.curve.display_name();
+            let val_start = x + 7;
+            let val_w = curve_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::LineCurveToggle,
+            });
+            lines.push(Line::from(vec![
+                Span::styled("Curve:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(format!(" {}", curve_str)),
+            ]));
+            *line_y += 1;
+        }
     }
 
     fn add_image_font_info(
@@ -578,7 +1238,13 @@ impl SidePanel {
         }
     }
 
-    fn render_text_content(frame: &mut Frame<'_>, area: Rect, tt: &TextToolState, _theme: &Theme) {
+    fn render_text_content(
+        frame: &mut Frame<'_>,
+        area: Rect,
+        tt: &TextToolState,
+        _theme: &Theme,
+        rects: &mut Vec<PropsWidgetRect>,
+    ) {
         let font_name = if tt.font_index < tt.available_fonts.len() {
             &tt.available_fonts[tt.font_index]
         } else {
@@ -589,20 +1255,83 @@ impl SidePanel {
             crate::render::Justification::Center => "Center",
             crate::render::Justification::Right => "Right",
         };
-        let lines: Vec<Line> = vec![
-            Line::from(vec![
+
+        let mut lines: Vec<Line> = Vec::new();
+        let mut line_y: u16 = 0;
+
+        // Font: click to cycle
+        {
+            let y = area.y + line_y;
+            let x = area.x;
+            let val_start = x + 6;
+            let val_w = font_name.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::FontNext,
+            });
+            lines.push(Line::from(vec![
                 Span::styled("Font:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" {}", font_name)),
-            ]),
-            Line::from(vec![
+            ]));
+            line_y += 1;
+        }
+
+        // Just: click to cycle
+        {
+            let y = area.y + line_y;
+            let x = area.x;
+            let val_start = x + 6;
+            let val_w = just_str.len() as u16;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: val_start,
+                    y,
+                    width: val_w,
+                    height: 1,
+                },
+                action: PropAction::CycleJust,
+            });
+            lines.push(Line::from(vec![
                 Span::styled("Just:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(format!(" {}", just_str)),
-            ]),
-            Line::from(vec![
+            ]));
+            line_y += 1;
+        }
+
+        // Scale: [-].Scale: 3.[+]
+        {
+            let y = area.y + line_y;
+            let x = area.x;
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 2,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::ScaleDown,
+            });
+            rects.push(PropsWidgetRect {
+                rect: Rect {
+                    x: x + 15,
+                    y,
+                    width: 3,
+                    height: 1,
+                },
+                action: PropAction::ScaleUp,
+            });
+            lines.push(Line::from(vec![
+                Span::raw("[-] "),
                 Span::styled("Scale:", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(format!(" {}", tt.scale)),
-            ]),
-        ];
+                Span::raw(format!(" {} [+] ", tt.scale)),
+            ]));
+        }
+
         frame.render_widget(Paragraph::new(lines), area);
     }
 
@@ -640,5 +1369,174 @@ mod tests {
         let area = Rect::new(0, 0, 30, 3);
         let content = panel.content_area(area);
         assert_eq!(content.height, 0);
+    }
+
+    #[test]
+    fn test_brush_props_populates_rects() {
+        let brush = BrushState::new();
+        let mut lines = Vec::new();
+        let mut rects = Vec::new();
+        let area = Rect::new(1, 3, 28, 20);
+        let mut line_y = 0;
+
+        SidePanel::add_brush_props(&mut lines, &brush, &mut rects, area, &mut line_y);
+
+        // Should have rects for: size -, size +, shape cycle, mode cycle,
+        // density -, density +, char click = 7 rects
+        assert_eq!(rects.len(), 7);
+        assert!(rects.iter().any(|r| r.action == PropAction::SizeDown));
+        assert!(rects.iter().any(|r| r.action == PropAction::SizeUp));
+        assert!(rects.iter().any(|r| r.action == PropAction::CycleShape));
+        assert!(rects.iter().any(|r| r.action == PropAction::CycleSubMode));
+        assert!(rects.iter().any(|r| r.action == PropAction::DensityDown));
+        assert!(rects.iter().any(|r| r.action == PropAction::DensityUp));
+        assert!(rects.iter().any(|r| r.action == PropAction::BeginEditChar));
+
+        // Verify all rects have valid geometry (non-zero area, within content area)
+        for r in &rects {
+            assert!(r.rect.width > 0);
+            assert!(r.rect.height > 0);
+            assert!(r.rect.x >= area.x);
+            assert!(r.rect.y >= area.y);
+            assert!(r.rect.x + r.rect.width <= area.x + area.width);
+        }
+    }
+
+    #[test]
+    fn test_text_props_populates_rects() {
+        let tt = TextToolState::new("fonts");
+        let mut lines = Vec::new();
+        let mut rects = Vec::new();
+        let area = Rect::new(1, 3, 28, 20);
+        let mut line_y = 0;
+
+        SidePanel::add_text_props(&mut lines, &tt, &mut rects, area, &mut line_y);
+
+        // Should have rects for: font cycle, just cycle, scale -, scale +
+        assert_eq!(rects.len(), 4);
+        assert!(rects.iter().any(|r| r.action == PropAction::FontNext));
+        assert!(rects.iter().any(|r| r.action == PropAction::CycleJust));
+        assert!(rects.iter().any(|r| r.action == PropAction::ScaleDown));
+        assert!(rects.iter().any(|r| r.action == PropAction::ScaleUp));
+    }
+
+    #[test]
+    fn test_fill_props_populates_rects() {
+        let mut lines = Vec::new();
+        let mut rects = Vec::new();
+        let area = Rect::new(1, 3, 28, 20);
+        let mut line_y = 0;
+
+        SidePanel::add_fill_props(&mut lines, 12, &mut rects, area, &mut line_y);
+
+        // Should have rects for: threshold -, threshold +
+        assert_eq!(rects.len(), 2);
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::FillThresholdDown));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::FillThresholdUp));
+    }
+
+    #[test]
+    fn test_move_props_populates_rects() {
+        let state = MoveState::default();
+        let mut lines = Vec::new();
+        let mut rects = Vec::new();
+        let area = Rect::new(1, 3, 28, 20);
+        let mut line_y = 0;
+
+        SidePanel::add_move_props(&mut lines, &state, &mut rects, area, &mut line_y);
+
+        assert_eq!(rects.len(), 4);
+        assert!(rects.iter().any(|r| r.action == PropAction::MoveStrideDown));
+        assert!(rects.iter().any(|r| r.action == PropAction::MoveStrideUp));
+        assert!(rects.iter().any(|r| r.action == PropAction::MoveSnapToggle));
+        assert!(rects.iter().any(|r| r.action == PropAction::MoveWrapToggle));
+        for r in &rects {
+            assert!(r.rect.width > 0);
+            assert!(r.rect.height > 0);
+        }
+    }
+
+    #[test]
+    fn test_rotate_props_populates_rects() {
+        let state = RotateState::default();
+        let mut lines = Vec::new();
+        let mut rects = Vec::new();
+        let area = Rect::new(1, 3, 28, 20);
+        let mut line_y = 0;
+
+        SidePanel::add_rotate_props(&mut lines, &state, &mut rects, area, &mut line_y);
+
+        assert_eq!(rects.len(), 4);
+        assert!(rects.iter().any(|r| r.action == PropAction::RotateStepDown));
+        assert!(rects.iter().any(|r| r.action == PropAction::RotateStepUp));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::RotateDirToggle));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::RotatePivotCycle));
+        for r in &rects {
+            assert!(r.rect.width > 0);
+            assert!(r.rect.height > 0);
+        }
+    }
+
+    #[test]
+    fn test_select_props_populates_rects() {
+        let state = SelectionState::default();
+        let mut lines = Vec::new();
+        let mut rects = Vec::new();
+        let area = Rect::new(1, 3, 28, 20);
+        let mut line_y = 0;
+
+        SidePanel::add_select_props(&mut lines, &state, &mut rects, area, &mut line_y);
+
+        assert_eq!(rects.len(), 5);
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::SelectFeatherDown));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::SelectFeatherUp));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::SelectAdditiveToggle));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::SelectSubtractiveToggle));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::SelectMoveToggle));
+        for r in &rects {
+            assert!(r.rect.width > 0);
+            assert!(r.rect.height > 0);
+        }
+    }
+
+    #[test]
+    fn test_line_props_populates_rects() {
+        let state = LineState::default();
+        let mut lines = Vec::new();
+        let mut rects = Vec::new();
+        let area = Rect::new(1, 3, 28, 20);
+        let mut line_y = 0;
+
+        SidePanel::add_line_props(&mut lines, &state, &mut rects, area, &mut line_y);
+
+        assert_eq!(rects.len(), 4);
+        assert!(rects.iter().any(|r| r.action == PropAction::LineWidthDown));
+        assert!(rects.iter().any(|r| r.action == PropAction::LineWidthUp));
+        assert!(rects.iter().any(|r| r.action == PropAction::LineArrowCycle));
+        assert!(rects
+            .iter()
+            .any(|r| r.action == PropAction::LineCurveToggle));
+        for r in &rects {
+            assert!(r.rect.width > 0);
+            assert!(r.rect.height > 0);
+        }
     }
 }

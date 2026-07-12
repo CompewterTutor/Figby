@@ -40,6 +40,7 @@ pub mod palette;
 pub mod palette_editor;
 pub mod particles;
 pub mod player;
+pub mod props_panel;
 pub mod render_mode;
 pub mod side_panel;
 pub mod status;
@@ -60,6 +61,7 @@ pub use light_panel::LightPanel;
 pub use menu::{MenuBar, MenuBarState};
 pub use palette::Palette;
 pub use player::AnimationPlayer;
+pub use props_panel::{PropAction, PropsPanel, PropsPanelMode};
 pub use render_mode::RenderMode;
 pub use side_panel::{SidePanel, TabId};
 pub use status::CanvasSettings;
@@ -166,6 +168,10 @@ pub struct EditorState {
     pub layer_panel: layers::LayerPanel,
     pub fill_threshold: u8,
     pub eyedropper_sample: Option<canvas::CanvasCell>,
+    pub move_state: tools::move_tool::MoveState,
+    pub rotate_state: tools::rotate_tool::RotateState,
+    pub selection_state: tools::selection::SelectionState,
+    pub line_state: tools::line::LineState,
 }
 
 impl EditorState {
@@ -688,6 +694,7 @@ pub struct TuiApp {
     pub dialogs: DialogState,
     pub animation: AnimationState,
     pub palette_editor: palette_editor::PaletteEditor,
+    pub props_panel: PropsPanel,
     pub lighting: LightingState,
     pub palette_rgb_to_swatch: HashMap<(u8, u8, u8), usize>,
     pub prev_mode: AppMode,
@@ -839,6 +846,10 @@ impl TuiApp {
                     layer_panel,
                     fill_threshold: 0,
                     eyedropper_sample: None,
+                    move_state: tools::move_tool::MoveState::default(),
+                    rotate_state: tools::rotate_tool::RotateState::default(),
+                    selection_state: tools::selection::SelectionState::default(),
+                    line_state: tools::line::LineState::default(),
                 };
                 editor.recomposite_canvas();
                 editor
@@ -869,6 +880,7 @@ impl TuiApp {
                 transport_rects: Vec::new(),
             },
             palette_editor: palette_editor::PaletteEditor::new(),
+            props_panel: PropsPanel::new(),
             lighting: LightingState {
                 scene: None,
                 max_shadow_distance: 50,
@@ -1223,6 +1235,7 @@ impl TuiApp {
                 };
                 (!name.is_empty()).then_some(name)
             });
+            self.props_panel.clear_rects();
             self.side_panel.render(
                 frame,
                 rp,
@@ -1240,6 +1253,11 @@ impl TuiApp {
                 self.editor.canvas.zoom_level(),
                 self.lighting.scene.as_ref(),
                 Some(&self.lighting.panel),
+                &mut self.props_panel.rects,
+                &self.editor.move_state,
+                &self.editor.rotate_state,
+                &self.editor.selection_state,
+                &self.editor.line_state,
             );
         }
 
@@ -1812,6 +1830,137 @@ impl TuiApp {
         }
     }
 
+    fn dispatch_props_action(&mut self, action: PropAction) {
+        match action {
+            PropAction::SizeUp => self.editor.brush.size_up(),
+            PropAction::SizeDown => self.editor.brush.size_down(),
+            PropAction::DensityUp => self.editor.brush.density_up(),
+            PropAction::DensityDown => self.editor.brush.density_down(),
+            PropAction::CycleShape => self.editor.brush.cycle_shape(),
+            PropAction::CycleSubMode => {
+                self.editor
+                    .brush
+                    .cycle_sub_mode(self.editor.palette.has_multi_select());
+                if self.editor.brush.sub_mode == brush::BrushSubMode::Normal {
+                    self.animation.marker_accum.clear();
+                }
+            }
+            PropAction::CycleJust => {
+                use crate::render::Justification;
+                self.editor.text_tool.justification = match self.editor.text_tool.justification {
+                    Justification::Left => Justification::Center,
+                    Justification::Center => Justification::Right,
+                    Justification::Right => Justification::Left,
+                };
+            }
+            PropAction::ScaleUp => {
+                if self.editor.text_tool.scale < 10 {
+                    self.editor.text_tool.scale += 1;
+                }
+            }
+            PropAction::ScaleDown => {
+                if self.editor.text_tool.scale > 1 {
+                    self.editor.text_tool.scale -= 1;
+                }
+            }
+            PropAction::FontNext => {
+                let count = self.editor.text_tool.available_fonts.len();
+                if count > 0 {
+                    self.editor.text_tool.font_index =
+                        (self.editor.text_tool.font_index + 1) % count;
+                    self.editor.text_tool.load_selected_font();
+                }
+            }
+            PropAction::FontPrev => {
+                let count = self.editor.text_tool.available_fonts.len();
+                if count > 0 {
+                    self.editor.text_tool.font_index =
+                        (self.editor.text_tool.font_index + count - 1) % count;
+                    self.editor.text_tool.load_selected_font();
+                }
+            }
+            PropAction::BeginEditChar => {
+                self.props_panel.start_char_edit();
+            }
+            PropAction::BeginEditField => {
+                self.props_panel.start_char_edit();
+            }
+            PropAction::CommitChar(ch) => {
+                self.editor.brush.ch = ch;
+            }
+            PropAction::CancelEdit => {}
+            PropAction::FillThresholdUp => {
+                self.editor.fill_threshold = self.editor.fill_threshold.saturating_add(5);
+            }
+            PropAction::FillThresholdDown => {
+                self.editor.fill_threshold = self.editor.fill_threshold.saturating_sub(5);
+            }
+            PropAction::MoveStrideUp => {
+                self.editor.move_state.stride = self.editor.move_state.stride.saturating_add(1);
+            }
+            PropAction::MoveStrideDown => {
+                self.editor.move_state.stride = self.editor.move_state.stride.saturating_sub(1);
+            }
+            PropAction::MoveSnapToggle => {
+                self.editor.move_state.snap = !self.editor.move_state.snap;
+            }
+            PropAction::MoveWrapToggle => {
+                self.editor.move_state.wrap = !self.editor.move_state.wrap;
+            }
+            PropAction::RotateStepUp => {
+                self.editor.rotate_state.step_angle =
+                    self.editor.rotate_state.step_angle.saturating_add(15);
+            }
+            PropAction::RotateStepDown => {
+                self.editor.rotate_state.step_angle =
+                    self.editor.rotate_state.step_angle.saturating_sub(15);
+            }
+            PropAction::RotateDirToggle => {
+                self.editor.rotate_state.direction.toggle();
+            }
+            PropAction::RotatePivotCycle => {
+                self.editor.rotate_state.pivot.cycle();
+            }
+            PropAction::SelectFeatherUp => {
+                self.editor.selection_state.feather =
+                    self.editor.selection_state.feather.saturating_add(1);
+            }
+            PropAction::SelectFeatherDown => {
+                self.editor.selection_state.feather =
+                    self.editor.selection_state.feather.saturating_sub(1);
+            }
+            PropAction::SelectAdditiveToggle => {
+                self.editor.selection_state.additive = !self.editor.selection_state.additive;
+                if self.editor.selection_state.additive {
+                    self.editor.selection_state.subtractive = false;
+                }
+            }
+            PropAction::SelectSubtractiveToggle => {
+                self.editor.selection_state.subtractive = !self.editor.selection_state.subtractive;
+                if self.editor.selection_state.subtractive {
+                    self.editor.selection_state.additive = false;
+                }
+            }
+            PropAction::SelectMoveToggle => {
+                self.editor.selection_state.move_with_arrows =
+                    !self.editor.selection_state.move_with_arrows;
+            }
+            PropAction::LineWidthUp => {
+                self.editor.line_state.width = self.editor.line_state.width.saturating_add(1);
+            }
+            PropAction::LineWidthDown => {
+                self.editor.line_state.width = self.editor.line_state.width.saturating_sub(1);
+            }
+            PropAction::LineArrowCycle => {
+                self.editor.line_state.arrowhead.cycle();
+            }
+            PropAction::LineCurveToggle => {
+                self.editor.line_state.curve.toggle();
+            }
+        }
+        self.dirty = true;
+    }
+
     fn handle_mouse_event(&mut self, mouse: MouseEvent) {
         // Quit-confirm dialog: intercept all mouse events
         if self.quit_confirm_dialog {
@@ -1972,6 +2121,25 @@ impl TuiApp {
                 self.editor.unsaved = true;
                 self.dirty = true;
                 return;
+            }
+        }
+
+        // Props tab: click on widget rects
+        if self.side_panel.open && mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+            if self.side_panel.active_tab == TabId::Props {
+                if let Some(action) = self.props_panel.handle_click(mouse.column, mouse.row) {
+                    self.dispatch_props_action(action);
+                    self.dirty = true;
+                    return;
+                }
+            }
+            // Text tab: click on widget rects
+            if self.side_panel.active_tab == TabId::Text {
+                if let Some(action) = self.props_panel.handle_click(mouse.column, mouse.row) {
+                    self.dispatch_props_action(action);
+                    self.dirty = true;
+                    return;
+                }
             }
         }
 
@@ -3621,6 +3789,15 @@ impl TuiApp {
             return None;
         }
 
+        // Props panel typed-entry mode intercept
+        if self.props_panel.mode != PropsPanelMode::Idle {
+            if let Some(action) = self.props_panel.handle_key(code) {
+                self.dispatch_props_action(action);
+                self.dirty = true;
+            }
+            return None;
+        }
+
         // Toolbox tool selection + brush adjustments (inline from old ToolboxComponent)
         // NOTE: 'T' is excluded from the tool-selector catch-all so it falls
         // through to dispatch_global for ToggleTimeline / OpenTweenPanel.
@@ -5067,6 +5244,10 @@ mod editor_state_tests {
             layer_panel: layers::LayerPanel::new(),
             fill_threshold: 10,
             eyedropper_sample: None,
+            move_state: tools::move_tool::MoveState::default(),
+            rotate_state: tools::rotate_tool::RotateState::default(),
+            selection_state: tools::selection::SelectionState::default(),
+            line_state: tools::line::LineState::default(),
         }
     }
 

@@ -2,6 +2,73 @@ use crate::tui::brush::BrushShape;
 use crate::tui::canvas::{CanvasBuffer, CanvasCell};
 use crate::tui::tools::brush::paint_line;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Arrowhead {
+    None,
+    Start,
+    End,
+    Both,
+}
+
+impl Arrowhead {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Arrowhead::None => "None",
+            Arrowhead::Start => "Start",
+            Arrowhead::End => "End",
+            Arrowhead::Both => "Both",
+        }
+    }
+
+    pub fn cycle(&mut self) {
+        *self = match self {
+            Arrowhead::None => Arrowhead::Start,
+            Arrowhead::Start => Arrowhead::End,
+            Arrowhead::End => Arrowhead::Both,
+            Arrowhead::Both => Arrowhead::None,
+        };
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurveMode {
+    Straight,
+    Bezier,
+}
+
+impl CurveMode {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            CurveMode::Straight => "Straight",
+            CurveMode::Bezier => "Bezier",
+        }
+    }
+
+    pub fn toggle(&mut self) {
+        *self = match self {
+            CurveMode::Straight => CurveMode::Bezier,
+            CurveMode::Bezier => CurveMode::Straight,
+        };
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LineState {
+    pub width: u8,
+    pub arrowhead: Arrowhead,
+    pub curve: CurveMode,
+}
+
+impl Default for LineState {
+    fn default() -> Self {
+        Self {
+            width: 1,
+            arrowhead: Arrowhead::None,
+            curve: CurveMode::Straight,
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn draw_line_segment(
     buffer: &mut CanvasBuffer,

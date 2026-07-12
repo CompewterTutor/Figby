@@ -2673,3 +2673,50 @@ Key changes:
 - `keymap.rs`: new GlobalAction variants `CycleTabPrev`, `CycleTabNext`,
   `OpenTweenPanel` with dispatch entries and KEYMAP display entries for Alt
   bindings + lighting-mode bindings
+
+### 7.2.1 — Make Props tab editable: clickable +/- rects + typed-entry mode
+
+- **New module**: `tui/props_panel.rs` hosts `PropsPanel` (mode state, rects, char_buffer),
+  `PropAction` enum (17 variant actions), `PropsWidgetRect` (Rect + action pair),
+  and `PropsPanelMode` (Idle / EditingChar). Hit-testing and typed-entry key handling
+  live here, keeping `side_panel.rs` focused on rendering.
+- **Widget rect pattern**: `SidePanel::add_brush_props` / `add_text_props` / `add_fill_props`
+  push `PropsWidgetRect` entries into `rects: &mut Vec<PropsWidgetRect>` during render,
+  computing x/y from the layout position and `line_y` accumulator. Numeric fields (size,
+  density, scale, threshold) get `[-]` / `[+]` button rects; enum fields (shape, mode,
+  justification, font) get clickable-value rects; Char gets a click-to-edit rect.
+- **Mouse dispatch**: `TuiApp.props_panel.rects` is cleared before each side-panel render,
+  populated during render, then hit-tested in `handle_mouse_event` when `TabId::Props`
+  or `TabId::Text` is active. Actions dispatch through `dispatch_props_action()` which
+  maps each `PropAction` variant to the corresponding `BrushState`/`TextToolState` mutation.
+- **Typed-entry mode**: Clicking Char field sets `mode = EditingChar`. Key events are
+  intercepted before toolbox/global handlers: first key commits the char, Esc cancels.
+  `unwrap_or('\u{2588}')` fallback for empty buffer provides safe default.
+- **Not wired for 7.2.1**: Emitter and Lighting props panels accept rects/line_y params
+  but don't push clickable rects yet (pass `_rects` / `_area`). `FillThresholdUp/Down`
+  actions exist but brush pipelines do not currently read fill_threshold
+  (could be wired in a later task). `BeginEditField` variant reserved for future generic
+  typed-entry fields.
+- **Files touched**: `figby-rs/src/tui/props_panel.rs` (new), `figby-rs/src/tui/mod.rs`
+  (module decl, field, action dispatch, mouse/key handler integration),
+  `figby-rs/src/tui/side_panel.rs` (refactored add_*_props signatures, per-tool rect
+  generation, `line_y` tracking).
+
+### 7.2.2 — Dedicated props builders for the seven hollow tools
+
+- **New state types**: `MoveState`, `RotateState`, `LineState`, `SelectionState` added to
+  their respective tool modules. Each holds the properties displayed in the panel (stride,
+  snap, wrap; step_angle, direction, pivot; width, arrowhead, curve; feather, additive,
+  subtractive, move_with_arrows).
+- **New props builders**: `add_move_props`, `add_rotate_props`, `add_select_props`,
+  `add_line_props` in `side_panel.rs` replace the old `add_tool_keybinds` fallback.
+  Move/Rotate/Marquee/Lasso/CircleSelect/PolygonSelect/Line all render interactive
+  props instead of the static tool-shortcut catalogue.
+- **Selector dispatch**: Match arm `_ => add_tool_keybinds(...)` replaced with explicit
+  arms for each of the 15 `Tool` variants — compiler-enforced exhaustive match.
+- **Fill threshold**: `add_fill_props` already had +/- rects; `FillThresholdUp/Down`
+  handlers dispatch correctly. Fill tool is now fully editable from the Props tab.
+- **Files touched**: `figby-rs/src/tui/side_panel.rs`, `figby-rs/src/tui/mod.rs`,
+  `figby-rs/src/tui/props_panel.rs`, `figby-rs/src/tui/tools/move_tool.rs`,
+  `figby-rs/src/tui/tools/rotate_tool.rs`, `figby-rs/src/tui/tools/line.rs`,
+  `figby-rs/src/tui/tools/selection.rs`.

@@ -143,7 +143,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     `[C]` → cancel and stay in editor. Keyboard path unchanged.
   - **Difficulty:** Medium
 
-- [ ] `7.1.2` Rebind sidebar/layer-panel chrome to Alt+arrows; free bare arrows for timeline + canvas (manual-note #4)
+- [x] `7.1.2` Rebind sidebar/layer-panel chrome to Alt+arrows; free bare arrows for timeline + canvas (manual-note #4)
   - **Goal:** Too many overlapping shortcuts. Bare Left/Right is consumed by
     the side-panel tab cycle at `mod.rs:3357/3362` whenever the sidebar is
     open, so timeline frame advance (`mod.rs:3374/3385`) silently does

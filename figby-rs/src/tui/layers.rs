@@ -845,21 +845,21 @@ impl LayerPanel {
                     .unwrap_or_default();
                 true
             }
-            KeyCode::Up if modifiers == KeyModifiers::SHIFT => {
+            KeyCode::Up if modifiers == KeyModifiers::ALT | KeyModifiers::SHIFT => {
                 stack.move_up(stack.active);
                 true
             }
-            KeyCode::Down if modifiers == KeyModifiers::SHIFT => {
+            KeyCode::Down if modifiers == KeyModifiers::ALT | KeyModifiers::SHIFT => {
                 stack.move_down(stack.active);
                 true
             }
-            KeyCode::Up => {
+            KeyCode::Up if modifiers == KeyModifiers::ALT => {
                 if stack.active > 0 {
                     stack.active -= 1;
                 }
                 true
             }
-            KeyCode::Down => {
+            KeyCode::Down if modifiers == KeyModifiers::ALT => {
                 if stack.active + 1 < stack.layers.len() {
                     stack.active += 1;
                 }
@@ -877,7 +877,7 @@ impl LayerPanel {
                 stack.toggle_accepts_lighting(stack.active);
                 true
             }
-            KeyCode::Char('S') => {
+            KeyCode::Char('S') if modifiers == KeyModifiers::ALT => {
                 stack.toggle_casts_shadow(stack.active);
                 true
             }
@@ -921,7 +921,7 @@ impl LayerPanel {
                 self.toggle_link_pending(stack);
                 true
             }
-            KeyCode::Right => {
+            KeyCode::Right if modifiers == KeyModifiers::ALT => {
                 if let Some(g) = stack.group_of_layer(stack.active) {
                     if let Some(grp) = stack.groups.get_mut(g) {
                         grp.collapsed = false;
@@ -930,7 +930,7 @@ impl LayerPanel {
                 }
                 false
             }
-            KeyCode::Left => {
+            KeyCode::Left if modifiers == KeyModifiers::ALT => {
                 if let Some(g) = stack.group_of_layer(stack.active) {
                     if let Some(grp) = stack.groups.get_mut(g) {
                         grp.collapsed = true;
@@ -956,7 +956,7 @@ impl LayerPanel {
                 }
                 true
             }
-            KeyCode::Tab => {
+            KeyCode::Tab if modifiers == KeyModifiers::ALT => {
                 if stack.groups.is_empty() {
                     return false;
                 }

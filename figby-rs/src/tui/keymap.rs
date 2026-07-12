@@ -16,6 +16,9 @@ pub enum GlobalAction {
     CycleDrawer,
     ToggleKeybindings,
     ToggleTimeline,
+    OpenTweenPanel,
+    CycleTabPrev,
+    CycleTabNext,
     NextMode,
     PrevMode,
     Quit,
@@ -108,6 +111,22 @@ pub static GLOBAL_DISPATCH: &[KeyDispatch] = &[
         modifiers: KeyModifiers::NONE,
         key_code: KeyCode::Char('T'),
         action: GlobalAction::ToggleTimeline,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::SHIFT,
+        key_code: KeyCode::Char('T'),
+        action: GlobalAction::OpenTweenPanel,
+    },
+    // Side-panel tab cycling (Alt+arrows)
+    KeyDispatch {
+        modifiers: KeyModifiers::ALT,
+        key_code: KeyCode::Left,
+        action: GlobalAction::CycleTabPrev,
+    },
+    KeyDispatch {
+        modifiers: KeyModifiers::ALT,
+        key_code: KeyCode::Right,
+        action: GlobalAction::CycleTabNext,
     },
     // Mode cycling
     KeyDispatch {
@@ -595,6 +614,70 @@ pub const KEYMAP: &[KeyBinding] = &[
         keys: "← / →",
         scope: Scope::Timeline,
         description: "Switch frame",
+    },
+    // Side-panel chrome
+    KeyBinding {
+        keys: "Alt+← / Alt+→",
+        scope: Scope::Global,
+        description: "Cycle side panel tabs",
+    },
+    // Layer panel (Alt-gated)
+    KeyBinding {
+        keys: "Alt+↑ / Alt+↓",
+        scope: Scope::LayerPanel,
+        description: "Select layer",
+    },
+    KeyBinding {
+        keys: "Alt+Shift+↑ / Alt+Shift+↓",
+        scope: Scope::LayerPanel,
+        description: "Reorder layer",
+    },
+    KeyBinding {
+        keys: "Alt+← / Alt+→",
+        scope: Scope::LayerPanel,
+        description: "Collapse / expand layer group",
+    },
+    KeyBinding {
+        keys: "Alt+S",
+        scope: Scope::LayerPanel,
+        description: "Toggle layer cast shadow",
+    },
+    KeyBinding {
+        keys: "Alt+Tab",
+        scope: Scope::LayerPanel,
+        description: "Cycle through group layers",
+    },
+    // Settings
+    KeyBinding {
+        keys: "S",
+        scope: Scope::Global,
+        description: "Open settings dialog",
+    },
+    // Lighting mode
+    KeyBinding {
+        keys: "G",
+        scope: Scope::Global,
+        description: "Enter lighting mode",
+    },
+    KeyBinding {
+        keys: "A / D / P",
+        scope: Scope::Global,
+        description: "Add ambient / directional / point light",
+    },
+    KeyBinding {
+        keys: "+ / -",
+        scope: Scope::Global,
+        description: "Adjust light intensity",
+    },
+    KeyBinding {
+        keys: "Delete",
+        scope: Scope::Global,
+        description: "Remove selected light",
+    },
+    KeyBinding {
+        keys: "arrows",
+        scope: Scope::Global,
+        description: "Move point light (Shift for vertical)",
     },
     KeyBinding {
         keys: "A",

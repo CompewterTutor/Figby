@@ -3365,8 +3365,8 @@ impl TuiApp {
             return None;
         }
 
-        // Side panel: left/right arrows switch tabs when open
-        if self.side_panel.open {
+        // Side panel: Alt+left/right arrows switch tabs when open
+        if self.side_panel.open && modifiers == KeyModifiers::ALT {
             match code {
                 KeyCode::Left => {
                     self.side_panel.cycle_tab(false);
@@ -3621,20 +3621,9 @@ impl TuiApp {
             return None;
         }
 
-        // T: toggle timeline panel
-        if code == KeyCode::Char('T') && modifiers == KeyModifiers::NONE {
-            self.animation.timeline_visible = !self.animation.timeline_visible;
-            self.dirty = true;
-            return None;
-        }
-        // Shift+T: open tween panel
-        if code == KeyCode::Char('T') && modifiers == KeyModifiers::SHIFT {
-            self.animation.timeline_state.open_tween();
-            self.dirty = true;
-            return None;
-        }
-
         // Toolbox tool selection + brush adjustments (inline from old ToolboxComponent)
+        // NOTE: 'T' is excluded from the tool-selector catch-all so it falls
+        // through to dispatch_global for ToggleTimeline / OpenTweenPanel.
         {
             use crate::tui::events::ToolboxEvent;
             let handled = match code {
@@ -3667,7 +3656,7 @@ impl TuiApp {
                     }
                     Some(AppEvent::Toolbox(ToolboxEvent::BrushChanged))
                 }
-                KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
+                KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) && c != 'T' => {
                     let lower = c.to_ascii_lowercase();
                     let mut found = None;
                     for tool in Tool::all() {
@@ -3886,6 +3875,21 @@ impl TuiApp {
             }
             GA::ToggleTimeline => {
                 self.animation.timeline_visible = !self.animation.timeline_visible;
+                self.dirty = true;
+                None
+            }
+            GA::OpenTweenPanel => {
+                self.animation.timeline_state.open_tween();
+                self.dirty = true;
+                None
+            }
+            GA::CycleTabPrev => {
+                self.side_panel.cycle_tab(false);
+                self.dirty = true;
+                None
+            }
+            GA::CycleTabNext => {
+                self.side_panel.cycle_tab(true);
                 self.dirty = true;
                 None
             }
@@ -5391,6 +5395,166 @@ mod playback_reconciliation_tests {
             app.editor.canvas.buffer.get(0, 0).unwrap().ch,
             expected_ch,
             "canvas should hold the last rendered frame content"
+        );
+    }
+}
+
+#[cfg(test)]
+mod sidebar_keybindings_tests {
+    use super::*;
+    use crate::tui::side_panel::TabId;
+    use crossterm::event::KeyEvent;
+
+    fn app_with_frames(frame_count: usize) -> TuiApp {
+        let mut app = TuiApp::new();
+        // TuiApp::new() defaults to FontEditor mode, which intercepts arrow
+        // keys in the font overview grid. Switch to AsciiPreview so that key
+        // events reach the sidebar/timeline/layer-panel handlers we're testing.
+        app.mode = AppMode::AsciiPreview;
+        let w = app.editor.canvas.buffer.width();
+        let h = app.editor.canvas.buffer.height();
+        for i in 0..frame_count {
+            let mut buf = canvas::CanvasBuffer::new(w, h);
+            let ch = char::from_u32(b'A' as u32 + (i % 26) as u32).unwrap();
+            buf.set(
+                0,
+                0,
+                canvas::CanvasCell {
+                    ch,
+                    fg: None,
+                    bg: None,
+                    height: None,
+                },
+            );
+            let frame = timeline::TimelineFrame {
+                thumbnail: capture_thumbnail(&buf, 8, 3),
+                has_keyframe: true,
+                label: format!("F{}", i),
+                layer_state: Some(buf),
+                layer_keyframes: Vec::new(),
+            };
+            app.animation.timeline_state.add_frame(frame);
+        }
+        app.side_panel.open = true;
+        app.side_panel.active_tab = TabId::Layers;
+        app.animation.timeline_visible = true;
+        app
+    }
+
+    #[test]
+    fn test_bare_arrow_right_advances_timeline_with_sidebar_open() {
+        let mut app = app_with_frames(3);
+        let current_frame = app.animation.timeline_state.current_frame;
+
+        eprintln!(
+            "DEBUG: frames={}, current_frame={}, timeline_visible={}, side_panel.open={}, active_tab={:?}",
+            app.animation.timeline_state.frames.len(),
+            current_frame,
+            app.animation.timeline_visible,
+            app.side_panel.open,
+            app.side_panel.active_tab,
+        );
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+
+        eprintln!(
+            "DEBUG after: current_frame={}",
+            app.animation.timeline_state.current_frame,
+        );
+
+        assert_eq!(
+            app.animation.timeline_state.current_frame,
+            current_frame + 1,
+            "bare Right should advance timeline frame even with sidebar open"
+        );
+        assert_eq!(
+            app.side_panel.active_tab,
+            TabId::Layers,
+            "bare Right must not change side-panel tab"
+        );
+    }
+
+    #[test]
+    fn test_alt_left_right_cycles_sidebar_tabs() {
+        let mut app = app_with_frames(3);
+        let orig_frame = app.animation.timeline_state.current_frame;
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Right, KeyModifiers::ALT));
+
+        assert_eq!(
+            app.side_panel.active_tab,
+            TabId::Props,
+            "Alt+Right should cycle side-panel tab forward"
+        );
+        assert_eq!(
+            app.animation.timeline_state.current_frame, orig_frame,
+            "Alt+Right must not advance timeline"
+        );
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Left, KeyModifiers::ALT));
+
+        assert_eq!(
+            app.side_panel.active_tab,
+            TabId::Layers,
+            "Alt+Left should cycle side-panel tab backward"
+        );
+    }
+
+    #[test]
+    fn test_bare_up_down_does_nothing_in_layer_panel() {
+        let mut app = app_with_frames(1);
+        let orig_active = app.editor.layer_stack.active;
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.editor.layer_stack.active, orig_active);
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.editor.layer_stack.active, orig_active);
+    }
+
+    #[test]
+    fn test_tab_cycles_mode_with_layer_groups() {
+        let mut app = app_with_frames(1);
+        let w = app.editor.canvas.buffer.width();
+        let h = app.editor.canvas.buffer.height();
+        app.editor.layer_stack.add(w, h);
+        app.editor.layer_stack.add(w, h);
+        let indices = [0, 1];
+        app.editor
+            .layer_stack
+            .create_group(&indices, "TestGroup".to_string());
+        let orig_mode = app.mode;
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+
+        assert!(
+            app.mode != orig_mode,
+            "bare Tab must cycle app mode even when layer groups exist"
+        );
+    }
+
+    #[test]
+    fn test_alt_s_toggles_cast_shadow() {
+        let mut app = app_with_frames(1);
+        let layer_idx = app.editor.layer_stack.active;
+        let has_shadow_before = app.editor.layer_stack.layers[layer_idx].casts_shadow;
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Char('S'), KeyModifiers::NONE));
+        assert!(
+            app.dialogs.settings.settings_open,
+            "bare S must open settings dialog"
+        );
+        assert_eq!(
+            app.editor.layer_stack.layers[layer_idx].casts_shadow, has_shadow_before,
+            "bare S must not toggle cast shadow"
+        );
+
+        app.dialogs.settings.settings_open = false;
+
+        let _ = app.handle_key_event(KeyEvent::new(KeyCode::Char('S'), KeyModifiers::ALT));
+        assert_eq!(
+            app.editor.layer_stack.layers[layer_idx].casts_shadow, !has_shadow_before,
+            "Alt+S must toggle layer cast shadow"
         );
     }
 }

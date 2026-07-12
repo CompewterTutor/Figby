@@ -2655,3 +2655,21 @@ tick. On stop/dismiss, copy the player frame and call
 `load_current_timeline_frame()` so the canvas holds the last-rendered frame.
 Removed `self.seek(0)` from player's Esc arm and the vestigial
 `TimelineState::playing` field.
+
+### 7.1.2 — Rebind chrome keys to Alt+arrows
+
+Side-panel tab-cycle (`mod.rs`), layer-panel arrow/Tab/S handlers (`layers.rs`)
+all moved from bare keys to Alt-modified keys. Timeline frame advance now works
+even with sidebar open (bare Left/Right reach the timeline block first because
+the sidebar block is gated on Alt). Palette nav block reordered above canvas
+cursor block so palette arrows aren't shadowed.
+
+Key changes:
+- `mod.rs:3368-3383`: sidebar tab-cycle gated on `modifiers == KeyModifiers::ALT`
+- `mod.rs:3664-3675`: inline T/Shift+T handlers removed (handled via dispatch_global)
+- `mod.rs:3670`: tool selector excludes `c != 'T'` so T falls through to dispatch
+- Palette nav block moved before canvas cursor block (arrow priority fix)
+- `layers.rs`: all arrow/Tab/S handlers gated on Alt or Alt+Shift
+- `keymap.rs`: new GlobalAction variants `CycleTabPrev`, `CycleTabNext`,
+  `OpenTweenPanel` with dispatch entries and KEYMAP display entries for Alt
+  bindings + lighting-mode bindings

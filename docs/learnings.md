@@ -1490,6 +1490,18 @@ Three bugs found in phase merge review:
   the bug is present. If frames vary, it's fixed. `tmux` can mask this because
   tmux's own compositing can hide ratatui cache staleness.
 
+## 7.1.2 — Rebind chrome keys to Alt+arrows
+
+- The inline `T` handler in `mod.rs` was NOT a dead duplicate of the
+  `GLOBAL_DISPATCH` entry despite both handling `(NONE, 'T')` → ToggleTimeline.
+  The inline handler ran BEFORE the tool-selector catch-all; removing it meant `T`
+  would be caught by the tool selector (which converts char to lowercase and
+  matches `Text` tool at `'t'`). Fix: exclude `c != 'T'` in the tool-selector guard.
+- `KeyModifiers::ALT | KeyModifiers::SHIFT` creates a combined bitmask; equality
+  check against this value matches only when both Alt and Shift are pressed exactly.
+- Palette widget (`palette.rs:308`) has no `has_focus()` method, so palette-nav
+  priority over canvas arrows required physical reordering of handler blocks.
+
 ## 7.0.3 — Reconcile playback cursor with timeline `current_frame`
 
 - When animation playback and timeline UI have independent frame cursors, the

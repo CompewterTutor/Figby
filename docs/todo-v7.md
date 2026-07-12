@@ -390,7 +390,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 > the canvas. The real gaps are collision response, per-particle keyframe
 > tracks, and spawn/death event hooks. This is additive, not a rewrite.
 
-- [ ] `7.5.1` Add edge + layer-cell collision response to particles
+- [x] `7.5.1` Add edge + layer-cell collision response to particles
   - **Goal:** `ParticleSystem::update` at `particles.rs:285-315` advances
     position by `vx*dt`/`vy*dt` but never tests bounds; `render_to_canvas`
     at `:341-357` and `bake_to_buffer` at `:359-377` only `continue` when

@@ -1,5 +1,11 @@
 # Figby — Learnings
 
+## 7.5.1 — Particle edge + layer collision
+
+- `ParticleSystem::update()` signature change (added `bounds` and `layer_mask`) required touching all 27 existing test calls. Using `sed` for mechanical replacement of `system.update(X)` → `system.update(X, None, None)` saved time over 27 individual edits.
+- For layer-cell collision normal computation: 4-neighbor occupancy gives a binary normal. If the particle's cell neighbor is occupied, the normal points away from that neighbor. An isolated occupied cell (no occupied neighbors) defaults to full velocity reflection on both axes.
+- Push-out distance of 0.5 cells after reflection prevents re-collision on the next frame tick.
+
 ## 7.4.2 — FIGfont density heightmap
 
 - The simplest heightmap source for FIGfont text is binary: non-space cells get `height=255` (max), spaces get `None` (0). The Sobel filter in `compute_normal_map_figfont` naturally produces smooth gradient normals at character-background boundaries from this binary input.

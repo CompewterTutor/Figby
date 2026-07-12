@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.0.23] - 2026-07-11
+
+### Added
+- Particle edge collision response: configurable `EdgeMode` (Bounce/Wrap/Despawn)
+  on `ParticleConfig` + 5 tests. Particles now bounce off, wrap around, or
+  despawn at canvas edges instead of flying into dead space. Closes 7.5.1.
+- Particle layer-cell collision: when `collide_with_layer` is enabled, particles
+  reflect off non-blank canvas cells using a 4-neighbor normal + velocity
+  reflection. 2 tests.
+
+### Changed
+- `ParticleSystem::update()` signature extended with `bounds` and `layer_mask`
+  parameters. Emitter config panel gains Edge Mode + Collide w/ Layer fields.
+
 ## [6.0.22] - 2026-07-11
 
 ### Added

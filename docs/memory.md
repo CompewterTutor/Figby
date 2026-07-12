@@ -2796,3 +2796,11 @@ Key changes:
 - **lighting.rs**: Added `compute_normal_map_non_empty_glyph` test asserting normals at edges of a raised block tilt away from the block.
 - **lighting-design.md**: Updated status from "Deferred to v4.x" to "Partially Implemented (FIGfont density path, v7.4)".
 - **Files touched**: `figby-rs/src/tui/tools/text.rs`, `figby-rs/src/tui/lighting.rs`, `docs/lighting-design.md`.
+
+### 7.5.1 — Edge + layer-cell collision for particles
+
+- **particles.rs**: Added `EdgeMode` enum (Bounce/Wrap/Despawn) with serde support. `ParticleConfig` gains `edge_mode` + `collide_with_layer`. `ParticleSystem::update()` now takes `bounds: Option<(usize, usize)>` and `layer_mask: Option<&CanvasBuffer>`. Collision step inserted between velocity apply and lifetime decrement: edge bounce/wrap/despawn per mode, layer-cell collision computes 4-neighbor normal and reflects velocity.
+- **event_loop.rs**: `update()` call passes canvas bounds and optional layer buffer.
+- **EmitterConfigPanel**: Fields 17 (Edge Mode) and 18 (Collide w/ Layer) added to config panel UI.
+- **7 new tests**: edge bounce left/right, wrap, despawn, no-bounds passthrough, layer reflect, layer disabled.
+- **Files touched**: `figby-rs/src/tui/particles.rs`, `figby-rs/src/tui/event_loop.rs`, `docs/todo-v7.md`.

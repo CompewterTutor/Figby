@@ -238,7 +238,16 @@ impl TuiApp {
                 .saturating_duration_since(self.frame.last_frame_time)
                 .as_secs_f64();
             if dt > 0.0 {
-                self.animation.particle_system.update(dt);
+                let bw = self.editor.canvas.buffer.width();
+                let bh = self.editor.canvas.buffer.height();
+                let layer = if self.animation.particle_system.config.collide_with_layer {
+                    Some(&self.editor.canvas.buffer)
+                } else {
+                    None
+                };
+                self.animation
+                    .particle_system
+                    .update(dt, Some((bw, bh)), layer);
                 self.frame.dirty = true;
             }
         }

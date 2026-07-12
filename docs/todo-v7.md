@@ -188,7 +188,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
 > This phase makes the Props tab actually editable and gives every tool a real
 > props panel.
 
-- [ ] `7.2.1` Make Props tab editable: clickable +/- rects + typed-entry mode (manual-note #5/#8)
+- [x] `7.2.1` Make Props tab editable: clickable +/- rects + typed-entry mode (manual-note #5/#8)
   - **Goal:** The brush props panel at `side_panel.rs:359` (`add_brush_props`)
     displays Size/Shape/Mode/Density/Char and four keybind hint lines, all as
     inert `Span::raw` text — no widget rects, no hit testing. The only edits

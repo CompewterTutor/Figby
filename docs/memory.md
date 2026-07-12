@@ -2773,3 +2773,42 @@ Key changes:
   `render_overlays`.
 - **Net reduction**: ~37 LOC removed from `render_canvas_area`.
 - **Files touched**: `figby-rs/src/tui/mod.rs` only.
+
+### 7.3.4 — Split `mod.rs` into topical submodules
+
+- **New files**: `tui/app_state.rs` (struct/enum defs + EditorState/AnimationState/LightingState impls + `TuiApp::new`/`Default`/`AsyncResult` + editor/default-side-panel tests), `tui/event_loop.rs` (`run`/`handle_event`/`process_event`/`check_async_completion`/`trigger_quit`), `tui/dispatch.rs` (key/mouse dispatch + every `perform_*`/`start_*` action handler + playback/sidebar tests).
+- **`mod.rs` keeps**: `pub mod` decls + `pub use app_state::*` re-exports + `impl TuiApp { render / render_canvas_area / mode_name_string }` + 4 shared free helpers (`centered_overlay`, `rotate_drag_steps`, `capture_thumbnail`, `format_clock`) + rotate-drag tests.
+- **Visibility**: cross-module inherent methods bumped to `pub(crate)` (e.g. `check_async_completion`, `trigger_quit`, `process_event`, `handle_mouse_event`, `handle_paste_event`, `perform_save/open/export`, `handle_menu_action`, `default_side_panel_open`, `EditorState::{compute_canvas_rect,screen_to_buffer,sync_canvas_to_font_char,sync_font_char_to_canvas,sync_image_to_canvas,handle_selection_down/drag/up}`, `LightingState::handle_key`, `AnimationState::{commit_current_timeline_frame,load_current_timeline_frame}`).
+- **Tests relocated** by what they access: editor/default-panel tests → `app_state.rs`; playback/sidebar tests → `dispatch.rs`; rotate-drag tests stay in `mod.rs`.
+- **LOC**: mod.rs 5693 → 774 (target ≤1500). Banner diff vs `figlet` byte-identical.
+- **Files touched**: `figby-rs/src/tui/{mod,app_state,event_loop,dispatch}.rs`, `AGENTS.md`, `docs/todo-v7.md`, `CHANGELOG.md`, `figby-rs/Cargo.toml`.
+
+### 7.4.1 — Lighting help overlay + keybinds
+
+- **keymap.rs**: Added `Scope::Lighting` variant. Migrated lighting KEYMAP entries from `Scope::Global` to `Scope::Lighting`. Added missing `Esc` (exit) and `Shift+↑/↓` (vertical move) entries.
+- **light_panel.rs**: Added `show_help: bool` field + one-shot keybinding help block in `render()`. Shows compact listing: Esc=exit, ↑/↓=select, ←/→=move, Sh+↑↓=v-move, +/-=intensity, A/D/P=add, Del=remove.
+- **dispatch.rs**: Sets `panel.show_help = true` on G-press entry into lighting mode.
+- **Files touched**: `figby-rs/src/tui/{keymap,light_panel,dispatch}.rs`.
+
+### 7.4.2 — Wire FIGfont density heightmap
+
+- **text.rs**: Changed `render_text_to_buffer()` to set `height: Some(255)` on non-space FIGfont cells instead of `height: None`. This gives the heightfield non-zero data where text is placed, making normal maps non-flat and lighting visually reactive.
+- **lighting.rs**: Added `compute_normal_map_non_empty_glyph` test asserting normals at edges of a raised block tilt away from the block.
+- **lighting-design.md**: Updated status from "Deferred to v4.x" to "Partially Implemented (FIGfont density path, v7.4)".
+- **Files touched**: `figby-rs/src/tui/tools/text.rs`, `figby-rs/src/tui/lighting.rs`, `docs/lighting-design.md`.
+
+### 7.5.1 — Edge + layer-cell collision for particles
+
+- **particles.rs**: Added `EdgeMode` enum (Bounce/Wrap/Despawn) with serde support. `ParticleConfig` gains `edge_mode` + `collide_with_layer`. `ParticleSystem::update()` now takes `bounds: Option<(usize, usize)>` and `layer_mask: Option<&CanvasBuffer>`. Collision step inserted between velocity apply and lifetime decrement: edge bounce/wrap/despawn per mode, layer-cell collision computes 4-neighbor normal and reflects velocity.
+- **event_loop.rs**: `update()` call passes canvas bounds and optional layer buffer.
+- **EmitterConfigPanel**: Fields 17 (Edge Mode) and 18 (Collide w/ Layer) added to config panel UI.
+- **7 new tests**: edge bounce left/right, wrap, despawn, no-bounds passthrough, layer reflect, layer disabled.
+- **Files touched**: `figby-rs/src/tui/particles.rs`, `figby-rs/src/tui/event_loop.rs`, `docs/todo-v7.md`.
+
+### 7.5.2 — Per-particle keyframe tracks + lifecycle hooks
+
+- **particles.rs**: Added `ParticleKeyframe` type (time/color/size/character/opacity, serde). `Particle` gains `total_lifetime` (spawn snapshot for progress denominator), `keyframes: Vec<ParticleKeyframe>`, `is_secondary: bool`. `Particle::render_values()` interpolates between adjacent keyframes: linear lerp on color/size/opacity, nearest-endpoint pick on character. `Particle::progress()` helper. `ParticleConfig` gains `keyframes`, `on_death_count`, `on_death_config: Option<Box<ParticleConfig>>` for recursive sub-config (Box keeps fixed size). `ParticleSystem::update()` collects on-death secondaries before `retain()`; secondaries flagged `is_secondary = true` so bursts are non-recursive.
+- **render_to_canvas / bake_to_buffer**: Now call `render_values()` per particle instead of reading static fields. Interpolated color/char applied.
+- **docs/particles-design.md**: New design sketch covering data model, interpolation rules, lifecycle hooks, deferred work.
+- **11 new tests**: keyframe color at 25%/50%/75%, character step low-t/high-t, empty-track fallback, progress clamping, render-to-canvas integration, on-death burst spawns N, non-recursive burst, disabled when count=0, secondary inherits keyframes.
+- **Files touched**: `figby-rs/src/tui/particles.rs`, `docs/particles-design.md`, `docs/todo-v7.md`, `CHANGELOG.md`, `figby-rs/Cargo.toml`.

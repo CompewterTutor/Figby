@@ -1,5 +1,17 @@
 # Figby — Learnings
 
+## 7.5.1 — Particle edge + layer collision
+
+- `ParticleSystem::update()` signature change (added `bounds` and `layer_mask`) required touching all 27 existing test calls. Using `sed` for mechanical replacement of `system.update(X)` → `system.update(X, None, None)` saved time over 27 individual edits.
+- For layer-cell collision normal computation: 4-neighbor occupancy gives a binary normal. If the particle's cell neighbor is occupied, the normal points away from that neighbor. An isolated occupied cell (no occupied neighbors) defaults to full velocity reflection on both axes.
+- Push-out distance of 0.5 cells after reflection prevents re-collision on the next frame tick.
+
+## 7.4.2 — FIGfont density heightmap
+
+- The simplest heightmap source for FIGfont text is binary: non-space cells get `height=255` (max), spaces get `None` (0). The Sobel filter in `compute_normal_map_figfont` naturally produces smooth gradient normals at character-background boundaries from this binary input.
+- When debugging Sobel normal direction: gradient `gx > 0` (height increases rightward) produces `nx < 0` (normal tilts left). The normal points away from the gradient, which is physically correct for bump mapping.
+- The render pipeline's `heightfield build` at `components/canvas.rs:48-58` reads `CanvasCell.height` and scales to `[0.0, 1.0]`. Setting `height: Some(255)` on text cells gives `1.0` → maximum elevation.
+
 ## 7.3.3 — Group remaining TuiApp fields into sub-structs
 
 - Python regex mass-replacements on 5 files worked well for mechanical field renames,
@@ -1529,3 +1541,49 @@ Three bugs found in phase merge review:
   frame after stop. Fix: sync `current_frame` from player to timeline state on
   each tick and on stop/dismiss. The `playing` field on `TimelineState` was
   already dead code (nothing read it).
+
+### Splitting one giant `impl TuiApp` across files (7.3.4)
+
+- Rust lets one type have multiple `impl` blocks in different modules; each
+  submodule does `use super::TuiApp; impl TuiApp { ... }`. BUT a private
+  method defined in module A is NOT callable from module B's `impl` block —
+  inherent-method visibility is module-scoped. Bump every cross-module
+  method to `pub(crate)`. Libuild will flag them; iterate.
+- Slice boundaries matter: a doc-comment (`///`) belongs to the *next* item.
+  When extracting method N's lines as `[sigN, sigN+1-1]`, the line
+  `sigN+1-1` may be `///` doc of N+1 (orphan → `E0584`). Bound slices by
+  the line *before* the next item's doc start, not the line before its sig.
+- `use super::*` glob imports don't trigger `unused_imports` warnings, so
+  submodules can glob parent re-exports safely. Explicit `use` of external
+  crate names DOES warn — only import names each file actually uses.
+- A private `use` alias in a parent is visible to descendant modules but
+  `glob`-importing it still leaves the parent's own `use` flagged as
+  unused; move such imports into the child test mod that needs them.
+
+### Particle keyframe interpolation + on-death bursts (7.5.2)
+
+- Keyframe `time` is a fraction `[0,1]` of total lifetime, not absolute
+  seconds. Store `total_lifetime` as a spawn-time snapshot on the particle
+  — `remaining_lifetime` decreases but `total_lifetime` is the stable
+  denominator for `progress = 1.0 - remaining/total`.
+- Character interpolation: glyphs don't lerp. Pick the nearer endpoint:
+  `a.character` if `t < 0.5`, else `b.character`. A "morph" mode that
+  crossfades both glyphs with split opacity is a future extension.
+- On-death burst recursion: guard with `is_secondary: bool` on the
+  particle. Secondaries never trigger another burst. Depth-1 cap is a
+  design choice; N-level recursion would need a `depth: u8` counter.
+- `ParticleConfig` with `on_death_config: Option<Box<ParticleConfig>>`
+  — the `Box` keeps the struct a fixed size despite the recursive
+  reference. Without it, `Option<ParticleConfig>` is infinitely sized.
+- `render_values()` clones + sorts keyframes on every call. Acceptable
+  for now (particle counts are low); cache sorted `Vec` at spawn if
+  profiling shows it.
+- Test construction: manually pushing `Particle { ... }` literals in
+  tests breaks when new fields are added. `..Default::default()` on
+  `Particle` (impl `Default`) is the escape hatch — but only works if
+  you control the test data. For the field-by-field literal tests, bulk
+  `replaceAll` on the trailing `blend_mode: BlendMode::Normal,\n        });`
+  pattern was the fastest fix.
+- Clippy `unnecessary_unwrap`: `is_some()` + `.expect()` on the same
+  option triggers it. Restructure as `if let Some(x) = opt.as_ref() { ... }`
+  inside the outer guard.

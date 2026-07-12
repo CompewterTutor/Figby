@@ -1,8 +1,7 @@
 # Dynamic Lighting System — Design Specification
 
-**Status:** Design | **Priority:** Low (design) / Very High (implementation)  
-**Version:** 0.1.0 | **Date:** 2026-06-17  
-**Deferred to:** v4.x (post-4.11)
+**Status:** Partially Implemented (FIGfont density path, v7.4) | **Priority:** Very High  
+**Version:** 0.2.0 | **Date:** 2026-07-11
 
 ---
 

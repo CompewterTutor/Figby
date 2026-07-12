@@ -217,7 +217,7 @@ Severity: 🔴 blocker, 🟠 arch, 🟡 smell.
     asserts the underlying `BrushState`/`TextToolState` field changes.
   - **Difficulty:** High
 
-- [ ] `7.2.2` Add dedicated props builders for the seven hollow tools (manual-note #8)
+- [x] `7.2.2` Add dedicated props builders for the seven hollow tools (manual-note #8)
   - **Goal:** Move, Rotate, Marquee (Select), Lasso, CircleSelect,
     PolygonSelect, and Line all currently fall through
     `side_panel.rs:346-348` to `add_tool_keybinds` and render only the static

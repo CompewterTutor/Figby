@@ -995,6 +995,32 @@ impl AnimationState {
 
         false
     }
+
+    /// Render the inline player widget if active.
+    /// Returns `true` if the player rendered (caller should skip normal canvas rendering).
+    pub fn render(&self, frame: &mut Frame<'_>, area: Rect, canvas_borders: Borders) -> bool {
+        if let Some(ref player) = self.inline_player {
+            let block = Block::default()
+                .title(" Playing  [Space] pause  [\u{2190}/\u{2192}] seek  [+/-] speed  [l] loop  [Esc/q] stop ")
+                .borders(canvas_borders);
+            let inner = block.inner(area);
+            frame.render_widget(block, area);
+
+            let (content_w, content_h) = player.content_dimensions();
+            let render_w = content_w.min(inner.width);
+            let render_h = content_h.min(inner.height);
+            let player_rect = Rect {
+                x: inner.x + (inner.width.saturating_sub(render_w) / 2),
+                y: inner.y + (inner.height.saturating_sub(render_h) / 2),
+                width: render_w,
+                height: render_h,
+            };
+            frame.render_widget(player, player_rect);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// Dialog/overlay state — file ops, export, undo panel, settings panel, rascii import.
@@ -1452,7 +1478,7 @@ impl TuiApp {
 
         // --- Zen mode: canvas only, hint overlay ---
         if self.zen_mode {
-            self.render_canvas_area(frame, fl.canvas);
+            self.render_canvas_area(frame, fl.canvas, &fl);
             // Hint bar at bottom-right corner
             let area = frame.area();
             if area.height > 0 && area.width > 30 {
@@ -1483,7 +1509,7 @@ impl TuiApp {
                     .panel
                     .render(frame, tb_list, &self.lighting.scene, &self.theme);
             }
-            self.render_canvas_area(frame, fl.canvas);
+            self.render_canvas_area(frame, fl.canvas, &fl);
             // Status bar
             let lighting_active = true;
             let light_type =
@@ -1578,7 +1604,7 @@ impl TuiApp {
         }
 
         // Canvas / font editor area
-        self.render_canvas_area(frame, fl.canvas);
+        self.render_canvas_area(frame, fl.canvas, &fl);
 
         // Right drawer: side panel
         if let Some(rp) = fl.right_panel {
@@ -1743,48 +1769,18 @@ impl TuiApp {
     }
 
     /// Render the canvas (or font editor overview) inside `canvas_area`.
-    fn render_canvas_area(&mut self, frame: &mut Frame<'_>, canvas_area: Rect) {
-        let tw = self
-            .editor
-            .toolbox
-            .required_width(self.editor.brush.required_outer_width());
-        let toolbox_h = Tool::all().len() as u16 + 2;
-        let fl = layout::FrameLayout::compute(
-            frame.area(),
-            self.zen_mode,
-            self.side_panel.open,
-            tw,
-            toolbox_h,
-            self.animation.timeline_visible,
-        );
-
-        if let Some(player) = self.animation.inline_player.as_ref() {
-            let canvas_borders = if self.zen_mode {
-                Borders::NONE
-            } else {
-                fl.canvas_borders()
-            };
-            let block = Block::default()
-                .title(" Playing  [Space] pause  [\u{2190}/\u{2192}] seek  [+/-] speed  [l] loop  [Esc/q] stop ")
-                .borders(canvas_borders);
-            let inner = block.inner(canvas_area);
-            frame.render_widget(block, canvas_area);
-
-            // Center the frame content the same way the normal (non-playing)
-            // canvas centers its buffer within its panel (`compute_canvas_rect`)
-            // — otherwise playback jarringly jumps the content to the panel's
-            // top-left corner and strands the progress bar (always the last
-            // row of whatever area it's given) far from the visible frame.
-            let (content_w, content_h) = player.content_dimensions();
-            let render_w = content_w.min(inner.width);
-            let render_h = content_h.min(inner.height);
-            let player_rect = Rect {
-                x: inner.x + (inner.width.saturating_sub(render_w) / 2),
-                y: inner.y + (inner.height.saturating_sub(render_h) / 2),
-                width: render_w,
-                height: render_h,
-            };
-            frame.render_widget(player, player_rect);
+    fn render_canvas_area(
+        &mut self,
+        frame: &mut Frame<'_>,
+        canvas_area: Rect,
+        fl: &layout::FrameLayout,
+    ) {
+        let borders = if self.zen_mode {
+            Borders::NONE
+        } else {
+            fl.canvas_borders()
+        };
+        if self.animation.render(frame, canvas_area, borders) {
             return;
         }
 

@@ -1,5 +1,16 @@
 # Figby — Learnings
 
+## 7.3.2 — Extract `render_canvas_area` player block to `AnimationState::render`
+
+- `AnimationPlayer` uses `Cell` for interior mutability, so `AnimationState::render`
+  can take `&self` and still call `frame.render_widget(&player, ...)` — no `&mut self`
+  needed for the player path.
+- `layout::FrameLayout` was being recomputed redundantly in `render_canvas_area` with
+  identical parameters to the one in `render()`. Passing `&FrameLayout` from the caller
+  eliminates this waste.
+- `Borders` can be computed once at the call site and passed down, avoiding the need
+  to pass `self.zen_mode` around.
+
 ## 7.1.1 — Fix quit-confirm dialog sizing + mouse input
 
 - `Rect::contains` in ratatui-core 0.1.1 takes `Position`, not `(u16, u16)`.

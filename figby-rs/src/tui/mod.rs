@@ -168,6 +168,10 @@ pub struct EditorState {
     pub layer_panel: layers::LayerPanel,
     pub fill_threshold: u8,
     pub eyedropper_sample: Option<canvas::CanvasCell>,
+    pub move_state: tools::move_tool::MoveState,
+    pub rotate_state: tools::rotate_tool::RotateState,
+    pub selection_state: tools::selection::SelectionState,
+    pub line_state: tools::line::LineState,
 }
 
 impl EditorState {
@@ -842,6 +846,10 @@ impl TuiApp {
                     layer_panel,
                     fill_threshold: 0,
                     eyedropper_sample: None,
+                    move_state: tools::move_tool::MoveState::default(),
+                    rotate_state: tools::rotate_tool::RotateState::default(),
+                    selection_state: tools::selection::SelectionState::default(),
+                    line_state: tools::line::LineState::default(),
                 };
                 editor.recomposite_canvas();
                 editor
@@ -1246,6 +1254,10 @@ impl TuiApp {
                 self.lighting.scene.as_ref(),
                 Some(&self.lighting.panel),
                 &mut self.props_panel.rects,
+                &self.editor.move_state,
+                &self.editor.rotate_state,
+                &self.editor.selection_state,
+                &self.editor.line_state,
             );
         }
 
@@ -1882,6 +1894,68 @@ impl TuiApp {
             }
             PropAction::FillThresholdDown => {
                 self.editor.fill_threshold = self.editor.fill_threshold.saturating_sub(5);
+            }
+            PropAction::MoveStrideUp => {
+                self.editor.move_state.stride = self.editor.move_state.stride.saturating_add(1);
+            }
+            PropAction::MoveStrideDown => {
+                self.editor.move_state.stride = self.editor.move_state.stride.saturating_sub(1);
+            }
+            PropAction::MoveSnapToggle => {
+                self.editor.move_state.snap = !self.editor.move_state.snap;
+            }
+            PropAction::MoveWrapToggle => {
+                self.editor.move_state.wrap = !self.editor.move_state.wrap;
+            }
+            PropAction::RotateStepUp => {
+                self.editor.rotate_state.step_angle =
+                    self.editor.rotate_state.step_angle.saturating_add(15);
+            }
+            PropAction::RotateStepDown => {
+                self.editor.rotate_state.step_angle =
+                    self.editor.rotate_state.step_angle.saturating_sub(15);
+            }
+            PropAction::RotateDirToggle => {
+                self.editor.rotate_state.direction.toggle();
+            }
+            PropAction::RotatePivotCycle => {
+                self.editor.rotate_state.pivot.cycle();
+            }
+            PropAction::SelectFeatherUp => {
+                self.editor.selection_state.feather =
+                    self.editor.selection_state.feather.saturating_add(1);
+            }
+            PropAction::SelectFeatherDown => {
+                self.editor.selection_state.feather =
+                    self.editor.selection_state.feather.saturating_sub(1);
+            }
+            PropAction::SelectAdditiveToggle => {
+                self.editor.selection_state.additive = !self.editor.selection_state.additive;
+                if self.editor.selection_state.additive {
+                    self.editor.selection_state.subtractive = false;
+                }
+            }
+            PropAction::SelectSubtractiveToggle => {
+                self.editor.selection_state.subtractive = !self.editor.selection_state.subtractive;
+                if self.editor.selection_state.subtractive {
+                    self.editor.selection_state.additive = false;
+                }
+            }
+            PropAction::SelectMoveToggle => {
+                self.editor.selection_state.move_with_arrows =
+                    !self.editor.selection_state.move_with_arrows;
+            }
+            PropAction::LineWidthUp => {
+                self.editor.line_state.width = self.editor.line_state.width.saturating_add(1);
+            }
+            PropAction::LineWidthDown => {
+                self.editor.line_state.width = self.editor.line_state.width.saturating_sub(1);
+            }
+            PropAction::LineArrowCycle => {
+                self.editor.line_state.arrowhead.cycle();
+            }
+            PropAction::LineCurveToggle => {
+                self.editor.line_state.curve.toggle();
             }
         }
         self.dirty = true;
@@ -5170,6 +5244,10 @@ mod editor_state_tests {
             layer_panel: layers::LayerPanel::new(),
             fill_threshold: 10,
             eyedropper_sample: None,
+            move_state: tools::move_tool::MoveState::default(),
+            rotate_state: tools::rotate_tool::RotateState::default(),
+            selection_state: tools::selection::SelectionState::default(),
+            line_state: tools::line::LineState::default(),
         }
     }
 

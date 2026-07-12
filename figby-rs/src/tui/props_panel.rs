@@ -20,6 +20,23 @@ pub enum PropAction {
     CancelEdit,
     FillThresholdUp,
     FillThresholdDown,
+    MoveStrideUp,
+    MoveStrideDown,
+    MoveSnapToggle,
+    MoveWrapToggle,
+    RotateStepUp,
+    RotateStepDown,
+    RotateDirToggle,
+    RotatePivotCycle,
+    SelectFeatherUp,
+    SelectFeatherDown,
+    SelectAdditiveToggle,
+    SelectSubtractiveToggle,
+    SelectMoveToggle,
+    LineWidthUp,
+    LineWidthDown,
+    LineArrowCycle,
+    LineCurveToggle,
 }
 
 #[derive(Debug, Clone)]

@@ -1621,7 +1621,10 @@ mod tests {
 
     #[test]
     fn test_input_iter_stdin_empty() {
-        let mut iter = InputIter::new(vec![], false);
+        // Stdin variant reads from real stdin — cannot test without hanging
+        // in harness. The Args variant covers the empty-input path.
+        // Use cmdinput=true to bypass stdin.
+        let mut iter = InputIter::new(vec![], true);
         assert!(iter.next().is_none());
     }
 

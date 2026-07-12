@@ -2740,3 +2740,18 @@ Key changes:
 - **`push_undo_snapshot`**: Changed from `fn` to `pub(crate) fn` for cross-sub-struct
   access.
 - **Files touched**: `figby-rs/src/tui/mod.rs` only.
+
+### 7.3.2 — Extract `render_canvas_area` + `render_overlays` residual blocks
+
+- **`AnimationState::render`**: New method on `AnimationState` (mod.rs:999-1023) renders
+  the inline player widget if active. Signature: `render(&self, frame, area, borders) -> bool`.
+- **`render_canvas_area`**: Changed signature to `(&mut self, frame, canvas_area, &FrameLayout)`.
+  Removed redundant `layout::FrameLayout::compute` that duplicated the one already computed
+  in `render()`. Replaced the inline player block with `self.animation.render(...)` call.
+- **Three call sites** (zen, lighting, normal modes) updated to pass `&fl`.
+- **`overlays.rs` audit**: Confirmed no residual overlay logic in `render()` — all floating
+  dialogs (export, file ops, keybindings, undo, keyframe editor, tween, new image, system
+  font, rascii import, emitter config, palette editor, quit confirm) already dispatched via
+  `render_overlays`.
+- **Net reduction**: ~37 LOC removed from `render_canvas_area`.
+- **Files touched**: `figby-rs/src/tui/mod.rs` only.
